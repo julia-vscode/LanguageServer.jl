@@ -1,5 +1,24 @@
 module LanguageServer
 
+using Compat
+using JSON
+using Lint
+using URIParser
+
+include("jsonrpc.jl")
+include("protocol.jl")
+include("languageserver.jl")
+include("parse.jl")
+include("provider_diagnostics.jl")
+include("provider_misc.jl")
+include("provider_hover.jl")
+include("provider_completions.jl")
+include("provider_definitions.jl")
+include("provider_signatures.jl")
+include("transport.jl")
+include("provider_symbols.jl")
+include("utilities.jl")
+
 type Document
     data::Vector{UInt8}
     blocks::Vector{Any}

@@ -7,7 +7,6 @@ using URIParser
 
 include("jsonrpc.jl")
 include("protocol.jl")
-include("languageserver.jl")
 include("parse.jl")
 include("provider_diagnostics.jl")
 include("provider_misc.jl")

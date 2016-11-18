@@ -16,13 +16,13 @@ end
 function send(message, server)
     message_json = JSON.json(message)
 
-    write_transport_layer(server.pipe_out,message_json, server)
+    write_transport_layer(server.pipe_out,message_json, server.debug_mode)
 end
 
 function Base.run(server::LanguageServerInstance)
     while true
-        message = read_transport_layer(server.pipe_in, server)
-        request = parse(Request, message)
+        message = read_transport_layer(server.pipe_in, server.debug_mode)
+        request = parse(JSONRPC.Request, message)
 
         process(request, server)
     end

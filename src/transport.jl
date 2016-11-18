@@ -1,4 +1,4 @@
-function read_transport_layer(stream, server::LanguageServerInstance)
+function read_transport_layer(stream, debug_mode=false)
     header = String[]
     line = chomp(readline(stream))
     while length(line)>0
@@ -14,16 +14,16 @@ function read_transport_layer(stream, server::LanguageServerInstance)
 
     message = read(stream, message_length)
     message_str = String(message)
-    server.debug_mode && info("RECEIVED: $message_str")
-    server.debug_mode && info()
+    debug_mode && info("RECEIVED: $message_str")
+    debug_mode && info()
     return message_str    
 end
 
-function write_transport_layer(stream, response, server::LanguageServerInstance)
+function write_transport_layer(stream, response, debug_mode=false)
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")
     write(stream, response_utf8)
-    server.debug_mode && info("SENT: $response")
-    server.debug_mode && info()
+    debug_mode && info("SENT: $response")
+    debug_mode && info()
 end

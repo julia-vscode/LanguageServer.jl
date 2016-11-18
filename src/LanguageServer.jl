@@ -5,6 +5,7 @@ using JSON
 using Lint
 using URIParser
 
+include("document.jl")
 include("languageserverinstance.jl")
 include("jsonrpc.jl")
 include("protocol.jl")
@@ -18,10 +19,5 @@ include("provider_signatures.jl")
 include("transport.jl")
 include("provider_symbols.jl")
 include("utilities.jl")
-
-type Document
-    data::Vector{UInt8}
-    blocks::Vector{Any}
-end
 
 end

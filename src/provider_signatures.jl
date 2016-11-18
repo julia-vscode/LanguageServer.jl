@@ -1,4 +1,4 @@
-function process(r::Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     tdpp = r.params
     pos = pos0 = tdpp.position.character
     io = IOBuffer(get_line(tdpp, server))

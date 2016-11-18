@@ -20,7 +20,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return Any(params)
 end
 
-function process(r::Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, []) 
     parseblocks(r.params.textDocument.uri, server)
     
@@ -33,7 +33,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, param
     return DidOpenTextDocumentParams(params)
 end
 
-function process(r::Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     delete!(server.documents, r.params.textDocument.uri)
 end
 
@@ -41,7 +41,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, para
     return DidCloseTextDocumentParams(params)
 end
 
-function process(r::Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri].data
     blocks = server.documents[r.params.textDocument.uri].blocks 
     for c in r.params.contentChanges 
@@ -74,7 +74,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, par
     return DidChangeTextDocumentParams(params)
 end
 
-function process(r::Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server)
     
 end
 
@@ -83,7 +83,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
     return CancelParams(params)
 end
 
-function process(r::Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     parseblocks(r.params.textDocument.uri, server, true)
 end
 

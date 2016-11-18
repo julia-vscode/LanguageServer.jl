@@ -1,4 +1,4 @@
-function process(r::Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     word = get_word(tdpp,server)
     sword = split(word,'.')

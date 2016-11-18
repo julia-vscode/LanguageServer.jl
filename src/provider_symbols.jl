@@ -4,7 +4,7 @@ type SymbolInformation
     location::Location 
 end 
  
-function process(r::Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 
     blocks = server.documents[uri].blocks 
     syms = SymbolInformation[] 

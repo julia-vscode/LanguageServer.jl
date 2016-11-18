@@ -1,4 +1,4 @@
-function process(r::Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
     word = get_word(r.params, server)
     x = get_sym(word)
 

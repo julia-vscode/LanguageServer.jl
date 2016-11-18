@@ -1,4 +1,4 @@
-function process(r::Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     line = get_line(tdpp, server)
     comp = Base.REPLCompletions.completions(line, tdpp.position.character)[1]

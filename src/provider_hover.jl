@@ -4,7 +4,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     sword = split(word,'.')
     b = get_block(tdpp, server)
     if word == ""  
-        send(Response(get(r.id), Hover([])), server)
+        send(JSONRPC.Response(get(r.id), Hover([])), server)
         return
     end
 
@@ -16,7 +16,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     isempty(documentation) && (documentation = get_global_hover(word, tdpp, server))
     isempty(documentation) && (documentation = get_docs(r.params, server))
          
-    response = Response(get(r.id), Hover(documentation))
+    response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)
 end
 

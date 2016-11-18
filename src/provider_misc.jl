@@ -12,7 +12,7 @@ const serverCapabilities = ServerCapabilities(
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
     server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
-    response = Response(get(r.id), InitializeResult(serverCapabilities))
+    response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 end
 

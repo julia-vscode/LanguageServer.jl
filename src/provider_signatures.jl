@@ -29,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     
     if word==""
-        response = Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
+        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
     else
         x = get_sym(word)
         M = methods(x).ms
@@ -46,7 +46,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
         
         signatureHelper = SignatureHelp(sigs, 0, arg)
-        response = Response(get(r.id), signatureHelper)
+        response = JSONRPC.Response(get(r.id), signatureHelper)
     end
     send(response, server)
 end

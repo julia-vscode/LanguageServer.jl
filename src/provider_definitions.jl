@@ -8,7 +8,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         return Location(filename, line-1)
     end
 
-    response = Response(get(r.id),locations)
+    response = JSONRPC.Response(get(r.id),locations)
     send(response, server)
 end
 

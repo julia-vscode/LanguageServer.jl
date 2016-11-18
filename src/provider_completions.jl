@@ -31,7 +31,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
 
     completion_list = CompletionList(25<n,CIs)
 
-    response =  Response(get(r.id), completion_list)
+    response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)
 end
 

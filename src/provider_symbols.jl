@@ -17,7 +17,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
             push!(syms,SymbolInformation(b.name,13,Location(uri,b.range))) 
         end 
     end 
-    response = Response(get(r.id), syms) 
+    response = JSONRPC.Response(get(r.id), syms) 
     send(response, server) 
 end 
  

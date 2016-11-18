@@ -5,6 +5,8 @@ using JSON
 using Lint
 using URIParser
 
+export LanguageServerInstance
+
 include("document.jl")
 include("languageserverinstance.jl")
 include("jsonrpc.jl")

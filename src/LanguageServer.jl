@@ -5,7 +5,7 @@ type Document
     blocks::Vector{Any}
 end
 
-type LanguageServer
+type LanguageServerInstance
     pipe_in
     pipe_out
 
@@ -13,7 +13,7 @@ type LanguageServer
     documents::Dict{String,Document}
     DocStore::Dict{String,Any}
 
-    function LanguageServer(pipe_in,pipe_out)
+    function LanguageServerInstance(pipe_in,pipe_out)
         new(pipe_in,pipe_out,"",Dict{String,Document}(),Dict{String,Any}())
     end
 end
@@ -24,7 +24,7 @@ function send(message, server)
     write_transport_layer(server.pipe_out,message_json)
 end
 
-function Base.run(server::LanguageServer)
+function Base.run(server::LanguageServerInstance)
     while true
         message = read_transport_layer(server.pipe_in)
         request = parse(Request, message)

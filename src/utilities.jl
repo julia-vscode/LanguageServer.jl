@@ -1,4 +1,4 @@
-function get_line(uri::AbstractString, line::Int, server::LanguageServer)
+function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance)
     doc = server.documents[uri].data
     n = length(doc)
     i = cnt = 0
@@ -13,11 +13,11 @@ function get_line(uri::AbstractString, line::Int, server::LanguageServer)
     return String(chomp(readuntil(io, '\n')))
 end
 
-function get_line(tdpp::TextDocumentPositionParams, server::LanguageServer)
+function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
     return get_line(tdpp.textDocument.uri, tdpp.position.line , server)
 end
 
-function get_word(tdpp::TextDocumentPositionParams, server::LanguageServer, offset=0)
+function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
     line = IOBuffer(get_line(tdpp, server))
     word = Char[]
     e = s = 0
@@ -80,7 +80,7 @@ function get_docs(x)
     return d
 end
 
-function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServer)
+function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
     word = get_word(tdpp,server)
     word in keys(server.DocStore) && (return server.DocStore[word])
     sym = get_sym(word)

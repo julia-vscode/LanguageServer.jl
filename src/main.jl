@@ -39,5 +39,5 @@ include("transport.jl")
 include("provider_symbols.jl")
 include("utilities.jl")
 
-server = LanguageServer(STDIN,conn)
+server = LanguageServerInstance(STDIN,conn)
 run(server)

@@ -1,6 +1,6 @@
 const LintSeverity = Dict('E'=>1,'W'=>2,'I'=>3)
 
-function process_diagnostics(uri::String, server::LanguageServer)
+function process_diagnostics(uri::String, server::LanguageServerInstance)
     document = String(server.documents[uri].data)
     L = lintfile(normpath(unescape(URI(uri).path))[2:end], String(document))
     diags = map(L) do l

@@ -1,3 +1,5 @@
+module LanguageServer
+
 type Document
     data::Vector{UInt8}
     blocks::Vector{Any}
@@ -29,4 +31,6 @@ function Base.run(server::LanguageServer)
 
         process(request, server)
     end
+end
+
 end

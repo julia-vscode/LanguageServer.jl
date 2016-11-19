@@ -13,6 +13,6 @@ function process_diagnostics(uri::String, server::LanguageServerInstance)
     end
     publishDiagnosticsParams = PublishDiagnosticsParams(uri, diags)
 
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int}}(), publishDiagnosticsParams)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
     send(response, server)
 end

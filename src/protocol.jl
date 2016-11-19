@@ -175,7 +175,7 @@ end
 DidSaveTextDocumentParams(d::Dict) = DidSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
 
 type CancelParams
-    id::Union{String,Int}
+    id::Union{String,Int64}
 end
 CancelParams(d::Dict) = CancelParams(d["id"])
 

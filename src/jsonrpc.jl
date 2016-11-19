@@ -6,7 +6,7 @@ import Base.parse
 export Request, Response, parse_params
 
 type Request{method,Tparams}
-    id::Nullable{Union{String,Int}}
+    id::Nullable{Union{String,Int64}}
     params::Tparams
 end
 
@@ -14,7 +14,7 @@ type Error
 end
 
 type Response{Tresult}
-    id::Union{String,Int}
+    id::Union{String,Int64}
     result::Nullable{Tresult}
     error::Nullable{Error}
 end
@@ -28,7 +28,7 @@ function parse(::Type{Request}, message::AbstractString)
     if message_dict["jsonrpc"]!="2.0"
         error("Invalid JSON-RPC version")
     end
-    id = haskey(message_dict, "id") ? Nullable(message_dict["id"]) : Nullable{Union{String,Int}}()
+    id = haskey(message_dict, "id") ? Nullable(message_dict["id"]) : Nullable{Union{String,Int64}}()
     method = Val{Symbol(message_dict["method"])}
     params = message_dict["params"]
 

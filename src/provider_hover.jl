@@ -1,3 +1,10 @@
+## hover information for symbols ##
+
+type Hover
+    contents::Vector{Union{AbstractString,MarkedString}}
+end
+
+
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     word = get_word(tdpp,server)

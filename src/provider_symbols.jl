@@ -1,3 +1,10 @@
+## provides a list of user defined symbols ##
+
+type DocumentSymbolParams 
+    textDocument::TextDocumentIdentifier 
+end 
+DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"]))
+
 type SymbolInformation 
     name::String 
     kind::Int 

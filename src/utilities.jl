@@ -98,6 +98,14 @@ function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return d
 end
 
+## Position/Range to Vector{UInt8} position conversions ##
+
+"""
+    get_rangelocs(d::Array{UInt8}, range::Range)
+
+Get the start and end `Char` position of a Range in the underlying
+data of a `String`.
+"""
 function get_rangelocs(d::Array{UInt8}, range::Range)
     (s,e) = (range.start.line, range.stop.line)
     n = length(d)
@@ -118,6 +126,25 @@ function get_rangelocs(d::Array{UInt8}, range::Range)
     endline = i
     return startline, endline
 end
+
+"""
+    get_pos(i0, linebreaks)
+
+Get Position of Char at linear position `i0` given line boundaries 
+at `linebreaks`.
+"""
+function get_pos(i0, linebreaks)
+    nlb = length(linebreaks)-1
+    for l in 1:nlb
+        if linebreaks[l] < i0 ≤ linebreaks[l+1]
+            return Position(l-1, i0-linebreaks[l]-1)
+        end
+    end
+end
+
+get_linebreaks(data::Vector{UInt8}) = [0; find(c->c==0x0a, data); length(data)+1]
+get_linebreaks(doc::String) = get_linebreaks(doc.data) 
+
 
 function should_file_be_linted(uri, server)
     uri_path = normpath(unescape(URI(uri).path))
@@ -142,3 +169,74 @@ end
 
 
 sprintrange(range::Range) = "($(range.start.line+1),$(range.start.character)):($(range.stop.line+1),$(range.stop.character+1))" 
+
+
+function get_block(tdpp::TextDocumentPositionParams, server)
+    for b in server.documents[tdpp.textDocument.uri].blocks
+        if tdpp.position in b.range
+            return b
+        end
+    end
+    return 
+end
+
+function get_block(uri::AbstractString, str::AbstractString, server)
+    for b in server.documents[uri].blocks
+        if str==b.name
+            return b
+        end
+    end
+    return false
+end
+
+function get_type(sword::Vector, tdpp, server)
+    t = get_type(sword[1],tdpp,server)
+    for i = 2:length(sword)
+        fn = get_fn(t, tdpp, server)
+        if sword[i] in keys(fn)
+            t = fn[sword[i]]
+        else
+            return ""
+        end
+    end
+    return t
+end
+
+function get_type(word::AbstractString, tdpp::TextDocumentPositionParams, server)
+    b = get_block(tdpp, server)
+    if word in keys(b.localvar)
+        t = string(b.localvar[word].t) 
+    elseif word in (x->x.name).(server.documents[tdpp.textDocument.uri].blocks)
+        t = get_block(tdpp.textDocument.uri, word, server).var.t
+    elseif isdefined(Symbol(word)) 
+        t = string(typeof(get_sym(word)))
+    else
+        t = "Any"
+    end
+    return t
+end
+
+
+"""
+    get_fn(t::AbstractString, tdpp::TextDocumentPositionParams, server)
+
+Returns the fieldnames of a type specified by `t`. Searches over types defined in the current document first then actually defined types.
+"""
+function get_fn(t::AbstractString, tdpp::TextDocumentPositionParams, server)
+    if t in (b->b.name).(server.documents[tdpp.textDocument.uri].blocks)
+        b = get_block(tdpp.textDocument.uri, t, server)
+        fn = Dict(k => string(b.localvar[k].t) for k in keys(b.localvar))
+    elseif isdefined(Symbol(t)) 
+        sym = get_sym(t)
+        if isa(sym, DataType)
+            fnames = string.(fieldnames(sym))
+            fn = Dict(fnames[i]=>string(sym.types[i]) for i = 1:length(fnames))
+        else
+            fn = Dict()
+        end
+    else
+        fn = Dict()
+    end
+    return fn
+end
+

@@ -1,6 +1,5 @@
 module LanguageServer
 
-using Compat
 using JSON
 using Lint
 using URIParser

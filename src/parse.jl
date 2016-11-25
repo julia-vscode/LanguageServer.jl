@@ -38,9 +38,10 @@ function Block(utd, ex, r::Range)
 end
 
 function parseblocks(uri::String, server::LanguageServerInstance, updateall=false)
-    doc = String(server.documents[uri].data)
+    real_doc = server.documents[uri]
+    doc = get_text(real_doc)
     blocks = server.documents[uri].blocks
-    linebreaks = get_linebreaks(doc) 
+    linebreaks = _get_line_offsets(real_doc) 
     n = length(doc.data)
     if doc==""
         server.documents[uri].blocks = []
@@ -202,9 +203,6 @@ function in(p::Position, r::Range)
 end
 
 intersect(a::Range, b::Range) = a.start in b || b.start in a
-
-get_linebreaks(doc) = [0; find(c->c==0x0a, doc.data); length(doc.data)+1]
-get_linebreaks(data::Vector{UInt8}) = [0; find(c->c==0x0a, data); length(data)+1]
 
 function get_pos(i0, lb)
     nlb = length(lb)-1

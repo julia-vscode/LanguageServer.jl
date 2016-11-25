@@ -1,16 +1,6 @@
 function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance)
-    doc = server.documents[uri].data
-    n = length(doc)
-    i = cnt = 0
-    while cnt<line && i<n
-        i += 1
-        if doc[i]==0x0a
-            cnt += 1
-        end
-    end
-    io = IOBuffer(doc)
-    seek(io,i)
-    return String(chomp(readuntil(io, '\n')))
+    doc = server.documents[uri]
+    return get_line(doc, line)
 end
 
 function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)

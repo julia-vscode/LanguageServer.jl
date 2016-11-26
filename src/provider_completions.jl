@@ -1,3 +1,15 @@
+## completions ##
+type CompletionItem
+    label::String
+    kind::Int
+    documentation::String
+end
+
+type CompletionList
+    isIncomplete::Bool
+    items::Vector{CompletionItem}
+end
+
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     line = get_line(tdpp, server)

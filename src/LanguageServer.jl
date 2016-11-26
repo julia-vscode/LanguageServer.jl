@@ -6,13 +6,11 @@ using URIParser
 
 export LanguageServerInstance
 
-include("document.jl")
-include("languageserverinstance.jl")
 include("jsonrpc.jl")
 include("protocol.jl")
-include("parse.jl")
+include("languageserverinstance.jl")
+include("documents.jl")
 include("provider_diagnostics.jl")
-include("provider_misc.jl")
 include("provider_hover.jl")
 include("provider_completions.jl")
 include("provider_definitions.jl")

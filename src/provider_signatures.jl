@@ -1,3 +1,22 @@
+## helper function for function signatures ##
+
+type ParameterInformation
+    label::String
+    #documentation::String
+end
+
+type SignatureInformation
+    label::String
+    documentation::String
+    parameters::Vector{ParameterInformation}
+end
+
+type SignatureHelp
+    signatures::Vector{SignatureInformation}
+    activeSignature::Int
+    activeParameter::Int
+end
+
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     tdpp = r.params
     pos = pos0 = tdpp.position.character

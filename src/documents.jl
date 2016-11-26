@@ -1,22 +1,104 @@
-# Meta info on a symbol available either in the Main namespace or 
-# locally (i.e. in a function, type definition)
-type VarInfo
-    t::Any # indicator of variable type
-    doc::String
+## Document open, change, save and close handlers ##
+
+## didOpen ##
+
+type DidOpenTextDocumentParams
+    textDocument::TextDocumentItem
+end
+DidOpenTextDocumentParams(d::Dict) = DidOpenTextDocumentParams(TextDocumentItem(d["textDocument"]))
+
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
+    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, []) 
+    parseblocks(r.params.textDocument.uri, server)
+    
+    if should_file_be_linted(r.params.textDocument.uri, server) 
+        process_diagnostics(r.params.textDocument.uri, server) 
+    end
 end
 
-# A block of sequential ASTs corresponding to ranges in the source
-# file including leading whitspace. May contain informtion on local 
-# variables where possible.
-type Block
-    uptodate::Bool
-    ex::Any
-    range::Range
-    name::String
-    var::VarInfo
-    localvar::Dict{String,VarInfo}
-    diags::Vector{Diagnostic}
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params)
+    return DidOpenTextDocumentParams(params)
 end
+
+## didChange ##
+
+type TextDocumentContentChangeEvent 
+    range::Range
+    rangeLength::Int
+    text::String
+end
+TextDocumentContentChangeEvent(d::Dict) = TextDocumentContentChangeEvent(Range(d["range"]), d["rangeLength"], d["text"])
+
+type DidChangeTextDocumentParams
+    textDocument::VersionedTextDocumentIdentifier
+    contentChanges::Vector{TextDocumentContentChangeEvent}
+end
+DidChangeTextDocumentParams(d::Dict) = DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(d["textDocument"]),TextDocumentContentChangeEvent.(d["contentChanges"]))
+
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
+    doc = server.documents[r.params.textDocument.uri].data
+    blocks = server.documents[r.params.textDocument.uri].blocks 
+    for c in r.params.contentChanges 
+        startline, endline = get_rangelocs(doc, c.range) 
+        io = IOBuffer(doc) 
+        seek(io, startline) 
+        s = e = 0 
+        while s<c.range.start.character 
+            s += 1 
+            read(io, Char) 
+        end 
+        startpos = position(io) 
+        seek(io, endline) 
+        while e<c.range.stop.character 
+            e += 1 
+            read(io, Char) 
+        end 
+        endpos = position(io) 
+         doc = length(doc)==0 ? c.text.data : vcat(doc[1:startpos], c.text.data, doc[endpos+1:end])
+        
+        for i = 1:length(blocks)
+            intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
+        end
+    end 
+    server.documents[r.params.textDocument.uri].data = doc
+    parseblocks(r.params.textDocument.uri, server) 
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
+    return DidChangeTextDocumentParams(params)
+end
+
+## didSave ##
+
+type DidSaveTextDocumentParams
+    textDocument::TextDocumentIdentifier
+end
+DidSaveTextDocumentParams(d::Dict) = DidSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
+
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
+    parseblocks(r.params.textDocument.uri, server, true)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params)
+    return DidSaveTextDocumentParams(params)
+end
+
+## didClose ##
+
+type DidCloseTextDocumentParams
+    textDocument::TextDocumentIdentifier
+end
+DidCloseTextDocumentParams(d::Dict) = DidCloseTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
+
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
+    delete!(server.documents, r.params.textDocument.uri)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params)
+    return DidCloseTextDocumentParams(params)
+end
+
+## parsing functions ##
 
 function Block(utd, ex, r::Range)
     t, name, doc, lvars = classify_expr(ex)
@@ -193,92 +275,7 @@ function parsedatatype(ex)
     return "DataType", name, doc, fields
 end
 
-import Base:<, in, intersect
-<(a::Position, b::Position) =  a.line<b.line || (a.line≤b.line && a.character<b.character)
-function in(p::Position, r::Range)
-    (r.start.line < p.line < r.stop.line) ||
-    (r.start.line == p.line && r.start.character ≤ p.character) ||
-    (r.stop.line == p.line && p.character ≤ r.stop.character)  
-end
-
-intersect(a::Range, b::Range) = a.start in b || b.start in a
-
-get_linebreaks(doc) = [0; find(c->c==0x0a, doc.data); length(doc.data)+1]
-get_linebreaks(data::Vector{UInt8}) = [0; find(c->c==0x0a, data); length(data)+1]
-
-function get_pos(i0, lb)
-    nlb = length(lb)-1
-    for l in 1:nlb
-        if lb[l] < i0 ≤ lb[l+1]
-            return Position(l-1, i0-lb[l]-1)
-        end
-    end
-end
 
 
 
 
-
-
-function get_block(tdpp::TextDocumentPositionParams, server)
-    for b in server.documents[tdpp.textDocument.uri].blocks
-        if tdpp.position in b.range
-            return b
-        end
-    end
-    return 
-end
-
-function get_block(uri::AbstractString, str::AbstractString, server)
-    for b in server.documents[uri].blocks
-        if str==b.name
-            return b
-        end
-    end
-    return false
-end
-
-function get_type(sword::Vector, tdpp, server)
-    t = get_type(sword[1],tdpp,server)
-    for i = 2:length(sword)
-        fn = get_fn(t, tdpp, server)
-        if sword[i] in keys(fn)
-            t = fn[sword[i]]
-        else
-            return ""
-        end
-    end
-    return t
-end
-
-function get_type(word::AbstractString, tdpp::TextDocumentPositionParams, server)
-    b = get_block(tdpp, server)
-    if word in keys(b.localvar)
-        t = string(b.localvar[word].t) 
-    elseif word in (x->x.name).(server.documents[tdpp.textDocument.uri].blocks)
-        t = get_block(tdpp.textDocument.uri, word, server).var.t
-    elseif isdefined(Symbol(word)) 
-        t = string(typeof(get_sym(word)))
-    else
-        t = "Any"
-    end
-    return t
-end
-
-function get_fn(t::AbstractString, tdpp::TextDocumentPositionParams, server)
-    if t in (b->b.name).(server.documents[tdpp.textDocument.uri].blocks)
-        b = get_block(tdpp.textDocument.uri, t, server)
-        fn = Dict(k => string(b.localvar[k].t) for k in keys(b.localvar))
-    elseif isdefined(Symbol(t)) 
-        sym = get_sym(t)
-        if isa(sym, DataType)
-            fnames = string.(fieldnames(sym))
-            fn = Dict(fnames[i]=>string(sym.types[i]) for i = 1:length(fnames))
-        else
-            fn = Dict()
-        end
-    else
-        fn = Dict()
-    end
-    return fn
-end

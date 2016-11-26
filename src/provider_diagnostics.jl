@@ -1,4 +1,11 @@
+## full document linter ##
+
 const LintSeverity = Dict('E'=>1,'W'=>2,'I'=>3)
+
+type PublishDiagnosticsParams
+    uri::String
+    diagnostics::Vector{Diagnostic}
+end
 
 function process_diagnostics(uri::String, server::LanguageServerInstance)
     document = String(server.documents[uri].data)

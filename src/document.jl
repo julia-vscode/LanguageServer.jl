@@ -42,6 +42,7 @@ function update(doc::Document, start_line::Int, start_character::Int, end_line::
     end_offset = get_offset(doc, end_line, end_character) 
     
     doc._content = string(doc._content[1:start_offset], new_text, doc._content[end_offset+1:end])
+    doc._line_offsets = Nullable{Vector{Int}}()
 end
 
 function _get_line_offsets(doc::Document)

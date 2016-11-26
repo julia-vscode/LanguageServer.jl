@@ -1,7 +1,7 @@
 using LanguageServer
 using Base.Test
 
-tests = ["communication"]
+tests = ["document", "communication"]
 
 for t in tests
     fp = joinpath("test_$t.jl")

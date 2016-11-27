@@ -1,4 +1,5 @@
 import LanguageServer.Document
+import LanguageServer.get_text
 import LanguageServer.get_line
 import LanguageServer.update
 import LanguageServer.get_offset
@@ -10,6 +11,7 @@ abcde
 ABCDEFG
 """
 d1 = Document(s1)
+@test get_text(d1) == s1
 @test get_line(d1,1) == "123456\n"
 @test get_line(d1,2) == "abcde\n"
 @test get_line(d1,3) == "ABCDEFG\n"
@@ -45,3 +47,19 @@ update(d2, 2, 5, 4, "xyz")
 @test get_line(d2,1) == "12abcdef6\n"
 @test get_line(d2,2) == "a12bxyzABCDEFG"
 @test get_line_offsets(d2) == [chr2ind(d2._content,1),chr2ind(d2._content,11)]
+
+s3 = ""
+d3 = Document(s3)
+@test get_line(d3,1) == ""
+
+s4 = "1234\r\nabcd"
+d4 = Document(s4)
+@test get_line(d4,1) == "1234\r\n"
+@test get_line(d4,2) == "abcd"
+@test get_line_offsets(d4) == [1,7]
+
+s5 = "1234\nabcd\n"
+d5 = Document(s5)
+@test get_line(d5,1) == "1234\n"
+@test get_line(d5,2) == "abcd\n"
+@test get_line_offsets(d5) == [1,6]

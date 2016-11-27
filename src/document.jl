@@ -53,27 +53,27 @@ function get_line_offsets(doc::Document)
     if isnull(doc._line_offsets)
         line_offsets = Array(Int,0)
         text = doc._content
-		is_line_start = true
+        is_line_start = true
         i = 1
-		while i<endof(text)
-		    if is_line_start
-			    push!(line_offsets, i)
-				is_line_start = false
+        while i<endof(text)
+            if is_line_start
+                push!(line_offsets, i)
+                is_line_start = false
             end
-			ch = text[i]
-			is_line_start = ch == '\r' || ch == '\n'
-			if ch=='\r' && i+1 < endof(text) && text[i+1]=='\n'
+            ch = text[i]
+            is_line_start = ch == '\r' || ch == '\n'
+            if ch=='\r' && i+1 < endof(text) && text[i+1]=='\n'
                 i += 1
-			end
+            end
             i = nextind(text, i)
-		end
+        end
 
 
         if is_line_start && length(text) > 0
-		    push!(line_offsets, endof(text))
-		end
+            push!(line_offsets, endof(text))
+        end
 
-		doc._line_offsets = Nullable(line_offsets)
+        doc._line_offsets = Nullable(line_offsets)
     end
 
     return get(doc._line_offsets)

@@ -63,3 +63,8 @@ d5 = Document(s5)
 @test get_line(d5,1) == "1234\n"
 @test get_line(d5,2) == "abcd\n"
 @test get_line_offsets(d5) == [1,6]
+
+s6 = "\n"
+d6 = Document(s6)
+@test get_line_offsets(d6) == [1]
+@test get_line(d6,1) == "\n"

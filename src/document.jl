@@ -68,7 +68,6 @@ function get_line_offsets(doc::Document)
             i = nextind(text, i)
         end
 
-
         if is_line_start && length(text) > 0
             push!(line_offsets, endof(text))
         end

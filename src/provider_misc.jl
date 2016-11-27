@@ -21,8 +21,8 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, []) 
-    parseblocks(r.params.textDocument.uri, server)
+    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, Expr(:block)) 
+    parseallblocks(r.params.textDocument.uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
@@ -43,7 +43,9 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri].data
-    blocks = server.documents[r.params.textDocument.uri].blocks 
+    blocks = server.documents[r.params.textDocument.uri].blocks
+    dirtystart = length(doc)
+    dirtystop = 0
     for c in r.params.contentChanges 
         startline, endline = get_rangelocs(doc, c.range) 
         io = IOBuffer(doc) 
@@ -60,14 +62,19 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
             read(io, Char) 
         end 
         endpos = position(io) 
-         doc = length(doc)==0 ? c.text.data : vcat(doc[1:startpos], c.text.data, doc[endpos+1:end])
+        doc = length(doc)==0 ? c.text.data : vcat(doc[1:startpos], c.text.data, doc[endpos+1:end])
         
-        for i = 1:length(blocks)
-            intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
-        end
+        dirtystart = min(dirtystart, startpos)
+        dirtystop = max(dirtystop, max(endpos, startpos+length(c.text.data)))
     end 
     server.documents[r.params.textDocument.uri].data = doc
-    parseblocks(r.params.textDocument.uri, server) 
+    server.documents[r.params.textDocument.uri].blocks.typ = 0:length(doc)
+
+    if isempty(blocks.args) || doc==""
+        parseallblocks(r.params.textDocument.uri, server)
+    else
+        parseblocks(r.params.textDocument.uri, server, dirtystart:dirtystop)
+    end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
@@ -84,7 +91,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
-    parseblocks(r.params.textDocument.uri, server, true)
+    parseallblocks(r.params.textDocument.uri, server)
 end
 
 

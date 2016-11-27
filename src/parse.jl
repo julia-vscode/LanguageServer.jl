@@ -1,284 +1,232 @@
-# Meta info on a symbol available either in the Main namespace or 
-# locally (i.e. in a function, type definition)
-type VarInfo
-    t::Any # indicator of variable type
-    doc::String
-end
-
-# A block of sequential ASTs corresponding to ranges in the source
-# file including leading whitspace. May contain informtion on local 
-# variables where possible.
-type Block
-    uptodate::Bool
-    ex::Any
-    range::Range
-    name::String
-    var::VarInfo
-    localvar::Dict{String,VarInfo}
-    diags::Vector{Diagnostic}
-end
-
-function Block(utd, ex, r::Range)
-    t, name, doc, lvars = classify_expr(ex)
-    ctx = LintContext()
-    ctx.lineabs = r.start.line+1
-    dl = r.stop.line-r.start.line-ctx.line
-    # Lint.lintexpr(ex, ctx)
-    # diags = map(ctx.messages) do l
-    #     return Diagnostic(Range(Position(r.start.line+l.line+dl-1, 0), Position(r.start.line+l.line+dl-1, 100)),
-    #                     LintSeverity[string(l.code)[1]],
-    #                     string(l.code),
-    #                     "Lint.jl",
-    #                     l.message) 
-    # end
-    diags = Diagnostic[]
-    v = VarInfo(t, doc)
-
-    return Block(utd, ex, r, name,v, lvars, diags)
-end
-
-function parseblocks(uri::String, server::LanguageServerInstance, updateall=false)
+function parseblocks(uri::String, server::LanguageServerInstance, dirty)
     doc = String(server.documents[uri].data)
     blocks = server.documents[uri].blocks
-    linebreaks = get_linebreaks(doc) 
-    n = length(doc.data)
-    if doc==""
-        server.documents[uri].blocks = []
-        return
-    end
-    ifirstbad = findfirst(b->!b.uptodate, blocks)
-
-    # Check which region of the source file to parse:
-
-    # Parse the whole file if it's not been parsed or you're asked to,
-    #  the last OR fixes something obscure (find it and fix it)
-    if isempty(blocks) || updateall || ifirstbad==0
-        i0 = i1 = 1 # Char position in document
-        p0 = p1 = Position(0, 0) # vscode Protocul position
-        out = Block[]
-        inextgood = 0
-    else # reparse the source from the first bad block to the next good block
-        inextgood = findnext(b->b.uptodate, blocks, ifirstbad) # index of next up to date Block
-        p0 = p1 = blocks[ifirstbad].range.start
-        i0 = i1 = linebreaks[p0.line+1]+p0.character+1
-        out = blocks[1:ifirstbad-1]
-    end
-
-    while 0 < i1 ≤ n
-        (ex,i1) = parse(doc, i0, raise=false)
-        p0 = get_pos(i0, linebreaks)
-        p1 = get_pos(i1-1, linebreaks)
-        if isa(ex, Expr) && ex.head in[:incomplete,:error]
-            push!(out,Block(false, ex, Range(p0, Position(p0.line+1, 0))))
-            while true
-                !(doc[i0] in ['\n','\t',' ']) && break
-                i0 += 1
+    n = last(blocks.typ)
+    
+    i = 0
+    start = stop = 0
+    while i<length(blocks.args)
+        i+=1
+        if isa(blocks.args[i], Expr)
+            if start==0 && first(dirty)>first(blocks.args[i].typ)
+                start = i
             end
-            i0 = i1 = search(doc,'\n',i0)
-        else
-            push!(out,Block(true,ex,Range(p0,p1)))
-            i0 = i1
-            if inextgood>0 && ex==blocks[inextgood].ex
-                dl = p0.line - blocks[inextgood].range.start.line
-                out = vcat(out,blocks[inextgood+1:end])
-                for i  = inextgood+1:length(out)
-                    out[i].range.start.line += dl
-                    out[i].range.stop.line += dl
-                end
-                break
+            if first(dirty) in blocks.args[i].typ
+                start = i
+            end
+            if last(dirty) in blocks.args[i].typ 
+                stop = i
+            end
+            if stop==0 && last(dirty)<last(blocks.args[i].typ)
+                stop = i
             end
         end
     end
-    server.documents[uri].blocks = out
-    server.documents[uri].blocks[end].range.stop = get_pos(linebreaks[end],linebreaks) #ensure last block fills document
+    
+    if start==0 && stop==0
+        return parseallblocks(uri, server)
+    elseif start>0 && stop==0
+        i0 = blocks.args[start].typ[1]
+        for i = start:length(blocks.args)
+            pop!(blocks.args)
+        end
+        stopexpr = Expr(:nostop)
+    elseif start==0 && stop>0
+        i0 = 0
+        stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
+        endblocks = blocks.args[stop+2:end] 
+        empty!(blocks.args)
+    elseif start>0 && stop>0
+        i0 = i1 = blocks.args[start].typ[1]
+        stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
+        endblocks = blocks.args[stop+2:end] 
+        for i = start:length(blocks.args)
+            pop!(blocks.args)
+        end
+    end
+
+    ts = Lexer.TokenStream(doc)
+    seek(ts.io, i0)
+
+    while 0 ≤ i0 < n
+        ex = try 
+            JuliaParser.Parser.parse(ts)
+        catch err
+            Expr(:error, err)
+        end
+        if isa(ex, Expr) && ex.head==:error 
+            seek(ts.io,i0)
+            Lexer.next_token(ts)
+            Lexer.skip_to_eol(ts)
+            Lexer.take_token(ts)
+            ex.typ = i0:position(ts)-1
+            push!(blocks.args, ex)
+            i1 = position(ts)
+        else 
+            i1=position(ts)
+            isa(ex, Expr) && (ex.typ = i0:i1-1)
+            ex!=nothing && push!(blocks.args, ex)
+        end
+        if ex==stopexpr
+            d = first(ex.typ)-first(stopexpr.typ)
+            for i  = 1:length(endblocks)
+                shiftloc!(endblocks[i], d)
+                push!(blocks.args,endblocks[i])
+            end
+            break
+        end
+        i0 = i1
+    end
+end 
+
+
+function parseallblocks(uri::String, server::LanguageServerInstance)
+    doc = String(server.documents[uri].data)
+    n = length(doc.data)
+    blocks = Expr(:block)
+    blocks.typ = 0:n
+    doc == "" && return
+
+    ts = Lexer.TokenStream(doc)
+    i0 = i1 = 0
+
+    while 0 ≤ i1 < n
+        ex = try 
+            JuliaParser.Parser.parse(ts)
+        catch err
+            Expr(:error, err)
+        end
+        if isa(ex, Expr) && ex.head==:error 
+            seek(ts.io,i0)
+            Lexer.next_token(ts)
+            Lexer.skip_to_eol(ts)
+            Lexer.take_token(ts)
+            ex.typ = i0:position(ts)
+            push!(blocks.args, ex)
+            i1 = position(ts)
+        else
+            i1=position(ts)
+            isa(ex, Expr) && (ex.typ = i0:i1-1)
+            ex!=nothing && push!(blocks.args, ex)
+        end
+        i0 = i1
+    end
+
+    server.documents[uri].blocks = blocks
     return 
 end 
 
 
 
-function classify_expr(ex)
+"""
+    children(ex)
+
+Retrieves 'child' nodes of an expression.
+"""
+function children(ex)
+    !isa(ex, Expr) && return []
+    ex.head==:function && return length(ex.args)==1  ? nothing : ex.args[2].args
+    ex.head==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call && return ex.args[2].args
+    ex.head in [:begin, :block] && return ex.args
+    ex.head in [:while, :for] && return ex.args[2].args
+    ex.head in [:module, :baremodule, :type, :immutable] && return ex.args[3].args
+    ex.head==:let && return ex.args[1].args
+    ex.head==:if && return ex.args[2:end]
+
+    return []
+end
+
+"""
+    isblock(ex)
+
+Checks whether an experssion has character position info.
+"""
+isblock(ex) = isa(ex, Expr) && isa(ex.typ, UnitRange)
+
+"""
+    shiftloc!(ex, i::Int)
+
+Shift the character location of `ex` and all children by `i`.
+"""
+function shiftloc!(ex, i::Int)
     if isa(ex, Expr)
-        if ex.head==:macrocall && ex.args[1]==GlobalRef(Core, Symbol("@doc"))
-            return classify_expr(ex.args[3])
-        elseif ex.head in [:const, :global]
-            return classify_expr(ex.args[1])
-        elseif ex.head==:function || (ex.head==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call)
-            return parsefunction(ex)
+        if isa(ex.typ, UnitRange)
+            ex.typ += i
+        end
+        for a in ex.args
+            shiftloc!(a, i)
+        end
+    end
+end
+
+get_linebreaks(doc) = [0;find(c->c==0x0a,doc);length(doc)+1]
+
+function get_local_hover(tdpp::TextDocumentPositionParams, server)
+    io = IOBuffer(server.documents[tdpp.textDocument.uri].data)
+    for i = 1:tdpp.position.line
+        readuntil(io,0x0a)
+    end
+    for i = 1:tdpp.position.character
+        read(io,1)
+    end
+    s = Symbol(get_word(tdpp, server))
+    ex, vars = getnamespace(server.documents[tdpp.textDocument.uri].blocks, position(io))
+    if s in keys(vars)
+        v = vars[s]
+        lb = get_linebreaks(server.documents[tdpp.textDocument.uri].data)
+        lno = findfirst(x->x>first(v[2]),lb)-1
+        title = string("local: ", v[1]," at ", lno)
+        line = get_line(tdpp.textDocument.uri, lno-1, server)
+        while isempty(line)
+            lno+=1
+            line = get_line(tdpp.textDocument.uri, lno-1, server)
+            
+        end
+        return MarkedString.([title, strip(line)])
+     end
+    return []
+end
+
+
+function getname(ex)
+    if isa(ex, Expr)
+        if ex.head==:(=) && isa(ex.args[1], Symbol)
+            return (ex.args[1], :Any, ex.typ)
+        elseif ex.head ==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call
+            return (ex.args[1].args[1],:Function, ex.typ)
+        elseif ex.head==:function
+            name = ex.args[1].args[1]
+            name = isa(name, Symbol) ? name : name.args[1]
+            return (name, :Function, ex.typ)
+        elseif ex.head in [:type,:immutable]
+            return (isa(ex.args[2], Symbol) ? ex.args[2] : ex.args[2].args[1], :DataType, ex.typ)
         elseif ex.head==:macro
-            return "macro", string(ex.args[1].args[1]), "", Dict(string(x)=>VarInfo(Any,"macro argument") for x in ex.args[1].args[2:end])
-        elseif ex.head in [:abstract, :bitstype, :type, :immutable]
-            return parsedatatype(ex)
-        elseif ex.head==:module
-            return "Module", string(ex.args[2]), "", Dict()
-        elseif ex.head == :(=) && isa(ex.args[1], Symbol)
-            return "Any", string(ex.args[1]), "", Dict()
+            return (ex.args[1].args[1], :macro, ex.typ)
         end
+        return :nothing, :Any, ex.typ
     end
-    return "Any", "none", "", Dict()
+    return :nothing, :Any, 0:0
 end
 
-function parsefunction(ex)
-    (isa(ex.args[1], Symbol) || isempty(ex.args[1].args)) && return "Function", "none", "", Dict()
-    fname = string(isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : ex.args[1].args[1].args[1])
-    lvars = Dict()
-    for a in ex.args[1].args[2:end]
-        if isa(a, Symbol)
-            lvars[string(a)] = VarInfo(Any, "Function argument")
-        elseif a.head==:(::)
-            if length(a.args)>1
-                lvars[string(a.args[1])] = VarInfo(a.args[2], "Function argument")
-            else
-                lvars[string(a.args[1])] = VarInfo(DataType, "Function argument")
-            end
-        elseif a.head==:kw
-            if isa(a.args[1], Symbol)
-                lvars[string(a.args[1])] = VarInfo(Any, "Function keyword argument")
-            else
-                lvars[string(a.args[1].args[1])] = VarInfo(Any,"Function keyword argument")
-            end 
-        elseif a.head==:parameters
-            for sub_a in a.args
-                if isa(sub_a, Symbol)
-                    lvars[string(sub_a)] = VarInfo(Any, "Function argument")
-                elseif sub_a.head==:...
-                    lvars[string(sub_a.args[1])] = VarInfo("keywords", "Function Argument")
-                elseif sub_a.head==:kw
-                    if isa(sub_a.args[1], Symbol)                    
-                        lvars[string(sub_a.args[1])] = VarInfo("", "Function Argument")
-                    elseif sub_a.args[1].head==:(::)
-                        lvars[string(sub_a.args[1].args[1])] = VarInfo(sub_a.args[1].args[2], "Function Argument")
-                    end
+
+function getnamespace(ex, i, list)
+    if isa(ex, Expr)
+        childs = children(ex)
+        for j = 1:length(childs)
+            a = childs[j]
+            if isblock(a) && i in a.typ
+                for v in childs
+                    n,t,l = getname(v)
+                    list[n] = (t,l)
                 end
+                ret =  getnamespace(a, i, list)
+                ret!=nothing && return ret
             end
         end
-    end
-    for a in ex.args[2].args
-        if isa(a,Expr) && a.head==:(=) && isa(a.args[1], Symbol)
-            name = string(a.args[1]) 
-            if name in keys(lvars)
-                lvars[name].doc = "$(lvars[name].doc) (redefined in body)"
-                lvars[name].t = "Any"
-            else
-                lvars[name] = VarInfo("Any", "")
-            end
+        if isa(ex.typ, UnitRange) && i in ex.typ
+            return ex
         end
     end
-
-    doc = string(ex.args[1])
-    return "Function", fname, doc, lvars
+    return
 end
-
-
-function parsedatatype(ex)
-    fields = Dict()
-    if ex.head==:abstract
-        name = string(isa(ex.args[1], Symbol) ? ex.args[1] : ex.args[1].args[1])
-        doc = string(ex)
-    elseif ex.head==:bitstype
-        name = string(isa(ex.args[2], Symbol) ? ex.args[2] : ex.args[2].args[1])
-        doc = string(ex)
-    else
-        name = string(isa(ex.args[2], Symbol) ? ex.args[2] : ex.args[2].args[1])
-        st = string(isa(ex.args[2], Symbol) ? "Any" : string(ex.args[2].args[2]))
-        for a in ex.args[3].args 
-            if isa(a, Symbol)
-                fields[string(a)] = VarInfo(Any, "")
-            elseif a.head==:(::)
-                fields[string(a.args[1])] = VarInfo(length(a.args)==1 ? a.args[1] : a.args[2], "")
-            end
-        end
-        doc = "$name <: $(st)"
-        doc *= length(fields)>0 ? "\n"*prod("  $fname::$(v.t)\n" for (fname,v) in fields) : "" 
-    end
-    return "DataType", name, doc, fields
-end
-
-import Base:<, in, intersect
-<(a::Position, b::Position) =  a.line<b.line || (a.line≤b.line && a.character<b.character)
-function in(p::Position, r::Range)
-    (r.start.line < p.line < r.stop.line) ||
-    (r.start.line == p.line && r.start.character ≤ p.character) ||
-    (r.stop.line == p.line && p.character ≤ r.stop.character)  
-end
-
-intersect(a::Range, b::Range) = a.start in b || b.start in a
-
-get_linebreaks(doc) = [0; find(c->c==0x0a, doc.data); length(doc.data)+1]
-get_linebreaks(data::Vector{UInt8}) = [0; find(c->c==0x0a, data); length(data)+1]
-
-function get_pos(i0, lb)
-    nlb = length(lb)-1
-    for l in 1:nlb
-        if lb[l] < i0 ≤ lb[l+1]
-            return Position(l-1, i0-lb[l]-1)
-        end
-    end
-end
-
-
-
-
-
-
-function get_block(tdpp::TextDocumentPositionParams, server)
-    for b in server.documents[tdpp.textDocument.uri].blocks
-        if tdpp.position in b.range
-            return b
-        end
-    end
-    return 
-end
-
-function get_block(uri::AbstractString, str::AbstractString, server)
-    for b in server.documents[uri].blocks
-        if str==b.name
-            return b
-        end
-    end
-    return false
-end
-
-function get_type(sword::Vector, tdpp, server)
-    t = get_type(sword[1],tdpp,server)
-    for i = 2:length(sword)
-        fn = get_fn(t, tdpp, server)
-        if sword[i] in keys(fn)
-            t = fn[sword[i]]
-        else
-            return ""
-        end
-    end
-    return t
-end
-
-function get_type(word::AbstractString, tdpp::TextDocumentPositionParams, server)
-    b = get_block(tdpp, server)
-    if word in keys(b.localvar)
-        t = string(b.localvar[word].t) 
-    elseif word in (x->x.name).(server.documents[tdpp.textDocument.uri].blocks)
-        t = get_block(tdpp.textDocument.uri, word, server).var.t
-    elseif isdefined(Symbol(word)) 
-        t = string(typeof(get_sym(word)))
-    else
-        t = "Any"
-    end
-    return t
-end
-
-function get_fn(t::AbstractString, tdpp::TextDocumentPositionParams, server)
-    if t in (b->b.name).(server.documents[tdpp.textDocument.uri].blocks)
-        b = get_block(tdpp.textDocument.uri, t, server)
-        fn = Dict(k => string(b.localvar[k].t) for k in keys(b.localvar))
-    elseif isdefined(Symbol(t)) 
-        sym = get_sym(t)
-        if isa(sym, DataType)
-            fnames = string.(fieldnames(sym))
-            fn = Dict(fnames[i]=>string(sym.types[i]) for i = 1:length(fnames))
-        else
-            fn = Dict()
-        end
-    else
-        fn = Dict()
-    end
-    return fn
-end
+getnamespace(ex::Expr, i) = (list=Dict();ret = getnamespace(ex, i, list);(ret, list))

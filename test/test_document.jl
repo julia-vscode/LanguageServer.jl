@@ -4,6 +4,7 @@ import LanguageServer.get_line
 import LanguageServer.update
 import LanguageServer.get_offset
 import LanguageServer.get_line_offsets
+import LanguageServer.get_position_at
 
 s1 = """
 123456
@@ -18,6 +19,9 @@ d1 = Document(s1)
 @test get_offset(d1,1,4) == chr2ind(d1._content,4) 
 @test get_offset(d1,2,2) == chr2ind(d1._content,9)
 @test get_line_offsets(d1) == [chr2ind(d1._content,1),chr2ind(d1._content,8),chr2ind(d1._content,14)]
+@test get_position_at(d1,1) == (1,1)
+@test get_position_at(d1,8) == (2,1)
+@test get_position_at(d1,15) == (3,2)
 
 s2 = """
 12μ456
@@ -30,6 +34,10 @@ d2 = Document(s2)
 @test get_offset(d2,1,4) == chr2ind(d2._content,4) 
 @test get_offset(d2,2,2) == chr2ind(d2._content,9)
 @test get_line_offsets(d2) == [chr2ind(d2._content,1),chr2ind(d2._content,8),chr2ind(d2._content,14)]
+@test get_position_at(d2,chr2ind(d2._content,1)) == (1,1)
+@test get_position_at(d2,chr2ind(d2._content,8)) == (2,1)
+@test get_position_at(d2,chr2ind(d2._content,15)) == (3,2)
+
 
 update(d2, 2, 2, 0, "12")
 @test get_line(d2,1) == "12μ456\n"

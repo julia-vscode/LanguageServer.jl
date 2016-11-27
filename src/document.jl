@@ -77,3 +77,13 @@ function get_line_offsets(doc::Document)
 
     return get(doc._line_offsets)
 end
+
+function get_position_at(doc::Document, offset::Int)
+    line_offsets = get_line_offsets(doc)
+    for (line, line_offset) in enumerate(line_offsets)
+        if offset<line_offset
+            return line-1,offset-line_offsets[line-1] + 1
+        end
+    end
+	return length(line_offsets), offset - line_offsets[end] + 1
+end

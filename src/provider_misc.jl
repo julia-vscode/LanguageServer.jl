@@ -43,14 +43,14 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
-    blocks = server.documents[r.params.textDocument.uri].blocks 
+    blocks = server.documents[r.params.textDocument.uri].blocks     
     for c in r.params.contentChanges
-        update(doc, c.range.start.line, c.range.start.character, c.range.stop.line, c.range.stop.character, c.text) 
+        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text) 
         
         for i = 1:length(blocks)
             intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
         end
-    end 
+    end
     parseblocks(r.params.textDocument.uri, server) 
 end
 

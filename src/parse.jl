@@ -160,33 +160,6 @@ end
 
 get_linebreaks(doc) = [0;find(c->c==0x0a,doc);length(doc)+1]
 
-function get_local_hover(tdpp::TextDocumentPositionParams, server)
-    io = IOBuffer(server.documents[tdpp.textDocument.uri].data)
-    for i = 1:tdpp.position.line
-        readuntil(io,0x0a)
-    end
-    for i = 1:tdpp.position.character
-        read(io,1)
-    end
-    s = Symbol(get_word(tdpp, server))
-    ex, vars = getnamespace(server.documents[tdpp.textDocument.uri].blocks, position(io))
-    if s in keys(vars)
-        scope,t,loc = vars[s]
-        lb = get_linebreaks(server.documents[tdpp.textDocument.uri].data)
-        lno = findfirst(x->x>first(loc),lb)-1
-        title = string("$scope: ", t," at ", lno)
-        line = get_line(tdpp.textDocument.uri, lno-1, server)
-        while isempty(line)
-            lno+=1
-            line = get_line(tdpp.textDocument.uri, lno-1, server)
-            
-        end
-        return MarkedString.([title, strip(line)])
-     end
-    return []
-end
-
-
 function getname(ex)
     if isa(ex, Expr)
         if ex.head==:(=) && isa(ex.args[1], Symbol)

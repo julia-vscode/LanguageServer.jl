@@ -41,7 +41,7 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
     real_doc = server.documents[uri]
     doc = get_text(real_doc)
     blocks = server.documents[uri].blocks
-    linebreaks = _get_line_offsets(real_doc) 
+    linebreaks = get_line_offsets(real_doc) 
     n = length(doc.data)
     if doc==""
         server.documents[uri].blocks = []

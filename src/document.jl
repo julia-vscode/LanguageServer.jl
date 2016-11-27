@@ -13,7 +13,7 @@ function get_text(doc::Document)
 end
 
 function get_line(doc::Document, line::Int)
-    line_offsets = _get_line_offsets(doc)
+    line_offsets = get_line_offsets(doc)
 
     if length(line_offsets)>0
         start_offset = line_offsets[line]
@@ -29,7 +29,7 @@ function get_line(doc::Document, line::Int)
 end
 
 function get_offset(doc::Document, line::Int, character::Int)
-    line_offsets = _get_line_offsets(doc)
+    line_offsets = get_line_offsets(doc)
     current_offset = line_offsets[line]
     for i=1:character-1
         current_offset = nextind(doc._content, current_offset)
@@ -37,15 +37,19 @@ function get_offset(doc::Document, line::Int, character::Int)
     return current_offset
 end
 
-function update(doc::Document, start_line::Int, start_character::Int, end_line::Int, end_character::Int, new_text::AbstractString)
+function update(doc::Document, start_line::Int, start_character::Int, length::Int, new_text::AbstractString)
+    text = doc._content
     start_offset = get_offset(doc, start_line, start_character)
-    end_offset = get_offset(doc, end_line, end_character) 
+    end_offset = start_offset
+    for i=1:length
+        end_offset = nextind(text,end_offset)
+    end
     
-    doc._content = string(doc._content[1:start_offset], new_text, doc._content[end_offset+1:end])
+    doc._content = string(doc._content[1:start_offset-1], new_text, doc._content[end_offset:end])
     doc._line_offsets = Nullable{Vector{Int}}()
 end
 
-function _get_line_offsets(doc::Document)
+function get_line_offsets(doc::Document)
     if isnull(doc._line_offsets)
         line_offsets = Array(Int,0)
         text = doc._content

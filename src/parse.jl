@@ -182,18 +182,62 @@ function getname(ex)
     return :nothing, :Any, 0:0
 end
 
+function parsesignature(sig::Expr)
+    out = []
+    for a in sig.args[2:end]
+        if isa(a, Symbol)
+            push!(out, (a, :Any))
+        elseif a.head==:(::)
+            if length(a.args)>1
+                push!(out, (a.args[1], a.args[2]))
+            else # handles ::Type{T}
+                push!(out, (a.args[1], :DataType))
+            end
+        elseif a.head==:kw
+            if isa(a.args[1], Symbol)
+                push!(out, (a.args[1], :Any))
+            elseif a.args[1].head==:(::)
+                push!(out, (a.args[1].args[1], a.args[1].args[2]))
+            end 
+        elseif a.head==:parameters
+            for sub_a in a.args
+                if isa(sub_a, Symbol)
+                    push!(out,(sub_a, :Any))
+                elseif sub_a.head==:...
+                    push!(out,(sub_a.args[1], :Any))
+                elseif sub_a.head==:kw
+                    if isa(sub_a.args[1], Symbol)
+                        push!(out,(sub_a.args[1], :Any))
+                    elseif sub_a.args[1].head==:(::)
+                        push!(out,(sub_a.args[1].args[1], sub_a.args[1].args[2]))
+                    end
+                end
+            end
+        end
+    end
+    return out
+end
 
-function getnamespace(ex, i, list)
+
+
+
+
+function get_namespace(ex, i, list)
     if isa(ex, Expr)
         childs = children(ex)
         for j = 1:length(childs)
             a = childs[j]
             if isblock(a) && i in a.typ
+                if ex.head==:function
+                    for (n,t) in parsesignature(ex.args[1])
+                        list[n] = (:argument, t, ex.typ)
+                    end
+                end
                 for v in (ex.head==:module ? childs : view(childs,1:j))
                     n,t,l = getname(v)
                     list[n] = (ex.head in [:global,:module] ? :global : :local, t, l)
                 end
-                ret =  getnamespace(a, i, list)
+                ret =  get_namespace(a, i, list)
                 ret!=nothing && return ret
             end
         end
@@ -203,4 +247,4 @@ function getnamespace(ex, i, list)
     end
     return
 end
-getnamespace(ex::Expr, i) = (list=Dict();ret = getnamespace(ex, i, list);(ret, list))
+get_namespace(ex::Expr, i) = (list=Dict();ret = get_namespace(ex, i, list);(ret, list))

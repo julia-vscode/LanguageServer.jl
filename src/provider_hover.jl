@@ -2,9 +2,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     tdpp = r.params
 
     documentation = get_local_hover(tdpp, server)
-    
+
     isempty(documentation) && (documentation = get_docs(r.params, server))
-         
+
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)
 end
@@ -22,10 +22,12 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
     for i = 1:tdpp.position.character
         read(io,1)
     end
-    s = Symbol(get_word(tdpp, server))
-    ex, vars = getnamespace(server.documents[tdpp.textDocument.uri].blocks, position(io))
-    if s in keys(vars)
-        scope,t,loc = vars[s]
+    word = get_word(tdpp, server)
+    sword = split(word,'.')
+    sym = Symbol(word)
+    ex, vars = get_namespace(server.documents[tdpp.textDocument.uri].blocks, position(io))
+    if sym in keys(vars)
+        scope,t,loc = vars[sym]
         lb = get_linebreaks(server.documents[tdpp.textDocument.uri].data)
         lno = findfirst(x->x>first(loc),lb)-1
         title = string("$scope: ", t," at ", lno)

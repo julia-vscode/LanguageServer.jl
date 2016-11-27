@@ -17,7 +17,7 @@ function get_line(doc::Document, line::Int)
 
     if length(line_offsets)>0
         start_offset = line_offsets[line]
-        if length(line_offsets)>line
+        if length(line_offsets)>line            
             end_offset = line_offsets[line+1]-1
         else
             end_offset = endof(doc._content)
@@ -69,7 +69,7 @@ function get_line_offsets(doc::Document)
 		end
 
 
-        if is_line_start && text.length > 0
+        if is_line_start && length(text) > 0
 		    push!(line_offsets, endof(text))
 		end
 

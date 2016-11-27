@@ -67,8 +67,8 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
 
     while 0 < i1 ≤ n
         (ex,i1) = parse(doc, i0, raise=false)
-        p0 = get_pos(i0, linebreaks)
-        p1 = get_pos(i1-1, linebreaks)
+        p0 = Position(get_position_at(real_doc, i0)..., one_based=true)
+        p1 = Position(get_position_at(real_doc, i1-1)..., one_based=true)
         if isa(ex, Expr) && ex.head in[:incomplete,:error]
             push!(out,Block(false, ex, Range(p0, Position(p0.line+1, 0))))
             while true
@@ -91,7 +91,7 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
         end
     end
     server.documents[uri].blocks = out
-    server.documents[uri].blocks[end].range.stop = get_pos(linebreaks[end],linebreaks) #ensure last block fills document
+    server.documents[uri].blocks[end].range.stop = Position(get_position_at(real_doc, endof(doc))..., one_based=true) #ensure last block fills document
     return 
 end 
 
@@ -203,20 +203,6 @@ function in(p::Position, r::Range)
 end
 
 intersect(a::Range, b::Range) = a.start in b || b.start in a
-
-function get_pos(i0, lb)
-    nlb = length(lb)-1
-    for l in 1:nlb
-        if lb[l] < i0 ≤ lb[l+1]
-            return Position(l-1, i0-lb[l]-1)
-        end
-    end
-end
-
-
-
-
-
 
 function get_block(tdpp::TextDocumentPositionParams, server)
     for b in server.documents[tdpp.textDocument.uri].blocks

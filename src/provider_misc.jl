@@ -21,7 +21,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, Expr(:block)) 
+    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, Expr(:global)) 
     parseallblocks(r.params.textDocument.uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 

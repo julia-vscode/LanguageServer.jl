@@ -83,8 +83,10 @@ end
 function parseallblocks(uri::String, server::LanguageServerInstance)
     doc = String(server.documents[uri].data)
     n = length(doc.data)
-    blocks = Expr(:block)
+    blocks = server.documents[uri].blocks
+    empty!(blocks.args)
     blocks.typ = 0:n
+
     doc == "" && return
 
     ts = Lexer.TokenStream(doc)
@@ -110,10 +112,7 @@ function parseallblocks(uri::String, server::LanguageServerInstance)
             ex!=nothing && push!(blocks.args, ex)
         end
         i0 = i1
-    end
-
-    server.documents[uri].blocks = blocks
-    return 
+    end 
 end 
 
 
@@ -127,7 +126,7 @@ function children(ex)
     !isa(ex, Expr) && return []
     ex.head==:function && return length(ex.args)==1  ? nothing : ex.args[2].args
     ex.head==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call && return ex.args[2].args
-    ex.head in [:begin, :block] && return ex.args
+    ex.head in [:begin, :block, :global] && return ex.args
     ex.head in [:while, :for] && return ex.args[2].args
     ex.head in [:module, :baremodule, :type, :immutable] && return ex.args[3].args
     ex.head==:let && return ex.args[1].args
@@ -172,10 +171,10 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
     s = Symbol(get_word(tdpp, server))
     ex, vars = getnamespace(server.documents[tdpp.textDocument.uri].blocks, position(io))
     if s in keys(vars)
-        v = vars[s]
+        scope,t,loc = vars[s]
         lb = get_linebreaks(server.documents[tdpp.textDocument.uri].data)
-        lno = findfirst(x->x>first(v[2]),lb)-1
-        title = string("local: ", v[1]," at ", lno)
+        lno = findfirst(x->x>first(loc),lb)-1
+        title = string("$scope: ", t," at ", lno)
         line = get_line(tdpp.textDocument.uri, lno-1, server)
         while isempty(line)
             lno+=1
@@ -202,6 +201,8 @@ function getname(ex)
             return (isa(ex.args[2], Symbol) ? ex.args[2] : ex.args[2].args[1], :DataType, ex.typ)
         elseif ex.head==:macro
             return (ex.args[1].args[1], :macro, ex.typ)
+        elseif ex.head==:module
+            return (ex.args[2], :Module, ex.typ)
         end
         return :nothing, :Any, ex.typ
     end
@@ -215,9 +216,9 @@ function getnamespace(ex, i, list)
         for j = 1:length(childs)
             a = childs[j]
             if isblock(a) && i in a.typ
-                for v in childs
+                for v in (ex.head==:module ? childs : view(childs,1:j))
                     n,t,l = getname(v)
-                    list[n] = (t,l)
+                    list[n] = (ex.head in [:global,:module] ? :global : :local, t, l)
                 end
                 ret =  getnamespace(a, i, list)
                 ret!=nothing && return ret

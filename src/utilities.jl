@@ -4,7 +4,7 @@ function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance
 end
 
 function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    return get_line(tdpp.textDocument.uri, tdpp.position.line , server)
+    return get_line(tdpp.textDocument.uri, tdpp.position.line+1, server)
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)

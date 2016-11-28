@@ -61,7 +61,7 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
     else # reparse the source from the first bad block to the next good block
         inextgood = findnext(b->b.uptodate, blocks, ifirstbad) # index of next up to date Block
         p0 = p1 = blocks[ifirstbad].range.start
-        i0 = i1 = linebreaks[p0.line+1]+p0.character+1
+        i0 = i1 = linebreaks[p0.line+1]+p0.character
         out = blocks[1:ifirstbad-1]
     end
 

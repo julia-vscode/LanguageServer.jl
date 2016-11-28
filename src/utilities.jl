@@ -88,27 +88,6 @@ function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return d
 end
 
-function get_rangelocs(d::Array{UInt8}, range::Range)
-    (s,e) = (range.start.line, range.stop.line)
-    n = length(d)
-    i = cnt = 0
-    while cnt<s && i<n
-        i+=1
-        if d[i]==0x0a
-            cnt += 1
-        end
-    end
-    startline = i
-    while cnt<e && i<n
-        i+=1
-        if d[i]==0x0a
-            cnt += 1
-        end
-    end
-    endline = i
-    return startline, endline
-end
-
 function should_file_be_linted(uri, server)
     uri_path = normpath(unescape(URI(uri).path))
 

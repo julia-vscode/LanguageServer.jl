@@ -66,6 +66,8 @@ update(d2,2,15,0,"POST")
 s3 = ""
 d3 = Document(s3)
 @test get_line(d3,1) == ""
+update(d3,1,1,0,"a")
+@test get_line(d3,1) == "a"
 
 s4 = "1234\r\nabcd"
 d4 = Document(s4)

@@ -39,7 +39,7 @@ end
 
 function update(doc::Document, start_line::Int, start_character::Int, length::Int, new_text::AbstractString)
     text = doc._content
-    start_offset = get_offset(doc, start_line, start_character)
+    start_offset = start_line==1 && start_character==1 ? 1 : get_offset(doc, start_line, start_character)
     end_offset = start_offset
     for i=1:length
         end_offset = nextind(text,end_offset)

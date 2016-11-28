@@ -56,6 +56,13 @@ update(d2, 2, 5, 4, "xyz")
 @test get_line(d2,2) == "a12bxyzABCDEFG"
 @test get_line_offsets(d2) == [chr2ind(d2._content,1),chr2ind(d2._content,11)]
 
+update(d2,1,1,0,"PRE")
+@test get_text(d2) == "PRE12abcdef6\na12bxyzABCDEFG"
+
+update(d2,2,15,0,"POST")
+@test get_text(d2) == "PRE12abcdef6\na12bxyzABCDEFGPOST"
+
+
 s3 = ""
 d3 = Document(s3)
 @test get_line(d3,1) == ""

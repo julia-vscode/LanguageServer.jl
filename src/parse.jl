@@ -38,11 +38,12 @@ function Block(utd, ex, r::Range)
 end
 
 function parseblocks(uri::String, server::LanguageServerInstance, updateall=false)
-    doc = String(server.documents[uri].data)
+    doc = server.documents[uri]
+    text = get_text(doc)
     blocks = server.documents[uri].blocks
-    linebreaks = get_linebreaks(doc) 
-    n = length(doc.data)
-    if doc==""
+    linebreaks = get_line_offsets(doc)
+    n = length(text.data)
+    if text==""
         server.documents[uri].blocks = []
         return
     end
@@ -60,21 +61,21 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
     else # reparse the source from the first bad block to the next good block
         inextgood = findnext(b->b.uptodate, blocks, ifirstbad) # index of next up to date Block
         p0 = p1 = blocks[ifirstbad].range.start
-        i0 = i1 = linebreaks[p0.line+1]+p0.character+1
+        i0 = i1 = linebreaks[p0.line+1]+p0.character
         out = blocks[1:ifirstbad-1]
     end
 
     while 0 < i1 ≤ n
-        (ex,i1) = parse(doc, i0, raise=false)
-        p0 = get_pos(i0, linebreaks)
-        p1 = get_pos(i1-1, linebreaks)
+        (ex,i1) = parse(text, i0, raise=false)
+        p0 = Position(get_position_at(doc, i0)..., one_based=true)
+        p1 = Position(get_position_at(doc, i1-1)..., one_based=true)
         if isa(ex, Expr) && ex.head in[:incomplete,:error]
             push!(out,Block(false, ex, Range(p0, Position(p0.line+1, 0))))
             while true
-                !(doc[i0] in ['\n','\t',' ']) && break
+                !(text[i0] in ['\n','\t',' ']) && break
                 i0 += 1
             end
-            i0 = i1 = search(doc,'\n',i0)
+            i0 = i1 = search(text,'\n',i0)
         else
             push!(out,Block(true,ex,Range(p0,p1)))
             i0 = i1
@@ -90,7 +91,7 @@ function parseblocks(uri::String, server::LanguageServerInstance, updateall=fals
         end
     end
     server.documents[uri].blocks = out
-    server.documents[uri].blocks[end].range.stop = get_pos(linebreaks[end],linebreaks) #ensure last block fills document
+    server.documents[uri].blocks[end].range.stop = Position(get_position_at(doc, endof(text))..., one_based=true) #ensure last block fills document
     return 
 end 
 
@@ -202,23 +203,6 @@ function in(p::Position, r::Range)
 end
 
 intersect(a::Range, b::Range) = a.start in b || b.start in a
-
-get_linebreaks(doc) = [0; find(c->c==0x0a, doc.data); length(doc.data)+1]
-get_linebreaks(data::Vector{UInt8}) = [0; find(c->c==0x0a, data); length(data)+1]
-
-function get_pos(i0, lb)
-    nlb = length(lb)-1
-    for l in 1:nlb
-        if lb[l] < i0 ≤ lb[l+1]
-            return Position(l-1, i0-lb[l]-1)
-        end
-    end
-end
-
-
-
-
-
 
 function get_block(tdpp::TextDocumentPositionParams, server)
     for b in server.documents[tdpp.textDocument.uri].blocks

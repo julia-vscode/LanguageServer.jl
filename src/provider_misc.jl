@@ -21,7 +21,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text) 
+    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text)
     parseblocks(r.params.textDocument.uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
@@ -43,9 +43,9 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
-    blocks = server.documents[r.params.textDocument.uri].blocks     
+    blocks = server.documents[r.params.textDocument.uri].blocks
     for c in r.params.contentChanges
-        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text) 
+        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
         
         for i = 1:length(blocks)
             intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)

@@ -16,7 +16,7 @@ d1 = Document(s1)
 @test get_line(d1,1) == "123456\n"
 @test get_line(d1,2) == "abcde\n"
 @test get_line(d1,3) == "ABCDEFG\n"
-@test get_offset(d1,1,4) == chr2ind(d1._content,4) 
+@test get_offset(d1,1,4) == chr2ind(d1._content,4)
 @test get_offset(d1,2,2) == chr2ind(d1._content,9)
 @test get_line_offsets(d1) == [chr2ind(d1._content,1),chr2ind(d1._content,8),chr2ind(d1._content,14)]
 @test get_position_at(d1,1) == (1,1)
@@ -31,7 +31,7 @@ d2 = Document(s2)
 @test get_line(d2,1) == "12μ456\n"
 @test get_line(d2,2) == "abηde\n"
 @test get_line(d2,3) == "ABCDEFG"
-@test get_offset(d2,1,4) == chr2ind(d2._content,4) 
+@test get_offset(d2,1,4) == chr2ind(d2._content,4)
 @test get_offset(d2,2,2) == chr2ind(d2._content,9)
 @test get_line_offsets(d2) == [chr2ind(d2._content,1),chr2ind(d2._content,8),chr2ind(d2._content,14)]
 @test get_position_at(d2,chr2ind(d2._content,1)) == (1,1)

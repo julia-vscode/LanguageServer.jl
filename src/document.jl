@@ -17,7 +17,7 @@ function get_line(doc::Document, line::Int)
 
     if length(line_offsets)>0
         start_offset = line_offsets[line]
-        if length(line_offsets)>line            
+        if length(line_offsets)>line
             end_offset = line_offsets[line+1]-1
         else
             end_offset = endof(doc._content)
@@ -44,7 +44,7 @@ function update(doc::Document, start_line::Int, start_character::Int, length::In
     for i=1:length
         end_offset = nextind(text,end_offset)
     end
-    
+
     doc._content = string(doc._content[1:start_offset-1], new_text, doc._content[end_offset:end])
     doc._line_offsets = Nullable{Vector{Int}}()
 end
@@ -85,5 +85,5 @@ function get_position_at(doc::Document, offset::Int)
             return line-1,offset-line_offsets[line-1] + 1
         end
     end
-	return length(line_offsets), offset - line_offsets[end] + 1
+    return length(line_offsets), offset - line_offsets[end] + 1
 end

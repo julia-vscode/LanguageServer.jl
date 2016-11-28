@@ -1,23 +1,22 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     line = get_line(tdpp, server)
-    io = IOBuffer(reverse(line[1:chr2ind(line,tdpp.position.character)]))
-    word = Char[]
-    while !eof(io)
-        c = read(io, Char)
+    
+    word = IOBuffer()
+    for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
         if c=='\\'
-            unshift!(word, c)
+            write(word, c)
             break
         end
         if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
             break
         end
-        unshift!(word, c)
+        write(word, c)
     end
     
-    str = String(word)
+    str = reverse(takebuf_string(word))
     prefix = str[1:findlast(word,'.')]
-    comp = Base.REPLCompletions.completions(str,length(str))[1]
+    comp = Base.REPLCompletions.completions(str,length(str.data))[1]
     n = length(comp)
     comp = comp[1:min(length(comp),25)]
     CIs = map(comp) do i

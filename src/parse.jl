@@ -1,3 +1,4 @@
+
 function parseblocks(uri::String, server::LanguageServerInstance, dirty)
     doc = String(server.documents[uri].data)
     blocks = server.documents[uri].blocks
@@ -24,18 +25,21 @@ function parseblocks(uri::String, server::LanguageServerInstance, dirty)
     end
     
     if start==0 && stop==0
-        return parseallblocks(uri, server)
+        empty!(blocks.args)
+        parseblocks(doc, blocks, 0)
+        
     elseif start>0 && stop==0
         i0 = blocks.args[start].typ[1]
         for i = start:length(blocks.args)
             pop!(blocks.args)
         end
-        stopexpr = Expr(:nostop)
+        parseblocks(doc, blocks, i0)
     elseif start==0 && stop>0
         i0 = 0
         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
         endblocks = blocks.args[stop+2:end] 
         empty!(blocks.args)
+        parseblocks(doc, blocks, i0, stopexpr, endblocks)
     elseif start>0 && stop>0
         i0 = i1 = blocks.args[start].typ[1]
         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
@@ -43,9 +47,13 @@ function parseblocks(uri::String, server::LanguageServerInstance, dirty)
         for i = start:length(blocks.args)
             pop!(blocks.args)
         end
+        parseblocks(doc, blocks, i0, stopexpr, endblocks)
     end
+end 
 
-    ts = Lexer.TokenStream(doc)
+function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
+    ts = Lexer.TokenStream(text)
+    n = length(text.data)
     seek(ts.io, i0)
 
     while 0 ≤ i0 < n
@@ -77,7 +85,88 @@ function parseblocks(uri::String, server::LanguageServerInstance, dirty)
         end
         i0 = i1
     end
-end 
+end
+
+# function parseblocks(uri::String, server::LanguageServerInstance, dirty)
+#     doc = String(server.documents[uri].data)
+#     blocks = server.documents[uri].blocks
+#     n = last(blocks.typ)
+    
+#     i = 0
+#     start = stop = 0
+#     while i<length(blocks.args)
+#         i+=1
+#         if isa(blocks.args[i], Expr)
+#             if start==0 && first(dirty)>first(blocks.args[i].typ)
+#                 start = i
+#             end
+#             if first(dirty) in blocks.args[i].typ
+#                 start = i
+#             end
+#             if last(dirty) in blocks.args[i].typ 
+#                 stop = i
+#             end
+#             if stop==0 && last(dirty)<last(blocks.args[i].typ)
+#                 stop = i
+#             end
+#         end
+#     end
+    
+#     if start==0 && stop==0
+#         return parseallblocks(uri, server)
+#     elseif start>0 && stop==0
+#         i0 = blocks.args[start].typ[1]
+#         for i = start:length(blocks.args)
+#             pop!(blocks.args)
+#         end
+#         stopexpr = Expr(:nostop)
+#     elseif start==0 && stop>0
+#         i0 = 0
+#         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
+#         endblocks = blocks.args[stop+2:end] 
+#         empty!(blocks.args)
+#     elseif start>0 && stop>0
+#         i0 = i1 = blocks.args[start].typ[1]
+#         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
+#         endblocks = blocks.args[stop+2:end] 
+#         for i = start:length(blocks.args)
+#             pop!(blocks.args)
+#         end
+#     end
+
+#     ts = Lexer.TokenStream(doc)
+#     seek(ts.io, i0)
+
+#     while 0 ≤ i0 < n
+#         ex = try 
+#             JuliaParser.Parser.parse(ts)
+#         catch err
+#             Expr(:error, err)
+#         end
+#         if isa(ex, Expr) && ex.head==:error 
+#             seek(ts.io,i0)
+#             Lexer.next_token(ts)
+#             Lexer.skip_to_eol(ts)
+#             Lexer.take_token(ts)
+#             ex.typ = i0:position(ts)-1
+#             push!(blocks.args, ex)
+#             i1 = position(ts)
+#         else 
+#             i1=position(ts)
+#             isa(ex, Expr) && (ex.typ = i0:i1-1)
+#             ex!=nothing && push!(blocks.args, ex)
+#         end
+#         if ex==stopexpr
+#             d = first(ex.typ)-first(stopexpr.typ)
+#             for i  = 1:length(endblocks)
+#                 shiftloc!(endblocks[i], d)
+#                 push!(blocks.args,endblocks[i])
+#             end
+#             break
+#         end
+#         i0 = i1
+#     end
+# end 
 
 
 function parseallblocks(uri::String, server::LanguageServerInstance)

@@ -1,35 +1,39 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     line = get_line(tdpp, server)
-    comp = Base.REPLCompletions.completions(line, chr2ind(line,tdpp.position.character))[1]
-    n = length(comp)
-    comp = comp[1:min(length(comp),25)]
-    CIs = map(comp) do i
-        s = get_sym(i)
-        d = ""
-        d = get_docs(s)
-        d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
-        d = join(d[2:end],'\n')
-        d = replace(d,'`',"")
+    if line==""
+        completion_list = CompletionItem[]
+    else
+        comp = Base.REPLCompletions.completions(line, chr2ind(line,tdpp.position.character))[1]
+        n = length(comp)
+        comp = comp[1:min(length(comp),25)]
+        CIs = map(comp) do i
+            s = get_sym(i)
+            d = ""
+            d = get_docs(s)
+            d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
+            d = join(d[2:end],'\n')
+            d = replace(d,'`',"")
         
-        kind = 6
-        if isa(s, String)
-            kind = 1
-        elseif isa(s, Function)
-            kind = 3
-        elseif isa(s, DataType)
-            kind = 7
-        elseif isa(s, Module)
-            kind = 9
-        elseif isa(s, Number)
-            kind = 12
-        elseif isa(s, Enum)
-            kind = 13
+            kind = 6
+            if isa(s, String)
+                kind = 1
+            elseif isa(s, Function)
+                kind = 3
+            elseif isa(s, DataType)
+                kind = 7
+            elseif isa(s, Module)
+                kind = 9
+            elseif isa(s, Number)
+                kind = 12
+            elseif isa(s, Enum)
+                kind = 13
+            end
+            CompletionItem(i, kind, d)
         end
-        CompletionItem(i, kind, d)
-    end
 
-    completion_list = CompletionList(25<n,CIs)
+        completion_list = CompletionList(25<n,CIs)
+    end
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)

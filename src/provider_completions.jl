@@ -46,10 +46,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         l, c = tdpp.position.line, tdpp.position.character
         newtext = i[1]=='\\' ? Base.REPLCompletions.latex_symbols[i] : prefix*i
 
-        if length(newtext)>=length(str)
-            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[length(str)+1:end]), [])
+        if endof(newtext)>=endof(str)
+            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(str)+1:end]), [])
         else
-            return CompletionItem(label, kind, d, TextEdit(Range(l, c-length(str)+length(newtext), l, c), ""),[TextEdit(Range(l, c-length(str), l, c-length(str)+length(newtext)), newtext)])
+            return CompletionItem(label, kind, d, TextEdit(Range(l, c-endof(str)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(str), l, c-endof(str)+endof(newtext)), newtext)])
         end
     end
     completion_list = CompletionList(25<n,CIs)

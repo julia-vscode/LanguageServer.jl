@@ -1,62 +1,63 @@
+function parseblocks(doc::Document, server::LanguageServerInstance, first_line, first_character, last_line, last_character)
+    text = get_text(doc)
 
-function parseblocks(uri::String, server::LanguageServerInstance, dirty)
-    doc = String(server.documents[uri].data)
-    blocks = server.documents[uri].blocks
-    n = last(blocks.typ)
+    isempty(doc.blocks.args) && parseblocks(doc, server)
+
+    dirty = get_offset(doc, first_line, first_character):get_offset(doc, last_line, last_character)
     
     i = 0
     start = stop = 0
-    while i<length(blocks.args)
+    while i<length(doc.blocks.args)
         i+=1
-        if isa(blocks.args[i], Expr)
-            if start==0 && first(dirty)>first(blocks.args[i].typ)
+        if isa(doc.blocks.args[i], Expr)
+            if start==0 && first(dirty)>first(doc.blocks.args[i].typ)
                 start = i
             end
-            if first(dirty) in blocks.args[i].typ
+            if first(dirty) in doc.blocks.args[i].typ
                 start = i
             end
-            if last(dirty) in blocks.args[i].typ 
+            if last(dirty) in doc.blocks.args[i].typ 
                 stop = i
             end
-            if stop==0 && last(dirty)<last(blocks.args[i].typ)
+            if stop==0 && last(dirty)<last(doc.blocks.args[i].typ)
                 stop = i
             end
         end
     end
     
     if start==0 && stop==0
-        empty!(blocks.args)
-        parseblocks(doc, blocks, 0)
+        empty!(doc.blocks.args)
+        parseblocks(text, doc.blocks, 0)
         
     elseif start>0 && stop==0
-        i0 = blocks.args[start].typ[1]
-        for i = start:length(blocks.args)
-            pop!(blocks.args)
+        i0 = doc.blocks.args[start].typ[1]
+        for i = start:length(doc.blocks.args)
+            pop!(doc.blocks.args)
         end
-        parseblocks(doc, blocks, i0)
+        parseblocks(text, doc.blocks, i0)
     elseif start==0 && stop>0
         i0 = 0
-        stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
-        endblocks = blocks.args[stop+2:end] 
+        stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
+        endblocks = doc.blocks.args[stop+2:end] 
         empty!(blocks.args)
-        parseblocks(doc, blocks, i0, stopexpr, endblocks)
+        parseblocks(text, doc.blocks, i0, stopexpr, endblocks)
     elseif start>0 && stop>0
-        i0 = i1 = blocks.args[start].typ[1]
-        stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
-        endblocks = blocks.args[stop+2:end] 
-        for i = start:length(blocks.args)
-            pop!(blocks.args)
+        i0 = i1 = doc.blocks.args[start].typ[1]
+        stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
+        endblocks = doc.blocks.args[stop+2:end] 
+        for i = start:length(doc.blocks.args)
+            pop!(doc.blocks.args)
         end
-        parseblocks(doc, blocks, i0, stopexpr, endblocks)
+        parseblocks(text, doc.blocks, i0, stopexpr, endblocks)
     end
 end 
 
 function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     ts = Lexer.TokenStream(text)
-    n = length(text.data)
-    seek(ts.io, i0)
+    seek(ts.io, i0==1 ? 0 : i0)
+    Lexer.peek_token(ts)
 
-    while 0 ≤ i0 < n
+    while !Lexer.eof(ts)
         ex = try 
             JuliaParser.Parser.parse(ts)
         catch err
@@ -87,123 +88,11 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     end
 end
 
-# function parseblocks(uri::String, server::LanguageServerInstance, dirty)
-#     doc = String(server.documents[uri].data)
-#     blocks = server.documents[uri].blocks
-#     n = last(blocks.typ)
-    
-#     i = 0
-#     start = stop = 0
-#     while i<length(blocks.args)
-#         i+=1
-#         if isa(blocks.args[i], Expr)
-#             if start==0 && first(dirty)>first(blocks.args[i].typ)
-#                 start = i
-#             end
-#             if first(dirty) in blocks.args[i].typ
-#                 start = i
-#             end
-#             if last(dirty) in blocks.args[i].typ 
-#                 stop = i
-#             end
-#             if stop==0 && last(dirty)<last(blocks.args[i].typ)
-#                 stop = i
-#             end
-#         end
-#     end
-    
-#     if start==0 && stop==0
-#         return parseallblocks(uri, server)
-#     elseif start>0 && stop==0
-#         i0 = blocks.args[start].typ[1]
-#         for i = start:length(blocks.args)
-#             pop!(blocks.args)
-#         end
-#         stopexpr = Expr(:nostop)
-#     elseif start==0 && stop>0
-#         i0 = 0
-#         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
-#         endblocks = blocks.args[stop+2:end] 
-#         empty!(blocks.args)
-#     elseif start>0 && stop>0
-#         i0 = i1 = blocks.args[start].typ[1]
-#         stopexpr = stop==length(blocks.args) ? Expr(:nostop) : blocks.args[stop+1]
-#         endblocks = blocks.args[stop+2:end] 
-#         for i = start:length(blocks.args)
-#             pop!(blocks.args)
-#         end
-#     end
-
-#     ts = Lexer.TokenStream(doc)
-#     seek(ts.io, i0)
-
-#     while 0 ≤ i0 < n
-#         ex = try 
-#             JuliaParser.Parser.parse(ts)
-#         catch err
-#             Expr(:error, err)
-#         end
-#         if isa(ex, Expr) && ex.head==:error 
-#             seek(ts.io,i0)
-#             Lexer.next_token(ts)
-#             Lexer.skip_to_eol(ts)
-#             Lexer.take_token(ts)
-#             ex.typ = i0:position(ts)-1
-#             push!(blocks.args, ex)
-#             i1 = position(ts)
-#         else 
-#             i1=position(ts)
-#             isa(ex, Expr) && (ex.typ = i0:i1-1)
-#             ex!=nothing && push!(blocks.args, ex)
-#         end
-#         if ex==stopexpr
-#             d = first(ex.typ)-first(stopexpr.typ)
-#             for i  = 1:length(endblocks)
-#                 shiftloc!(endblocks[i], d)
-#                 push!(blocks.args,endblocks[i])
-#             end
-#             break
-#         end
-#         i0 = i1
-#     end
-# end 
-
-
-function parseallblocks(uri::String, server::LanguageServerInstance)
-    doc = String(server.documents[uri].data)
-    n = length(doc.data)
-    blocks = server.documents[uri].blocks
-    empty!(blocks.args)
-    blocks.typ = 0:n
-
-    doc == "" && return
-
-    ts = Lexer.TokenStream(doc)
-    i0 = i1 = 0
-
-    while 0 ≤ i1 < n
-        ex = try 
-            JuliaParser.Parser.parse(ts)
-        catch err
-            Expr(:error, err)
-        end
-        if isa(ex, Expr) && ex.head==:error 
-            seek(ts.io,i0)
-            Lexer.next_token(ts)
-            Lexer.skip_to_eol(ts)
-            Lexer.take_token(ts)
-            ex.typ = i0:position(ts)
-            push!(blocks.args, ex)
-            i1 = position(ts)
-        else
-            i1=position(ts)
-            isa(ex, Expr) && (ex.typ = i0:i1-1)
-            ex!=nothing && push!(blocks.args, ex)
-        end
-        i0 = i1
-    end 
-end 
-
+function parseblocks(doc::Document, server)
+    text = get_text(doc)
+    empty!(doc.blocks.args)
+    parseblocks(text, doc.blocks, 1)
+end
 
 
 """
@@ -227,7 +116,7 @@ end
 """
     isblock(ex)
 
-Checks whether an experssion has character position info.
+Checks whether an expression has character position info.
 """
 isblock(ex) = isa(ex, Expr) && isa(ex.typ, UnitRange)
 
@@ -246,8 +135,6 @@ function shiftloc!(ex, i::Int)
         end
     end
 end
-
-get_linebreaks(doc) = [0;find(c->c==0x0a,doc);length(doc)+1]
 
 function getname(ex)
     if isa(ex, Expr)

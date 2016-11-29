@@ -1,10 +1,10 @@
 type Document
     _content::String
     _line_offsets::Nullable{Vector{Int}}
-    blocks::Vector{Any}
+    blocks::Expr
 
     function Document(text::AbstractString)
-        return new(text, Nullable{Vector{Int}}(), [])
+        return new(text, Nullable{Vector{Int}}(), Expr(:global))
     end
 end
 

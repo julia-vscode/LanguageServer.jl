@@ -1,7 +1,7 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     line = get_line(tdpp, server)
-    if line==""
+    if line=="" || tdpp.position.character==0
         completion_list = CompletionItem[]
     else
         comp = Base.REPLCompletions.completions(line, chr2ind(line,tdpp.position.character))[1]

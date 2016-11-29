@@ -21,7 +21,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text.data, []) 
+    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text)
     parseblocks(r.params.textDocument.uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
@@ -42,31 +42,15 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, para
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
-    doc = server.documents[r.params.textDocument.uri].data
-    blocks = server.documents[r.params.textDocument.uri].blocks 
-    for c in r.params.contentChanges 
-        startline, endline = get_rangelocs(doc, c.range) 
-        io = IOBuffer(doc) 
-        seek(io, startline) 
-        s = e = 0 
-        while s<c.range.start.character 
-            s += 1 
-            read(io, Char) 
-        end 
-        startpos = position(io) 
-        seek(io, endline) 
-        while e<c.range.stop.character 
-            e += 1 
-            read(io, Char) 
-        end 
-        endpos = position(io) 
-         doc = length(doc)==0 ? c.text.data : vcat(doc[1:startpos], c.text.data, doc[endpos+1:end])
+    doc = server.documents[r.params.textDocument.uri]
+    blocks = server.documents[r.params.textDocument.uri].blocks
+    for c in r.params.contentChanges
+        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
         
         for i = 1:length(blocks)
             intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
         end
-    end 
-    server.documents[r.params.textDocument.uri].data = doc
+    end
     parseblocks(r.params.textDocument.uri, server) 
 end
 

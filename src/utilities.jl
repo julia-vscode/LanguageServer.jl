@@ -1,20 +1,10 @@
 function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance)
-    doc = server.documents[uri].data
-    n = length(doc)
-    i = cnt = 0
-    while cnt<line && i<n
-        i += 1
-        if doc[i]==0x0a
-            cnt += 1
-        end
-    end
-    io = IOBuffer(doc)
-    seek(io,i)
-    return String(chomp(readuntil(io, '\n')))
+    doc = server.documents[uri]
+    return get_line(doc, line)
 end
 
 function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    return get_line(tdpp.textDocument.uri, tdpp.position.line , server)
+    return get_line(tdpp.textDocument.uri, tdpp.position.line+1, server)
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
@@ -96,27 +86,6 @@ function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
         server.DocStore[word] = d
     end
     return d
-end
-
-function get_rangelocs(d::Array{UInt8}, range::Range)
-    (s,e) = (range.start.line, range.stop.line)
-    n = length(d)
-    i = cnt = 0
-    while cnt<s && i<n
-        i+=1
-        if d[i]==0x0a
-            cnt += 1
-        end
-    end
-    startline = i
-    while cnt<e && i<n
-        i+=1
-        if d[i]==0x0a
-            cnt += 1
-        end
-    end
-    endline = i
-    return startline, endline
 end
 
 function should_file_be_linted(uri, server)

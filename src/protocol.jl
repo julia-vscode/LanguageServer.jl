@@ -2,6 +2,14 @@
 type Position
     line::Int
     character::Int
+
+    function Position(line::Int, character::Int;one_based=false)
+        if one_based
+            return new(line-1, character-1)
+        else
+            return new(line, character)
+        end
+    end
 end
 Position(d::Dict) = Position(d["line"], d["character"])
 Position(line) = Position(line,0)

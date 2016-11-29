@@ -15,8 +15,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
     
     str = reverse(takebuf_string(word))
-    prefix = str[1:findlast(word,'.')]
-    comp = Base.REPLCompletions.completions(str,length(str.data))[1]
+    prefix = str[1:findlast(str,'.')]
+    comp = Base.REPLCompletions.completions(str,endof(str))[1]
     n = length(comp)
     comp = comp[1:min(length(comp),25)]
     CIs = map(comp) do i
@@ -47,11 +47,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         newtext = i[1]=='\\' ? Base.REPLCompletions.latex_symbols[i] : prefix*i
 
         if length(newtext)>=length(str)
-            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[length(word)+1:end]), [])
+            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[length(str)+1:end]), [])
         else
             return CompletionItem(label, kind, d, TextEdit(Range(l, c-length(str)+length(newtext), l, c), ""),[TextEdit(Range(l, c-length(str), l, c-length(str)+length(newtext)), newtext)])
         end
     end
+    completion_list = CompletionList(25<n,CIs)
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)

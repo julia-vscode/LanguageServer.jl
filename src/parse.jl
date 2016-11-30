@@ -1,6 +1,10 @@
 function parseblocks(doc::Document, server::LanguageServerInstance, first_line, first_character, last_line, last_character)
     text = get_text(doc)
 
+    if isempty(text)
+        empty!(doc.blocks.args)
+        return
+    end
     isempty(doc.blocks.args) && parseblocks(doc, server)
 
     dirty = get_offset(doc, first_line, first_character):get_offset(doc, last_line, last_character)
@@ -102,6 +106,7 @@ Retrieves 'child' nodes of an expression.
 """
 function children(ex)
     !isa(ex, Expr) && return []
+    ex.head==:macrocall && ex.args[1]==Symbol("@doc") && return [ex.args[3]]
     ex.head==:function && return length(ex.args)==1  ? nothing : ex.args[2].args
     ex.head==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call && return ex.args[2].args
     ex.head in [:begin, :block, :global] && return ex.args
@@ -195,6 +200,21 @@ function parsesignature(sig::Expr)
 end
 
 
+function parsestruct(ex::Expr)
+    fields = Dict{Symbol,Any}()
+    for c in children(ex)
+        if isa(c, Symbol)
+            fields[c] = :Any
+        elseif isa(c, Expr) && c.head==:(::)
+            fields[c.args[1]] = c.args[2]
+        end
+    end
+    return fields
+end
+
+
+
+
 
 
 
@@ -206,12 +226,12 @@ function get_namespace(ex, i, list)
             if isblock(a) && i in a.typ
                 if ex.head==:function
                     for (n,t) in parsesignature(ex.args[1])
-                        list[n] = (:argument, t, ex.typ)
+                        list[n] = (:argument, t, ex.typ, ex.args[1])
                     end
                 end
-                for v in (ex.head==:module ? childs : view(childs,1:j))
+                for v in (ex.head in [:global, :module] ? childs : view(childs,1:j))
                     n,t,l = getname(v)
-                    list[n] = (ex.head in [:global,:module] ? :global : :local, t, l)
+                    list[n] = (ex.head in [:global,:module] ? :global : :local, t, l, v)
                 end
                 ret =  get_namespace(a, i, list)
                 ret!=nothing && return ret
@@ -224,3 +244,66 @@ function get_namespace(ex, i, list)
     return
 end
 get_namespace(ex::Expr, i) = (list=Dict();ret = get_namespace(ex, i, list);(ret, list))
+
+
+function get_block(ex, i)
+    if isa(ex, Expr)
+        for c in children(ex)
+            if isblock(c) && i in c.typ
+                return get_block(c, i)
+            end
+        end
+        if isblock(ex) && i in ex.typ
+            return ex
+        end
+    end
+    return
+end
+
+function get_type(v, ns)
+    if v in keys(ns)
+        return ns[v][2]
+    elseif isdefined(Main, v)
+        return typeof(getfield(Main, v))
+    end
+    return Any
+end
+
+
+function get_fields(t, ns, blocks)
+    if t in keys(ns)
+        n, s, loc, def = ns[t]
+        if def.head in [:immutable, :type]
+            fn = parsestruct(def)
+        end
+    elseif isa(t, Symbol) && isdefined(Main, t)
+        sym = getfield(Main, t)
+        if isa(sym, DataType)
+            fnames = fieldnames(sym)
+            fn = Dict(fnames[i]=>sym.types[i] for i = 1:length(fnames))
+        else
+            fn = Dict()
+        end
+    elseif isa(t, DataType)
+        fnames = fieldnames(t)
+        fn = Dict(fnames[i]=>t.types[i] for i = 1:length(fnames))
+    else
+        fn = Dict()
+    end
+    return fn
+end
+
+
+
+function get_type(sword::Vector{Symbol}, ns, blocks)
+    t = get_type(sword[1], ns)
+    for i = 2:length(sword)
+        fn = get_fields(t, ns, blocks)
+        if sword[i] in keys(fn)
+            t = fn[sword[i]]
+        else
+            return :Any
+        end
+    end
+    return Symbol(t)
+end

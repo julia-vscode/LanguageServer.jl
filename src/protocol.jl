@@ -13,7 +13,6 @@ type Position
 end
 Position(d::Dict) = Position(d["line"], d["character"])
 Position(line) = Position(line,0)
-Position() = Position(-1, -1)
 
 type Range
     start::Position

@@ -271,6 +271,7 @@ end
 
 
 function get_fields(t, ns, blocks)
+    fn = Dict()
     if t in keys(ns)
         n, s, loc, def = ns[t]
         if def.head in [:immutable, :type]
@@ -287,8 +288,6 @@ function get_fields(t, ns, blocks)
     elseif isa(t, DataType)
         fnames = fieldnames(t)
         fn = Dict(fnames[i]=>t.types[i] for i = 1:length(fnames))
-    else
-        fn = Dict()
     end
     return fn
 end

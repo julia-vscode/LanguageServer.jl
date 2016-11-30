@@ -19,32 +19,29 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     comp = Base.REPLCompletions.completions(str,endof(str))[1]
     n = length(comp)
     comp = comp[1:min(length(comp),25)]
-    CIs = map(comp) do i
-        s = get_sym(i)
-        d = ""
-        d = get_docs(s)
-        d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
-        d = join(d[2:end],'\n')
-        d = replace(d,'`',"")
-
-        label = i[1]=='\\' ? i[2:end] : i
-        kind = 6
-        if isa(s, String)
-            kind = 1
-        elseif isa(s, Function)
-            kind = 3
-        elseif isa(s, DataType)
-            kind = 7
-        elseif isa(s, Module)
-            kind = 9
-        elseif isa(s, Number)
-            kind = 12
-        elseif isa(s, Enum)
-            kind = 13
+    CIs = map(comp) do label
+        l, c = tdpp.position.line, tdpp.position.character
+        s = get_sym(label)
+        
+        
+        if label[1]=='\\'
+            d = Base.REPLCompletions.latex_symbols[label]
+            newtext = Base.REPLCompletions.latex_symbols[label]
+        else
+            d = ""
+            d = get_docs(s)
+            d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
+            d = join(d[2:end],'\n')
+            d = replace(d,'`',"")
+            newtext = prefix*label
         end
 
-        l, c = tdpp.position.line, tdpp.position.character
-        newtext = i[1]=='\\' ? Base.REPLCompletions.latex_symbols[i] : prefix*i
+        kind = isa(s, String) ? 1 :
+               isa(s, Function) ? 3 :
+               isa(s, DataType) ? 7 :
+               isa(s, Module) ? 9 :
+               isa(s, Number) ? 12 :
+               isa(s, Enum) ? 13 : 6
 
         if endof(newtext)>=endof(str)
             return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(str)+1:end]), [])

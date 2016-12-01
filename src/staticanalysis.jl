@@ -8,12 +8,10 @@ function parseblocks(doc::Document, server::LanguageServerInstance, first_line, 
     end
     isempty(doc.blocks.args) && parseblocks(doc, server)
 
-    
     last_line = min(last_line, length(get_line_offsets(doc)))
     dirty = get_offset(doc, first_line, first_character):get_offset(doc, last_line, last_character)
-    
-    i = 0
-    start = stop = 0
+
+    i = start = stop = 0
     while i<length(doc.blocks.args)
         i+=1
         if isa(doc.blocks.args[i], Expr)
@@ -32,32 +30,16 @@ function parseblocks(doc::Document, server::LanguageServerInstance, first_line, 
         end
     end
     
-    if start==0 && stop==0
-        empty!(doc.blocks.args)
-        parseblocks(text, doc.blocks, 0)
-        
-    elseif start>0 && stop==0
-        i0 = doc.blocks.args[start].typ[1]
-        for i = start:length(doc.blocks.args)
-            pop!(doc.blocks.args)
-        end
-        parseblocks(text, doc.blocks, i0)
-    elseif start==0 && stop>0
-        i0 = 0
-        stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
-        endblocks = doc.blocks.args[stop+2:end] 
-        empty!(blocks.args)
-        parseblocks(text, doc.blocks, i0, stopexpr, endblocks)
-    elseif start>0 && stop>0
-        i0 = i1 = doc.blocks.args[start].typ[1]
-        stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
-        endblocks = doc.blocks.args[stop+2:end] 
-        for i = start:length(doc.blocks.args)
-            pop!(doc.blocks.args)
-        end
-        parseblocks(text, doc.blocks, i0, stopexpr, endblocks)
+    startpos = start==0 ? 0 : doc.blocks.args[start].typ[1]
+    stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
+    endblocks = stop>0 ? doc.blocks.args[stop+2:end] : []
+
+    for i = max(1, start):length(doc.blocks.args)
+        pop!(doc.blocks.args)
     end
-end 
+    parseblocks(text, doc.blocks, startpos, stopexpr, endblocks)
+    return
+end
 
 function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     ts = Lexer.TokenStream(text)
@@ -65,7 +47,7 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     Lexer.peek_token(ts)
 
     while !Lexer.eof(ts)
-        ex = try 
+        ex = try
             JuliaParser.Parser.parse(ts)
         catch err
             Expr(:error, err)
@@ -145,6 +127,12 @@ function shiftloc!(ex, i::Int)
     end
 end
 
+"""
+    getname(ex)
+
+If `ex` is an expression defining a variable, returns the name of said
+variable.
+"""
 function getname(ex)
     if isa(ex, Expr)
         if ex.head==:(=) && isa(ex.args[1], Symbol)

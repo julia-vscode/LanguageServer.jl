@@ -69,10 +69,32 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     parseblocks(r.params.textDocument.uri, server, true)
+    if should_file_be_linted(r.params.textDocument.uri, server) 
+        process_diagnostics(r.params.textDocument.uri, server) 
+    end
 end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params)
     
     return DidSaveTextDocumentParams(params)
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params)
+    return Any(params)
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
+    if isempty(r.params["settings"])
+        server.runlinter=false
+    else
+        server.runlinter=true
+    end
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params)
+    return Any(params)
 end

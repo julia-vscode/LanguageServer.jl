@@ -223,7 +223,9 @@ function get_namespace(ex, i, list)
             if isblock(a) && i in a.typ
                 for v in (ex.head in [:global, :module] ? childs : view(childs,1:j))
                     n,t,l = getname(v)
-                    list[n] = (ex.head in [:global,:module] ? :global : :local, t, l, v)
+                    scope = ex.head==:global ? :global : 
+                            ex.head==:module ? ex.args[2] : :local
+                    list[n] = (scope, t, l, v)
                 end
                 ret =  get_namespace(a, i, list)
                 ret!=nothing && return ret

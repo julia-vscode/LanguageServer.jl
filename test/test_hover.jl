@@ -34,7 +34,7 @@ LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{
 
 res = getresult(server)
 
-@test res[1]["value"]=="global: DataType at 2"
+@test res[1]["value"]=="testmodule: DataType at 2"
 @test res[2]["value"]=="    a::Any"
 @test res[3]["value"]=="    b::Int"
 @test res[4]["value"]=="    c::Vector{Int}"

@@ -1,5 +1,6 @@
 function parseblocks(doc::Document, server::LanguageServerInstance, first_line, first_character, last_line, last_character)
     text = get_text(doc)
+    doc.blocks.typ = 0:length(text.data)
 
     if isempty(text)
         empty!(doc.blocks.args)
@@ -7,6 +8,8 @@ function parseblocks(doc::Document, server::LanguageServerInstance, first_line, 
     end
     isempty(doc.blocks.args) && parseblocks(doc, server)
 
+    
+    last_line = min(last_line, length(get_line_offsets(doc)))
     dirty = get_offset(doc, first_line, first_character):get_offset(doc, last_line, last_character)
     
     i = 0
@@ -94,6 +97,7 @@ end
 
 function parseblocks(doc::Document, server)
     text = get_text(doc)
+    doc.blocks.typ = 0:length(text.data)
     empty!(doc.blocks.args)
     parseblocks(text, doc.blocks, 1)
 end

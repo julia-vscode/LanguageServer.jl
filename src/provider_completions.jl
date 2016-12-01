@@ -1,38 +1,67 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
+    doc = server.documents[tdpp.textDocument.uri]
     line = get_line(tdpp, server)
     
-    word = IOBuffer()
-    for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
-        if c=='\\'
-            write(word, c)
-            break
+    word = let io = IOBuffer()
+        for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
+            if c=='\\'
+                write(io, c)
+                break
+            end
+            if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
+                break
+            end
+            write(io, c)
         end
-        if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
-            break
-        end
-        write(word, c)
+        reverse(takebuf_string(io))
     end
-    
-    str = reverse(takebuf_string(word))
-    prefix = str[1:findlast(str,'.')]
-    comp = Base.REPLCompletions.completions(str,endof(str))[1]
+
+    prefix = word[1:findlast(word,'.')]
+    # Global completions
+    comp = Base.REPLCompletions.completions(word,endof(word))[1]
     n = length(comp)
     comp = comp[1:min(length(comp),25)]
+
+    # Local completions
+    sword = split(word,".")
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
+    ex, ns = get_namespace(doc.blocks, offset)
+    if length(sword)==1
+        for k in keys(ns)
+            if length(string(k))>length(word) && word==string(k)[1:length(word)]
+                push!(comp, string(k))
+            end
+        end
+    else
+        if Symbol(sword[1]) in keys(ns)
+            t = get_type(Symbol.(sword[1:end-1]), ns, doc.blocks)
+            fn = keys(get_fields(t, ns, doc.blocks))
+            for f in fn
+                if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
+                    push!(comp, string(f))
+                end
+            end
+        end
+    end
+
+    
     CIs = map(comp) do label
         l, c = tdpp.position.line, tdpp.position.character
         s = get_sym(label)
-        
         
         if label[1]=='\\'
             d = Base.REPLCompletions.latex_symbols[label]
             newtext = Base.REPLCompletions.latex_symbols[label]
         else
-            d = ""
-            d = get_docs(s)
-            d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
-            d = join(d[2:end],'\n')
-            d = replace(d,'`',"")
+            if s == nothing
+                d = ""
+            else
+                d = get_docs(s)
+                d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
+                d = join(d[2:end],'\n')
+                d = replace(d,'`',"")
+            end
             newtext = prefix*label
         end
 
@@ -43,10 +72,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                isa(s, Number) ? 12 :
                isa(s, Enum) ? 13 : 6
 
-        if endof(newtext)>=endof(str)
-            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(str)+1:end]), [])
+        if endof(newtext)>=endof(word)
+            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word)+1:end]), [])
         else
-            return CompletionItem(label, kind, d, TextEdit(Range(l, c-endof(str)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(str), l, c-endof(str)+endof(newtext)), newtext)])
+            return CompletionItem(label, kind, d, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)])
         end
     end
     completion_list = CompletionList(25<n,CIs)

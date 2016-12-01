@@ -220,15 +220,15 @@ end
 
 function get_namespace(ex, i, list)
     if isa(ex, Expr)
+        if ex.head==:function && i in ex.typ
+            for (n,t) in parsesignature(ex.args[1])
+                list[n] = (:argument, t, ex.typ, ex.args[1])
+            end
+        end
         childs = children(ex)
         for j = 1:length(childs)
             a = childs[j]
             if isblock(a) && i in a.typ
-                if ex.head==:function
-                    for (n,t) in parsesignature(ex.args[1])
-                        list[n] = (:argument, t, ex.typ, ex.args[1])
-                    end
-                end
                 for v in (ex.head in [:global, :module] ? childs : view(childs,1:j))
                     n,t,l = getname(v)
                     list[n] = (ex.head in [:global,:module] ? :global : :local, t, l, v)

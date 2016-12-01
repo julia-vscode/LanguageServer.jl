@@ -37,7 +37,8 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
 
     
     if sym in keys(ns)
-        scope,t,loc = ns[sym]
+        scope,t,loc,def = ns[sym]
+        
         lno,cno = get_position_at(doc, first(loc))
         line = get_line(doc, lno)
         while line[cno]=='\n'
@@ -46,7 +47,15 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
             line = get_line(doc, lno)
         end
         title = string("$scope: ", t," at ", lno)
-        return MarkedString.([title, strip(line)])
+        if t==:DataType
+            tdef = parsestruct(striplocinfo(def))
+            docs = (v->"    $(v[1])::$(v[2])").(tdef)
+            return MarkedString.(vcat(title, docs))
+        elseif t==:Function
+            return MarkedString.([title, string(striplocinfo(def.args[1]))])
+        else
+            return MarkedString.([title, strip(line)])
+        end
      end
     return []
 end

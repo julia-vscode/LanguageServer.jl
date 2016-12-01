@@ -201,12 +201,12 @@ end
 
 
 function parsestruct(ex::Expr)
-    fields = Dict{Symbol,Any}()
+    fields = Pair[]
     for c in children(ex)
         if isa(c, Symbol)
-            fields[c] = :Any
+            push!(fields, c=>:Any)
         elseif isa(c, Expr) && c.head==:(::)
-            fields[c.args[1]] = c.args[2]
+            push!(fields, c.args[1]=>c.args[2])
         end
     end
     return fields
@@ -275,7 +275,7 @@ function get_fields(t, ns, blocks)
     if t in keys(ns)
         n, s, loc, def = ns[t]
         if def.head in [:immutable, :type]
-            fn = parsestruct(def)
+            fn = Dict(parsestruct(def))
         end
     elseif isa(t, Symbol) && isdefined(Main, t)
         sym = getfield(Main, t)
@@ -306,3 +306,15 @@ function get_type(sword::Vector{Symbol}, ns, blocks)
     end
     return Symbol(t)
 end
+
+
+
+function striplocinfo!(ex)
+    if isa(ex, Expr)
+        ex.typ = Any
+        for a in ex.args
+            striplocinfo!(a)
+        end
+    end
+end
+striplocinfo(ex) = (ex1 = deepcopy(ex);striplocinfo!(ex1);ex1) 

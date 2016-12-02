@@ -89,6 +89,8 @@ function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 function should_file_be_linted(uri, server)
+    !server.runlinter && return false
+
     uri_path = normpath(unescape(URI(uri).path))
 
     workspace_path = server.rootPath

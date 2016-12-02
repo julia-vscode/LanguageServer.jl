@@ -90,8 +90,15 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
     if isempty(r.params["settings"])
         server.runlinter=false
+        for uri in keys(server.documents)
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            send(response, server)
+        end
     else
         server.runlinter=true
+        for uri in keys(server.documents)
+            process_diagnostics(uri, server)
+        end
     end
 end
 

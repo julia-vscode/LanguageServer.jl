@@ -12,7 +12,7 @@ function get_text(doc::Document)
     return doc._content
 end
 
-function get_line(doc::Document, line::Int)
+function get_line(doc::Document, line::Integer)
     line_offsets = get_line_offsets(doc)
 
     if length(line_offsets)>0
@@ -28,7 +28,7 @@ function get_line(doc::Document, line::Int)
     end
 end
 
-function get_offset(doc::Document, line::Int, character::Int)
+function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
     current_offset = line_offsets[line]
     for i=1:character-1
@@ -37,7 +37,7 @@ function get_offset(doc::Document, line::Int, character::Int)
     return current_offset
 end
 
-function update(doc::Document, start_line::Int, start_character::Int, length::Int, new_text::AbstractString)
+function update(doc::Document, start_line::Integer, start_character::Integer, length::Integer, new_text::AbstractString)
     text = doc._content
     start_offset = start_line==1 && start_character==1 ? 1 : get_offset(doc, start_line, start_character)
     end_offset = start_offset
@@ -78,7 +78,7 @@ function get_line_offsets(doc::Document)
     return get(doc._line_offsets)
 end
 
-function get_position_at(doc::Document, offset::Int)
+function get_position_at(doc::Document, offset::Integer)
     line_offsets = get_line_offsets(doc)
     for (line, line_offset) in enumerate(line_offsets)
         if offset<line_offset

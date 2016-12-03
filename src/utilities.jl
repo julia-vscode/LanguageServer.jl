@@ -1,4 +1,4 @@
-function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance)
+function get_line(uri::AbstractString, line::Integer, server::LanguageServerInstance)
     doc = server.documents[uri]
     return get_line(doc, line)
 end

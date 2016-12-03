@@ -9,11 +9,11 @@ end
 testtext="""module testmodule
 type testtype
     a
-    b::Int
-    c::Vector{Int}
+    b::Float64
+    c::Vector{Float64}
 end
 
-function testfunction(a, b::Int, c::testtype)
+function testfunction(a, b::Float64, c::testtype)
     return c
 end
 end
@@ -36,11 +36,11 @@ res = getresult(server)
 
 @test res[1]["value"]=="testmodule: DataType at 2"
 @test res[2]["value"]=="    a::Any"
-@test res[3]["value"]=="    b::Int"
-@test res[4]["value"]=="    c::Vector{Int}"
+@test res[3]["value"]=="    b::Float64"
+@test res[4]["value"]=="    c::Vector{Float64}"
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":9}}}"""), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}"""), server)
 
 res = getresult(server)
 
-@test res[1]["value"]=="Int64 <: Signed"
+@test res[1]["value"]=="testmodule: Function at 8"

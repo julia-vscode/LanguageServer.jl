@@ -1,9 +1,9 @@
 # Position
 type Position
-    line::Int
-    character::Int
+    line::Integer
+    character::Integer
 
-    function Position(line::Int, character::Int;one_based=false)
+    function Position(line::Integer, character::Integer;one_based=false)
         if one_based
             return new(line-1, character-1)
         else

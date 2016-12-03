@@ -7,9 +7,10 @@ type LanguageServerInstance
     DocStore::Dict{String,Any}
 
     debug_mode::Bool
+    runlinter::Bool
 
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool)
-        new(pipe_in,pipe_out,"",Dict{String,Document}(),Dict{String,Any}(), debug_mode)
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), Dict{String,Any}(), debug_mode, true)
     end
 end
 

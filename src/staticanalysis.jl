@@ -31,12 +31,15 @@ function parseblocks(doc::Document, server::LanguageServerInstance, first_line, 
     end
     
     startpos = start==0 ? 0 : doc.blocks.args[start].typ[1]
+    while stop<length(doc.blocks.args)
+        isa(doc.blocks.args[stop+1], Expr) && break
+        stop+=1
+    end
     stopexpr = stop==length(doc.blocks.args) ? Expr(:nostop) : doc.blocks.args[stop+1]
     endblocks = stop>0 ? doc.blocks.args[stop+2:end] : []
 
-    for i = max(1, start):length(doc.blocks.args)
-        pop!(doc.blocks.args)
-    end
+    deleteat!(doc.blocks.args, max(1, start):length(doc.blocks.args))
+
     parseblocks(text, doc.blocks, startpos, stopexpr, endblocks)
     return
 end
@@ -136,7 +139,12 @@ variable.
 function getname(ex)
     if isa(ex, Expr)
         if ex.head==:(=) && isa(ex.args[1], Symbol)
-            return (ex.args[1], :Any, ex.typ)
+            if isa(ex.args[2], Expr) || isa(ex.args[2], Symbol)
+                t = :Any
+            else
+                t = Symbol(typeof(ex.args[2])) 
+            end
+            return (ex.args[1], t, ex.typ)
         elseif ex.head ==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call
             return (ex.args[1].args[1],:Function, ex.typ)
         elseif ex.head==:function

@@ -1,7 +1,7 @@
 # Position
 type Position
-    line::Integer
-    character::Integer
+    line::Int
+    character::Int
 
     function Position(line::Integer, character::Integer;one_based=false)
         if one_based

@@ -4,17 +4,21 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     line = get_line(tdpp, server)
     
     word = let io = IOBuffer()
-        for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
-            if c=='\\'
+        if isempty(line)
+            ""
+        else
+            for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
+                if c=='\\'
+                    write(io, c)
+                    break
+                end
+                if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
+                    break
+                end
                 write(io, c)
-                break
             end
-            if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
-                break
-            end
-            write(io, c)
+            reverse(takebuf_string(io))
         end
-        reverse(takebuf_string(io))
     end
 
     prefix = word[1:findlast(word,'.')]

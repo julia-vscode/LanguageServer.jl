@@ -224,6 +224,12 @@ function get_namespace(ex, i, list)
             for (n,t) in parsesignature(ex.args[1])
                 list[n] = (:argument, t, ex.typ, ex.args[1])
             end
+        elseif ex.head==:for && ex.args[1].head==:(=) && isa(ex.args[1].args[1], Symbol)
+            list[ex.args[1].args[1]] = (:iterator, :Any, ex.typ, ex.args[1])
+        elseif ex.head==:let  
+            for a in ex.args[2:end] 
+                list[a.args[1]]= (:local, :Any, a.typ, a)
+            end 
         end
         childs = children(ex)
         for j = 1:length(childs)

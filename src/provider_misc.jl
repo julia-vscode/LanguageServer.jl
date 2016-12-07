@@ -12,6 +12,18 @@ const serverCapabilities = ServerCapabilities(
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
     server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
+    if server.rootPath!=""
+        for (root, dirs, files) in walkdir(server.rootPath)
+            for file in files
+                if splitext(file)[2]==".jl"
+                    filepath = joinpath(root, file)
+                    uri = string("file:///", replace(replace(filepath, '\\', '/'), ":", "%3A"))
+                    content = String(read(filepath))
+                    server.documents[uri] = Document(content, true)
+                end
+            end
+        end
+    end
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 end
@@ -21,7 +33,13 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text)
+    uri = r.params.textDocument.uri
+    if !haskey(server.documents, uri)    
+        server.documents[uri] = Document(r.params.textDocument.text, false)
+    end
+    doc = server.documents[uri]
+    set_open_in_editor(doc, true)
+
     parseblocks(r.params.textDocument.uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
@@ -34,7 +52,12 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
-    delete!(server.documents, r.params.textDocument.uri)
+    uri = r.params.textDocument.uri
+    if !exists_on_disc(server.documents[uri])        
+        delete!(server.documents, uri)
+    else
+        set_open_in_editor(server.documents[uri], false)
+    end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params)
@@ -68,6 +91,8 @@ function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
+    uri = r.params.textDocument.uri
+    set_exists_on_disc(server.documents[uri], true)
     parseblocks(r.params.textDocument.uri, server, true)
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 

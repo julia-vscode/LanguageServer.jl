@@ -1,15 +1,29 @@
 type Document
     _content::String
     _line_offsets::Nullable{Vector{Int}}
+    _open_in_editor::Bool
+    _exists_on_disc::Bool
     blocks::Vector{Any}
 
-    function Document(text::AbstractString)
-        return new(text, Nullable{Vector{Int}}(), [])
+    function Document(text::AbstractString, exists_on_disc::Bool)
+        return new(text, Nullable{Vector{Int}}(), false, exists_on_disc, [])
     end
 end
 
 function get_text(doc::Document)
     return doc._content
+end
+
+function set_open_in_editor(doc::Document, value::Bool)
+    doc._open_in_editor = value
+end
+
+function exists_on_disc(doc::Document)
+    return doc._exists_on_disc
+end
+
+function set_exists_on_disc(doc::Document, value::Bool)
+    doc._exists_on_disc = value
 end
 
 function get_line(doc::Document, line::Int)

@@ -18,7 +18,7 @@ function parseblocks(doc::Document, server::LanguageServerInstance, first_line, 
             if start==0 && first(dirty)>first(doc.blocks.args[i].typ)
                 start = i
             end
-            if first(dirty) in doc.blocks.args[i].typ
+            if first(dirty) in doc.blocks.args[i].typ && start>0 && doc.blocks.args[start].head!=:error
                 start = i
             end
             if last(dirty) in doc.blocks.args[i].typ 
@@ -253,6 +253,7 @@ function get_namespace(ex, i, list)
 end
 get_namespace(ex::Expr, i) = (list=Dict();ret = get_namespace(ex, i, list);(ret, list))
 
+Base.in(a::UnitRange,b::UnitRange) = a.start≥b.start && a.stop ≤ b.stop
 
 function get_block(ex, i)
     if isa(ex, Expr)

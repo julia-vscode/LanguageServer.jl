@@ -21,16 +21,16 @@ end
 
 function getsyminfo(blocks, syms, uri , doc, prefix="")
     ns = get_names(blocks, 1)
-    for (name, (s, t, loc, def)) in ns
+    for (name, (s, t, def)) in ns
         if t==:Module
             def.args[3].typ = def.typ
             getsyminfo(def.args[3], syms, uri, doc, string(name))
         elseif t==:Function
-            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(loc))[1])))) 
+            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
         elseif t==:DataType
-            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 5, Location(uri, Range(get_position_at(doc, first(loc))[1])))) 
+            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 5, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
         else 
-            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 13, Location(uri, Range(get_position_at(doc, first(loc))[1]))))
+            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 13, Location(uri, Range(get_position_at(doc, first(def.typ))[1]))))
         end
     end
 end

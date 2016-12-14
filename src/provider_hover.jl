@@ -38,7 +38,7 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
     sym = Symbol(word)
 
     if sym in keys(ns)
-        scope,t,loc,def = ns[sym]
+        scope,t,def = ns[sym]
         return MarkedString.(["$scope: $t", string(striplocinfo(def))])
     end
     return []

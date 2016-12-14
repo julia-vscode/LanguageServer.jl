@@ -27,19 +27,42 @@ end
 
 function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list)
     if isa(ex.args[1], Symbol)
-        list[ex.args[1]] = (scope, :Any, ex.typ, ex)
+        list[ex.args[1]] = (scope, :Any, ex)
     elseif isa(ex.args[1], Expr) 
         if ex.args[1].head==:call
-            list[ex.args[1].args[1]] = (scope, :Function, ex.typ, ex)
+            list[ex.args[1].args[1]] = (scope, :Function, ex)
         elseif ex.args[1].head==:tuple
             for a in ex.args[1].args
                 if isa(a, Symbol)
-                    list[a] = (scope, :Any, ex.typ, ex)
+                    list[a] = (scope, :Any, ex)
                 end
             end
         end 
     end
 end
+
+function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list)
+    if :INCLUDES in keys(list)
+        push!(list[:INCLUDES][3].args, ex.args[2])
+    else
+        list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
+    end
+end
+
+function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list)
+    if :MODULES in keys(list)
+        push!(list[:MODULES][3].args, ex.args[1])
+    else
+        list[:MODULES] = (scope, :MODULE, Expr(:block, ex.args[1]))
+    end
+end
+
+function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list)
+    for a in ex.args
+        get_names(a, loc, scope, list)
+    end
+end
+
 
 
 function get_names(::Type{Val{:block}}, ex::Expr, loc, scope, list)
@@ -53,7 +76,7 @@ end
 
 get_names(::Type{Val{:baremodule}}, ex::Expr, loc, scope, list) = get_names(Val{:module}, ex, loc, scope, list)
 function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list)
-    list[ex.args[2]] = (scope, :Module, ex.typ, ex)
+    list[ex.args[2]] = (scope, :Module, ex)
     if loc in ex
         for a in ex.args[3].args
             get_names(a, loc, ex.args[2], list)
@@ -67,7 +90,7 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list)
 
     if loc in ex
         for (n,t) in parsesignature(ex.args[1])
-            list[n] = (:argument, t, ex.args[1].typ, ex.args[1])
+            list[n] = (:argument, t, ex.args[1])
         end
         if loc in ex.args[2]
             for a in ex.args[2].args
@@ -79,7 +102,7 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list)
 end
 
 function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list)
-    list[ex.args[1].args[1]] = (scope, :Macro, ex.typ, ex)
+    list[ex.args[1].args[1]] = (scope, :Macro, ex)
 end
 
 
@@ -91,7 +114,7 @@ get_names(::Type{Val{:while}}, ex::Expr, loc, scope, list) = get_names(ex.args[2
 function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list)
     if loc in ex
         if ex.args[1].head==:(=) && isa(ex.args[1].args[1], Symbol)
-            list[ex.args[1].args[1]] = (:iterator, :Any, ex.typ, ex.args[1])
+            list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1])
         end
         for a in ex.args[2].args
             get_names(a, loc, :local, list)
@@ -123,21 +146,21 @@ function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex.typ, ex)
+    list[tname] = (scope, :DataType, ex)
 end
 
 function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list)
     tname = isa(ex.args[1], Symbol) ? ex.args[1] :
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
             isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex.typ, ex)
+    list[tname] = (scope, :DataType, ex)
 end
 
 function get_names(::Type{Val{:bitstype}}, ex::Expr, loc, scope, list)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex.typ, ex)
+    list[tname] = (scope, :DataType, ex)
 end
 
 

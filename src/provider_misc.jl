@@ -40,7 +40,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
 
-    parseblocks(r.params.textDocument.uri, server)
+    parseblocks(uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 

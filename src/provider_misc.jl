@@ -34,7 +34,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    if !haskey(server.documents, uri)    
+    if !haskey(server.documents, uri)
         server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     end
     doc = server.documents[uri]
@@ -91,11 +91,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         if change._type==FileChangeType_Created || change._type==FileChangeType_Changed
             filepath = uri2filepath(uri)
             content = String(read(filepath))
-            server.documents[uri] = Document(uri, content, true)     
+            server.documents[uri] = Document(uri, content, true)
 
-            if should_file_be_linted(uri, server) 
-                process_diagnostics(uri, server) 
-            end                   
+            if should_file_be_linted(uri, server)
+                process_diagnostics(uri, server)
+            end
         elseif change._type==FileChangeType_Deleted
             delete!(server.documents, uri)
 

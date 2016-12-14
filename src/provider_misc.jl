@@ -74,6 +74,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
             intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
         end
     end
+    if should_file_be_linted(r.params.textDocument.uri, server) 
+        process_diagnostics(r.params.textDocument.uri, server) 
+    end
     parseblocks(r.params.textDocument.uri, server) 
 end
 

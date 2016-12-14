@@ -17,7 +17,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
             for file in files
                 if splitext(file)[2]==".jl"
                     filepath = joinpath(root, file)
-                    uri = string("file:///", replace(replace(filepath, '\\', '/'), ":", "%3A"))
+                    uri = string("file:///", is_windows() ? replace(replace(filepath, '\\', '/'), ":", "%3A") : filepath)
                     content = String(read(filepath))
                     server.documents[uri] = Document(uri, content, true)
                 end

@@ -14,10 +14,11 @@ end
 end
 """
 
-blocks = Expr(:global)
+blocks = Expr(:block)
 parseblocks(testtext, blocks, 0)
 
-ex, ns = get_namespace(blocks, 119)
+ns = get_names(blocks, 119)
+
 @test ex.head==:function
 @test length(ns)==7
 @test ns[:a][1]==:argument

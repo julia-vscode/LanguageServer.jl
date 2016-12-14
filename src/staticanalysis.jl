@@ -89,25 +89,6 @@ end
 
 
 """
-    children(ex)
-
-Retrieves 'child' nodes of an expression.
-"""
-function children(ex)
-    !isa(ex, Expr) && return []
-    ex.head==:macrocall && ex.args[1]==Symbol("@doc") && return [ex.args[3]]
-    ex.head==:function && return length(ex.args)==1  ? nothing : ex.args[2].args
-    ex.head==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call && return ex.args[2].args
-    ex.head in [:begin, :block, :global] && return ex.args
-    ex.head in [:while, :for] && return ex.args[2].args
-    ex.head in [:module, :baremodule, :type, :immutable] && return ex.args[3].args
-    ex.head==:let && return ex.args[1].args
-    ex.head==:if && return ex.args[2:end]
-
-    return []
-end
-
-"""
     isblock(ex)
 
 Checks whether an expression has character position info.
@@ -130,129 +111,6 @@ function shiftloc!(ex, i::Int)
     end
 end
 
-"""
-    getname(ex)
-
-If `ex` is an expression defining a variable, returns the name of said
-variable.
-"""
-function getname(ex)
-    if isa(ex, Expr)
-        if ex.head==:(=) && isa(ex.args[1], Symbol)
-            if isa(ex.args[2], Expr) || isa(ex.args[2], Symbol)
-                t = :Any
-            else
-                t = Symbol(typeof(ex.args[2])) 
-            end
-            return (ex.args[1], t, ex.typ)
-        elseif ex.head ==:(=) && isa(ex.args[1], Expr) && ex.args[1].head==:call
-            return (ex.args[1].args[1],:Function, ex.typ)
-        elseif ex.head==:function
-            name = ex.args[1].args[1]
-            name = isa(name, Symbol) ? name : name.args[1]
-            return (name, :Function, ex.typ)
-        elseif ex.head in [:type,:immutable]
-            return (isa(ex.args[2], Symbol) ? ex.args[2] : ex.args[2].args[1], :DataType, ex.typ)
-        elseif ex.head==:macro
-            return (ex.args[1].args[1], :macro, ex.typ)
-        elseif ex.head==:module
-            return (ex.args[2], :Module, ex.typ)
-        end
-        return :nothing, :Any, ex.typ
-    end
-    return :nothing, :Any, 0:0
-end
-
-function parsesignature(sig::Expr)
-    out = []
-    for a in sig.args[2:end]
-        if isa(a, Symbol)
-            push!(out, (a, :Any))
-        elseif a.head==:(::)
-            if length(a.args)>1
-                push!(out, (a.args[1], a.args[2]))
-            else # handles ::Type{T}
-                push!(out, (a.args[1], :DataType))
-            end
-        elseif a.head==:kw
-            if isa(a.args[1], Symbol)
-                push!(out, (a.args[1], :Any))
-            elseif a.args[1].head==:(::)
-                push!(out, (a.args[1].args[1], a.args[1].args[2]))
-            end 
-        elseif a.head==:parameters
-            for sub_a in a.args
-                if isa(sub_a, Symbol)
-                    push!(out,(sub_a, :Any))
-                elseif sub_a.head==:...
-                    push!(out,(sub_a.args[1], :Any))
-                elseif sub_a.head==:kw
-                    if isa(sub_a.args[1], Symbol)
-                        push!(out,(sub_a.args[1], :Any))
-                    elseif sub_a.args[1].head==:(::)
-                        push!(out,(sub_a.args[1].args[1], sub_a.args[1].args[2]))
-                    end
-                end
-            end
-        end
-    end
-    return out
-end
-
-
-function parsestruct(ex::Expr)
-    fields = Pair[]
-    for c in children(ex)
-        if isa(c, Symbol)
-            push!(fields, c=>:Any)
-        elseif isa(c, Expr) && c.head==:(::)
-            push!(fields, c.args[1]=>c.args[2])
-        end
-    end
-    return fields
-end
-
-
-
-
-
-
-
-function get_namespace(ex, i, list)
-    if isa(ex, Expr)
-        if ex.head==:function && i in ex.typ
-            for (n,t) in parsesignature(ex.args[1])
-                list[n] = (:argument, t, ex.typ, ex.args[1])
-            end
-        elseif ex.head==:for && ex.args[1].head==:(=) && isa(ex.args[1].args[1], Symbol)
-            list[ex.args[1].args[1]] = (:iterator, :Any, ex.typ, ex.args[1])
-        elseif ex.head==:let  
-            for a in ex.args[2:end] 
-                list[a.args[1]]= (:local, :Any, a.typ, a)
-            end 
-        end
-        childs = children(ex)
-        for j = 1:length(childs)
-            a = childs[j]
-            if isblock(a) && i in a.typ
-                for v in (ex.head in [:global, :module] ? childs : view(childs,1:j))
-                    n,t,l = getname(v)
-                    scope = ex.head==:global ? :global : 
-                            ex.head==:module ? ex.args[2] : :local
-                    list[n] = (scope, t, l, v)
-                end
-                ret =  get_namespace(a, i, list)
-                ret!=nothing && return ret
-            end
-        end
-        if isa(ex.typ, UnitRange) && i in ex.typ
-            return ex
-        end
-    end
-    return
-end
-get_namespace(ex::Expr, i) = (list=Dict();ret = get_namespace(ex, i, list);(ret, list))
-
 Base.in(a::UnitRange,b::UnitRange) = a.start≥b.start && a.stop ≤ b.stop
 
 function get_block(ex, i)
@@ -268,6 +126,7 @@ function get_block(ex, i)
     end
     return
 end
+
 
 function get_type(v, ns)
     if v in keys(ns)
@@ -301,8 +160,6 @@ function get_fields(t, ns, blocks)
     return fn
 end
 
-
-
 function get_type(sword::Vector{Symbol}, ns, blocks)
     t = get_type(sword[1], ns)
     for i = 2:length(sword)
@@ -315,8 +172,6 @@ function get_type(sword::Vector{Symbol}, ns, blocks)
     end
     return Symbol(t)
 end
-
-
 
 function striplocinfo!(ex)
     if isa(ex, Expr)

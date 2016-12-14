@@ -17,7 +17,9 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
     word = get_word(tdpp, server)
     sword = Symbol.(split(word,'.'))
-    ex, ns = get_namespace(doc.blocks, offset)
+    
+    ns = get_names(doc.blocks, offset)
+    # ex, ns = get_namespace(doc.blocks, offset)
 
     if length(sword)>1
         t = get_type(sword[1], ns)
@@ -32,30 +34,12 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
         t = Symbol(t)
         return t==:Any ? [] : MarkedString.(["$t"]) 
     end
-        
+
     sym = Symbol(word)
 
-    
     if sym in keys(ns)
         scope,t,loc,def = ns[sym]
-        
-        lno,cno = get_position_at(doc, first(loc))
-        line = get_line(doc, lno)
-        while line[cno]=='\n'
-            lno+=1
-            cno = 1
-            line = get_line(doc, lno)
-        end
-        title = string("$scope: ", t," at ", lno)
-        if t==:DataType
-            tdef = parsestruct(striplocinfo(def))
-            docs = (v->"    $(v[1])::$(v[2])").(tdef)
-            return MarkedString.(vcat(title, docs))
-        elseif t==:Function
-            return MarkedString.([title, string(striplocinfo(def.args[1]))])
-        else
-            return MarkedString.([title, strip(line)])
-        end
-     end
+        return MarkedString.(["$scope: $t", string(striplocinfo(def))])
+    end
     return []
 end

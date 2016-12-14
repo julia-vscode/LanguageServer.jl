@@ -4,7 +4,7 @@ type Document
     blocks::Expr
 
     function Document(text::AbstractString)
-        return new(text, Nullable{Vector{Int}}(), Expr(:global))
+        return new(text, Nullable{Vector{Int}}(), Expr(:block))
     end
 end
 

@@ -1,6 +1,39 @@
-Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ 
+Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
+
 get_names(ex::Expr, loc, scope, list) = get_names(Val{ex.head}, ex::Expr, loc, scope, list)
-get_names(ex::Expr, loc) = (ns=Dict();get_names(ex, loc, :global, ns);ns)
+get_names(ex::Expr, loc) = (ns=Dict{Any,Any}();get_names(ex, loc, :global, ns);ns)
+function get_names(uri::String, server, loc)
+    doc = server.documents[uri]
+    ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)))
+    get_names(doc.blocks, loc, :global, ns)
+    
+    for f in ns[:INCLUDES][3].args
+        luri = joinpath(dirname(uri), f)
+        puri = startswith(luri, "file://") ? luri[8:end] : luri
+        if isfile(puri)
+            if !(luri in keys(server.documents))
+                server.documents[luri] = Document(readstring(puri))
+            end
+            if isempty(server.documents[luri].blocks.args)
+                parseblocks(server.documents[luri], server)
+                get_names(luri, server)
+            end
+            for (k,v) in server.documents[luri].global_namespace
+                if !(k in keys(ns))
+                    ns[k] = v
+                end
+            end
+        end
+    end
+
+    return ns
+end
+
+function get_names(uri::String, server)
+    ns = get_names(uri, server, 1)
+    server.documents[uri].global_namespace = ns
+end
+
 
 
 # Unhandled
@@ -85,8 +118,11 @@ function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list)
 end
 
 function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list)
-    fname = isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : ex.args[1].args[1].args[1]
-    list[fname] = (scope, :Function, ex.typ, ex)
+    
+    fname = isa(ex.args[1], Symbol) ? ex.args[1] : 
+            isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
+                                    ex.args[1].args[1].args[1]
+    list[fname] = (scope, :Function, ex)
 
     if loc in ex
         for (n,t) in parsesignature(ex.args[1])

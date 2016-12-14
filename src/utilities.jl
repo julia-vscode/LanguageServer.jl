@@ -102,7 +102,7 @@ function should_file_be_linted(uri, server)
 
         uri_path = lowercase(uri_path)
         workspace_path = lowercase(workspace_path)
-end
+    end
 
     if server.rootPath==""
         return false

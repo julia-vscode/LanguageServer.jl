@@ -18,7 +18,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     end
 
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
-    ns = get_names(doc.blocks, offset)
+    # ns = get_names(doc.blocks, offset)
+    ns = get_names(tdpp.textDocument.uri, server, offset)
 
     for v in keys(ns)
         if string(v)==word

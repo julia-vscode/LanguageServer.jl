@@ -2,9 +2,10 @@ type Document
     _content::String
     _line_offsets::Nullable{Vector{Int}}
     blocks::Expr
+    global_namespace::Dict
 
     function Document(text::AbstractString)
-        return new(text, Nullable{Vector{Int}}(), Expr(:block))
+        return new(text, Nullable{Vector{Int}}(), Expr(:block), Dict())
     end
 end
 

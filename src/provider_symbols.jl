@@ -19,11 +19,12 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}
     return DocumentSymbolParams(params) 
 end
 
-function getsyminfo(blocks, syms, uri , doc, prefix="") 
-    ns = get_names(blocks, 0)
+function getsyminfo(blocks, syms, uri , doc, prefix="")
+    ns = get_names(blocks, 1)
     for (name, (s, t, loc, def)) in ns
         if t==:Module
-            getsyminfo(def, syms, uri, doc, string(name))
+            def.args[3].typ = def.typ
+            getsyminfo(def.args[3], syms, uri, doc, string(name))
         elseif t==:Function
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(loc))[1])))) 
         elseif t==:DataType

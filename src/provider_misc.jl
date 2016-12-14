@@ -91,7 +91,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        if change._type==FileChangeType_Created || change._type==FileChangeType_Changed
+        if change._type==FileChangeType_Created || (change._type==FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
             server.documents[uri] = Document(uri, content, true)
@@ -99,7 +99,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             if should_file_be_linted(uri, server)
                 process_diagnostics(uri, server)
             end
-        elseif change._type==FileChangeType_Deleted
+        elseif change._type==FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
             delete!(server.documents, uri)
 
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))

@@ -1,12 +1,13 @@
 type Document
+    _uri::String
     _content::String
     _line_offsets::Nullable{Vector{Int}}
     _open_in_editor::Bool
-    _exists_on_disc::Bool
+    _workspace_file::Bool
     blocks::Vector{Any}
 
-    function Document(text::AbstractString, exists_on_disc::Bool)
-        return new(text, Nullable{Vector{Int}}(), false, exists_on_disc, [])
+    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, [])
     end
 end
 
@@ -18,12 +19,8 @@ function set_open_in_editor(doc::Document, value::Bool)
     doc._open_in_editor = value
 end
 
-function exists_on_disc(doc::Document)
-    return doc._exists_on_disc
-end
-
-function set_exists_on_disc(doc::Document, value::Bool)
-    doc._exists_on_disc = value
+function is_workspace_file(doc::Document)
+    return doc._workspace_file
 end
 
 function get_line(doc::Document, line::Int)

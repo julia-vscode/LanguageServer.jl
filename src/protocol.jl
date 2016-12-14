@@ -122,8 +122,7 @@ type DidChangeWatchedFilesParams
     changes::Vector{FileEvent}
 end
 function DidChangeWatchedFilesParams(d::Dict)
-    info(d["changes"])
-    DidChangeWatchedFilesParams()
+    DidChangeWatchedFilesParams(map(i->FileEvent(i),d["changes"]))
 end
 
 type InitializeResult

@@ -5,6 +5,9 @@ import LanguageServer.update
 import LanguageServer.get_offset
 import LanguageServer.get_line_offsets
 import LanguageServer.get_position_at
+import LanguageServer.get_open_in_editor
+import LanguageServer.set_open_in_editor
+import LanguageServer.is_workspace_file
 
 s1 = """
 123456
@@ -22,12 +25,19 @@ d1 = Document("untitled", s1, false)
 @test get_position_at(d1,1) == (1,1)
 @test get_position_at(d1,8) == (2,1)
 @test get_position_at(d1,15) == (3,2)
+@test get_open_in_editor(d1)==false
+set_open_in_editor(d1, true)
+@test get_open_in_editor(d1)==true
+set_open_in_editor(d1, false)
+@test get_open_in_editor(d1)==false
+@test is_workspace_file(d1)==false
+
 
 s2 = """
 12μ456
 abηde
 ABCDEFG"""
-d2 = Document("untitled", s2, false)
+d2 = Document("untitled", s2, true)
 @test get_line(d2,1) == "12μ456\n"
 @test get_line(d2,2) == "abηde\n"
 @test get_line(d2,3) == "ABCDEFG"
@@ -37,6 +47,7 @@ d2 = Document("untitled", s2, false)
 @test get_position_at(d2,chr2ind(d2._content,1)) == (1,1)
 @test get_position_at(d2,chr2ind(d2._content,8)) == (2,1)
 @test get_position_at(d2,chr2ind(d2._content,15)) == (3,2)
+@test is_workspace_file(d2)==true
 
 
 update(d2, 2, 2, 0, "12")

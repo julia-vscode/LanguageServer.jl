@@ -19,6 +19,10 @@ function set_open_in_editor(doc::Document, value::Bool)
     doc._open_in_editor = value
 end
 
+function get_open_in_editor(doc::Document)
+    return doc._open_in_editor
+end
+
 function is_workspace_file(doc::Document)
     return doc._workspace_file
 end

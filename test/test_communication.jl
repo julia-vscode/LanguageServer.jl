@@ -8,7 +8,7 @@ init_request = """
     "method":"initialize",
     "params": {
         "processId": 11116,
-        "rootPath": "c:\\\\Users\\\\anthoff\\\\source\\\\fund.jl",
+        "rootPath": "",
         "capabilities":{},
         "trace":"off"
     }

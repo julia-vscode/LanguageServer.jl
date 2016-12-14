@@ -12,6 +12,18 @@ const serverCapabilities = ServerCapabilities(
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
     server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
+    if server.rootPath!=""
+        for (root, dirs, files) in walkdir(server.rootPath)
+            for file in files
+                if splitext(file)[2]==".jl"
+                    filepath = joinpath(root, file)
+                    uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
+                    content = String(read(filepath))
+                    server.documents[uri] = Document(uri, content, true)
+                end
+            end
+        end
+    end
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 end
@@ -21,8 +33,14 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.documents[r.params.textDocument.uri] = Document(r.params.textDocument.text)
-    parseblocks(r.params.textDocument.uri, server)
+    uri = r.params.textDocument.uri
+    if !haskey(server.documents, uri)
+        server.documents[uri] = Document(uri, r.params.textDocument.text, false)
+    end
+    doc = server.documents[uri]
+    set_open_in_editor(doc, true)
+
+    parseblocks(uri, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
@@ -34,7 +52,12 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
-    delete!(server.documents, r.params.textDocument.uri)
+    uri = r.params.textDocument.uri
+    if !is_workspace_file(server.documents[uri])
+        delete!(server.documents, uri)
+    else
+        set_open_in_editor(server.documents[uri], false)
+    end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params)
@@ -51,6 +74,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
             intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
         end
     end
+    if should_file_be_linted(r.params.textDocument.uri, server) 
+        process_diagnostics(r.params.textDocument.uri, server) 
+    end
     parseblocks(r.params.textDocument.uri, server) 
 end
 
@@ -62,12 +88,36 @@ function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams
     
 end
 
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
+    for change in r.params.changes
+        uri = change.uri
+        if change._type==FileChangeType_Created || (change._type==FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
+            filepath = uri2filepath(uri)
+            content = String(read(filepath))
+            server.documents[uri] = Document(uri, content, true)
+
+            if should_file_be_linted(uri, server)
+                process_diagnostics(uri, server)
+            end
+        elseif change._type==FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
+            delete!(server.documents, uri)
+
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            send(response, server)
+        end
+    end
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, params)
+    return DidChangeWatchedFilesParams(params)
+end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
     return CancelParams(params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
+    uri = r.params.textDocument.uri
     parseblocks(r.params.textDocument.uri, server, true)
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 

@@ -88,12 +88,8 @@ function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return d
 end
 
-function should_file_be_linted(uri, server)
-    !server.runlinter && return false
-
+function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
-
-    workspace_path = server.rootPath
 
     if is_windows()
         if uri_path[1]=='\\'
@@ -101,8 +97,20 @@ function should_file_be_linted(uri, server)
         end
 
         uri_path = lowercase(uri_path)
-        workspace_path = lowercase(workspace_path)
+    end
+    return uri_path
 end
+
+function should_file_be_linted(uri, server)
+    !server.runlinter && return false
+
+    uri_path = uri2filepath(uri)
+
+    workspace_path = server.rootPath
+
+    if is_windows()
+        workspace_path = lowercase(workspace_path)
+    end
 
     if server.rootPath==""
         return false

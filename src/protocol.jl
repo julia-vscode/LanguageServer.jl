@@ -107,6 +107,24 @@ type ServerCapabilities
     # renameProvider::Bool
 end
 
+const FileChangeType_Created = 1
+const FileChangeType_Changed = 2
+const FileChangeType_Deleted = 3
+
+type FileEvent
+    uri::String
+    _type::Int
+end
+FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
+
+
+type DidChangeWatchedFilesParams
+    changes::Vector{FileEvent}
+end
+function DidChangeWatchedFilesParams(d::Dict)
+    DidChangeWatchedFilesParams(map(i->FileEvent(i),d["changes"]))
+end
+
 type InitializeResult
     capabilities::ServerCapabilities
 end

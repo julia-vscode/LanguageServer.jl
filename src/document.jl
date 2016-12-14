@@ -1,15 +1,30 @@
 type Document
+    _uri::String
     _content::String
     _line_offsets::Nullable{Vector{Int}}
+    _open_in_editor::Bool
+    _workspace_file::Bool
     blocks::Vector{Any}
 
-    function Document(text::AbstractString)
-        return new(text, Nullable{Vector{Int}}(), [])
+    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, [])
     end
 end
 
 function get_text(doc::Document)
     return doc._content
+end
+
+function set_open_in_editor(doc::Document, value::Bool)
+    doc._open_in_editor = value
+end
+
+function get_open_in_editor(doc::Document)
+    return doc._open_in_editor
+end
+
+function is_workspace_file(doc::Document)
+    return doc._workspace_file
 end
 
 function get_line(doc::Document, line::Int)

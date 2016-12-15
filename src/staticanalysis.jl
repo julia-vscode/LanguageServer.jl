@@ -141,7 +141,7 @@ end
 function get_fields(t, ns, blocks)
     fn = Dict()
     if t in keys(ns)
-        n, s, loc, def = ns[t]
+        n, s, def = ns[t]
         if def.head in [:immutable, :type]
             fn = Dict(parsestruct(def))
         end

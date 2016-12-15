@@ -1,4 +1,4 @@
-import LanguageServer: parseblocks, children, isblock, get_namespace, parsestruct, parsesignature, get_block, get_type, get_fields, shiftloc!
+import LanguageServer: parseblocks, isblock, get_names, parsestruct, parsesignature, get_block, get_type, get_fields, shiftloc!
 
 
 testtext="""module testmodule
@@ -16,17 +16,16 @@ end
 
 blocks = Expr(:block)
 parseblocks(testtext, blocks, 0)
+blocks.typ = 0:length(testtext.data)
 
 ns = get_names(blocks, 119)
 
-@test ex.head==:function
-@test length(ns)==7
-@test ns[:a][1]==:argument
-@test parsestruct(ns[:testtype][4])==[:a=>:Any,:b=>:Int,:c=>:(Vector{Int})]
-@test parsesignature(ns[:testfunction][4].args[1])==[(:a, :Any), (:b, :Int), (:c, :testtype)]
 
-@test ns[:testtype][4] == get_block(blocks, first(ns[:testtype][3]))
-@test ns[:testfunction][4] == get_block(blocks, first(ns[:testfunction][3]))
+@test length(ns)==6
+@test ns[:a][1]==:argument
+@test parsestruct(ns[:testtype][3])==[:a=>:Any,:b=>:Int,:c=>:(Vector{Int})]
+@test parsesignature(ns[:testfunction][3].args[1])==[(:a, :Any), (:b, :Int), (:c, :testtype)]
+
 
 @test get_type(:testtype, ns)==:DataType
 @test get_type(:c, ns)==:testtype

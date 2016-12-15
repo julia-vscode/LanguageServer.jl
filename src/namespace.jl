@@ -243,11 +243,11 @@ end
 
 function parsestruct(ex::Expr)
     fields = Pair[]
-    for c in children(ex)
+    for c in ex.args[3].args
         if isa(c, Symbol)
             push!(fields, c=>:Any)
         elseif isa(c, Expr) && c.head==:(::)
-            push!(fields, c.args[1]=>c.args[2])
+            push!(fields, c.args[1]=>striplocinfo(c.args[2]))
         end
     end
     return fields

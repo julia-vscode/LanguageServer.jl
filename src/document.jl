@@ -8,7 +8,7 @@ type Document
     global_namespace::Dict
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, [])
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, Expr(:block))
     end
 end
 

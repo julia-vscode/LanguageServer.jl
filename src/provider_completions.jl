@@ -2,22 +2,26 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     line = get_line(tdpp, server)
-    
-    word = let io = IOBuffer()
-        if isempty(line)
-            ""
-        else
-            for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
-                if c=='\\'
+
+    if isempty(line) || line=="\n"
+        word = ""
+    else
+        word = let io = IOBuffer()
+            if isempty(line)
+                ""
+            else
+                for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
+                    if c=='\\'
+                        write(io, c)
+                        break
+                    end
+                    if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
+                        break
+                    end
                     write(io, c)
-                    break
                 end
-                if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
-                    break
-                end
-                write(io, c)
+                reverse(takebuf_string(io))
             end
-            reverse(takebuf_string(io))
         end
     end
 
@@ -25,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     # Global completions
     comp = Base.REPLCompletions.completions(word,endof(word))[1]
     n = length(comp)
-    comp = comp[1:min(length(comp),25)]
+    comp = comp[1:min(length(comp),50)]
 
     # Local completions
     sword = split(word,".")
@@ -83,7 +87,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             return CompletionItem(label, kind, d, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)])
         end
     end
-    completion_list = CompletionList(25<n,CIs)
+    completion_list = CompletionList(50<n,CIs)
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)

@@ -7,7 +7,7 @@ function get_names(uri::String, server, loc)
     ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)))
     get_names(doc.blocks, loc, :global, ns)
     
-    for f in ns[:INCLUDES][3].args
+    for f in unique(ns[:INCLUDES][3].args)
         luri = joinpath(dirname(uri), f)
         puri = startswith(luri, "file://") ? luri[8:end] : luri
         if isfile(puri)
@@ -75,10 +75,12 @@ function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list)
 end
 
 function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list)
-    if :INCLUDES in keys(list)
-        push!(list[:INCLUDES][3].args, ex.args[2])
-    else
-        list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
+    if ex.args[1]==:include
+        if :INCLUDES in keys(list)
+            push!(list[:INCLUDES][3].args, ex.args[2])
+        else
+            list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
+        end
     end
 end
 

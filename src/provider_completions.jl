@@ -62,6 +62,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         if label[1]=='\\'
             d = Base.REPLCompletions.latex_symbols[label]
             newtext = Base.REPLCompletions.latex_symbols[label]
+            length(newtext)>1 && (newtext=newtext[1:1]) #This is wrong but fixes an error for latex completions that seem to add more than one Char
         else
             if s == nothing
                 d = ""

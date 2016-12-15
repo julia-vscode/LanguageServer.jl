@@ -48,7 +48,7 @@ end
 
 function get_docs(x)
     str = string(Docs.doc(x))
-    if str[1:16]=="No documentation"
+    if str[1:min(16, length(str))]=="No documentation"
         s = last(search(str, "\n\n```\n"))+1
         e = first(search(str, "\n```",s))-1
         if isa(x, DataType) && x!=Any && x!=Function
@@ -70,8 +70,15 @@ function get_docs(x)
     return d
 end
 
+
 function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
     word = get_word(tdpp,server)
+    if search(word,'.')==0
+        if isdefined(Main, Symbol(word))
+            return [string(Docs.doc(Docs.Binding(Main, Symbol(word))))]
+        end
+    end
+
     word in keys(server.DocStore) && (return server.DocStore[word])
     sym = get_sym(word)
     d=[""]

@@ -1,7 +1,22 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     documentation = get_local_hover(tdpp, server)
-    isempty(documentation) && (documentation = get_docs(r.params, server))
+    if isempty(documentation) 
+        word = get_word(tdpp, server)
+        if search(word, ".")!=0:-1
+            sword = split(word, ".")
+            mod = get_sym(join(sword[1:end-1], "."))
+            if mod==nothing || !isa(mod, Module) || !isdefined(mod, Symbol(last(sword)))
+                documentation = [""]
+            else
+                documentation = [string(Docs.doc(Docs.Binding(mod, Symbol(last(sword)))))]
+            end
+        elseif isdefined(Main, Symbol(word))
+            documentation = [string(Docs.doc(Docs.Binding(Main, Symbol(word))))]
+        else
+            documentation = [""]
+        end
+    end
 
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)

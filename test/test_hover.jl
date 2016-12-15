@@ -19,7 +19,7 @@ end
 end
 """
 
-server.documents["testdoc"] = Document(testtext)
+server.documents["testdoc"] = Document("testdoc",testtext,true)
 doc = server.documents["testdoc"]
 parseblocks(doc, server)
 

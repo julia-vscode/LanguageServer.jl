@@ -151,8 +151,16 @@ get_names(::Type{Val{:while}}, ex::Expr, loc, scope, list) = get_names(ex.args[2
 
 function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list)
     if loc in ex
-        if ex.args[1].head==:(=) && isa(ex.args[1].args[1], Symbol)
-            list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1])
+        if ex.args[1].head==:(=)
+            if isa(ex.args[1].args[1], Symbol)
+                list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1])
+            elseif isa(ex.args[1].args[1], Expr) && ex.args[1].args[1].head==:tuple
+                for it in ex.args[1].args[1].args
+                    if isa(it, Symbol)
+                        list[it] = (:iterator, :Any, ex.args[1])
+                    end
+                end
+            end
         end
         for a in ex.args[2].args
             get_names(a, loc, :local, list)

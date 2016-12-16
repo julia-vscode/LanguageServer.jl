@@ -40,7 +40,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
 
-    parseblocks(uri, server)
+    parseblocks(doc, server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
@@ -67,17 +67,14 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
     blocks = server.documents[r.params.textDocument.uri].blocks
+    dirty = (last(r.params.contentChanges).range.start.line+1, last(r.params.contentChanges).range.start.character+1, first(r.params.contentChanges).range.stop.line+1, first(r.params.contentChanges).range.stop.character+1)
     for c in r.params.contentChanges
         update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
-        
-        for i = 1:length(blocks)
-            intersect(blocks[i].range, c.range) && (blocks[i].uptodate = false)
-        end
     end
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
     end
-    parseblocks(r.params.textDocument.uri, server) 
+    parseblocks(doc, server, dirty...) 
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
@@ -118,7 +115,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    parseblocks(r.params.textDocument.uri, server, true)
+    parseblocks(server.documents[uri], server)
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
     end

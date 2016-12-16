@@ -1,4 +1,4 @@
-function get_line(uri::AbstractString, line::Int, server::LanguageServerInstance)
+function get_line(uri::AbstractString, line::Integer, server::LanguageServerInstance)
     doc = server.documents[uri]
     return get_line(doc, line)
 end
@@ -16,10 +16,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
         e += 1
         c = read(line, Char)
         push!(word, c)
-        if !(Base.is_id_char(c) || c=='.')
-            word = Char[]
-            s = e
-        end
+        !(Base.is_id_char(c) || c=='.') && empty!(word)
     end
     while !eof(line) && Base.is_id_char(c)
         e += 1
@@ -44,48 +41,6 @@ function get_sym(str::AbstractString)
     catch
         return nothing
     end
-end
-
-function get_docs(x)
-    str = string(Docs.doc(x))
-    if str[1:16]=="No documentation"
-        s = last(search(str, "\n\n```\n"))+1
-        e = first(search(str, "\n```",s))-1
-        if isa(x, DataType) && x!=Any && x!=Function
-            d = MarkedString.(split(chomp(sprint(dump, x)), '\n'))
-        elseif isa(x, Function)
-            d = split(str[s:e], '\n')
-            s = last(search(str, "\n\n"))+1
-            e = first(search(str, "\n\n",s))-1
-            d = MarkedString.(map(dd->(dd = dd[1:first(search(dd, " in "))-1]),d))
-            d[1] = MarkedString(str[s:e])
-        elseif isa(x, Module)
-            d = [split(str, '\n')[3]]
-        else
-            d = []
-        end
-    else
-        d = split(str, "\n\n", limit = 2)
-    end
-    return d
-end
-
-function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    word = get_word(tdpp,server)
-    word in keys(server.DocStore) && (return server.DocStore[word])
-    sym = get_sym(word)
-    d=[""]
-    if sym!=nothing
-        d = get_docs(sym)
-        # Only keep 100 records
-        if length(server.DocStore)>100
-            for k in take(keys(server.DocStore), 10)
-                delete!(server.DocStore, k)
-            end
-        end
-        server.DocStore[word] = d
-    end
-    return d
 end
 
 function uri2filepath(uri::AbstractString)

@@ -1,21 +1,23 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
-    word = get_word(tdpp,server)
-    sword = split(word,'.')
-    b = get_block(tdpp, server)
-    if word == ""  
-        send(JSONRPC.Response(get(r.id), Hover([])), server)
-        return
+    documentation = get_local_hover(tdpp, server)
+    if isempty(documentation) 
+        word = get_word(tdpp, server)
+        if search(word, ".")!=0:-1
+            sword = split(word, ".")
+            mod = get_sym(join(sword[1:end-1], "."))
+            if mod==nothing || !isa(mod, Module) || !isdefined(mod, Symbol(last(sword)))
+                documentation = [""]
+            else
+                documentation = [string(Docs.doc(Docs.Binding(mod, Symbol(last(sword)))))]
+            end
+        elseif isdefined(Main, Symbol(word))
+            documentation = [string(Docs.doc(Docs.Binding(Main, Symbol(word))))]
+        else
+            documentation = [""]
+        end
     end
 
-    documentation = b!=nothing && (sword[1] in keys(b.localvar) || get_block(tdpp.textDocument.uri, sword[1], server)!=false) && length(sword)>1 ? 
-        [MarkedString(get_type(sword, tdpp, server))] : 
-        MarkedString[]
-    
-    isempty(documentation) && (documentation = get_local_hover(word, tdpp, server))
-    isempty(documentation) && (documentation = get_global_hover(word, tdpp, server))
-    isempty(documentation) && (documentation = get_docs(r.params, server))
-         
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)
 end
@@ -25,23 +27,33 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params)
 end
 
 
-function get_global_hover(word::AbstractString, tdpp::TextDocumentPositionParams, server)
-    b = get_block(tdpp.textDocument.uri, word, server)
-    hover = MarkedString[]
-    if b!=false
-        push!(hover, MarkedString("global: defined at $(sprintrange(b.range)) "))
-        b.var.doc!="" && push!(hover,MarkedString(b.var.doc))
-    end 
-    return hover
-end
+function get_local_hover(tdpp::TextDocumentPositionParams, server)
+    doc = server.documents[tdpp.textDocument.uri]
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
+    word = get_word(tdpp, server)
+    sword = Symbol.(split(word,'.'))
+    
+    ns = get_names(tdpp.textDocument.uri, server, offset)
 
-function get_local_hover(word::AbstractString, tdpp::TextDocumentPositionParams, server)
-    b = get_block(tdpp, server)
-    hover = MarkedString[]
-    b==nothing && return hover
-    if word in keys(b.localvar)
-        v = b.localvar[word]
-        push!(hover, MarkedString("local: $(v.doc)$(v.t!=""?"::$(v.t)":"")"))
-    end 
-    return hover
+    if length(sword)>1
+        t = get_type(sword[1], ns)
+        for i = 2:length(sword)
+            fn = get_fields(t, ns, doc.blocks)
+            if sword[i] in keys(fn)
+                t = fn[sword[i]]
+            else
+                t = :Any
+            end
+        end
+        t = Symbol(t)
+        return t==:Any ? [] : MarkedString.(["$t"]) 
+    end
+
+    sym = Symbol(word)
+
+    if sym in keys(ns)
+        scope,t,def = ns[sym]
+        return MarkedString.(["$scope: $t", string(striplocinfo(def))])
+    end
+    return []
 end

@@ -16,10 +16,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
         e += 1
         c = read(line, Char)
         push!(word, c)
-        if !(Base.is_id_char(c) || c=='.')
-            word = Char[]
-            s = e
-        end
+        !(Base.is_id_char(c) || c=='.') && empty!(word)
     end
     while !eof(line) && Base.is_id_char(c)
         e += 1

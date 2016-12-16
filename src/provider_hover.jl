@@ -33,7 +33,6 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
     word = get_word(tdpp, server)
     sword = Symbol.(split(word,'.'))
     
-    # ns = get_names(doc.blocks, offset)
     ns = get_names(tdpp.textDocument.uri, server, offset)
 
     if length(sword)>1

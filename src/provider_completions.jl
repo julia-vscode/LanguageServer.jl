@@ -34,7 +34,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     # Local completions
     sword = split(word,".")
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
-    # ns = get_names(doc.blocks, offset)
+    
     ns = get_names(tdpp.textDocument.uri, server, offset)
     if length(sword)==1
         for k in keys(ns)

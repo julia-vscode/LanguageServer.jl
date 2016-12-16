@@ -46,55 +46,6 @@ function get_sym(str::AbstractString)
     end
 end
 
-function get_docs(x)
-    str = string(Docs.doc(x))
-    if str[1:min(16, length(str))]=="No documentation"
-        s = last(search(str, "\n\n```\n"))+1
-        e = first(search(str, "\n```",s))-1
-        if isa(x, DataType) && x!=Any && x!=Function
-            d = MarkedString.(split(chomp(sprint(dump, x)), '\n'))
-        elseif isa(x, Function)
-            d = split(str[s:e], '\n')
-            s = last(search(str, "\n\n"))+1
-            e = first(search(str, "\n\n",s))-1
-            d = MarkedString.(map(dd->(dd = dd[1:first(search(dd, " in "))-1]),d))
-            d[1] = MarkedString(str[s:e])
-        elseif isa(x, Module)
-            d = [split(str, '\n')[3]]
-        else
-            d = []
-        end
-    else
-        d = split(str, "\n\n", limit = 2)
-    end
-    return d
-end
-
-
-function get_docs(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    word = get_word(tdpp,server)
-    if search(word,'.')==0
-        if isdefined(Main, Symbol(word))
-            return [string(Docs.doc(Docs.Binding(Main, Symbol(word))))]
-        end
-    end
-
-    word in keys(server.DocStore) && (return server.DocStore[word])
-    sym = get_sym(word)
-    d=[""]
-    if sym!=nothing
-        d = get_docs(sym)
-        # Only keep 100 records
-        if length(server.DocStore)>100
-            for k in take(keys(server.DocStore), 10)
-                delete!(server.DocStore, k)
-            end
-        end
-        server.DocStore[word] = d
-    end
-    return d
-end
-
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
 

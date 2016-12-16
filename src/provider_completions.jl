@@ -67,10 +67,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             if s == nothing
                 d = ""
             else
-                d = get_docs(s)
-                d = isa(d,Vector{MarkedString}) ? (x->x.value).(d) : d
-                d = join(d[2:end],'\n')
-                d = replace(d,'`',"")
+                d = string(Docs.doc(s))
+                d = replace(d, r"(`|\*\*)", "")
+                d = replace(d, "\n\n", "\n")
             end
             newtext = prefix*label
         end

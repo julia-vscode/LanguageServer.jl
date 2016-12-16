@@ -29,7 +29,7 @@ function getsyminfo(blocks, syms, uri , doc, prefix="")
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
         elseif t==:DataType
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 5, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
-        else 
+        elseif !(t in [:INCLUDE, :MODULES])
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 13, Location(uri, Range(get_position_at(doc, first(def.typ))[1]))))
         end
     end

@@ -8,26 +8,16 @@ function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
-    line = IOBuffer(get_line(tdpp, server))
-    word = Char[]
-    e = s = 0
-    c = ' '
-    while position(line) < tdpp.position.character+offset
-        e += 1
-        c = read(line, Char)
-        push!(word, c)
-        !(Base.is_id_char(c) || c=='.') && empty!(word)
+    line = get_line(tdpp, server)
+    ts = Lexer.TokenStream(line)
+    while !Lexer.eof(ts)
+        t = string(Lexer.next_token(ts).val)
+        word_range = position(ts)+(-endof(t):0)
+        if tdpp.position.character in word_range
+            return t
+        end
     end
-    while !eof(line) && Base.is_id_char(c)
-        e += 1
-        c = read(line, Char)
-        Base.is_id_char(c) && push!(word, c)
-    end
-    for i = 1:5 # Delete junk at front
-        !isempty(word) && (word[1] in [' ','.','!'] || '0'≤word[1]≤'9') && deleteat!(word, 1)
-    end
-    isempty(word) && return ""
-    return String(word)
+    return ""
 end
 
 function get_sym(str::AbstractString)

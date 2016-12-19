@@ -2,7 +2,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     tdpp = r.params
     documentation = get_local_hover(tdpp, server)
     if isempty(documentation) 
-        word = get_word(tdpp, server, 1)
+        word = get_word(tdpp, server)
         if search(word, ".")!=0:-1
             sword = split(word, ".")
             mod = get_sym(join(sword[1:end-1], "."))
@@ -29,8 +29,8 @@ end
 
 function get_local_hover(tdpp::TextDocumentPositionParams, server)
     doc = server.documents[tdpp.textDocument.uri]
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
-    word = get_word(tdpp, server, 1)
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    word = get_word(tdpp, server)
     sword = Symbol.(split(word,'.'))
     
     ns = get_names(tdpp.textDocument.uri, server, offset)

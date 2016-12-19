@@ -18,7 +18,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
             end
             push!(word, c)
         else
-            if e<=tdpp.position.character
+            if e<=tdpp.position.character+offset
                 empty!(word)
             else
                 break

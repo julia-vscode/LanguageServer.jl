@@ -3,7 +3,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, server, offset)
+    ns = get_names(tdpp.textDocument.uri, offset, server)
 
     documentation = get_local_hover(word, ns, server)
     modules = []

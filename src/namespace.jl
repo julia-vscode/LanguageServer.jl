@@ -1,11 +1,16 @@
 Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
 
-get_names(ex::Expr, loc, scope, list) = get_names(Val{ex.head}, ex::Expr, loc, scope, list)
-get_names(ex::Expr, loc) = (ns=Dict{Any,Any}();get_names(ex, loc, :global, ns);ns)
-function get_names(uri::String, server, loc)
+get_names(ex::Expr, loc, scope, list, server) = get_names(Val{ex.head}, ex::Expr, loc, scope, list, server)
+
+function get_names(ex::Expr, loc, server)
+    ns=Dict{Any,Any}()
+    get_names(ex, loc, :global, ns, server)
+    return ns 
+end
+function get_names(uri::String, loc, server)
     doc = server.documents[uri]
     ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)))
-    get_names(doc.blocks, loc, :global, ns)
+    get_names(doc.blocks, loc, :global, ns, server)
     
     for f in unique(ns[:INCLUDES][3].args)
         luri = joinpath(dirname(uri), f)
@@ -30,7 +35,7 @@ function get_names(uri::String, server, loc)
 end
 
 function get_names(uri::String, server)
-    ns = get_names(uri, server, 1)
+    ns = get_names(uri, 1, server)
     server.documents[uri].global_namespace = ns
 end
 
@@ -38,19 +43,19 @@ end
 
 # Unhandled
 
-get_names(ex, loc, scope, list) = nothing
-get_names{T<:Any}(::Type{Val{T}}, ex, loc, scope, list) = nothing
+get_names(ex, loc, scope, list, server) = nothing
+get_names{T<:Any}(::Type{Val{T}}, ex, loc, scope, list, server) = nothing
 
 
 # Special
 
-get_names(::Type{Val{:global}}, ex::Expr, loc, scope, list) = get_names(ex.args[1], loc, :local, list)
-get_names(::Type{Val{:local}}, ex::Expr, loc, scope, list) = get_names(ex.args[1], loc, :local, list)
-get_names(::Type{Val{:const}}, ex::Expr, loc, scope, list) = get_names(ex.args[1], loc, :const, list)
+get_names(::Type{Val{:global}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :local, list, server)
+get_names(::Type{Val{:local}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :local, list, server)
+get_names(::Type{Val{:const}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :const, list, server)
 
-function get_names(::Type{Val{:macrocall}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:macrocall}}, ex::Expr, loc, scope, list, server)
     if ex.args[1] == Symbol("@doc")
-        return get_names(ex.args[3], loc, scope, list)
+        return get_names(ex.args[3], loc, scope, list, server)
     end
 end
 
@@ -58,7 +63,7 @@ end
 
 # Basic
 
-function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list, server)
     if isa(ex.args[1], Symbol)
         list[ex.args[1]] = (scope, :Any, ex)
     elseif isa(ex.args[1], Expr) 
@@ -74,7 +79,7 @@ function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list)
     end
 end
 
-function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list, server)
     if ex.args[1]==:include
         if :INCLUDES in keys(list)
             push!(list[:INCLUDES][3].args, ex.args[2])
@@ -84,7 +89,7 @@ function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list)
     end
 end
 
-function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
     if :using in keys(list)
         push!(list[:using][3], ex.args[1])
     else
@@ -92,34 +97,35 @@ function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list)
     end
 end
 
-function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list, server)
     for a in ex.args
-        get_names(a, loc, scope, list)
+        get_names(a, loc, scope, list, server)
     end
 end
 
 
 
-function get_names(::Type{Val{:block}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:block}}, ex::Expr, loc, scope, list, server)
     if loc in ex
         for a in ex.args
-            get_names(a, loc, scope, list)
+            get_names(a, loc, scope, list, server)
             scope!=:global && loc in a && break 
         end
     end
 end
 
-get_names(::Type{Val{:baremodule}}, ex::Expr, loc, scope, list) = get_names(Val{:module}, ex, loc, scope, list)
-function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list)
+get_names(::Type{Val{:baremodule}}, ex::Expr, loc, scope, list, server) = get_names(Val{:module}, ex, loc, scope, list, server)
+
+function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list, server)
     list[ex.args[2]] = (scope, :Module, ex)
     if loc in ex
         for a in ex.args[3].args
-            get_names(a, loc, ex.args[2], list)
+            get_names(a, loc, ex.args[2], list, server)
         end
     end
 end
 
-function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
     
     fname = isa(ex.args[1], Symbol) ? ex.args[1] : 
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
@@ -132,14 +138,14 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list)
         end
         if loc in ex.args[2]
             for a in ex.args[2].args
-                get_names(a, loc, :local, list)
+                get_names(a, loc, :local, list, server)
                 loc in a && break
             end
         end
     end
 end
 
-function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list, server)
     list[ex.args[1].args[1]] = (scope, :Macro, ex)
 end
 
@@ -147,9 +153,9 @@ end
 
 # Control Flow
 
-get_names(::Type{Val{:while}}, ex::Expr, loc, scope, list) = get_names(ex.args[2], loc, scope, list)
+get_names(::Type{Val{:while}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[2], loc, scope, list, server)
 
-function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list, server)
     if loc in ex
         if ex.args[1].head==:(=)
             if isa(ex.args[1].args[1], Symbol)
@@ -163,20 +169,20 @@ function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list)
             end
         end
         for a in ex.args[2].args
-            get_names(a, loc, :local, list)
+            get_names(a, loc, :local, list, server)
             loc in a && break
         end
     end
 end
 
-function get_names(::Type{Val{:if}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:if}}, ex::Expr, loc, scope, list, server)
     for a in ex.args[2].args
-        get_names(a, loc, :local, list)
+        get_names(a, loc, :local, list, server)
         loc in a && return
     end
     if length(ex.args)==3
         for a in ex.args[3].args
-            get_names(a, loc, :local, list)
+            get_names(a, loc, :local, list, server)
             loc in a && break
         end
     end
@@ -186,23 +192,23 @@ end
 
 # DataTypes
 
-get_names(::Type{Val{:type}}, ex::Expr, loc, scope, list) = get_names(Val{:struct}, ex::Expr, loc, scope, list)
-get_names(::Type{Val{:immutable}}, ex::Expr, loc, scope, list) = get_names(Val{:struct}, ex::Expr, loc, scope, list)
-function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list)
+get_names(::Type{Val{:type}}, ex::Expr, loc, scope, list, server) = get_names(Val{:struct}, ex::Expr, loc, scope, list, server)
+get_names(::Type{Val{:immutable}}, ex::Expr, loc, scope, list, server) = get_names(Val{:struct}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
     list[tname] = (scope, :DataType, ex)
 end
 
-function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[1], Symbol) ? ex.args[1] :
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
             isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1]: :unknown
     list[tname] = (scope, :DataType, ex)
 end
 
-function get_names(::Type{Val{:bitstype}}, ex::Expr, loc, scope, list)
+function get_names(::Type{Val{:bitstype}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown

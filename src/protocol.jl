@@ -216,3 +216,7 @@ type DocumentSymbolParams
     textDocument::TextDocumentIdentifier 
 end 
 DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
+
+function Message(t::Int, text::AbstractString)
+    Dict("jsonrpc"=>"2.0", "method"=>"window/showMessage", "params"=>Dict("type"=>t, "message"=>text))
+end

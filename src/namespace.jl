@@ -85,10 +85,10 @@ function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list)
 end
 
 function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list)
-    if :MODULES in keys(list)
-        push!(list[:MODULES][3].args, ex.args[1])
+    if :using in keys(list)
+        push!(list[:using][3].args, ex.args[1])
     else
-        list[:MODULES] = (scope, :MODULE, Expr(:block, ex.args[1]))
+        list[:using] = (scope, :none, [ex.args[1]])
     end
 end
 

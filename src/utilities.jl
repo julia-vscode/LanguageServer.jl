@@ -33,6 +33,28 @@ function get_sym(str::AbstractString)
     end
 end
 
+function get_cache_entry(word, server, modules=[])
+    entry = (:EMPTY, "", SignatureHelp(SignatureInformation[], 0, 0), Location[])
+    if search(word, ".")!=0:-1
+        sword = split(word, ".")
+        modname = parse(join(sword[1:end-1], "."))
+        if modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
+            entry = server.cache[modname][Symbol(last(sword))]
+        end
+    else
+        for m in vcat([:Base, :Core], modules)
+            if Symbol(word) in server.cache[m][:EXPORTEDNAMES]
+                entry = server.cache[m][Symbol(word)]
+            end
+        end
+    end
+
+    if isa(entry, Dict)
+        entry = (parse(word), "Module: $word", SignatureHelp(SignatureInformation[], 0, 0), Location[]) 
+    end
+    return entry
+end
+
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
 

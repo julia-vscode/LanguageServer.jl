@@ -64,31 +64,9 @@ function modnames(M::Module, top)
     return d
 end
 
-# run(`julia "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top()); LanguageServer.savecache(top)"`)
-# run(`julia "using LanguageServer; top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
+# run(`julia -e "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top); LanguageServer.savecache(top)"`)
+# run(`julia -e "using LanguageServer; top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
 
-
-function initcache()
-    top = Dict()
-    modnames(Main, top)
-    # for lib in [:Base, :Core]
-    #     for n in top[lib][:EXPORTEDNAMES]
-    #         if n in keys(top[lib])
-    #             top[n] = top[lib][n]
-    #         end
-    #     end
-    # end
-    savecache(top)
-end
-
-addpackages(m::AbstractString) = addpackages([m])
-function addpackages{T<:AbstractString}(M::Vector{T})
-    top = loadcache()
-    for m in M
-        modnames(m, top)
-    end
-    savecache(top)
-end
 
 function savecache(top)
     top[:EXPORTEDNAMES] = union(top[:Base][:EXPORTEDNAMES], top[:Core][:EXPORTEDNAMES])

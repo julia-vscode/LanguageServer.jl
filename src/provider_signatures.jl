@@ -1,5 +1,11 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     tdpp = r.params
+    doc = server.documents[tdpp.textDocument.uri]
+    word = get_word(tdpp, server)
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    ns = get_names(tdpp.textDocument.uri, server, offset)
+    modules = []
+
     pos = pos0 = tdpp.position.character
     io = IOBuffer(get_line(tdpp, server))
     
@@ -28,24 +34,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         pos -= 1
     end
     
+    
     if word==""
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
     else
-        x = get_sym(word)
-        M = methods(x).ms
-        sigs = SignatureInformation[]
-        for m in M
-            tv, decls, file, line = Base.arg_decl_parts(m)
-            
-            p_sigs = [isempty(i[2]) ? i[1] : i[1]*"::"*i[2] for i in decls[2:end]]
-            desc = string(string(m.name), "(", join(p_sigs, ", "), ")")
-
-            PI = map(ParameterInformation, p_sigs)
-            doc = ""
-            (length(decls)-1>arg) && push!(sigs, SignatureInformation(desc, doc, PI))
-        end
-        
-        signatureHelper = SignatureHelp(sigs, 0, arg)
+        sigs = get_cache_entry(word, server, modules)[3]
+        signatureHelper = SignatureHelp(filter(s->length(s.parameters)>arg , sigs.signatures), 0, arg)
         response = JSONRPC.Response(get(r.id), signatureHelper)
     end
     send(response, server)

@@ -1,6 +1,6 @@
 The LanguageServer.jl package is licensed under the MIT "Expat" License:
 
-Copyright (c) 2016: David Anthoff and other contributors:
+Copyright (c) 2016: David Anthoff, Zac Nugent and other contributors:
 https://github.com/JuliaEditorSupport/LanguageServer.jl/contributors
  
 Permission is hereby granted, free of charge, to any person obtaining a copy

@@ -2,10 +2,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
-    ns = get_names(tdpp.textDocument.uri, server, offset)
+    ns = get_names(tdpp.textDocument.uri, offset, server)
     word = get_word(tdpp, server)
     
-    modules = []
+    modules = ns[:loaded_modules]
     locations = get_cache_entry(word, server, modules)[4]
     
     

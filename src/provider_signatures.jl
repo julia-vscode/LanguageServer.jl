@@ -3,8 +3,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, server, offset)
-    modules = []
+    ns = get_names(tdpp.textDocument.uri, offset, server)
+    modules = ns[:loaded_modules]
 
     pos = pos0 = tdpp.position.character
     io = IOBuffer(get_line(tdpp, server))

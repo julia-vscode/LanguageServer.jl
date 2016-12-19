@@ -2,9 +2,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, server, offset)
+    ns = get_names(tdpp.textDocument.uri, offset, server)
     line = get_line(tdpp, server)
-    modules = []
+    modules = ns[:loaded_modules]
 
     if isempty(line) || line=="\n"
         word = ""

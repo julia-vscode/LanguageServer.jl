@@ -3,13 +3,14 @@ Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
 get_names(ex::Expr, loc, scope, list, server) = get_names(Val{ex.head}, ex::Expr, loc, scope, list, server)
 
 function get_names(ex::Expr, loc, server)
-    ns=Dict{Any,Any}()
+    ns=Dict{Any,Any}(:loaded_modules=>[])
     get_names(ex, loc, :global, ns, server)
     return ns 
 end
+
 function get_names(uri::String, loc, server)
     doc = server.documents[uri]
-    ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)))
+    ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)), :loaded_modules=>[])
     get_names(doc.blocks, loc, :global, ns, server)
     
     for f in unique(ns[:INCLUDES][3].args)
@@ -90,10 +91,19 @@ function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list, server)
 end
 
 function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
-    if :using in keys(list)
-        push!(list[:using][3], ex.args[1])
-    else
-        list[:using] = (scope, :none, [ex.args[1]])
+    
+    if length(ex.args)==1 && isa(ex.args[1], Symbol)
+        if ex.args[1] in keys(server.cache)
+        elseif string(ex.args[1]) in readdir(Pkg.dir())
+            send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
+            absentmodule = ["$(ex.args[1])"]
+            run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
+            server.cache = loadcache()
+            send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
+        else
+            return
+        end
+        push!(list[:loaded_modules], ex.args[1])
     end
 end
 

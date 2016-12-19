@@ -6,7 +6,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     ns = get_names(tdpp.textDocument.uri, offset, server)
 
     documentation = get_local_hover(word, ns, server)
-    modules = []
+    modules = ns[:loaded_modules]
     if isempty(documentation) 
         documentation = [get_cache_entry(word, server, modules)[2]]
     end

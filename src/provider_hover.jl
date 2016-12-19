@@ -26,7 +26,7 @@ function get_local_hover(word, ns, server)
     if length(sword)>1
         t = get_type(sword[1], ns)
         for i = 2:length(sword)
-            fn = get_fields(t, ns, doc.blocks)
+            fn = get_fields(t, ns)
             if sword[i] in keys(fn)
                 t = fn[sword[i]]
             else

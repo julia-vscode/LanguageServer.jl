@@ -138,7 +138,7 @@ function get_type(v, ns)
 end
 
 
-function get_fields(t, ns, blocks)
+function get_fields(t, ns)
     fn = Dict()
     if t in keys(ns)
         n, s, def = ns[t]
@@ -160,10 +160,10 @@ function get_fields(t, ns, blocks)
     return fn
 end
 
-function get_type(sword::Vector{Symbol}, ns, blocks)
+function get_type(sword::Vector{Symbol}, ns)
     t = get_type(sword[1], ns)
     for i = 2:length(sword)
-        fn = get_fields(t, ns, blocks)
+        fn = get_fields(t, ns)
         if sword[i] in keys(fn)
             t = fn[sword[i]]
         else

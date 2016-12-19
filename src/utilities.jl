@@ -8,25 +8,23 @@ function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
-    line = IOBuffer(get_line(tdpp, server))
+    text = get_line(tdpp, server)
     word = Char[]
-    e = s = 0
-    c = ' '
-    while position(line) < tdpp.position.character+offset
-        e += 1
-        c = read(line, Char)
-        push!(word, c)
-        !(Base.is_id_char(c) || c=='.') && empty!(word)
+    for e = 1:length(text)
+        c = text[chr2ind(text, e)]
+        if Lexer.is_identifier_char(c) || c=='.'
+            if isempty(word) && !Lexer.is_identifier_start_char(c)
+                continue
+            end
+            push!(word, c)
+        else
+            if e<=tdpp.position.character+offset
+                empty!(word)
+            else
+                break
+            end
+        end
     end
-    while !eof(line) && Base.is_id_char(c)
-        e += 1
-        c = read(line, Char)
-        Base.is_id_char(c) && push!(word, c)
-    end
-    for i = 1:5 # Delete junk at front
-        !isempty(word) && (word[1] in [' ','.','!'] || '0'≤word[1]≤'9') && deleteat!(word, 1)
-    end
-    isempty(word) && return ""
     return String(word)
 end
 

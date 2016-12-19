@@ -1,24 +1,14 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
-    word = get_word(tdpp, server)
-    x = get_sym(word)
-
-    locations = map(methods(x).ms) do m
-        (filename, line) = functionloc(m)
-        @static if is_windows()
-            filename_norm = normpath(filename)
-            filename_norm = replace(filename_norm, '\\', '/')
-            filename_escaped = URIParser.escape(filename_norm)
-            uri = "file:///$filename_escaped"
-        else
-            uri = "file:$filename"
-        end
-        return Location(uri, line-1)
-    end
-
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
     ns = get_names(tdpp.textDocument.uri, server, offset)
+    word = get_word(tdpp, server)
+    
+    modules = []
+    locations = get_cache_entry(word, server, modules)[4]
+    
+    
 
     for v in keys(ns)
         if string(v)==word

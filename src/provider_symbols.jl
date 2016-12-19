@@ -7,6 +7,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
+    parseblocks(doc, server)
 
     syms = SymbolInformation[]
     getsyminfo(doc.blocks, syms, uri, doc)
@@ -29,7 +30,7 @@ function getsyminfo(blocks, syms, uri , doc, prefix="")
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
         elseif t==:DataType
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 5, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
-        elseif !(t in [:INCLUDE, :MODULES])
+        elseif !(t in [:INCLUDE, :MODULE])
             push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 13, Location(uri, Range(get_position_at(doc, first(def.typ))[1]))))
         end
     end

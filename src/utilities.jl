@@ -8,16 +8,24 @@ function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
-    line = get_line(tdpp, server)
-    ts = Lexer.TokenStream(line)
-    while !Lexer.eof(ts)
-        t = string(Lexer.next_token(ts).val)
-        word_range = position(ts)+(-endof(t):0)
-        if tdpp.position.character in word_range
-            return t
+    text = get_line(tdpp, server)
+    word = Char[]
+    for e = 1:length(text)
+        c = text[chr2ind(text, e)]
+        if Lexer.is_identifier_char(c)
+            if isempty(word) && !Lexer.is_identifier_start_char(c)
+                continue
+            end
+            push!(word, c)
+        else
+            if e<=tdpp.position.character
+                empty!(word)
+            else
+                break
+            end
         end
     end
-    return ""
+    return String(word)
 end
 
 function get_sym(str::AbstractString)

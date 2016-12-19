@@ -1,7 +1,10 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    ns = get_names(tdpp.textDocument.uri, server, offset)
     line = get_line(tdpp, server)
+    modules = []
 
     if isempty(line) || line=="\n"
         word = ""
@@ -26,68 +29,91 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     prefix = word[1:findlast(word,'.')]
-    # Global completions
-    comp = Base.REPLCompletions.completions(word,endof(word))[1]
-    n = length(comp)
-    comp = comp[1:min(length(comp),50)]
 
-    # Local completions
-    sword = split(word,".")
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
-    
-    ns = get_names(tdpp.textDocument.uri, server, offset)
-    if length(sword)==1
-        for k in keys(ns)
-            if length(string(k))>length(word) && word==string(k)[1:length(word)]
-                push!(comp, string(k))
+    entries = Tuple{Symbol,Int,String}[]
+    if isempty(prefix) # Single word
+        if startswith(word, "\\") # Latex completion
+            for (k,v) in Base.REPLCompletions.latex_symbols
+                if startswith(string(k), word)
+                    push!(entries, (Base.REPLCompletions.latex_symbols[k], 1, k))
+                end
+            end
+        else
+            for m in vcat([:Base, :Core], modules)
+                if startswith(string(m), word)
+                    push!(entries, (string(m), 9, "Module: $m"))
+                end
+                for k in server.cache[m][:EXPORTEDNAMES]
+                    if startswith(string(k), word)
+                        if isa(server.cache[m][k], Dict)
+                            push!(entries, (string(k), 9, "Module: $k"))
+                        else
+                            push!(entries, (string(k), kind(server.cache[m][k][1]), server.cache[m][k][2]))
+                        end
+                    end
+                end
+            end
+            for k in keys(ns)
+                if length(string(k))>length(word) && word==string(k)[1:length(word)]
+                    push!(entries, (string(k), 6, ""))
+                end
             end
         end
     else
+        modname = parse(strip(prefix, '.'))
+        topmodname = Symbol(first(split(prefix, '.')))
+        vname = last(split(word, '.'))
+        if topmodname in vcat([:Base, :Core], modules)
+            for (k, v) in server.cache[modname]
+                if startswith(string(k), vname)
+                    n = string(modname, ".", k)
+                    
+                    if isa(server.cache[modname][k], Dict)
+                        push!(entries, (n, 9, "Module: $n"))
+                    else
+                        push!(entries, (n, kind(v[1]), v[2]))
+                    end
+                end
+            end
+        end
+        sword = split(word,".")
         if Symbol(sword[1]) in keys(ns)
             t = get_type(Symbol.(sword[1:end-1]), ns, doc.blocks)
             fn = keys(get_fields(t, ns, doc.blocks))
             for f in fn
                 if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
-                    push!(comp, string(f))
+                    push!(entries, (string(f), 6, ""))
                 end
             end
         end
     end
 
-    
-    CIs = map(comp) do label
-        l, c = tdpp.position.line, tdpp.position.character
-        s = get_sym(label)
-        
-        if label[1]=='\\'
-            d = Base.REPLCompletions.latex_symbols[label]
-            newtext = Base.REPLCompletions.latex_symbols[label]
-            length(newtext)>1 && (newtext=newtext[1:1]) #This is wrong but fixes an error for latex completions that seem to add more than one Char
+    l, c = tdpp.position.line, tdpp.position.character
+    CIs = []
+    for (comp, k, documentation) in entries
+        newtext = string(comp)
+        if startswith(documentation, "\\")
+            label  = strip(documentation, '\\')
+            documentation = newtext
+            length(newtext)>1 && (newtext=newtext[1:1])
         else
-            if s == nothing
-                d = ""
-            else
-                d = string(Docs.doc(s))
-                d = replace(d, r"(`|\*\*)", "")
-                d = replace(d, "\n\n", "\n")
-            end
-            newtext = prefix*label
+            label  = newtext
+            documentation = replace(documentation, r"(`|\*\*)", "")
+            documentation = replace(documentation, "\n\n", "\n")
         end
 
-        kind = isa(s, String) ? 1 :
-               isa(s, Function) ? 3 :
-               isa(s, DataType) ? 7 :
-               isa(s, Module) ? 9 :
-               isa(s, Number) ? 12 :
-               isa(s, Enum) ? 13 : 6
 
         if endof(newtext)>=endof(word)
-            return CompletionItem(label, kind, d, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word)+1:end]), [])
+            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word)+1:end]), []))
         else
-            return CompletionItem(label, kind, d, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)])
+            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)]))
         end
     end
-    completion_list = CompletionList(50<n,CIs)
+
+    
+
+
+    completion_list = CompletionList(true,CIs)
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)
@@ -96,3 +122,11 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
 end
+
+
+kind(s::Symbol) = s==:String ? 1 :
+       s==:Function ? 3 :
+       s==:DataType ? 7 :
+       s==:Module ? 9 :
+       s==:Number ? 12 :
+       s==:Enum ? 13 : 6

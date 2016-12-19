@@ -22,7 +22,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     for v in keys(ns)
         if string(v)==word
-            l0,c0 = get_position_at(doc, first(ns[v][3].typ))
+            l0,c0 = get_position_at(doc, max(1, first(ns[v][3].typ)))
             l1,c1 = get_position_at(doc, last(ns[v][3].typ))
             push!(locations, Location(tdpp.textDocument.uri, Range(l0-1, c0-1, l1-1, c1-1)))
         end

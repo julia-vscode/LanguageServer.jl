@@ -12,7 +12,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     word = Char[]
     for e = 1:length(text)
         c = text[chr2ind(text, e)]
-        if Lexer.is_identifier_char(c)
+        if Lexer.is_identifier_char(c) || c=='.'
             if isempty(word) && !Lexer.is_identifier_start_char(c)
                 continue
             end

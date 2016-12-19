@@ -86,7 +86,7 @@ end
 
 function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list)
     if :using in keys(list)
-        push!(list[:using][3].args, ex.args[1])
+        push!(list[:using][3], ex.args[1])
     else
         list[:using] = (scope, :none, [ex.args[1]])
     end

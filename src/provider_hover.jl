@@ -8,7 +8,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     documentation = get_local_hover(word, ns, server)
     modules = []
     if isempty(documentation) 
-        documentation = get_cache_entry(word, server, modules)[2]
+        documentation = [get_cache_entry(word, server, modules)[2]]
     end
 
     response = JSONRPC.Response(get(r.id), Hover(documentation))

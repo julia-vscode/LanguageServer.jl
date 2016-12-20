@@ -3,14 +3,14 @@ Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
 get_names(ex::Expr, loc, scope, list, server) = get_names(Val{ex.head}, ex::Expr, loc, scope, list, server)
 
 function get_names(ex::Expr, loc, server)
-    ns=Dict{Any,Any}(:loaded_modules=>[])
+    ns=Dict{Any,Any}(:document_dirname=>"", :loaded_modules=>[])
     get_names(ex, loc, :global, ns, server)
     return ns 
 end
 
 function get_names(uri::String, loc, server)
     doc = server.documents[uri]
-    ns=Dict{Any,Any}(:document_dirname => dirname(uri), :loaded_modules=>[])
+    ns=Dict{Any,Any}(:document_dirname=>dirname(uri), :loaded_modules=>[])
     get_names(doc.blocks, loc, :global, ns, server)
 
     return ns
@@ -47,14 +47,14 @@ end
 
 function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list, server)
     if isa(ex.args[1], Symbol)
-        list[ex.args[1]] = (scope, :Any, ex)
+        list[ex.args[1]] = (scope, :Any, ex, list[:document_dirname])
     elseif isa(ex.args[1], Expr) 
         if ex.args[1].head==:call
-            list[ex.args[1].args[1]] = (scope, :Function, ex)
+            list[ex.args[1].args[1]] = (scope, :Function, ex, list[:document_dirname])
         elseif ex.args[1].head==:tuple
             for a in ex.args[1].args
                 if isa(a, Symbol)
-                    list[a] = (scope, :Any, ex)
+                    list[a] = (scope, :Any, ex, list[:document_dirname])
                 end
             end
         end 
@@ -79,7 +79,7 @@ end
 get_names(::Type{Val{:baremodule}}, ex::Expr, loc, scope, list, server) = get_names(Val{:module}, ex, loc, scope, list, server)
 
 function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list, server)
-    list[ex.args[2]] = (scope, :Module, ex)
+    list[ex.args[2]] = (scope, :Module, ex, list[:document_dirname])
     if loc in ex
         for a in ex.args[3].args
             get_names(a, loc, ex.args[2], list, server)
@@ -92,11 +92,11 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
     fname = isa(ex.args[1], Symbol) ? ex.args[1] : 
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
                                     ex.args[1].args[1].args[1]
-    list[fname] = (scope, :Function, ex)
+    list[fname] = (scope, :Function, ex, list[:document_dirname])
 
     if loc in ex
         for (n,t) in parsesignature(ex.args[1])
-            list[n] = (:argument, t, ex.args[1])
+            list[n] = (:argument, t, ex.args[1], list[:document_dirname])
         end
         if loc in ex.args[2]
             for a in ex.args[2].args
@@ -108,7 +108,7 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
 end
 
 function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list, server)
-    list[ex.args[1].args[1]] = (scope, :Macro, ex)
+    list[ex.args[1].args[1]] = (scope, :Macro, ex, list[:document_dirname])
 end
 
 
@@ -136,7 +136,7 @@ function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
     if length(ex.args)==1 && isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
-            updatecache(ex.args[1])
+            updatecache(ex.args[1], server)
             # send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
             # absentmodule = ["$(ex.args[1])"]
             # run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
@@ -159,7 +159,7 @@ function get_names(::Type{Val{:import}}, ex::Expr, loc, scope, list, server)
     if isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
-            updatecache(ex.args[1])
+            updatecache(ex.args[1], server)
         else
             return
         end
@@ -182,11 +182,11 @@ function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list, server)
     if loc in ex
         if ex.args[1].head==:(=)
             if isa(ex.args[1].args[1], Symbol)
-                list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1])
+                list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1], list[:document_dirname])
             elseif isa(ex.args[1].args[1], Expr) && ex.args[1].args[1].head==:tuple
                 for it in ex.args[1].args[1].args
                     if isa(it, Symbol)
-                        list[it] = (:iterator, :Any, ex.args[1])
+                        list[it] = (:iterator, :Any, ex.args[1], list[:document_dirname])
                     end
                 end
             end
@@ -221,21 +221,21 @@ function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex)
+    list[tname] = (scope, :DataType, ex, list[:document_dirname])
 end
 
 function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[1], Symbol) ? ex.args[1] :
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
             isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex)
+    list[tname] = (scope, :DataType, ex, list[:document_dirname])
 end
 
 function get_names(::Type{Val{:bitstype}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex)
+    list[tname] = (scope, :DataType, ex, list[:document_dirname])
 end
 
 

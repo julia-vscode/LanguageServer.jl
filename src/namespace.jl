@@ -10,27 +10,8 @@ end
 
 function get_names(uri::String, loc, server)
     doc = server.documents[uri]
-    ns=Dict{Any,Any}(:INCLUDES => (:global, :INCLUDE, Expr(:block)), :loaded_modules=>[])
-    get_names(doc.blocks, loc, :global, ns, server)
-    
-    for f in unique(ns[:INCLUDES][3].args)
-        luri = joinpath(dirname(uri), f)
-        puri = startswith(luri, "file://") ? luri[8:end] : luri
-        if isfile(puri)
-            if !(luri in keys(server.documents))
-                server.documents[luri] = Document(readstring(puri))
-            end
-            if isempty(server.documents[luri].blocks.args)
-                parseblocks(server.documents[luri], server)
-                get_names(luri, server)
-            end
-            for (k,v) in server.documents[luri].global_namespace
-                if !(k in keys(ns))
-                    ns[k] = v
-                end
-            end
-        end
-    end
+    ns=Dict{Any,Any}(:document_dirname => dirname(uri), :loaded_modules=>[])
+    get_names(doc.blocks, loc, :global, ns, server))
 
     return ns
 end
@@ -135,10 +116,19 @@ end
 # Modules, imports and includes
 
 function get_names(::Type{Val{:include}}, ex::Expr, loc, scope, list, server)
-    if :INCLUDES in keys(list)
-        push!(list[:INCLUDES][3].args, ex.args[2])
-    else
-        list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
+    
+    if isa(ex.args[2], String)
+        luri = joinpath(list[:document_dirname], ex.args[2])
+        fpath = startswith(luri, "file://") ? luri[8:end] : luri
+        if isfile(fpath) && (luri in keys(server.documents))
+            if isempty(server.documents[luri].blocks.args)
+                parseblocks(server.documents[luri], server)
+                get_names(luri, server)
+            end
+            for (k,v) in server.documents[luri].global_namespace
+                list[k] = v
+            end
+        end
     end
 end
 

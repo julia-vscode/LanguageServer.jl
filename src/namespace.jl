@@ -50,7 +50,14 @@ function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list, server)
         list[ex.args[1]] = (scope, :Any, ex, list[:document_uri])
     elseif isa(ex.args[1], Expr) 
         if ex.args[1].head==:call
-            list[ex.args[1].args[1]] = (scope, :Function, ex, list[:document_uri])
+            fname = isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
+            isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1] : 
+                                                      ex.args[1].args[1].args[1].args[1]
+            if fname in keys(list) && length(list[fname])==5
+                push!(list[fname][5], (ex, list[:document_uri]))
+            else
+                list[ex.args[1].args[1]] = (scope, :Function, ex, list[:document_uri], [])
+            end
         elseif ex.args[1].head==:tuple
             for a in ex.args[1].args
                 if isa(a, Symbol)
@@ -94,7 +101,7 @@ function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
     if fname in keys(list) && length(list[fname])==5
         push!(list[fname][5], (ex, list[:document_uri]))
     else                                    
-        list[fname] = (scope, :Function, ex, list[:document_uri])
+        list[fname] = (scope, :Function, ex, list[:document_uri], [])
     end
 
     if loc in ex
@@ -163,7 +170,7 @@ function get_names(::Type{Val{:import}}, ex::Expr, loc, scope, list, server)
         end
         if length(ex.args)==1
             list[ex.args[1]] = server.cache[ex.args[1]]
-        elseif length(ex.args)==2 
+        elseif length(ex.args)==2 && ex.args[2] in keys(server.cache[ex.args[1]])
             list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]
         elseif length(ex.args)==3 && Expr(:.,ex.args[1],QuoteNode(ex.args[2])) in keys(server.cache)
             list[ex.args[3]] =  server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))][ex.args[3]]

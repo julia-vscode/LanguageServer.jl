@@ -78,8 +78,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         end
         sword = split(word,".")
         if Symbol(sword[1]) in keys(ns)
-            t = get_type(Symbol.(sword[1:end-1]), ns, doc.blocks)
-            fn = keys(get_fields(t, ns, doc.blocks))
+            t = get_type(Symbol.(sword[1:end-1]), ns)
+            fn = keys(get_fields(t, ns))
             for f in fn
                 if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
                     push!(entries, (string(f), 6, ""))
@@ -97,11 +97,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             documentation = newtext
             length(newtext)>1 && (newtext=newtext[1:1])
         else
-            label  = newtext
+            label  = last(split(newtext, "."))
             documentation = replace(documentation, r"(`|\*\*)", "")
             documentation = replace(documentation, "\n\n", "\n")
         end
-
 
         if endof(newtext)>=endof(word)
             push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word)+1:end]), []))
@@ -109,9 +108,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)]))
         end
     end
-
-    
-
 
     completion_list = CompletionList(true,CIs)
 

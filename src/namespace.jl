@@ -88,11 +88,14 @@ function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list, server)
 end
 
 function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
-    
     fname = isa(ex.args[1], Symbol) ? ex.args[1] : 
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
                                     ex.args[1].args[1].args[1]
-    list[fname] = (scope, :Function, ex, list[:document_uri])
+    if fname in keys(list) && length(list[fname])==5
+        push!(list[fname][5], (ex, list[:document_uri]))
+    else                                    
+        list[fname] = (scope, :Function, ex, list[:document_uri])
+    end
 
     if loc in ex
         for (n,t) in parsesignature(ex.args[1])
@@ -116,7 +119,6 @@ end
 # Modules, imports and includes
 
 function get_names(::Type{Val{:include}}, ex::Expr, loc, scope, list, server)
-    
     if isa(ex.args[2], String)
         luri = joinpath(dirname(list[:document_uri]), ex.args[2])
         fpath = startswith(luri, "file://") ? luri[8:end] : luri
@@ -137,12 +139,8 @@ function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
             updatecache(ex.args[1], server)
-            # send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
-            # absentmodule = ["$(ex.args[1])"]
-            # run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
-            # server.cache = loadcache()
-            # send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
         else
+            send(Message(3, "Could not find module: \'$(ex.args[1])\'"), server)
             return
         end
         push!(list[:loaded_modules], ex.args[1])
@@ -221,7 +219,7 @@ function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex, list[:document_uri])
+    list[tname] = (scope, :DataType, ex, list[:document_uri], [])
 end
 
 function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list, server)

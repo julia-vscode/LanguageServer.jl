@@ -82,38 +82,9 @@ end
 
 function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list, server)
     if ex.args[1]==:include
-        if :INCLUDES in keys(list)
-            push!(list[:INCLUDES][3].args, ex.args[2])
-        else
-            list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
-        end
+        get_names(Val{:include}, ex, loc, scope, list, server)
     end
 end
-
-function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
-    
-    if length(ex.args)==1 && isa(ex.args[1], Symbol)
-        if ex.args[1] in keys(server.cache)
-        elseif string(ex.args[1]) in readdir(Pkg.dir())
-            send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
-            absentmodule = ["$(ex.args[1])"]
-            run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
-            server.cache = loadcache()
-            send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
-        else
-            return
-        end
-        push!(list[:loaded_modules], ex.args[1])
-    end
-end
-
-function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list, server)
-    for a in ex.args
-        get_names(a, loc, scope, list, server)
-    end
-end
-
-
 
 function get_names(::Type{Val{:block}}, ex::Expr, loc, scope, list, server)
     if loc in ex
@@ -158,6 +129,42 @@ end
 function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list, server)
     list[ex.args[1].args[1]] = (scope, :Macro, ex)
 end
+
+
+
+# Modules, imports and includes
+
+function get_names(::Type{Val{:include}}, ex::Expr, loc, scope, list, server)
+    if :INCLUDES in keys(list)
+        push!(list[:INCLUDES][3].args, ex.args[2])
+    else
+        list[:INCLUDES] = (scope, :INCLUDE, Expr(:block, ex.args[2]))
+    end
+end
+
+function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
+    if length(ex.args)==1 && isa(ex.args[1], Symbol)
+        if ex.args[1] in keys(server.cache)
+        elseif string(ex.args[1]) in readdir(Pkg.dir())
+            send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
+            absentmodule = ["$(ex.args[1])"]
+            run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
+            server.cache = loadcache()
+            send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
+        else
+            return
+        end
+        push!(list[:loaded_modules], ex.args[1])
+    end
+end
+
+function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list, server)
+    for a in ex.args
+        get_names(a, loc, scope, list, server)
+    end
+end
+
+
 
 
 

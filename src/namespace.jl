@@ -11,7 +11,7 @@ end
 function get_names(uri::String, loc, server)
     doc = server.documents[uri]
     ns=Dict{Any,Any}(:document_dirname => dirname(uri), :loaded_modules=>[])
-    get_names(doc.blocks, loc, :global, ns, server))
+    get_names(doc.blocks, loc, :global, ns, server)
 
     return ns
 end
@@ -136,11 +136,12 @@ function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
     if length(ex.args)==1 && isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
-            send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
-            absentmodule = ["$(ex.args[1])"]
-            run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
-            server.cache = loadcache()
-            send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
+            updatecache(ex.args[1])
+            # send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)
+            # absentmodule = ["$(ex.args[1])"]
+            # run(`julia -e "using LanguageServer;top = LanguageServer.loadcache();  LanguageServer.modnames(\"$(ex.args[1])\", top);LanguageServer.savecache(top)"`)
+            # server.cache = loadcache()
+            # send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
         else
             return
         end
@@ -154,8 +155,23 @@ function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list, server)
     end
 end
 
-
-
+function get_names(::Type{Val{:import}}, ex::Expr, loc, scope, list, server)
+    if isa(ex.args[1], Symbol)
+        if ex.args[1] in keys(server.cache)
+        elseif string(ex.args[1]) in readdir(Pkg.dir())
+            updatecache(ex.args[1])
+        else
+            return
+        end
+        if length(ex.args)==1
+            list[ex.args[1]] = server.cache[ex.args[1]]
+        elseif length(ex.args)==2 
+            list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]
+        elseif length(ex.args)==3 && Expr(:.,ex.args[1],QuoteNode(ex.args[2])) in keys(server.cache)
+            list[ex.args[3]] =  server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))][ex.args[3]]
+        end
+    end
+end
 
 
 # Control Flow

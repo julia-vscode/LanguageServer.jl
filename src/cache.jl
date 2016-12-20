@@ -67,7 +67,9 @@ end
 # run(`julia -e "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top); LanguageServer.savecache(top)"`)
 # run(`julia -e "using LanguageServer; top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
 
-function updatecache(absentmodules)
+updatecache(absentmodule::Symbol) = updatecache([absentmodule])
+
+function updatecache(absentmodules::Vector{Symbol})
     send(Message(3, "Adding $(ex.args[1]) to cache, this may take a minute"), server)    
     run(`julia -e "using LanguageServer; top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
     server.cache = loadcache()

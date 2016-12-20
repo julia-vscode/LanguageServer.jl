@@ -36,7 +36,7 @@ function get_local_hover(word, ns, server)
         t = Symbol(t)
         return t==:Any ? [] : MarkedString.(["$t"])
     elseif sword[1] in keys(ns)
-        scope,t,def = ns[sword[1]]
+        scope, t, def, uri = ns[sword[1]]
         return MarkedString.(["$scope: $t", string(striplocinfo(def))])
     end
     return []

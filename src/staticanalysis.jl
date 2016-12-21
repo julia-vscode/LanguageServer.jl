@@ -128,9 +128,9 @@ function get_block(ex, i)
 end
 
 
-function get_type(v, ns)
-    if v in keys(ns)
-        return ns[v].t
+function get_type(v, ns::Scope)
+    if v in keys(ns.list)
+        return ns.list[v].t
     elseif isdefined(Main, v)
         return typeof(getfield(Main, v))
     end
@@ -138,10 +138,10 @@ function get_type(v, ns)
 end
 
 
-function get_fields(t, ns)
+function get_fields(t, ns::Scope)
     fn = Dict()
-    if t in keys(ns)
-        v = ns[t]
+    if t in keys(ns.list)
+        v = ns.list[t]
         if v.def.head in [:immutable, :type]
             fn = Dict(parsestruct(v.def))
         end
@@ -160,7 +160,7 @@ function get_fields(t, ns)
     return fn
 end
 
-function get_type(sword::Vector{Symbol}, ns)
+function get_type(sword::Vector{Symbol}, ns::Scope)
     t = get_type(sword[1], ns)
     for i = 2:length(sword)
         fn = get_fields(t, ns)

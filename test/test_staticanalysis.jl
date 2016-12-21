@@ -1,5 +1,5 @@
 import LanguageServer: parseblocks, isblock, get_names, parsestruct, parsesignature, get_block, get_type, get_fields, shiftloc!
-
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
 
 testtext="""module testmodule
 type testtype
@@ -21,10 +21,10 @@ blocks.typ = 0:length(testtext.data)
 ns = get_names(blocks, 119, server)
 
 
-@test length(ns)==8
-@test ns[:a][1]==:argument
-@test parsestruct(ns[:testtype][3])==[:a=>:Any,:b=>:Int,:c=>:(Vector{Int})]
-@test parsesignature(ns[:testfunction][3].args[1])==[(:a, :Any), (:b, :Int), (:c, :testtype)]
+@test length(ns.list)==6
+@test ns.list[:a].t==:Any
+@test parsestruct(ns.list[:testtype].def)==[:a=>:Any,:b=>:Int,:c=>:(Vector{Int})]
+@test parsesignature(ns.list[:testfunction].def.args[1])==[(:a, :Any), (:b, :Int), (:c, :testtype)]
 
 
 @test get_type(:testtype, ns)==:DataType

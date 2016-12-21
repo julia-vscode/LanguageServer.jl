@@ -27,17 +27,17 @@ LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{
 
 res = getresult(server)
 
-@test res[1]["value"]=="global: Module"
+@test res[1]=="Module"
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":1,"character":9}}}"""), server)
 
 res = getresult(server)
 
-@test res[1]["value"]=="testmodule: DataType"
+@test res[1]=="DataType"
 @test res[2]["value"]=="type testtype\n    a\n    b::Float64\n    c::Vector{Float64}\nend"
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}"""), server)
 
 res = getresult(server)
 
-@test res[1]["value"]=="testmodule: Function"
+@test res[1]["value"]=="Function"

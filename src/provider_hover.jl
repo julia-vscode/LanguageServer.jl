@@ -5,7 +5,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
     ns = get_names(tdpp.textDocument.uri, offset, server)
 
-    documentation = get_local_hover(word, ns.list, server)
+    documentation = get_local_hover(word, ns, server)
     
     if isempty(documentation) 
         documentation = [get_cache_entry(word, server, ns.modules)[2]]
@@ -35,8 +35,8 @@ function get_local_hover(word, ns, server)
         end
         t = Symbol(t)
         return t==:Any ? [] : MarkedString.(["$t"])
-    elseif sword[1] in keys(ns)
-        v = ns[sword[1]]
+    elseif sword[1] in keys(ns.list)
+        v = ns.list[sword[1]]
         if isa(v, LocalVar)
             if v.t==:DataType
                 return ["DataType"; MarkedString(striplocinfo(v.def))]

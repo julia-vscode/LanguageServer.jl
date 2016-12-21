@@ -1,4 +1,4 @@
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
-cache/*
+cache/docs.cache

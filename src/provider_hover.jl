@@ -5,10 +5,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
     ns = get_names(tdpp.textDocument.uri, offset, server)
 
-    documentation = get_local_hover(word, ns, server)
-    modules = ns[:loaded_modules]
+    documentation = get_local_hover(word, ns.list, server)
+    
     if isempty(documentation) 
-        documentation = [get_cache_entry(word, server, modules)[2]]
+        documentation = [get_cache_entry(word, server, ns.modules)[2]]
     end
 
     response = JSONRPC.Response(get(r.id), Hover(documentation))
@@ -22,9 +22,6 @@ end
 
 function get_local_hover(word, ns, server)
     sword = Symbol.(split(word,'.'))
-    if sword[1] in [:included_modules,:document_uri] 
-        return []
-    end
     
     if length(sword)>1
         t = get_type(sword[1], ns)
@@ -39,8 +36,19 @@ function get_local_hover(word, ns, server)
         t = Symbol(t)
         return t==:Any ? [] : MarkedString.(["$t"])
     elseif sword[1] in keys(ns)
-        scope, t, def, uri = ns[sword[1]]
-        return MarkedString.(["$scope: $t", string(striplocinfo(def))])
+        v = ns[sword[1]]
+        if isa(v, LocalVar)
+            if v.t==:DataType
+                return ["DataType"; MarkedString(striplocinfo(v.def))]
+            elseif v.t==:Function
+                return [MarkedString("Function")]
+            else
+                return ["$(v.t)", MarkedString(string(striplocinfo(v.def)))]
+            end
+        else
+            return ["$(v[1])", v[2]]
+        end
+
     end
     return []
 end

@@ -130,7 +130,7 @@ end
 
 function get_type(v, ns)
     if v in keys(ns)
-        return ns[v][2]
+        return ns[v].t
     elseif isdefined(Main, v)
         return typeof(getfield(Main, v))
     end
@@ -141,9 +141,9 @@ end
 function get_fields(t, ns)
     fn = Dict()
     if t in keys(ns)
-        n, s, def = ns[t]
-        if def.head in [:immutable, :type]
-            fn = Dict(parsestruct(def))
+        v = ns[t]
+        if v.def.head in [:immutable, :type]
+            fn = Dict(parsestruct(v.def))
         end
     elseif isa(t, Symbol) && isdefined(Main, t)
         sym = getfield(Main, t)
@@ -182,3 +182,19 @@ function striplocinfo!(ex)
     end
 end
 striplocinfo(ex) = (ex1 = deepcopy(ex);striplocinfo!(ex1);ex1) 
+
+function code_loc(ex)
+    if isa(ex, Expr)
+        if isa(ex.typ, UnitRange{Int}) 
+            return ex.typ
+        else
+            for a in ex.args
+                l = code_loc(a)
+                if l!=0:0
+                    return l
+                end
+            end
+        end
+    end
+    return 0:0
+end

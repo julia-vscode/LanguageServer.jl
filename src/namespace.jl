@@ -1,18 +1,25 @@
-Base.in(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
+type LocalVar
+    t::Union{Symbol,Expr}
+    def::Expr
+    uri::String
+    methods::Vector
+end
+LocalVar(t, def, uri) = LocalVar(t, def, uri, [])
 
-get_names(ex::Expr, loc, scope, list, server) = get_names(Val{ex.head}, ex::Expr, loc, scope, list, server)
+⪥(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
+
+get_names(ex::Expr, scope, ns, server) = get_names(Val{ex.head}, ex::Expr, scope, ns, server)
 
 function get_names(ex::Expr, loc, server)
-    ns=Dict{Any,Any}(:document_uri=>"", :loaded_modules=>[])
-    get_names(ex, loc, :global, ns, server)
-    return ns 
+    ns = Scope("", [], Dict(), loc)
+    get_names(ex, :global, ns, server)
+    return ns
 end
 
 function get_names(uri::String, loc, server)
     doc = server.documents[uri]
-    ns=Dict{Any,Any}(:document_uri=>(uri), :loaded_modules=>[])
-    get_names(doc.blocks, loc, :global, ns, server)
-
+    ns = Scope(uri, [], Dict(), loc)
+    get_names(doc.blocks, :global, ns, server)
     return ns
 end
 
@@ -25,19 +32,19 @@ end
 
 # Unhandled
 
-get_names(ex, loc, scope, list, server) = nothing
-get_names{T<:Any}(::Type{Val{T}}, ex, loc, scope, list, server) = nothing
+get_names(ex, scope, ns, server) = nothing
+get_names{T<:Any}(::Type{Val{T}}, ex, scope, ns, server) = nothing
 
 
 # Special
 
-get_names(::Type{Val{:global}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :local, list, server)
-get_names(::Type{Val{:local}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :local, list, server)
-get_names(::Type{Val{:const}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[1], loc, :const, list, server)
+get_names(::Type{Val{:global}}, ex::Expr, scope, ns, server) = get_names(ex.args[1], :local, ns, server)
+get_names(::Type{Val{:local}}, ex::Expr, scope, ns, server) = get_names(ex.args[1], :local, ns, server)
+get_names(::Type{Val{:const}}, ex::Expr, scope, ns, server) = get_names(ex.args[1], :const, ns, server)
 
-function get_names(::Type{Val{:macrocall}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:macrocall}}, ex::Expr, scope, ns, server)
     if ex.args[1] == Symbol("@doc")
-        return get_names(ex.args[3], loc, scope, list, server)
+        return get_names(ex.args[3], scope, ns, server)
     end
 end
 
@@ -45,122 +52,133 @@ end
 
 # Basic
 
-function get_names(::Type{Val{:(=)}}, ex::Expr, loc, scope, list, server)
-    if isa(ex.args[1], Symbol)
-        list[ex.args[1]] = (scope, :Any, ex, list[:document_uri])
+function get_names(::Type{Val{:(=)}}, ex::Expr, scope, ns, server)
+    if isa(ex.args[1], Symbol) # Extending inference should start here
+        t = isa(ex.args[2], Number) ? :Number :
+            isa(ex.args[2], AbstractString) ? :String : :Any
+        ns.list[ex.args[1]] = LocalVar(t, ex, ns.uri)
+        if ns.loc ⪥ ex.args[2]
+            get_names(ex.args[2], scope, ns, server)
+        end
     elseif isa(ex.args[1], Expr) 
         if ex.args[1].head==:call
             fname = isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
             isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1] : 
                                                       ex.args[1].args[1].args[1].args[1]
-            if fname in keys(list) && length(list[fname])==5
-                push!(list[fname][5], (ex, list[:document_uri]))
+            if fname in keys(ns.list) && isa(ns.list[fname], LocalVar)
+                push!(ns.list[fname].methods, (ex, ns.uri))
             else
-                list[ex.args[1].args[1]] = (scope, :Function, ex, list[:document_uri], [])
+                ns.list[ex.args[1].args[1]] = LocalVar(:Function, ex, ns.uri)
             end
         elseif ex.args[1].head==:tuple
             for a in ex.args[1].args
                 if isa(a, Symbol)
-                    list[a] = (scope, :Any, ex, list[:document_uri])
+                    ns.list[a] = LocalVar(:Any, ex, ns.uri)
                 end
             end
         end 
     end
 end
 
-function get_names(::Type{Val{:call}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:call}}, ex::Expr, scope, ns, server)
     if ex.args[1]==:include
-        get_names(Val{:include}, ex, loc, scope, list, server)
+        get_names(Val{:include}, ex, scope, ns, server)
     end
 end
 
-function get_names(::Type{Val{:block}}, ex::Expr, loc, scope, list, server)
-    if loc in ex
+function get_names(::Type{Val{:block}}, ex::Expr, scope, ns, server)
+    if ns.loc ⪥ ex
         for a in ex.args
-            get_names(a, loc, scope, list, server)
-            scope!=:global && loc in a && break 
+            get_names(a, scope, ns, server)
+            scope!=:global && ns.loc ⪥ a && break 
         end
     end
 end
 
-get_names(::Type{Val{:baremodule}}, ex::Expr, loc, scope, list, server) = get_names(Val{:module}, ex, loc, scope, list, server)
+get_names(::Type{Val{:baremodule}}, ex::Expr, scope, ns, server) = get_names(Val{:module}, ex, scope, ns, server)
 
-function get_names(::Type{Val{:module}}, ex::Expr, loc, scope, list, server)
-    list[ex.args[2]] = (scope, :Module, ex, list[:document_uri])
-    if loc in ex
+function get_names(::Type{Val{:module}}, ex::Expr, scope, ns, server)
+    ns.list[ex.args[2]] = LocalVar(:Module, ex, ns.uri)
+    if ns.loc ⪥ ex
         for a in ex.args[3].args
-            get_names(a, loc, ex.args[2], list, server)
+            get_names(a, ex.args[2], ns, server)
         end
     end
 end
 
-function get_names(::Type{Val{:function}}, ex::Expr, loc, scope, list, server)
-    fname = isa(ex.args[1], Symbol) ? ex.args[1] : 
-            isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
-                                    ex.args[1].args[1].args[1]
-    if fname in keys(list) && length(list[fname])==5
-        push!(list[fname][5], (ex, list[:document_uri]))
+function get_names(::Type{Val{:function}}, ex::Expr, scope, ns, server)
+    fname = func_name(ex.args[1])
+    if fname in keys(ns.list) && isa(ns.list[fname], LocalVar) 
+        push!(ns.list[fname].methods, (ex, ns.uri))
     else                                    
-        list[fname] = (scope, :Function, ex, list[:document_uri], [])
+        ns.list[fname] = LocalVar(:Function, ex, ns.uri)
     end
 
-    if loc in ex
+    length(ex.args)==1 && return
+
+    if ns.loc ⪥ ex
         for (n,t) in parsesignature(ex.args[1])
-            list[n] = (:argument, t, ex.args[1], list[:document_uri])
+            ns.list[n] = LocalVar(t, ex.args[1], ns.uri)
         end
-        if loc in ex.args[2]
+        if ns.loc ⪥ ex.args[2]
             for a in ex.args[2].args
-                get_names(a, loc, :local, list, server)
-                loc in a && break
+                get_names(a, :local, ns, server)
+                ns.loc ⪥ a && break
             end
         end
     end
 end
 
-function get_names(::Type{Val{:macro}}, ex::Expr, loc, scope, list, server)
-    list[ex.args[1].args[1]] = (scope, :Macro, ex, list[:document_uri])
+function get_names(::Type{Val{:macro}}, ex::Expr, scope, ns, server)
+    ns.list[ex.args[1].args[1]] = LocalVar(:Macro, ex, ns.uri)
 end
 
 
 
 # Modules, imports and includes
 
-function get_names(::Type{Val{:include}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:include}}, ex::Expr, scope, ns, server)
     if isa(ex.args[2], String)
-        luri = joinpath(dirname(list[:document_uri]), ex.args[2])
+        luri = joinpath(dirname(ns.uri), ex.args[2])
         fpath = startswith(luri, "file://") ? luri[8:end] : luri
         if isfile(fpath) && (luri in keys(server.documents))
             if isempty(server.documents[luri].blocks.args)
                 parseblocks(server.documents[luri], server)
+            end
+            if isempty(server.documents[luri].global_namespace.list)
                 get_names(luri, server)
             end
-            for (k,v) in server.documents[luri].global_namespace
-                list[k] = v
+            for (k,v) in server.documents[luri].global_namespace.list
+                ns.list[k] = v
+            end
+            for m in server.documents[luri].global_namespace.modules
+                if !(m in scope.modules)
+                    push!(scope.modules, m)
+                end
             end
         end
     end
 end
 
-function get_names(::Type{Val{:using}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:using}}, ex::Expr, scope, ns, server)
     if length(ex.args)==1 && isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
             updatecache(ex.args[1], server)
         else
-            send(Message(3, "Could not find module: \'$(ex.args[1])\'"), server)
             return
         end
-        push!(list[:loaded_modules], ex.args[1])
+        push!(ns.modules, ex.args[1])
     end
 end
 
-function get_names(::Type{Val{:toplevel}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:toplevel}}, ex::Expr, scope, ns, server)
     for a in ex.args
-        get_names(a, loc, scope, list, server)
+        get_names(a, scope, ns, server)
     end
 end
 
-function get_names(::Type{Val{:import}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:import}}, ex::Expr, scope, ns, server)
     if isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
@@ -169,11 +187,11 @@ function get_names(::Type{Val{:import}}, ex::Expr, loc, scope, list, server)
             return
         end
         if length(ex.args)==1
-            list[ex.args[1]] = server.cache[ex.args[1]]
+            ns.list[ex.args[1]] = server.cache[ex.args[1]]
         elseif length(ex.args)==2 && ex.args[2] in keys(server.cache[ex.args[1]])
-            list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]
+            ns.list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]
         elseif length(ex.args)==3 && Expr(:.,ex.args[1],QuoteNode(ex.args[2])) in keys(server.cache)
-            list[ex.args[3]] =  server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))][ex.args[3]]
+            ns.list[ex.args[3]] =  server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))][ex.args[3]]
         end
     end
 end
@@ -181,37 +199,47 @@ end
 
 # Control Flow
 
-get_names(::Type{Val{:while}}, ex::Expr, loc, scope, list, server) = get_names(ex.args[2], loc, scope, list, server)
+get_names(::Type{Val{:while}}, ex::Expr, scope, ns, server) = get_names(ex.args[2], scope, ns, server)
 
-function get_names(::Type{Val{:for}}, ex::Expr, loc, scope, list, server)
-    if loc in ex
+function get_names(::Type{Val{:for}}, ex::Expr, scope, ns, server)
+    if ns.loc ⪥ ex
         if ex.args[1].head==:(=)
             if isa(ex.args[1].args[1], Symbol)
-                list[ex.args[1].args[1]] = (:iterator, :Any, ex.args[1], list[:document_uri])
+                ns.list[ex.args[1].args[1]] = LocalVar(:Any, ex.args[1], ns.uri)
             elseif isa(ex.args[1].args[1], Expr) && ex.args[1].args[1].head==:tuple
                 for it in ex.args[1].args[1].args
                     if isa(it, Symbol)
-                        list[it] = (:iterator, :Any, ex.args[1], list[:document_uri])
+                        ns.list[it] = LocalVar(:Any, ex.args[1], ns.uri)
                     end
                 end
             end
         end
         for a in ex.args[2].args
-            get_names(a, loc, :local, list, server)
-            loc in a && break
+            get_names(a, :local, ns, server)
+            ns.loc ⪥ a && break
         end
     end
 end
 
-function get_names(::Type{Val{:if}}, ex::Expr, loc, scope, list, server)
-    for a in ex.args[2].args
-        get_names(a, loc, :local, list, server)
-        loc in a && return
-    end
+function get_names(::Type{Val{:if}}, ex::Expr, scope, ns, server)
+    get_names(ex.args[2], :local, ns, server)
+    # for a in ex.args[2].args
+    #     get_names(a, :local, ns, server)
+    #     ns.loc ⪥ a && return
+    # end
     if length(ex.args)==3
-        for a in ex.args[3].args
-            get_names(a, loc, :local, list, server)
-            loc in a && break
+        get_names(ex.args[3], :local, ns, server)
+    end
+end
+
+function get_names(::Type{Val{:let}}, ex::Expr, scope, ns, server)
+    if ns.loc ⪥ ex
+        for a in ex.args[2:end]
+            get_names(a, :local, ns, server)
+        end
+        for a in ex.args[1].args
+            get_names(a, :local, ns, server)
+            ns.loc ⪥ a && return
         end
     end
 end
@@ -220,27 +248,27 @@ end
 
 # DataTypes
 
-get_names(::Type{Val{:type}}, ex::Expr, loc, scope, list, server) = get_names(Val{:struct}, ex::Expr, loc, scope, list, server)
-get_names(::Type{Val{:immutable}}, ex::Expr, loc, scope, list, server) = get_names(Val{:struct}, ex::Expr, loc, scope, list, server)
-function get_names(::Type{Val{:struct}}, ex::Expr, loc, scope, list, server)
+get_names(::Type{Val{:type}}, ex::Expr, scope, ns, server) = get_names(Val{:struct}, ex::Expr, scope, ns, server)
+get_names(::Type{Val{:immutable}}, ex::Expr, scope, ns, server) = get_names(Val{:struct}, ex::Expr, scope, ns, server)
+function get_names(::Type{Val{:struct}}, ex::Expr, scope, ns, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex, list[:document_uri], [])
+    ns.list[tname] = LocalVar(:DataType, ex, ns.uri)
 end
 
-function get_names(::Type{Val{:abstract}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:abstract}}, ex::Expr, scope, ns, server)
     tname = isa(ex.args[1], Symbol) ? ex.args[1] :
             isa(ex.args[1].args[1], Symbol) ? ex.args[1].args[1] : 
             isa(ex.args[1].args[1].args[1], Symbol) ? ex.args[1].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex, list[:document_uri])
+    ns.list[tname] = LocalVar(:DataType, ex, ns.uri)
 end
 
-function get_names(::Type{Val{:bitstype}}, ex::Expr, loc, scope, list, server)
+function get_names(::Type{Val{:bitstype}}, ex::Expr, scope, ns, server)
     tname = isa(ex.args[2], Symbol) ? ex.args[2] :
             isa(ex.args[2].args[1], Symbol) ? ex.args[2].args[1] : 
             isa(ex.args[2].args[1].args[1], Symbol) ? ex.args[2].args[1].args[1]: :unknown
-    list[tname] = (scope, :DataType, ex, list[:document_uri])
+    ns.list[tname] = LocalVar(:DataType, ex, ns.uri)
 end
 
 
@@ -249,8 +277,15 @@ end
 
 # Utilities
 
-function parsesignature(sig::Expr)
+function func_name(sig)
+    isa(sig, Symbol) && return sig
+    isa(sig.args[1], Symbol) && return sig.args[1]
+    sig.args[1].head==:curly && return sig.args[1].args[1]
+end
+
+function parsesignature(sig)
     out = []
+    isa(sig, Symbol) && return out
     for a in sig.args[2:end]
         if isa(a, Symbol)
             push!(out, (a, :Any))

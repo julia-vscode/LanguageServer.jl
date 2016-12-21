@@ -21,20 +21,22 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}
 end
 
 function getsyminfo(blocks, syms, uri , doc, server, prefix="")
-    ns = get_names(blocks, 1, server)
+    ns = get_names(blocks, 1, server).list
     for (name, v) in ns
-        if isa(v, Tuple)
-            (s, t, def) = v
-            if t==:Module
-                def.args[3].typ = def.typ
-                getsyminfo(def.args[3], syms, uri, doc, server, string(name))
-            elseif t==:Function
-                push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 12, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
-            elseif t==:DataType
-                push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 5, Location(uri, Range(get_position_at(doc, first(def.typ))[1])))) 
+        if v.t==:Module
+            v.def.args[3].typ = v.def.typ
+            getsyminfo(v.def.args[3], syms, uri, doc, server, string(name))
+        else 
+            k = SymbolKind(v.t)
+            if v.t==:Function && isa(v.def.args[1], Expr)
+                start = Position(get_position_at(doc, first(v.def.args[1].typ))..., one_based=true)
             else
-                push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), 13, Location(uri, Range(get_position_at(doc, first(def.typ))[1]))))
+                start = Position(get_position_at(doc, max(1, first(v.def.typ)))..., one_based=true)
             end
+            stop = Position(get_position_at(doc, last(v.def.typ))..., one_based=true)
+
+            
+            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), k, Location(uri, Range(start, stop))))
         end
     end
 end

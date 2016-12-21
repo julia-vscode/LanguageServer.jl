@@ -12,7 +12,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     word = Char[]
     for e = 1:length(text)
         c = text[chr2ind(text, e)]
-        if Lexer.is_identifier_char(c) || c=='.'
+        if Lexer.is_identifier_char(c) || (c=='.' && e<(tdpp.position.character+offset))
             if isempty(word) && !Lexer.is_identifier_start_char(c)
                 continue
             end
@@ -96,3 +96,14 @@ end
 
 
 sprintrange(range::Range) = "($(range.start.line+1),$(range.start.character)):($(range.stop.line+1),$(range.stop.character+1))" 
+
+CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 : 
+                                t == :Function ? 3 : 
+                                t == :DataType ? 7 :  
+                                t == :Module ? 9 : 6 
+
+SymbolKind(t) = t in [:String, :AbstractString] ? 15 : 
+                        t == :Function ? 12 : 
+                        t == :DataType ? 5 :  
+                        t == :Module ? 2 :
+                        t == :Bool ? 17 : 13  

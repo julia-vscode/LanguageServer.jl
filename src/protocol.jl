@@ -42,7 +42,7 @@ type MarkedString
     language::String
     value::AbstractString
 end
-MarkedString(x::AbstractString) = MarkedString("julia", x)
+MarkedString(x) = MarkedString("julia", string(x))
 
 type Hover
     contents::Vector{Union{AbstractString,MarkedString}}

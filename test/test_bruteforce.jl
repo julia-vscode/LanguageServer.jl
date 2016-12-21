@@ -43,15 +43,15 @@ end
 
 
 allmethods = ["textDocument/hover"
-              "textDocument/completions"
+              "textDocument/completion"
               "textDocument/signatureHelp"
               "textDocument/definition"] 
 
-
+uri,method="",""
 for uri in collect(filter(f->ismatch(r"/src/", f), keys(server.documents)))
-    for m in allmethods
-        print(uri, "   ")
-        test(uri, m, server)
+    for method in allmethods
+        println(uri, "   ", method)
+        test(uri, method, server)
     end
 end
 

@@ -152,8 +152,8 @@ function get_names(::Type{Val{:include}}, ex::Expr, scope, ns, server)
                 ns.list[k] = v
             end
             for m in server.documents[luri].global_namespace.modules
-                if !(m in scope.modules)
-                    push!(scope.modules, m)
+                if !(m in ns.modules)
+                    push!(ns.modules, m)
                 end
             end
         end

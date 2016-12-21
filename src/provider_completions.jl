@@ -13,7 +13,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             if isempty(line)
                 ""
             else
-                for c in reverse(line[1:chr2ind(line,tdpp.position.character)])
+                for c in reverse(line[1:chr2ind(line,min(length(line), tdpp.position.character))])
                     if c=='\\'
                         write(io, c)
                         break
@@ -70,6 +70,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         vname = last(split(word, '.'))
         if topmodname in vcat([:Base, :Core], ns.modules)
             for (k, v) in server.cache[modname]
+                k==:EXPORTEDNAMES && continue
                 if startswith(string(k), vname)
                     n = string(modname, ".", k)
                     if isa(server.cache[modname][k], Dict)
@@ -84,8 +85,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         end
         sword = split(word,".")
         if Symbol(sword[1]) in keys(ns.list)
-            t = get_type(Symbol.(sword[1:end-1]), ns.list)
-            fn = keys(get_fields(t, ns.list))
+            t = get_type(Symbol.(sword[1:end-1]), ns)
+            fn = keys(get_fields(t, ns))
             for f in fn
                 if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
                     push!(entries, (string(f), 6, ""))

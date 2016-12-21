@@ -5,8 +5,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
     ns = get_names(tdpp.textDocument.uri, offset, server)
 
-    pos = pos0 = tdpp.position.character
-    io = IOBuffer(get_line(tdpp, server))
+    str = get_line(tdpp, server)
+    pos = pos0 = min(length(str), tdpp.position.character)
+    io = IOBuffer(str)
     
     line = []
     cnt = 0
@@ -41,9 +42,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         if Symbol(word) in keys(ns.list)
             v = ns.list[Symbol(word)]
             if isa(v, LocalVar)
-                push!(sigs.signatures, SignatureInformation(string(v.def.args[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(v.def.args[1])))))
+                v.t==:Function && push!(sigs.signatures, SignatureInformation(string(v.def.args[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(v.def.args[1])))))
                 for def in v.methods
-                    push!(sigs.signatures, SignatureInformation(string(def.args[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(def.args[1])))))
+                    push!(sigs.signatures, SignatureInformation(string(def[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(def[1])))))
                 end
             else
                 append!(sigs.signatures, v[3].signatures)

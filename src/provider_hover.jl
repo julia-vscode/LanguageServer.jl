@@ -22,6 +22,9 @@ end
 
 function get_local_hover(word, ns, server)
     sword = Symbol.(split(word,'.'))
+    if sword[1] in [:included_modules,:document_uri] 
+        return []
+    end
     
     if length(sword)>1
         t = get_type(sword[1], ns)

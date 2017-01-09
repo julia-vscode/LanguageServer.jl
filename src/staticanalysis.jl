@@ -1,6 +1,6 @@
 function parseblocks(doc::Document, server::LanguageServerInstance, first_line, first_character, last_line, last_character)
     text = get_text(doc)
-    doc.blocks.typ = 0:length(text.data)
+    doc.blocks.typ = 0:sizeof(text)
 
     if isempty(text)
         empty!(doc.blocks.args)
@@ -82,7 +82,7 @@ end
 
 function parseblocks(doc::Document, server)
     text = get_text(doc)
-    doc.blocks.typ = 0:length(text.data)
+    doc.blocks.typ = 0:sizeof(text)
     empty!(doc.blocks.args)
     parseblocks(text, doc.blocks, 1)
 end

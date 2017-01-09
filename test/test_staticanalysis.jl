@@ -16,7 +16,7 @@ end
 
 blocks = Expr(:block)
 parseblocks(testtext, blocks, 0)
-blocks.typ = 0:sizeof(testtext)
+blocks.typ = 0:endof(testtext)
 
 ns = get_names(blocks, 119)
 

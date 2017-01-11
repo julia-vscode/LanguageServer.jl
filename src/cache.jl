@@ -5,18 +5,6 @@ function modnames(m::AbstractString, top)
     if !(s in keys(top))
         modnames(M, top)
     end
-    # pdir = Pkg.dir(m)
-    # if isdir(pdir)
-    #     flist = readdir(pdir)
-    #     if isfile(pdir*"/REQUIRE")
-    #         incls = filter!(i->i!="julia",(f->match(r"^\S*",f).match).(chomp.(readlines(pdir*"/REQUIRE"))))
-    #         for i in incls
-    #             x, exists = Base.REPLCompletions.get_value(Symbol(i), Main)
-    #             modnames(x, top)
-    #             top[s][Symbol(i)] = top[Symbol(i)]
-    #         end
-    #     end
-    # end
 end
 
 function sig(x)

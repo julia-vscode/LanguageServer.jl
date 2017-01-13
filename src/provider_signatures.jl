@@ -38,7 +38,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     if word==""
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
     else
-        sigs = get_cache_entry(word, server, ns.modules)[3]
+        sigs = get_signatures(word, get_cache_entry(word, server, ns.modules))
         if Symbol(word) in keys(ns.list)
             v = ns.list[Symbol(word)]
             if isa(v, LocalVar)

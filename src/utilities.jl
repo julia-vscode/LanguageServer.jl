@@ -42,15 +42,16 @@ function get_sym(str::AbstractString)
 end
 
 function get_cache_entry(word, server, modules=[])
+    allmod = vcat([:Base, :Core], modules)
     entry = (:EMPTY, "", SignatureHelp(SignatureInformation[], 0, 0), Location[])
     if search(word, ".")!=0:-1
         sword = split(word, ".")
         modname = parse(join(sword[1:end-1], "."))
-        if modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
+        if modname in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
             entry = server.cache[modname][Symbol(last(sword))]
         end
     else
-        for m in vcat([:Base, :Core], modules)
+        for m in allmod
             if Symbol(word) in server.cache[m][:EXPORTEDNAMES]
                 entry = server.cache[m][Symbol(word)]
             end

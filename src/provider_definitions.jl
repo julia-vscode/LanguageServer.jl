@@ -5,8 +5,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     ns = get_names(tdpp.textDocument.uri, offset, server)
     word = get_word(tdpp, server)
     
-    locations = get_cache_entry(word, server, ns.modules)[4]
-
+    locations = get_definitions(word, get_cache_entry(word, server, ns.modules))
+    
     for k in keys(ns.list)
         if string(k)==word
             v = ns.list[k]

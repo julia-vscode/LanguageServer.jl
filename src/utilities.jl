@@ -43,7 +43,7 @@ end
 
 function get_cache_entry(word, server, modules=[])
     allmod = vcat([:Base, :Core], modules)
-    entry = (:EMPTY, "", SignatureHelp(SignatureInformation[], 0, 0), Location[])
+    entry = (:EMPTY, "", [])
     if search(word, ".")!=0:-1
         sword = split(word, ".")
         modname = parse(join(sword[1:end-1], "."))

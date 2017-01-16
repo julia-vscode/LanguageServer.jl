@@ -12,7 +12,7 @@ end
 
 function modnames(M::Module, top)
     s = parse(string(M))
-    d = Dict{Any,Any}(:EXPORTEDNAMES=>setdiff(names(M),[Symbol(M)]))
+    d = Dict{Any,Any}(:EXPORTEDNAMES=>names(M))
     top[s] = d
     for n in names(M, true, true)
         if !Base.isdeprecated(M, n) && first(string(n))!="#" && isdefined(M, n) && n!=:Function
@@ -83,7 +83,7 @@ updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
     send(Message(3, "Adding $(join(absentmodules, ", ")) to cache, this may take a minute"), server)    
-    run(`julia -e "using LanguageServer; top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
+    run(`julia -e "using LanguageServer;delete!(Base.ENV, \"JULIA_PKGDIR\"); top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
     server.cache = loadcache()
     send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
 end

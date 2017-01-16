@@ -8,12 +8,14 @@ function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
-    text = get_line(tdpp, server)
+    io = IOBuffer(get_line(tdpp, server))
     word = Char[]
-    for e = 1:length(text)
-        c = text[chr2ind(text, e)]
-        if Lexer.is_identifier_char(c) || (c=='.' && e<(tdpp.position.character+offset))
-            if isempty(word) && !Lexer.is_identifier_start_char(c)
+    e = 0
+    while !eof(io)
+        c = read(io, Char)
+        e += 1
+        if (Lexer.is_identifier_char(c) || c=='@') || (c=='.' && e<(tdpp.position.character+offset))
+            if isempty(word) && !(Lexer.is_identifier_start_char(c) || c=='@')
                 continue
             end
             push!(word, c)
@@ -47,7 +49,7 @@ function get_cache_entry(word, server, modules=[])
     if search(word, ".")!=0:-1
         sword = split(word, ".")
         modname = parse(join(sword[1:end-1], "."))
-        if modname in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
+        if Symbol(first(sword)) in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
             entry = server.cache[modname][Symbol(last(sword))]
         end
     else

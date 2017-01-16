@@ -12,7 +12,7 @@ type LanguageServerInstance
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool)
         cache  = isfile(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache")) ? loadcache() : Dict()
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, debug_mode, false)
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, true, false)
     end
 end
 

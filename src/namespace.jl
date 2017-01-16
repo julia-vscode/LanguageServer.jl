@@ -1,3 +1,5 @@
+const fallbackpkgdir = joinpath(homedir(), ".julia", "v$(VERSION.major).$(VERSION.minor)")
+
 type LocalVar
     t::Union{Symbol,Expr}
     def::Expr
@@ -163,7 +165,7 @@ end
 function get_names(::Type{Val{:using}}, ex::Expr, scope, ns, server)
     if length(ex.args)==1 && isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
-        elseif string(ex.args[1]) in readdir(Pkg.dir())
+        elseif string(ex.args[1]) in readdir(fallbackpkgdir)
             updatecache(ex.args[1], server)
         else
             return

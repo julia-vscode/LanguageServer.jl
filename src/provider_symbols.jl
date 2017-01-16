@@ -21,7 +21,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}
 end
 
 function getsyminfo(blocks, syms, uri , doc, server, prefix="")
-    ns = get_names(blocks, 1, server).list
+    ns = get_names(blocks, 0, server).list
     for (name, v) in ns
         if !(v isa LocalVar)
         elseif v.t==:Module

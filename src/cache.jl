@@ -12,7 +12,7 @@ end
 
 function modnames(M::Module, top)
     s = parse(string(M))
-    d = Dict{Any,Any}(:EXPORTEDNAMES=>names(M))
+    d = Dict{Any,Any}(:EXPORTEDNAMES=>setdiff(names(M), [:Function]))
     top[s] = d
     for n in names(M, true, true)
         if !Base.isdeprecated(M, n) && first(string(n))!="#" && isdefined(M, n) && n!=:Function

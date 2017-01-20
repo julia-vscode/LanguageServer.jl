@@ -23,7 +23,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(m[2], range))
                 end
             else
-                append!(locations, v[4])
+                append!(locations, get_definitions(word,v))
             end
             break
         end

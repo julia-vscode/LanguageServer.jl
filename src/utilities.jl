@@ -61,7 +61,7 @@ function get_cache_entry(word, server, modules=[])
     end
 
     if isa(entry, Dict)
-        entry = (parse(word), "Module: $word", SignatureHelp(SignatureInformation[], 0, 0), Location[]) 
+        entry = (parse(word), "Module: $word", []) 
     end
     return entry
 end

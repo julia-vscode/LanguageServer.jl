@@ -185,14 +185,17 @@ function get_names(::Type{Val{:import}}, ex::Expr, scope, ns, server)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
             updatecache(ex.args[1], server)
+            if !(ex.args[1] in keys(server.cache))
+                info("Error, couldn't load $(ex.args)")
+            end
         else
             return
         end
-        if length(ex.args)==1
+        if length(ex.args)==1 
             ns.list[ex.args[1]] = server.cache[ex.args[1]]
-        elseif length(ex.args)==2 && ex.args[2] in keys(server.cache[ex.args[1]])
+        elseif length(ex.args)==2 && ex.args[1] in keys(server.cache) && ex.args[2] in keys(server.cache[ex.args[1]])
             ns.list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]
-        elseif length(ex.args)==3 && Expr(:.,ex.args[1],QuoteNode(ex.args[2])) in keys(server.cache)
+        elseif length(ex.args)==3 && Expr(:.,ex.args[1],QuoteNode(ex.args[2])) in keys(server.cache) && ex.args[3] in keys(server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))])
             ns.list[ex.args[3]] =  server.cache[Expr(:.,ex.args[1],QuoteNode(ex.args[2]))][ex.args[3]]
         end
     end

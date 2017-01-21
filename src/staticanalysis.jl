@@ -130,7 +130,11 @@ end
 
 function get_type(v, ns::Scope)
     if v in keys(ns.list)
-        return ns.list[v].t
+        if ns.list[v] isa Dict
+            return :Module
+        else
+            return ns.list[v].t
+        end
     elseif isdefined(Main, v)
         return typeof(getfield(Main, v))
     end

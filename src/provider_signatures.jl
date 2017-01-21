@@ -47,7 +47,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
                     push!(sigs.signatures, SignatureInformation(string(def[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(def[1])))))
                 end
             else
-                append!(sigs.signatures, v[3].signatures)
+                append!(sigs.signatures, get_signatures(word, v).signatures)
             end
         end
         signatureHelper = SignatureHelp(filter(s->length(s.parameters)>arg , sigs.signatures), 0, arg)

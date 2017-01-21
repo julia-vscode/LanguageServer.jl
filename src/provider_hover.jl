@@ -45,6 +45,8 @@ function get_local_hover(word, ns, server)
             else
                 return ["$(v.t)", MarkedString(string(striplocinfo(v.def)))]
             end
+        elseif v isa Dict
+            return ["Module: $word"]
         else
             return ["$(v[1])", v[2]]
         end

@@ -48,6 +48,7 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     ts = Lexer.TokenStream(text)
     seek(ts.io, i0==1 ? 0 : i0)
     Lexer.peek_token(ts)
+    errcnt = 0
 
     while !Lexer.eof(ts)
         ex = try
@@ -56,6 +57,8 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
             Expr(:error, err)
         end
         if isa(ex, Expr) && ex.head==:error
+            errcnt+=1
+            errcnt>50 && return
             seek(ts.io,i0)
             Lexer.next_token(ts)
             Lexer.skip_to_eol(ts)

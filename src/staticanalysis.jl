@@ -149,7 +149,7 @@ function get_fields(t, ns::Scope)
     fn = Dict()
     if t in keys(ns.list)
         v = ns.list[t]
-        if v.def.head in [:immutable, :type]
+        if v isa LocalVar && v.def.head in [:immutable, :type]
             fn = Dict(parsestruct(v.def))
         end
     elseif isa(t, Symbol) && isdefined(Main, t)

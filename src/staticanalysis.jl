@@ -133,7 +133,7 @@ end
 
 function get_type(v, ns::Scope)
     if v in keys(ns.list)
-        if ns.list[v] isa Dict
+        if isa(ns.list[v], Dict)
             return :Module
         else
             return ns.list[v].t
@@ -149,7 +149,7 @@ function get_fields(t, ns::Scope)
     fn = Dict()
     if t in keys(ns.list)
         v = ns.list[t]
-        if v isa LocalVar && v.def.head in [:immutable, :type]
+        if isa(v, LocalVar) && v.def.head in [:immutable, :type]
             fn = Dict(parsestruct(v.def))
         end
     elseif isa(t, Symbol) && isdefined(Main, t)

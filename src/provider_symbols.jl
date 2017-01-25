@@ -23,7 +23,7 @@ end
 function getsyminfo(blocks, syms, uri , doc, server, prefix="")
     ns = get_names(blocks, 1, server).list
     for (name, v) in ns
-        if !(v isa LocalVar)
+        if !isa(v, LocalVar)
         elseif v.t==:Module
             v.def.args[3].typ = v.def.typ
             getsyminfo(v.def.args[3], syms, uri, doc, server, string(name))

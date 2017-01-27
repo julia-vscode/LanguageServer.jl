@@ -22,6 +22,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     range = Range(Position(get_position_at(doc1, first(cloc1))..., one_based=true), Position(get_position_at(doc1, last(cloc1))..., one_based=true))
                     push!(locations, Location(m[2], range))
                 end
+            elseif v isa Dict
+                # Can't access module location
             else
                 append!(locations, get_definitions(word,v))
             end

@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 ""
             else
                 for c in reverse(line[1:chr2ind(line,min(length(line), tdpp.position.character))])
-                    if c=='\\'
+                    if c=='\\' || c=='@'
                         write(io, c)
                         break
                     end

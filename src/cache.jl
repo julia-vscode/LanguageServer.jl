@@ -1,5 +1,7 @@
-import Base: subtypes
-subtypes(m::Module, x::DataType) = x.abstract ? sort!(collect(_subtypes(m, x)), by=string) : DataType[]
+if VERSION <= v"0.6.0-dev.2474"
+    import Base: subtypes
+    subtypes(m::Module, x::DataType) = x.abstract ? sort!(collect(_subtypes(m, x)), by=string) : DataType[]
+end
 
 function modnames(m::AbstractString, top)
     s = Symbol(m)

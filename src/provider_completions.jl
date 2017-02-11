@@ -68,7 +68,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         modname = parse(strip(prefix, '.'))
         topmodname = Symbol(first(split(prefix, '.')))
         vname = last(split(word, '.'))
-        if topmodname in vcat([:Base, :Core], ns.modules)
+        if topmodname in vcat([:Base, :Core], ns.modules) && (modname in keys(server.cache))
             for (k, v) in server.cache[modname]
                 k==:EXPORTEDNAMES && continue
                 if startswith(string(k), vname)

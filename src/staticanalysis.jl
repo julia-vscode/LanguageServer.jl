@@ -58,7 +58,7 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
         end
         if isa(ex, Expr) && ex.head==:error
             errcnt+=1
-            errcnt>50 && return
+            errcnt>5 && return
             seek(ts.io,i0)
             Lexer.next_token(ts)
             Lexer.skip_to_eol(ts)

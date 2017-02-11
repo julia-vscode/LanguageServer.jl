@@ -8,7 +8,7 @@ type LocalVar
 end
 LocalVar(t, def, uri) = LocalVar(t, def, uri, [])
 
-⪥(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
+⊆(loc::Int, ex) = isa(ex, Expr) && isa(ex.typ, UnitRange) && loc in ex.typ
 
 get_names(ex::Expr, scope, ns, server) = get_names(Val{ex.head}, ex::Expr, scope, ns, server)
 
@@ -59,7 +59,7 @@ function get_names(::Type{Val{:(=)}}, ex::Expr, scope, ns, server)
         t = isa(ex.args[2], Number) ? :Number :
             isa(ex.args[2], AbstractString) ? :String : :Any
         ns.list[ex.args[1]] = LocalVar(t, ex, ns.uri)
-        if ns.loc ⪥ ex.args[2]
+        if ns.loc ⊆ ex.args[2]
             get_names(ex.args[2], scope, ns, server)
         end
     elseif isa(ex.args[1], Expr) 
@@ -89,10 +89,10 @@ function get_names(::Type{Val{:call}}, ex::Expr, scope, ns, server)
 end
 
 function get_names(::Type{Val{:block}}, ex::Expr, scope, ns, server)
-    if ns.loc ⪥ ex
+    if ns.loc ⊆ ex
         for a in ex.args
             get_names(a, scope, ns, server)
-            scope!=:global && ns.loc ⪥ a && break 
+            scope!=:global && ns.loc ⊆ a && break 
         end
     end
 end
@@ -101,7 +101,7 @@ get_names(::Type{Val{:baremodule}}, ex::Expr, scope, ns, server) = get_names(Val
 
 function get_names(::Type{Val{:module}}, ex::Expr, scope, ns, server)
     ns.list[ex.args[2]] = LocalVar(:Module, ex, ns.uri)
-    if ns.loc ⪥ ex
+    if ns.loc ⊆ ex
         for a in ex.args[3].args
             get_names(a, ex.args[2], ns, server)
         end
@@ -118,14 +118,14 @@ function get_names(::Type{Val{:function}}, ex::Expr, scope, ns, server)
 
     length(ex.args)==1 && return
 
-    if ns.loc ⪥ ex
+    if ns.loc ⊆ ex
         for (n,t) in parsesignature(ex.args[1])
             ns.list[n] = LocalVar(t, ex.args[1], ns.uri)
         end
-        if ns.loc ⪥ ex.args[2]
+        if ns.loc ⊆ ex.args[2]
             for a in ex.args[2].args
                 get_names(a, :local, ns, server)
-                ns.loc ⪥ a && break
+                ns.loc ⊆ a && break
             end
         end
     end
@@ -207,7 +207,7 @@ end
 get_names(::Type{Val{:while}}, ex::Expr, scope, ns, server) = get_names(ex.args[2], scope, ns, server)
 
 function get_names(::Type{Val{:for}}, ex::Expr, scope, ns, server)
-    if ns.loc ⪥ ex
+    if ns.loc ⊆ ex
         if ex.args[1].head==:(=)
             if isa(ex.args[1].args[1], Symbol)
                 ns.list[ex.args[1].args[1]] = LocalVar(:Any, ex.args[1], ns.uri)
@@ -221,7 +221,7 @@ function get_names(::Type{Val{:for}}, ex::Expr, scope, ns, server)
         end
         for a in ex.args[2].args
             get_names(a, :local, ns, server)
-            ns.loc ⪥ a && break
+            ns.loc ⊆ a && break
         end
     end
 end
@@ -230,7 +230,7 @@ function get_names(::Type{Val{:if}}, ex::Expr, scope, ns, server)
     get_names(ex.args[2], :local, ns, server)
     # for a in ex.args[2].args
     #     get_names(a, :local, ns, server)
-    #     ns.loc ⪥ a && return
+    #     ns.loc ⊆ a && return
     # end
     if length(ex.args)==3
         get_names(ex.args[3], :local, ns, server)
@@ -238,13 +238,13 @@ function get_names(::Type{Val{:if}}, ex::Expr, scope, ns, server)
 end
 
 function get_names(::Type{Val{:let}}, ex::Expr, scope, ns, server)
-    if ns.loc ⪥ ex
+    if ns.loc ⊆ ex
         for a in ex.args[2:end]
             get_names(a, :local, ns, server)
         end
         for a in ex.args[1].args
             get_names(a, :local, ns, server)
-            ns.loc ⪥ a && return
+            ns.loc ⊆ a && return
         end
     end
 end
@@ -283,6 +283,19 @@ end
 # Utilities
 
 function func_name(sig)
+    # sig1 = striplocinfo(sig)
+    # if sig isa Expr
+    #     for i = 2:length(sig1.args)
+    #         if sig1.args[i] isa Symbol
+    #             sig1.args[i] = :Any
+    #         elseif sig1.args[i].head == :(::) && length(sig1.args[i].args) == 1
+    #             sig1.args[i] = sig1.args[i].args[1]
+    #         elseif sig1.args[i].head == :(::)
+    #             sig1.args[i] = sig1.args[i].args[2]
+    #         end
+    #     end
+    #     return sig1
+    # end
     isa(sig, Symbol) && return sig
     isa(sig.args[1], Symbol) && return sig.args[1]
     sig.args[1].head==:curly && return sig.args[1].args[1]

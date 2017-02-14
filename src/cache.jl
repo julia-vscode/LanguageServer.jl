@@ -47,7 +47,11 @@ function sig(x::Union{DataType,Function})
     out = []
     for m in methods(x)
         p = string.(collect(m.sig.parameters[2:end]))
-        push!(out, (String(m.file), m.line, m.source.slotnames[2:length(p)+1], p))
+        if @static (VERSION < v"0.6.0-dev")
+            push!(out, (string(m.file), m.line, m.lambda_template.slotnames[2:length(p)+1], p))
+        else
+            push!(out, (string(m.file), m.line, m.source.slotnames[2:length(p)+1], p))
+        end
     end
     out
 end
@@ -85,7 +89,7 @@ updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
     send(Message(3, "Adding $(join(absentmodules, ", ")) to cache, this may take a minute"), server)    
-    run(`julia -e "using LanguageServer;delete!(Base.ENV, \"JULIA_PKGDIR\"); top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
+    run(`$JULIA_HOME/julia -e "using LanguageServer;delete!(Base.ENV, \"JULIA_PKGDIR\"); top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
     server.cache = loadcache()
     send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
 end

@@ -29,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
 
     if isempty(server.cache)
         send(Message(3, "Building cache, this may take a few minutes"), server)
-        run(`julia -e "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top); LanguageServer.savecache(top)"`)
+        run(`$JULIA_HOME/julia -e "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top); LanguageServer.savecache(top)"`)
         server.cache = loadcache()
         send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
     end

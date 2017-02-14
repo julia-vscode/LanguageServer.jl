@@ -1,4 +1,4 @@
-if VERSION <= v"0.6.0-dev.2474"
+@static if VERSION <= v"0.6.0-dev.2474"
     import Base: subtypes
     subtypes(m::Module, x::DataType) = x.abstract ? sort!(collect(_subtypes(m, x)), by=string) : DataType[]
 end
@@ -47,7 +47,7 @@ function sig(x::Union{DataType,Function})
     out = []
     for m in methods(x)
         p = string.(collect(m.sig.parameters[2:end]))
-        if @static (VERSION < v"0.6.0-dev")
+        @static if (VERSION < v"0.6.0-dev")
             push!(out, (string(m.file), m.line, m.lambda_template.slotnames[2:length(p)+1], p))
         else
             push!(out, (string(m.file), m.line, m.source.slotnames[2:length(p)+1], p))

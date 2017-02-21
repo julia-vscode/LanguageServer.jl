@@ -46,11 +46,17 @@ sig(x) = []
 function sig(x::Union{DataType,Function})
     out = []
     for m in methods(x)
-        p = string.(collect(m.sig.parameters[2:end]))
+        n::Int = length(m.sig.parameters)
+
+        p = Array(String, n-1)
+        for i=2:n
+            p[i-1] = string(m.sig.parameters[i])
+        end
+
         @static if (VERSION < v"0.6.0-dev")
-            push!(out, (string(m.file), m.line, m.lambda_template.slotnames[2:length(p)+1], p))
+            push!(out, (string(m.file), m.line, m.lambda_template.slotnames[2:n], p))
         else
-            push!(out, (string(m.file), m.line, m.source.slotnames[2:length(p)+1], p))
+            push!(out, (string(m.file), m.line, m.source.slotnames[2:n], p))
         end
     end
     out

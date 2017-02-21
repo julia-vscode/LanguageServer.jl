@@ -1,6 +1,6 @@
 function parseblocks(doc::Document, server::LanguageServerInstance, first_line, first_character, last_line, last_character)
     text = get_text(doc)
-    doc.blocks.typ = 0:length(text.data)
+    doc.blocks.typ = 0:endof(text)
 
     if isempty(text)
         empty!(doc.blocks.args)
@@ -48,6 +48,7 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
     ts = Lexer.TokenStream(text)
     seek(ts.io, i0==1 ? 0 : i0)
     Lexer.peek_token(ts)
+    errcnt = 0
 
     while !Lexer.eof(ts)
         ex = try
@@ -55,7 +56,9 @@ function parseblocks(text, blocks, i0, stopexpr=Expr(:nostop), endblocks = [])
         catch err
             Expr(:error, err)
         end
-        if isa(ex, Expr) && ex.head==:error 
+        if isa(ex, Expr) && ex.head==:error
+            errcnt+=1
+            errcnt>5 && return
             seek(ts.io,i0)
             Lexer.next_token(ts)
             Lexer.skip_to_eol(ts)
@@ -82,7 +85,7 @@ end
 
 function parseblocks(doc::Document, server)
     text = get_text(doc)
-    doc.blocks.typ = 0:length(text.data)
+    doc.blocks.typ = 0:endof(text)
     empty!(doc.blocks.args)
     parseblocks(text, doc.blocks, 1)
 end
@@ -128,9 +131,13 @@ function get_block(ex, i)
 end
 
 
-function get_type(v, ns)
-    if v in keys(ns)
-        return ns[v][2]
+function get_type(v, ns::Scope)
+    if v in keys(ns.list)
+        if isa(ns.list[v], Dict)
+            return :Module
+        else
+            return ns.list[v].t
+        end
     elseif isdefined(Main, v)
         return typeof(getfield(Main, v))
     end
@@ -138,12 +145,12 @@ function get_type(v, ns)
 end
 
 
-function get_fields(t, ns, blocks)
+function get_fields(t, ns::Scope)
     fn = Dict()
-    if t in keys(ns)
-        n, s, def = ns[t]
-        if def.head in [:immutable, :type]
-            fn = Dict(parsestruct(def))
+    if t in keys(ns.list)
+        v = ns.list[t]
+        if isa(v, LocalVar) && v.def.head in [:immutable, :type]
+            fn = Dict(parsestruct(v.def))
         end
     elseif isa(t, Symbol) && isdefined(Main, t)
         sym = getfield(Main, t)
@@ -160,10 +167,10 @@ function get_fields(t, ns, blocks)
     return fn
 end
 
-function get_type(sword::Vector{Symbol}, ns, blocks)
+function get_type(sword::Vector{Symbol}, ns::Scope)
     t = get_type(sword[1], ns)
     for i = 2:length(sword)
-        fn = get_fields(t, ns, blocks)
+        fn = get_fields(t, ns)
         if sword[i] in keys(fn)
             t = fn[sword[i]]
         else
@@ -182,3 +189,19 @@ function striplocinfo!(ex)
     end
 end
 striplocinfo(ex) = (ex1 = deepcopy(ex);striplocinfo!(ex1);ex1) 
+
+function code_loc(ex)
+    if isa(ex, Expr)
+        if isa(ex.typ, UnitRange{Int}) 
+            return ex.typ
+        else
+            for a in ex.args
+                l = code_loc(a)
+                if l!=0:0
+                    return l
+                end
+            end
+        end
+    end
+    return 0:0
+end

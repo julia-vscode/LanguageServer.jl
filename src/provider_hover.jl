@@ -1,21 +1,14 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
-    documentation = get_local_hover(tdpp, server)
+    doc = server.documents[tdpp.textDocument.uri]
+    word = get_word(tdpp, server)
+    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    ns = get_names(tdpp.textDocument.uri, offset, server)
+
+    documentation = get_local_hover(word, ns, server)
+    
     if isempty(documentation) 
-        word = get_word(tdpp, server)
-        if search(word, ".")!=0:-1
-            sword = split(word, ".")
-            mod = get_sym(join(sword[1:end-1], "."))
-            if mod==nothing || !isa(mod, Module) || !isdefined(mod, Symbol(last(sword)))
-                documentation = [""]
-            else
-                documentation = [string(Docs.doc(Docs.Binding(mod, Symbol(last(sword)))))]
-            end
-        elseif isdefined(Main, Symbol(word))
-            documentation = [string(Docs.doc(Docs.Binding(Main, Symbol(word))))]
-        else
-            documentation = [""]
-        end
+        documentation = [get_cache_entry(word, server, ns.modules)[2]]
     end
 
     response = JSONRPC.Response(get(r.id), Hover(documentation))
@@ -27,18 +20,13 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params)
 end
 
 
-function get_local_hover(tdpp::TextDocumentPositionParams, server)
-    doc = server.documents[tdpp.textDocument.uri]
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    word = get_word(tdpp, server)
+function get_local_hover(word, ns, server)
     sword = Symbol.(split(word,'.'))
     
-    ns = get_names(tdpp.textDocument.uri, server, offset)
-
     if length(sword)>1
         t = get_type(sword[1], ns)
         for i = 2:length(sword)
-            fn = get_fields(t, ns, doc.blocks)
+            fn = get_fields(t, ns)
             if sword[i] in keys(fn)
                 t = fn[sword[i]]
             else
@@ -46,14 +34,23 @@ function get_local_hover(tdpp::TextDocumentPositionParams, server)
             end
         end
         t = Symbol(t)
-        return t==:Any ? [] : MarkedString.(["$t"]) 
-    end
+        return t==:Any ? [] : MarkedString.(["$t"])
+    elseif sword[1] in keys(ns.list)
+        v = ns.list[sword[1]]
+        if isa(v, LocalVar)
+            if v.t==:DataType
+                return ["DataType"; MarkedString(striplocinfo(v.def))]
+            elseif v.t==:Function
+                return [MarkedString("Function")]
+            else
+                return ["$(v.t)", MarkedString(string(striplocinfo(v.def)))]
+            end
+        elseif isa(v, Dict)
+            return ["Module: $word"]
+        else
+            return ["$(v[1])", v[2]]
+        end
 
-    sym = Symbol(word)
-
-    if sym in keys(ns)
-        scope,t,def = ns[sym]
-        return MarkedString.(["$scope: $t", string(striplocinfo(def))])
     end
     return []
 end

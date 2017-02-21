@@ -4,13 +4,15 @@ type LanguageServerInstance
 
     rootPath::String 
     documents::Dict{String,Document}
-    DocStore::Dict{String,Any}
+    cache::Dict{Any,Any}
 
     debug_mode::Bool
     runlinter::Bool
 
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool)
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), Dict{String,Any}(), debug_mode, true)
+        cache  = isfile(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache")) ? loadcache() : Dict()
+
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, true, false)
     end
 end
 

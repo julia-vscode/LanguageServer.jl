@@ -27,11 +27,18 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 
-    if isempty(server.cache)
-        send(Message(3, "Building cache, this may take a few minutes"), server)
-        run(`$JULIA_HOME/julia -e "using LanguageServer; top = Dict();LanguageServer.modnames(Main, top); LanguageServer.savecache(top)"`)
-        server.cache = loadcache()
-        send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
+    o,i, p = readandwrite(`julia -e "using LanguageServer;
+    top=Dict();
+    LanguageServer.modnames(Main, top); 
+    serialize(STDOUT, top)"`)
+    @async begin
+        mods = deserialize(IOBuffer(read(o)))
+        for k in keys(mods)
+            if !(k in keys(server.cache))
+                server.cache[k] = mods[k]
+            end
+        end
+        send(Message(3, "Base cache loaded"), server)
     end
 end
 

@@ -46,14 +46,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     push!(entries, (string(m), 9, "Module: $m"))
                     length(entries)>200 && break
                 end
-                for k in server.cache[m][:EXPORTEDNAMES]
-                    if startswith(string(k), word)
-                        if isa(server.cache[m][k], Dict)
-                            push!(entries, (string(k), 9, "Module: $k"))
-                            length(entries)>200 && break
-                        else
-                            push!(entries, (string(k), CompletionItemKind(server.cache[m][k][1]), server.cache[m][k][2]))
-                            length(entries)>200 && break
+                if m in keys(server.cache)
+                    for k in server.cache[m][:EXPORTEDNAMES]
+                        if startswith(string(k), word)
+                            if isa(server.cache[m][k], Dict)
+                                push!(entries, (string(k), 9, "Module: $k"))
+                                length(entries)>200 && break
+                            else
+                                push!(entries, (string(k), CompletionItemKind(server.cache[m][k][1]), server.cache[m][k][2]))
+                                length(entries)>200 && break
+                            end
                         end
                     end
                 end

@@ -54,7 +54,7 @@ function get_cache_entry(word, server, modules=[])
         end
     else
         for m in allmod
-            if Symbol(word) in server.cache[m][:EXPORTEDNAMES]
+            if m in keys(server.cache) && Symbol(word) in server.cache[m][:EXPORTEDNAMES]
                 entry = server.cache[m][Symbol(word)]
             end
         end

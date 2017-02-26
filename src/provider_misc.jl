@@ -27,7 +27,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 
-    o,i, p = readandwrite(`julia -e "using LanguageServer;
+    o,i, p = readandwrite(`$JULIA_HOME/julia -e "using LanguageServer;
     top=Dict();
     LanguageServer.modnames(Main, top); 
     serialize(STDOUT, top)"`)

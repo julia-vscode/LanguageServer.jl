@@ -95,7 +95,7 @@ updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
     fname = functionloc(updatecache, Tuple{Symbol, Any})[1]
-    o,i, p = readandwrite(`julia -e "delete!(Base.ENV, \"JULIA_PKGDIR\");
+    o,i, p = readandwrite(`$JULIA_HOME/julia -e "delete!(Base.ENV, \"JULIA_PKGDIR\");
     include(\"$fname\");
     top=Dict();
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];

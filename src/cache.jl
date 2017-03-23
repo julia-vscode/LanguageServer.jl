@@ -118,15 +118,3 @@ function updatecache(absentmodules::Vector{Symbol}, server)
         end
     end
 end
-
-function savecache(top)
-    top[:EXPORTEDNAMES] = union(top[:Base][:EXPORTEDNAMES], top[:Core][:EXPORTEDNAMES])
-    io = open(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"), "w")
-    serialize(io, top)
-    close(io)
-end
-
-function loadcache()
-    io = open(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))
-    return deserialize(io)
-end

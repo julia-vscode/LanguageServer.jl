@@ -94,10 +94,24 @@ end
 updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
-    send(Message(3, "Adding $(join(absentmodules, ", ")) to cache, this may take a minute"), server)    
-    run(`$JULIA_HOME/julia -e "using LanguageServer;delete!(Base.ENV, \"JULIA_PKGDIR\"); top = LanguageServer.loadcache(); for m in [$(join((m->"\"$m\"").(absentmodules),", "))]; LanguageServer.modnames(m, top); end; LanguageServer.savecache(top)"`)
-    server.cache = loadcache()
-    send(Message(3, "Cache stored at $(joinpath(Pkg.dir("LanguageServer"), "cache", "docs.cache"))"), server)
+    fname = functionloc(updatecache, Tuple{Symbol, Any})[1]
+    o,i, p = readandwrite(`$JULIA_HOME/julia -e "delete!(Base.ENV, \"JULIA_PKGDIR\");
+    include(\"$fname\");
+    top=Dict();
+    for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
+        modnames(m, top); 
+    end; 
+    serialize(STDOUT, top)"`)
+    
+    @async begin 
+        mods = deserialize(IOBuffer(read(o)))
+        for k in keys(mods)
+            if !(k in keys(server.cache))
+                info("added $k to cache")
+                server.cache[k] = mods[k]
+            end
+        end
+    end
 end
 
 function savecache(top)

@@ -27,18 +27,27 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
 
-    o,i, p = readandwrite(`$JULIA_HOME/julia -e "using LanguageServer;
+    o,i, p = readandwrite(`$JULIA_HOME/julia -e "include(\"packages/LanguageServer/src/cache.jl\");
     top=Dict();
-    LanguageServer.modnames(Main, top); 
-    serialize(STDOUT, top)"`)
+    modnames(Main, top);
+    io = IOBuffer();
+    io_base64 = Base64EncodePipe(io);
+    serialize(io_base64, top);
+    close(io_base64);
+    str = takebuf_string(io);
+    println(STDOUT, str);
+    "`)
+
     @async begin
-        mods = deserialize(IOBuffer(read(o)))
+        str = readline(o)
+        data = base64decode(str)
+        mods = deserialize(IOBuffer(data))
         for k in keys(mods)
             if !(k in keys(server.cache))
                 server.cache[k] = mods[k]
             end
         end
-        send(Message(3, "Base cache loaded"), server)
+        info("Base cache loaded")
     end
 end
 

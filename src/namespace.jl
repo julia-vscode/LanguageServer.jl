@@ -191,7 +191,10 @@ function get_names(::Type{Val{:import}}, ex::Expr, scope, ns, server)
         else
             return
         end
-        if length(ex.args)==1 
+
+        if !(ex.args[1] in keys(server.cache))
+            return
+        elseif length(ex.args)==1 
             ns.list[ex.args[1]] = server.cache[ex.args[1]]
         elseif length(ex.args)==2 && ex.args[1] in keys(server.cache) && ex.args[2] in keys(server.cache[ex.args[1]])
             ns.list[ex.args[2]] = server.cache[ex.args[1]][ex.args[2]]

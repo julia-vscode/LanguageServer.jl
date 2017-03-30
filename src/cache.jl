@@ -94,7 +94,11 @@ end
 updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
+    server.cp_lock && return
+
+    server.cp_lock = true
     o,i, p = readandwrite(`$JULIA_HOME/julia -e "include(\"packages/LanguageServer/src/cache.jl\");
+    delete!(Base.ENV, \"JULIA_PKGDIR\");
     top=Dict();
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
         modnames(m, top); 
@@ -116,5 +120,6 @@ function updatecache(absentmodules::Vector{Symbol}, server)
                 server.cache[k] = mods[k]
             end
         end
+        server.cp_lock = false
     end
 end

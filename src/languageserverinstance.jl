@@ -5,6 +5,7 @@ type LanguageServerInstance
     rootPath::String 
     documents::Dict{String,Document}
     cache::Dict{Any,Any}
+    cp_lock::Bool
 
     debug_mode::Bool
     runlinter::Bool
@@ -12,7 +13,7 @@ type LanguageServerInstance
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool)
         cache = Dict()
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, true, false)
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, false, true, false)
     end
 end
 

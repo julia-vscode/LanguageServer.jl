@@ -184,7 +184,7 @@ end
 function get_names(::Type{Val{:import}}, ex::Expr, scope, ns, server)
     if isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
-        elseif string(ex.args[1]) in readdir(Pkg.dir())
+        elseif string(ex.args[1]) in readdir(server.user_pkgdir)
             put!(server.user_modules, ex.args[1])
             # updatecache(ex.args[1], server)
             # if !(ex.args[1] in keys(server.cache))

@@ -25,10 +25,14 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    wontload_modules = []
     @schedule begin
         for missing_module in server.user_modules
-            if !(missing_module in keys(server.cache))
+            if !(missing_module in keys(server.cache)) && !(missing_module in wontload_modules)
                 updatecache(missing_module, server)
+                if !(missing_module in keys(server.cache))
+                    push!(wontload_modules, missing_module)
+                end
             end
         end
     end

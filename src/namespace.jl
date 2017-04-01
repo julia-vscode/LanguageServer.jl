@@ -166,7 +166,8 @@ function get_names(::Type{Val{:using}}, ex::Expr, scope, ns, server)
     if length(ex.args)==1 && isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(fallbackpkgdir)
-            updatecache(ex.args[1], server)
+            put!(server.user_modules, ex.args[1])
+            # updatecache(ex.args[1], server)
         else
             return
         end
@@ -184,10 +185,11 @@ function get_names(::Type{Val{:import}}, ex::Expr, scope, ns, server)
     if isa(ex.args[1], Symbol)
         if ex.args[1] in keys(server.cache)
         elseif string(ex.args[1]) in readdir(Pkg.dir())
-            updatecache(ex.args[1], server)
-            if !(ex.args[1] in keys(server.cache))
-                info("Error, couldn't load $(ex.args)")
-            end
+            put!(server.user_modules, ex.args[1])
+            # updatecache(ex.args[1], server)
+            # if !(ex.args[1] in keys(server.cache))
+            #     info("Error, couldn't load $(ex.args)")
+            # end
         else
             return
         end

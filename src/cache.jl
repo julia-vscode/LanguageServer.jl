@@ -99,7 +99,6 @@ function updatecache(absentmodules::Vector{Symbol}, server)
 
 
     o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"packages/LanguageServer/src/cache.jl\");
-    delete!(Base.ENV, \"JULIA_PKGDIR\");
     top=Dict();
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
         modnames(m, top); 

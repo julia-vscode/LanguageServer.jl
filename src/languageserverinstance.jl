@@ -14,7 +14,7 @@ type LanguageServerInstance
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString=haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(),".julia"))
         cache = Dict()
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, true, false, user_pkg_dir)
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, debug_mode, false, user_pkg_dir)
     end
 end
 

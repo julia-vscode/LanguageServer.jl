@@ -30,7 +30,9 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
 
-    o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"packages/LanguageServer/src/cache.jl\");
+    cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
+    
+    o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"$cache_jl_path\");
     top=Dict();
     modnames(Main, top);
     io = IOBuffer();

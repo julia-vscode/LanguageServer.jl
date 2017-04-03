@@ -94,7 +94,12 @@ end
 updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
-    o,i, p = readandwrite(`$JULIA_HOME/julia -e "include(\"packages/LanguageServer/src/cache.jl\");
+    env_new = copy(ENV)
+    env_new["JULIA_PKGDIR"] = server.user_pkg_dir
+
+    cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
+
+    o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"$cache_jl_path\");
     top=Dict();
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
         modnames(m, top); 
@@ -104,7 +109,7 @@ function updatecache(absentmodules::Vector{Symbol}, server)
     serialize(io_base64, top);
     close(io_base64);
     str = takebuf_string(io);
-    println(STDOUT, str)"`)
+    println(STDOUT, str)"`, env=env_new))
     
     @async begin 
         str = readline(o)

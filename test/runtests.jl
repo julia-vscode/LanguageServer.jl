@@ -1,4 +1,3 @@
-ENV["JULIA_PKGDIR"] = Pkg.dir()
 using LanguageServer
 using Base.Test
 

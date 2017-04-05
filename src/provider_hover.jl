@@ -1,16 +1,30 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
-    word = get_word(tdpp, server)
+    # word = get_word(tdpp, server)
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, offset, server)
+    # ns = get_names(tdpp.textDocument.uri, offset, server)
 
-    documentation = get_local_hover(word, ns, server)
+    # documentation = get_local_hover(word, ns, server)
     
-    if isempty(documentation) 
-        documentation = [get_cache_entry(word, server, ns.modules)[2]]
+    # if isempty(documentation) 
+    #     documentation = [get_cache_entry(word, server, ns.modules)[2]]
+    # end
+    y, Y, I = find(doc.blocks.ast, offset)
+    
+    if y isa Parser.IDENTIFIER
+        info("is ID")
+        entry = get_cache_entry(string(y.val), server, [])
+        if entry[1] != :EMPTY
+            info("got cache")
+            documentation = [entry[2]]
+        else
+            info("didn't got cache")
+            documentation = ["Hover at $(Expr(y))"]
+        end
+    else
+        documentation = ["Hover at $(Expr(y))"]
     end
-
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)
 end

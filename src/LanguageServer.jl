@@ -1,9 +1,8 @@
 module LanguageServer
 
 using JSON
-using Lint
 using URIParser
-using JuliaParser
+import Parser
 
 export LanguageServerInstance
 

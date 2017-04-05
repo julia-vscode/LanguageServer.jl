@@ -11,11 +11,11 @@ type Document
     _line_offsets::Nullable{Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
-    blocks::Expr
+    blocks::Parser.File
     global_namespace::Scope
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, Expr(:block), Scope(uri, [], Dict(), 1))
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, Parser.File(uri), Scope(uri, [], Dict(), 1))
     end
 end
 

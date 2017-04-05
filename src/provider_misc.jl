@@ -5,21 +5,23 @@ const TextDocumentSyncKind = Dict("None"=>0, "Full"=>1, "Incremental"=>2)
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
-                        CompletionOptions(false,["."]),
-                        true, #definitionProvider
-                        SignatureHelpOptions(["("]),
-                        true) # documentSymbolProvider 
+                        # CompletionOptions(false,[]),
+                        # false, #definitionProvider
+                        # SignatureHelpOptions([]),
+                        # false # documentSymbolProvider 
+                        )
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
     server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
     if server.rootPath!=""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
-                if splitext(file)[2]==".jl"
+                if endswith(file, ".jl")
                     filepath = joinpath(root, file)
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
-                    content = String(read(filepath))
+                    content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)
+                    server.documents[uri].blocks.ast = Parser.parse(content, true)
                 end
             end
         end
@@ -29,31 +31,31 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
 
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
-
-    cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
+    put!(server.user_modules, :Main)
+    # cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
     
-    o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"$cache_jl_path\");
-    top=Dict();
-    modnames(Main, top);
-    io = IOBuffer();
-    io_base64 = Base64EncodePipe(io);
-    serialize(io_base64, top);
-    close(io_base64);
-    str = takebuf_string(io);
-    println(STDOUT, str);
-    "`, env=env_new))
+    # o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"$cache_jl_path\");
+    # top=Dict();
+    # modnames(Main, top);
+    # io = IOBuffer();
+    # io_base64 = Base64EncodePipe(io);
+    # serialize(io_base64, top);
+    # close(io_base64);
+    # str = takebuf_string(io);
+    # println(STDOUT, str);
+    # "`, env=env_new))
 
-    @async begin
-        str = readline(o)
-        data = base64decode(str)
-        mods = deserialize(IOBuffer(data))
-        for k in keys(mods)
-            if !(k in keys(server.cache))
-                server.cache[k] = mods[k]
-            end
-        end
-        info("Base cache loaded")
-    end
+    # @async begin
+    #     str = readline(o)
+    #     data = base64decode(str)
+    #     mods = deserialize(IOBuffer(data))
+    #     for k in keys(mods)
+    #         if !(k in keys(server.cache))
+    #             server.cache[k] = mods[k]
+    #         end
+    #     end
+    #     info("Base cache loaded")
+    # end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
@@ -68,7 +70,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
 
-    parseblocks(doc, server)
+    doc.blocks.ast = Parser.parse(doc._content, true)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
@@ -102,7 +104,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
     end
-    parseblocks(doc, server, dirty...) 
+    doc.blocks.ast = Parser.parse(doc._content, true)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
@@ -143,7 +145,9 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    parseblocks(server.documents[uri], server)
+    doc = server.documents[uri]
+    # parseblocks(server.documents[uri], server)
+    doc.blocks.ast = Parser.parse(doc._content, true)
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
     end

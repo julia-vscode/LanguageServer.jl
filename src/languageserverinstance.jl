@@ -14,22 +14,30 @@ type LanguageServerInstance
 
     lint_pipe_name::String
 
+    out_message_buffer::Channel{String}
+
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString=haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(),".julia"))
         cache = Dict()
 
         lint_pipe_name = is_windows() ? "\\\\.\\pipe\\vscode-language-julia-lint-server-$(getpid())" : joinpath(tempname(), "vscode-language-julia-lint-server-$(getpid())")
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, user_pkg_dir, lint_pipe_name)
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, user_pkg_dir, lint_pipe_name, Channel{String}(128))
     end
 end
 
 function send(message, server)
     message_json = JSON.json(message)
 
-    write_transport_layer(server.pipe_out,message_json, server.debug_mode)
+    put!(server.out_message_buffer, message_json)
 end
 
 function Base.run(server::LanguageServerInstance)
+    @schedule begin
+        for message in server.out_message_buffer
+            write_transport_layer(server.pipe_out,message, server.debug_mode)
+        end
+    end
+
     wontload_modules = []
     @schedule begin
         for missing_module in server.user_modules

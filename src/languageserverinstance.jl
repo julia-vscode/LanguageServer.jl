@@ -53,7 +53,7 @@ function Base.run(server::LanguageServerInstance)
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
 
-    lint_stdout,lint_stdin,lint_process = readandwrite(Cmd(`$JULIA_HOME/julia -e "Base.Sys.set_process_title(\"julia linter\"); using Lint; lintserver(\"$(replace(server.lint_pipe_name, "\\", "\\\\"))\");"`, env=env_new))
+    lint_stdout,lint_stdin,lint_process = readandwrite(Cmd(`$JULIA_HOME/julia -e "Base.Sys.set_process_title(\"julia linter\"); using Lint; lintserver(\"$(replace(server.lint_pipe_name, "\\", "\\\\"))\", \"lint-message\");"`, env=env_new))
 
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)

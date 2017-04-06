@@ -2,7 +2,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, offset, server)
+    # ns = get_names(tdpp.textDocument.uri, offset, server)
+    y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
     line = get_line(tdpp, server)
     
 
@@ -41,7 +42,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            for m in vcat([:Base, :Core], ns.modules)
+            # for m in vcat([:Base, :Core], ns.modules)
+            for m in vcat([:Base, :Core])
                 if startswith(string(m), word)
                     push!(entries, (string(m), 9, "Module: $m"))
                     length(entries)>200 && break
@@ -60,9 +62,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             end
-            for k in keys(ns.list)
-                if length(string(k))>length(word) && word==string(k)[1:length(word)]
-                    push!(entries, (string(k), 6, ""))
+            # for k in keys(ns.list)
+            #     if length(string(k))>length(word) && word==string(k)[1:length(word)]
+            #         push!(entries, (string(k), 6, ""))
+            #     end
+            # end
+            for v in scope
+                if length(string(v.id))>length(word) && word==string(v.id)[1:length(word)]
+                    push!(entries, (string(v.id), 6, ""))
                 end
             end
         end
@@ -70,7 +77,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         modname = parse(strip(prefix, '.'))
         topmodname = Symbol(first(split(prefix, '.')))
         vname = last(split(word, '.'))
-        if topmodname in vcat([:Base, :Core], ns.modules) && (modname in keys(server.cache))
+        # if topmodname in vcat([:Base, :Core], ns.modules) && (modname in keys(server.cache))
+        if topmodname in vcat([:Base, :Core]) && (modname in keys(server.cache))
             for (k, v) in server.cache[modname]
                 k==:EXPORTEDNAMES && continue
                 if startswith(string(k), vname)
@@ -85,17 +93,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         end
-        sword = split(word,".")
-        if Symbol(sword[1]) in keys(ns.list)
-            t = get_type(Symbol.(sword[1:end-1]), ns)
-            fn = keys(get_fields(t, ns))
-            for f in fn
-                if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
-                    push!(entries, (string(f), 6, ""))
-                    length(entries)>200 && break
-                end
-            end
-        end
+        # sword = split(word,".")
+        # if Symbol(sword[1]) in keys(ns.list)
+        #     t = get_type(Symbol.(sword[1:end-1]), ns)
+        #     fn = keys(get_fields(t, ns))
+        #     for f in fn
+        #         if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
+        #             push!(entries, (string(f), 6, ""))
+        #             length(entries)>200 && break
+        #         end
+        #     end
+        # end
     end
 
     l, c = tdpp.position.line, tdpp.position.character

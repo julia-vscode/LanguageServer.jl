@@ -26,16 +26,22 @@ function modnames(M::Module, top)
                 else
                     d[n] = modnames(x, top)
                 end
-            elseif first(string(n))!='#'
-                t = Symbol(isa(x, Function) ? Function :
-                           isa(x, DataType) ? DataType :
-                                              typeof(x))
-                if isa(x, DataType) && x.abstract
-                    doc = "$n <: $(x.super)"
+            elseif first(string(n))!='#' && string(n) != "Module"
+                if isa(x, Function)
+                    doc = string(Docs.doc(Docs.Binding(M, n)))
+                    d[n] = (:Function, doc, sig(x))
+                elseif isa(x, DataType)
+                    if x.abstract
+                        doc = "$n <: $(x.super)"
+                    else
+                        doc = string(Docs.doc(Docs.Binding(M, n)))
+                    end
+                    d[n] = (:DataType, doc, sig(x),[(fieldname(x, i), parse(string(fieldtype(x, i)))) for i in 1:nfields(x)])
+                    # d[n] = (:DataType, doc, sig(x))
                 else
                     doc = string(Docs.doc(Docs.Binding(M, n)))
+                    d[n] = (Symbol(typeof(x)), doc, sig(x))
                 end
-                d[n] = (t, doc, sig(x))
             end
         end
     end
@@ -104,17 +110,19 @@ function updatecache(absentmodules::Vector{Symbol}, server)
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
         modnames(m, top); 
     end; 
-    io = IOBuffer();
-    io_base64 = Base64EncodePipe(io);
-    serialize(io_base64, top);
-    close(io_base64);
-    str = takebuf_string(io);
-    println(STDOUT, str)"`, env=env_new))
+    # io = IOBuffer();
+    # io_base64 = Base64EncodePipe(io);
+    # serialize(io_base64, top);
+    # close(io_base64);
+    # str = takebuf_string(io);
+    # println(STDOUT, str)
+    serialize(STDOUT, top)"`, env=env_new))
     
     @async begin 
-        str = readline(o)
-        data = base64decode(str)
-        mods = deserialize(IOBuffer(data))
+        # str = readline(o)
+        # data = base64decode(str)
+        # mods = deserialize(IOBuffer(data))
+        mods = deserialize(IOBuffer(read(o)))
         for k in keys(mods)
             if !(k in keys(server.cache))
                 info("added $k to cache")

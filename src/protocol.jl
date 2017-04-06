@@ -91,7 +91,7 @@ end
 type ServerCapabilities
     textDocumentSync::Int
     hoverProvider::Bool
-    # completionProvider::CompletionOptions
+    completionProvider::CompletionOptions
     # definitionProvider::Bool
     # signatureHelpProvider::SignatureHelpOptions
     # documentSymbolProvider::Bool

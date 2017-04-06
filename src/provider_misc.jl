@@ -5,7 +5,7 @@ const TextDocumentSyncKind = Dict("None"=>0, "Full"=>1, "Incremental"=>2)
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
-                        # CompletionOptions(false,[]),
+                        CompletionOptions(false, ["."]),
                         # false, #definitionProvider
                         # SignatureHelpOptions([]),
                         # false # documentSymbolProvider 
@@ -32,30 +32,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
     put!(server.user_modules, :Main)
-    # cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
-    
-    # o,i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "include(\"$cache_jl_path\");
-    # top=Dict();
-    # modnames(Main, top);
-    # io = IOBuffer();
-    # io_base64 = Base64EncodePipe(io);
-    # serialize(io_base64, top);
-    # close(io_base64);
-    # str = takebuf_string(io);
-    # println(STDOUT, str);
-    # "`, env=env_new))
-
-    # @async begin
-    #     str = readline(o)
-    #     data = base64decode(str)
-    #     mods = deserialize(IOBuffer(data))
-    #     for k in keys(mods)
-    #         if !(k in keys(server.cache))
-    #             server.cache[k] = mods[k]
-    #         end
-    #     end
-    #     info("Base cache loaded")
-    # end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)

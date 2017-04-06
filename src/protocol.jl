@@ -94,7 +94,7 @@ type ServerCapabilities
     completionProvider::CompletionOptions
     # definitionProvider::Bool
     # signatureHelpProvider::SignatureHelpOptions
-    # documentSymbolProvider::Bool
+    documentSymbolProvider::Bool
     # referencesProvider::Bool
     # documentHighlightProvider::Bool
     # workspaceSymbolProvider::Bool

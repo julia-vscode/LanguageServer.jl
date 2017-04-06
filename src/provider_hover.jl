@@ -7,7 +7,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
 
     if y isa Parser.IDENTIFIER
         entry = get_cache_entry(string(y.val), server, [])
-        documentation = entry[1] != :EMPTY ? [entry[2]] : []
+        documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         if !isempty(scope)
             for v in scope
                 if y.val == v.id

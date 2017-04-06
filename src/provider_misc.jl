@@ -77,10 +77,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     for c in r.params.contentChanges
         update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
     end
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
-    doc.blocks.ast = Parser.parse(doc._content, true)
+    parse_diag(doc, server)
+    
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
@@ -122,11 +120,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[uri]
-    # parseblocks(server.documents[uri], server)
     doc.blocks.ast = Parser.parse(doc._content, true)
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
 end
 
 

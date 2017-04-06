@@ -1,19 +1,14 @@
-const LintSeverity = Dict('E'=>1,'W'=>2,'I'=>3)
-
-function process_diagnostics(uri::String, server::LanguageServerInstance)
-    document = get_text(server.documents[uri])
-    # L = lintfile(normpath(unescape(URI(uri).path))[2:end], String(document))
-    # diags = map(L) do l
-    #     start_col = findfirst(i->i!=' ', get_line(uri, l.line, server))
-    #     Diagnostic(Range(Position(l.line-1, start_col-1), Position(l.line-1, typemax(Int)) ),
-    #                     LintSeverity[string(l.code)[1]],
-    #                     string(l.code),
-    #                     "Lint.jl",
-    #                     l.message)
-    # end
-    diags = Diagnostic[]
-    publishDiagnosticsParams = PublishDiagnosticsParams(uri, diags)
-
+function parse_diag(doc, server)
+    ps = Parser.ParseState(doc._content)
+    doc.blocks.ast, ps = Parser.parse(ps, true)
+    diags = map(ps.hints) do h
+        rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based=true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based=true))
+        
+        Diagnostic(rng, 2, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1]))
+    end
+    diags = unique(diags)
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, diags)
     response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
     send(response, server)
+    
 end

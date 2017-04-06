@@ -7,7 +7,7 @@ const serverCapabilities = ServerCapabilities(
                         true, #hoverProvider
                         CompletionOptions(false, ["."]),
                         # false, #definitionProvider
-                        # SignatureHelpOptions([]),
+                        SignatureHelpOptions(["("]),
                         true # documentSymbolProvider 
                         )
 

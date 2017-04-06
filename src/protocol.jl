@@ -93,7 +93,7 @@ type ServerCapabilities
     hoverProvider::Bool
     completionProvider::CompletionOptions
     # definitionProvider::Bool
-    # signatureHelpProvider::SignatureHelpOptions
+    signatureHelpProvider::SignatureHelpOptions
     documentSymbolProvider::Bool
     # referencesProvider::Bool
     # documentHighlightProvider::Bool

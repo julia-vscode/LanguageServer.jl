@@ -14,8 +14,8 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     while !eof(io)
         c = read(io, Char)
         e += 1
-        if (Lexer.is_identifier_char(c) || c=='@') || (c=='.' && e<(tdpp.position.character+offset))
-            if isempty(word) && !(Lexer.is_identifier_start_char(c) || c=='@')
+        if (Base.is_id_start_char(c) || c=='@') || (c=='.' && e<(tdpp.position.character+offset))
+            if isempty(word) && !(Base.is_id_start_char(c) || c=='@')
                 continue
             end
             push!(word, c)

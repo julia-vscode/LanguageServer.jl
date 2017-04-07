@@ -110,19 +110,17 @@ function updatecache(absentmodules::Vector{Symbol}, server)
     for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
         modnames(m, top); 
     end; 
-    # io = IOBuffer();
-    # io_base64 = Base64EncodePipe(io);
-    # serialize(io_base64, top);
-    # close(io_base64);
-    # str = takebuf_string(io);
-    # println(STDOUT, str)
-    serialize(STDOUT, top)"`, env=env_new))
+    io = IOBuffer();
+    io_base64 = Base64EncodePipe(io);
+    serialize(io_base64, top);
+    close(io_base64);
+    str = takebuf_string(io);
+    println(STDOUT, str)"`, env=env_new))
     
     @async begin 
-        # str = readline(o)
-        # data = base64decode(str)
-        # mods = deserialize(IOBuffer(data))
-        mods = deserialize(IOBuffer(read(o)))
+        str = readline(o)
+        data = base64decode(String(chomp(str)))
+        mods = deserialize(IOBuffer(data))
         for k in keys(mods)
             if !(k in keys(server.cache))
                 info("added $k to cache")

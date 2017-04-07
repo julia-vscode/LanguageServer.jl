@@ -3,8 +3,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    # ns = get_names(tdpp.textDocument.uri, offset, server)
-
+    
     str = get_line(tdpp, server)
     pos = pos0 = min(length(str), tdpp.position.character)
     io = IOBuffer(str)
@@ -39,17 +38,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
     else
         sigs = get_signatures(word, get_cache_entry(word, server))
-        # if Symbol(word) in keys(ns.list)
-        #     v = ns.list[Symbol(word)]
-        #     if isa(v, LocalVar)
-        #         v.t==:Function && push!(sigs.signatures, SignatureInformation(string(v.def.args[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(v.def.args[1])))))
-        #         for def in v.methods
-        #             push!(sigs.signatures, SignatureInformation(string(def[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(def[1])))))
-        #         end
-        #     else
-        #         append!(sigs.signatures, get_signatures(word, v).signatures)
-        #     end
-        # end
+        scope = Parser.get_symbols(doc.blocks.ast)
+        for (v, loc) in scope
+            if word == string(v.id) && v.t == :Function
+                sig_loc = v.val[1] isa Parser.KEYWORD{Parser.Tokens.FUNCTION} ? 2 : 1
+                push!(sigs.signatures, SignatureInformation(string(Expr(v.val[sig_loc])), "", [ParameterInformation(string(p.id)) for p in v.val[sig_loc].defs]))
+            end
+        end
+        
         signatureHelper = SignatureHelp(filter(s->length(s.parameters)>arg , sigs.signatures), 0, arg)
         response = JSONRPC.Response(get(r.id), signatureHelper)
     end

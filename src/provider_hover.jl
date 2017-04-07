@@ -21,7 +21,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     elseif y isa Parser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])),":"),MarkedString(string(Expr(y)))]
     else
-        documentation = ["Hover at $(Expr(y))"]
+        documentation = [string(Expr(y))]
     end
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)

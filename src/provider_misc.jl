@@ -31,7 +31,9 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
 
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
-    put!(server.user_modules, :Main)
+    # put!(server.user_modules, :Main)
+    server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
+    server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)

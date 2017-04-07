@@ -30,19 +30,6 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return String(word)
 end
 
-function get_sym(str::AbstractString)
-    name = split(str, '.')
-    try
-        x = getfield(Main, Symbol(name[1]))
-        for i = 2:length(name)
-            x = getfield(x, Symbol(name[i]))
-        end
-        return x
-    catch
-        return nothing
-    end
-end
-
 function get_cache_entry(word, server, modules=[])
     allmod = vcat([:Base, :Core], modules)
     entry = (:EMPTY, "", [])

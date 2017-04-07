@@ -21,7 +21,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)
-                    server.documents[uri].blocks.ast = Parser.parse(content, true)
+                    parse_diag(server.documents[uri], server)
                 end
             end
         end

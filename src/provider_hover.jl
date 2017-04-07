@@ -5,19 +5,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
 
     y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
 
-    if y isa Parser.IDENTIFIER
-        entry = get_cache_entry(string(y.val), server, [])
+    if y isa Parser.IDENTIFIER || y isa Parser.OPERATOR
+        entry = get_cache_entry(string(Expr(y)), server, [])
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
-        if !isempty(scope)
-            for (v, loc) in scope
-                if y.val == v.id
-                    push!(documentation, MarkedString(string(Expr(v.val))))
-                end
+        for (v, loc) in scope
+            if Expr(y) == v.id
+                push!(documentation, MarkedString(string(Expr(v.val))))
             end
         end
-    elseif y isa Parser.OPERATOR
-        entry = get_cache_entry(string(Expr(y)), server, [])
-        documentation = entry[1] != :EMPTY ? [entry[2]] : []
     elseif y isa Parser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])),":"),MarkedString(string(Expr(y)))]
     else

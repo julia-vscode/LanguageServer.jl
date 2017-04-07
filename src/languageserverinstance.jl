@@ -16,12 +16,14 @@ type LanguageServerInstance
 
     out_message_buffer::Channel{String}
 
+    diagnostic_requests::Channel{String}
+
     function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString=haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(),".julia"))
         cache = Dict()
 
         lint_pipe_name = is_windows() ? "\\\\.\\pipe\\vscode-language-julia-lint-server-$(getpid())" : joinpath(tempname(), "vscode-language-julia-lint-server-$(getpid())")
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, user_pkg_dir, lint_pipe_name, Channel{String}(128))
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, user_pkg_dir, lint_pipe_name, Channel{String}(128), Channel{String}(128))
     end
 end
 
@@ -54,6 +56,50 @@ function Base.run(server::LanguageServerInstance)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
 
     lint_stdout,lint_stdin,lint_process = readandwrite(Cmd(`$JULIA_HOME/julia -e "Base.Sys.set_process_title(\"julia linter\"); using Lint; lintserver(\"$(replace(server.lint_pipe_name, "\\", "\\\\"))\", \"lint-message\");"`, env=env_new))
+
+    linter_is_started = Condition()
+
+    @schedule begin
+        for s in eachline(lint_stdout)
+            if chomp(s)=="Server running on port/pipe $(server.lint_pipe_name) ..."
+                info("Linter started")
+                notify(linter_is_started)
+                break
+            end
+        end
+    end
+
+    @schedule begin
+        wait(linter_is_started)
+        for uri in server.diagnostic_requests
+            document = get_text(server.documents[uri])
+
+            input = Dict("file"=>normpath(unescape(URI(uri).path))[2:end], "code_str"=>String(document))
+
+            conn = connect(server.lint_pipe_name)
+            try
+                print(conn, JSON.json(input))
+
+                out = JSON.parse(readline(conn))
+
+                diags = map(out) do l
+                    line_number = l["line"]
+                    start_col = findfirst(i->i!=' ', get_line(uri, line_number, server))
+                    Diagnostic(Range(Position(line_number-1, start_col-1), Position(line_number-1, typemax(Int)) ),
+                        LintSeverity[string(l["code"])[1]],
+                        string(l["code"]),
+                        "Lint.jl",
+                        l["message"])
+                end
+                publishDiagnosticsParams = PublishDiagnosticsParams(uri, diags)
+
+                response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
+                send(response, server)
+            finally
+                close(conn)
+            end
+        end
+    end
 
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)

@@ -2,8 +2,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    # ns = get_names(tdpp.textDocument.uri, offset, server)
-    y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
     line = get_line(tdpp, server)
     
 
@@ -42,6 +40,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
+            y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
             # for m in vcat([:Base, :Core], ns.modules)
             for m in vcat([:Base, :Core])
                 if startswith(string(m), word)
@@ -62,18 +61,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             end
-            # for k in keys(ns.list)
-            #     if length(string(k))>length(word) && word==string(k)[1:length(word)]
-            #         push!(entries, (string(k), 6, ""))
-            #     end
-            # end
-            for v in scope
+            for (v, loc) in scope
                 if length(string(v.id))>length(word) && word==string(v.id)[1:length(word)]
                     push!(entries, (string(v.id), 6, ""))
                 end
             end
         end
     else
+        y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
         modname = parse(strip(prefix, '.'))
         topmodname = Symbol(first(split(prefix, '.')))
         vname = last(split(word, '.'))

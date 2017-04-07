@@ -9,7 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         entry = get_cache_entry(string(y.val), server, [])
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         if !isempty(scope)
-            for v in scope
+            for (v, loc) in scope
                 if y.val == v.id
                     push!(documentation, MarkedString(string(Expr(v.val))))
                 end

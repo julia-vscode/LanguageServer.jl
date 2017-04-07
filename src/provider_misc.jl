@@ -6,7 +6,7 @@ const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
                         CompletionOptions(false, ["."]),
-                        # false, #definitionProvider
+                        true, #definitionProvider
                         SignatureHelpOptions(["("]),
                         true # documentSymbolProvider 
                         )

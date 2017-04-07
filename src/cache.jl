@@ -113,7 +113,7 @@ function updatecache(absentmodules::Vector{Symbol}, server)
     
     @async begin 
         str = readline(o)
-        data = base64decode(str)
+        data = base64decode(chomp(str))
         mods = deserialize(IOBuffer(data))
         for k in keys(mods)
             if !(k in keys(server.cache))

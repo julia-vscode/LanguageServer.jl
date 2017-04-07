@@ -8,7 +8,8 @@ const serverCapabilities = ServerCapabilities(
                         CompletionOptions(false, ["."]),
                         true, #definitionProvider
                         SignatureHelpOptions(["("]),
-                        true # documentSymbolProvider 
+                        true, # documentSymbolProvider 
+                        true # workspaceSymbolProvider
                         )
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)

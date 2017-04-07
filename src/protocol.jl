@@ -97,7 +97,7 @@ type ServerCapabilities
     documentSymbolProvider::Bool
     # referencesProvider::Bool
     # documentHighlightProvider::Bool
-    # workspaceSymbolProvider::Bool
+    workspaceSymbolProvider::Bool
     # codeActionProvider::Bool
     # codeLensProvider::CodeLensOptions
     # documentFormattingProvider::Bool
@@ -216,6 +216,11 @@ type DocumentSymbolParams
     textDocument::TextDocumentIdentifier 
 end 
 DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
+
+type WorkspaceSymbolParams 
+    query::String 
+end 
+WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
 
 function Message(t::Int, text::AbstractString)
     Dict("jsonrpc"=>"2.0", "method"=>"window/showMessage", "params"=>Dict("type"=>t, "message"=>text))

@@ -28,7 +28,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     send(response, server)
 
     env_new = copy(ENV)
-    env_new["JULIA_PKGDIR"] = server.user_pkg_dir
+    env_new["JULIA_PKGDIR"] = realpath(joinpath(server.user_pkg_dir, ".."))
 
     put!(server.user_modules, :Main)
 end

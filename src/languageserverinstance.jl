@@ -19,7 +19,7 @@ type LanguageServerInstance
 
     diagnostic_requests::Channel{String}
 
-    function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString=haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(),".julia"))
+    function LanguageServerInstance(pipe_in,pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString=haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(),".julia", "v$(VERSION.major).$(VERSION.minor)"))
         cache = Dict()
 
         lint_pipe_name = is_windows() ? "\\\\.\\pipe\\vscode-language-julia-lint-server-$(getpid())" : joinpath(tempname(), "vscode-language-julia-lint-server-$(getpid())")

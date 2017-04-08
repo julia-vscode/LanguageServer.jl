@@ -9,6 +9,7 @@ const serverCapabilities = ServerCapabilities(
                         true, #definitionProvider
                         SignatureHelpOptions(["("]),
                         true, # documentSymbolProvider 
+                        true, # referencesProvider
                         true # workspaceSymbolProvider
                         )
 

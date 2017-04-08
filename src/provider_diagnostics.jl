@@ -12,6 +12,7 @@ function parse_diag(doc, server)
 
     # Errors
     if ps.errored
+        info("parsing $(doc._uri) failed")
         ast = doc.blocks.ast
         if last(ast) isa Parser.ERROR
             if length(ast) > 1

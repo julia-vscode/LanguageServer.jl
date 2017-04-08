@@ -95,7 +95,7 @@ type ServerCapabilities
     definitionProvider::Bool
     signatureHelpProvider::SignatureHelpOptions
     documentSymbolProvider::Bool
-    # referencesProvider::Bool
+    referencesProvider::Bool
     # documentHighlightProvider::Bool
     workspaceSymbolProvider::Bool
     # codeActionProvider::Bool
@@ -191,6 +191,18 @@ type TextDocumentPositionParams
     position::Position
 end
 TextDocumentPositionParams(d::Dict) = TextDocumentPositionParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]))
+
+type ReferenceContext
+    includeDeclaration::Bool
+end
+ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
+
+type ReferenceParams
+    textDocument::TextDocumentIdentifier
+    position::Position
+    context::ReferenceContext
+end
+ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), ReferenceContext(d["context"]))
 
 type DidOpenTextDocumentParams
     textDocument::TextDocumentItem

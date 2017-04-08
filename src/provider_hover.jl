@@ -1,7 +1,7 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
 
     y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
 
@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
             end
         end
     elseif y isa Parser.LITERAL
-        documentation = [string(lowercase(string(typeof(y).parameters[1])),":"),MarkedString(string(Expr(y)))]
+        documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
     else
         documentation = [string(Expr(y))]
     end

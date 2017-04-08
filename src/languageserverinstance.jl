@@ -9,6 +9,7 @@ type LanguageServerInstance
 
     debug_mode::Bool
     runlinter::Bool
+    linter_is_installed::Bool
 
     user_pkg_dir::String
 
@@ -23,7 +24,7 @@ type LanguageServerInstance
 
         lint_pipe_name = is_windows() ? "\\\\.\\pipe\\vscode-language-julia-lint-server-$(getpid())" : joinpath(tempname(), "vscode-language-julia-lint-server-$(getpid())")
 
-        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, user_pkg_dir, lint_pipe_name, Channel{String}(128), Channel{String}(128))
+        new(pipe_in,pipe_out,"", Dict{String,Document}(), cache, Channel{Symbol}(128), debug_mode, false, true, user_pkg_dir, lint_pipe_name, Channel{String}(128), Channel{String}(128))
     end
 end
 
@@ -55,7 +56,14 @@ function Base.run(server::LanguageServerInstance)
     env_new = copy(ENV)
     env_new["JULIA_PKGDIR"] = server.user_pkg_dir
 
-    lint_stdout,lint_stdin,lint_process = readandwrite(Cmd(`$JULIA_HOME/julia -e "Base.Sys.set_process_title(\"julia linter\"); using Lint; lintserver(\"$(replace(server.lint_pipe_name, "\\", "\\\\"))\", \"lint-message\");"`, env=env_new))
+    lint_stdout,lint_stdin,lint_process = readandwrite(Cmd(`$JULIA_HOME/julia -e "Base.Sys.set_process_title(\"julia linter\");
+        try
+            eval(:(using Lint));
+        catch err
+            println(err)
+        end
+
+        lintserver(\"$(replace(server.lint_pipe_name, "\\", "\\\\"))\", \"lint-message\");"`, env=env_new))
 
     linter_is_started = Condition()
 
@@ -65,6 +73,12 @@ function Base.run(server::LanguageServerInstance)
                 info("Linter started")
                 notify(linter_is_started)
                 break
+            elseif startswith(s, "ArgumentError")
+                kill(lint_process)
+                if server.runlinter
+                    send(Message(3, "Lint.jl package not found. You need to install it with Pkg.add(\"Lint\") if you want to receive lint messages."), server)
+                end
+                server.linter_is_installed = false
             end
         end
     end

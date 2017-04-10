@@ -33,7 +33,7 @@ function _find_ref(x::Parser.EXPR, V, LOC, offset, scope, refs)
         x.head isa Parser.KEYWORD{Tokens.USING} || 
         x.head isa Parser.KEYWORD{Tokens.IMPORT} || 
         x.head isa Parser.KEYWORD{Tokens.IMPORTALL} || 
-        (x.head == Parser.TOPLEVEL && x.args[1] isa Parser.EXPR && (x.args[1].head isa Parser.KEYWORD{Tokens.IMPORT} || x.args[1].head isa Parser.KEYWORD{Tokens.IMPORTALL} || x.args[1].head isa Parser.KEYWORD{Tokens.USING}))
+        (x.head == Parser.TOPLEVEL && all(x.args[i] isa Parser.EXPR && (x.args[i].head isa Parser.KEYWORD{Tokens.IMPORT} || x.args[i].head isa Parser.KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa Parser.KEYWORD{Tokens.USING})) for i = 1:length(x.args))
         return x
     end
     for (i, a) in enumerate(x)

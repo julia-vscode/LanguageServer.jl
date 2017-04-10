@@ -3,10 +3,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
 
-    y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
+    y, Y, I, O, scope, modules = get_scope(doc, offset, server)
 
     if y isa Parser.IDENTIFIER || y isa Parser.OPERATOR
-        entry = get_cache_entry(string(Expr(y)), server, [])
+        entry = get_cache_entry(string(Expr(y)), server, modules)
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         for (v, loc) in scope
             if Expr(y) == v.id

@@ -97,3 +97,16 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
                         t == :DataType ? 5 :  
                         t == :Module ? 2 :
                         t == :Bool ? 17 : 13  
+
+function get_scope(doc, offset, server)
+    y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
+
+    modules = []
+    for (v, loc) in scope
+        if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
+            put!(server.user_modules, v.id.args[1])
+            push!(modules, v.id.args[1])
+        end
+    end
+    return y, Y, I, O, scope, modules 
+end

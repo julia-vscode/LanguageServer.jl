@@ -37,8 +37,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     if word==""
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
     else
-        sigs = get_signatures(word, get_cache_entry(word, server))
-        scope = Parser.get_symbols(doc.blocks.ast)
+        y, Y, I, O, scope, modules = get_scope(doc, offset, server)
+        sigs = get_signatures(word, get_cache_entry(word, server, modules))
         for (v, loc) in scope
             if word == string(v.id) && v.t == :Function
                 sig_loc = v.val[1] isa Parser.KEYWORD{Parser.Tokens.FUNCTION} ? 2 : 1

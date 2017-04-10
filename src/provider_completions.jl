@@ -40,9 +40,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
-            # for m in vcat([:Base, :Core], ns.modules)
-            for m in vcat([:Base, :Core])
+            y, Y, I, O, scope, modules = get_scope(doc, offset, server)
+            for m in vcat([:Base, :Core], modules)
                 if startswith(string(m), word)
                     push!(entries, (string(m), 9, "Module: $m"))
                     length(entries)>200 && break
@@ -68,12 +67,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             end
         end
     else
-        y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
+        y, Y, I, O, scope, modules = get_scope(doc, offset, server)
         modname = parse(strip(prefix, '.'))
         topmodname = Symbol(first(split(prefix, '.')))
         vname = last(split(word, '.'))
-        # if topmodname in vcat([:Base, :Core], ns.modules) && (modname in keys(server.cache))
-        if topmodname in vcat([:Base, :Core]) && (modname in keys(server.cache))
+        if topmodname in vcat([:Base, :Core], modules) && (modname in keys(server.cache))
             for (k, v) in server.cache[modname]
                 k==:EXPORTEDNAMES && continue
                 if startswith(string(k), vname)

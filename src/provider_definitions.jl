@@ -5,8 +5,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
     word = get_word(tdpp, server)
     
-    locations = get_definitions(word, get_cache_entry(word, server, []))
-    y, Y, I, O, scope = Parser.find_scope(doc.blocks.ast, offset)
+    y, Y, I, O, scope, modules = get_scope(doc, offset, server)
+    locations = get_definitions(word, get_cache_entry(word, server, modules))
     
     for (v, loc) in scope
         if word == string(v.id)

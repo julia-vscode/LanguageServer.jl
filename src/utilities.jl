@@ -4,23 +4,23 @@ function get_line(uri::AbstractString, line::Integer, server::LanguageServerInst
 end
 
 function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    return get_line(tdpp.textDocument.uri, tdpp.position.line+1, server)
+    return get_line(tdpp.textDocument.uri, tdpp.position.line + 1, server)
 end
 
-function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset=0)
+function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset = 0)
     io = IOBuffer(get_line(tdpp, server))
     word = Char[]
     e = 0
     while !eof(io)
         c = read(io, Char)
         e += 1
-        if (Base.is_id_start_char(c) || c=='@') || (c=='.' && e<(tdpp.position.character+offset))
-            if isempty(word) && !(Base.is_id_start_char(c) || c=='@')
+        if (Base.is_id_start_char(c) || c == '@') || (c == '.' && e < (tdpp.position.character + offset))
+            if isempty(word) && !(Base.is_id_start_char(c) || c == '@')
                 continue
             end
             push!(word, c)
         else
-            if e<=tdpp.position.character+offset
+            if e <= tdpp.position.character + offset
                 empty!(word)
             else
                 break
@@ -30,12 +30,12 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return String(word)
 end
 
-function get_cache_entry(word, server, modules=[])
+function get_cache_entry(word, server, modules = [])
     allmod = vcat([:Base, :Core], modules)
     entry = (:EMPTY, "", [])
-    if search(word, ".")!=0:-1
+    if search(word, ".") != 0:-1
         sword = split(word, ".")
-        modname = parse(join(sword[1:end-1], "."))
+        modname = parse(join(sword[1:end - 1], "."))
         if Symbol(first(sword)) in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
             entry = server.cache[modname][Symbol(last(sword))]
         end
@@ -57,7 +57,7 @@ function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
 
     if is_windows()
-        if uri_path[1]=='\\'
+        if uri_path[1] == '\\'
             uri_path = uri_path[2:end]
         end
 
@@ -77,7 +77,7 @@ function should_file_be_linted(uri, server)
         workspace_path = lowercase(workspace_path)
     end
 
-    if server.rootPath==""
+    if server.rootPath == ""
         return false
     else
         return startswith(uri_path, workspace_path)

@@ -13,6 +13,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                 push!(documentation, MarkedString(string(Expr(v.val))))
             end
         end
+    elseif y isa Parser.QUOTENODE && last(Y) isa Parser.EXPR && last(Y).head isa Parser.OPERATOR{15, Tokens.DOT}
+        if Expr(last(Y)[1]) in keys(server.cache) && Expr(y).value in keys(server.cache[Expr(last(Y)[1])]) && !(server.cache[Expr(last(Y)[1])][Expr(y).value] isa Dict)
+            documentation = [server.cache[Expr(last(Y)[1])][Expr(y).value][2]]
+        else
+            documentation = [""]
+        end
     elseif y isa Parser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
     else

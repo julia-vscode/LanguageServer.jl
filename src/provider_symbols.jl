@@ -8,7 +8,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
     syms = SymbolInformation[]
-    for (v, loc) in Parser.get_symbols(doc.blocks.ast)
+    scope = Parser.get_symbols(doc.blocks.ast)
+    for (v, loc) in scope
         rng = Range(Position(get_position_at(doc, first(loc))..., one_based=true), Position(get_position_at(doc, last(loc))..., one_based=true))
 
         if v.t == :Function
@@ -33,7 +34,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
     syms = SymbolInformation[]
     query = r.params.query
     for (uri, doc) in server.documents
-        for (v, loc) in Parser.get_symbols(doc.blocks.ast)
+        tic()
+        scope = Parser.get_symbols(doc.blocks.ast)
+        info(toq())
+        for (v, loc) in scope
             if ismatch(Regex(query, "i"), string(v.id))
                 rng = Range(Position(get_position_at(doc, first(loc))..., one_based=true), Position(get_position_at(doc, last(loc))..., one_based=true))
                 if v.t == :Function

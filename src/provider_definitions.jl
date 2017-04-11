@@ -8,7 +8,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     y, Y, I, O, scope, modules = get_scope(doc, offset, server)
     locations = get_definitions(word, get_cache_entry(word, server, modules))
     
-    for (v, loc) in scope
+    for (v, loc, uri) in scope
         if word == string(v.id)
             rng = Range(Position(get_position_at(doc, first(loc))..., one_based=true), Position(get_position_at(doc, last(loc))..., one_based=true))
             push!(locations, Location(uri, rng))

@@ -1,0 +1,128 @@
+import Parser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
+import Parser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
+
+function _find_scope(x::EXPR, n::Int, path::Vector, ind::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server)
+    # No scoping/iteration for STRING 
+    if x.head == STRING
+        return x
+    elseif x.head isa KEYWORD{Tokens.USING} || x.head isa KEYWORD{Tokens.IMPORT} || x.head isa KEYWORD{Tokens.IMPORTALL} || (x.head == TOPLEVEL && all(x.args[i] isa EXPR && (x.args[i].head isa KEYWORD{Tokens.IMPORT} || x.args[i].head isa KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
+        for d in x.defs
+            unshift!(scope, (d, sum(offsets) + (1:x.span), uri))
+        end
+        return x
+    end
+    offset = 0
+    if n > x.span
+        return NOTHING
+    end
+    push!(path, x)
+    for (i, a) in enumerate(x)
+        if n > offset + a.span
+            get_scope(a, sum(offsets) + offset, scope, uri, server)
+            offset += a.span
+        else
+            if a isa EXPR
+                for d in a.defs
+                    push!(scope, (d, sum(offsets) + offset + (1:a.span), uri))
+                end
+            end
+
+            push!(ind, i)
+            push!(offsets, offset)
+            
+            if x.head == BLOCK && length(path) > 1 && path[end - 1] isa EXPR && (path[end - 1].head == TOPLEVEL || path[end - 1].head isa KEYWORD{Tokens.MODULE} || path[end - 1].head isa KEYWORD{Tokens.BAREMODULE})
+                offset1 = sum(offsets) + offset
+                for j = i + 1:length(x)
+                    get_scope(x[j], offset1, scope, uri, server)
+                    offset1 += x[j].span
+                end
+            end
+            return _find_scope(a, n - offset, path, ind, offsets, scope, uri, server)
+        end
+    end
+end
+
+_find_scope(x::Union{QUOTENODE,INSTANCE,ERROR}, n::Int, path::Vector, ind::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server) = x
+
+function get_scope(x, offset::Int, scope, uri::String, server) end
+
+function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
+    for d in x.defs
+        push!(scope, (d, offset + (1:x.span), uri))
+    end
+    if contributes_scope(x)
+        for a in x
+            get_scope(a, offset, scope, uri, server)
+        end
+    end
+    # extend to handle simple joinpath expressions
+    if x.head == CALL && x.args[1] isa IDENTIFIER && x.args[1].val == :include && (x.args[2] isa LITERAL{Tokens.STRING} || x.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
+        file = Expr(x.args[2])
+        if !startswith(file, "/")
+            file = joinpath(dirname(uri), file)
+        else
+            filepath2uri(file)
+        end
+        if file in keys(server.documents)
+            incl_syms = get_symbols_follow(server.documents[file].blocks.ast, 0, [], file, server)
+            append!(scope, incl_syms)
+        end
+    end
+end
+
+
+contributes_scope(x) = false
+function contributes_scope(x::EXPR)
+    x.head isa KEYWORD{Tokens.BLOCK} ||
+    x.head isa KEYWORD{Tokens.CONST} ||
+    x.head isa KEYWORD{Tokens.GLOBAL} || 
+    x.head isa KEYWORD{Tokens.IF} ||
+    x.head isa KEYWORD{Tokens.LOCAL} ||
+    x.head isa HEAD{Tokens.MACROCALL}
+end
+
+find_scope(x::ERROR, n::Int) = ERROR, [], [], [], [], []
+
+
+function get_scope(doc::Document, offset::Int, server)
+    uri = doc._uri
+    stack, inds, offsets = [], Int[], Int[]
+    scope, modules = Tuple{Variable, UnitRange, String}[], []
+    y = _find_scope(doc.blocks.ast, offset, stack, inds, offsets, scope, uri, server)
+
+    for (v, loc) in scope
+        if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
+            put!(server.user_modules, v.id.args[1])
+            push!(modules, v.id.args[1])
+        end
+    end
+    return y, stack, inds, offsets, scope, modules 
+end
+
+
+
+function get_symbols_follow(x, offset::Int, symbols, uri, server) end
+function get_symbols_follow(x::EXPR, offset::Int, symbols, uri, server)
+    for a in x
+        if a isa EXPR
+            if !isempty(a.defs)
+                for v in a.defs
+                    push!(symbols, (v, offset + (1:a.span), uri))
+                end
+            end
+            if contributes_scope(a)
+                get_symbols_follow(a, offset, symbols, uri, server)
+            end
+            if a.head isa KEYWORD{Tokens.MODULE} || a.head isa KEYWORD{Tokens.MODULE}
+                m_scope = get_symbols_follow(a[3], 0, [], uri, server)
+                offset2 = offset + a[1].span + a[2].span
+                for mv in m_scope
+                    push!(symbols, (Variable(Expr(:(.), a.defs[1].id, QuoteNode(mv[1].id)), mv[1].t, mv[1].val), mv[2] + offset2, uri))
+                    
+                end
+            end
+        end
+        offset += a.span
+    end
+    return symbols
+end

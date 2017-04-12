@@ -1,8 +1,22 @@
 import Parser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
 import Parser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
 
-function _find_scope(x::EXPR, n::Int, path::Vector, ind::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server)
-    # No scoping/iteration for STRING 
+function get_scope(doc::Document, offset::Int, server)
+    uri = doc._uri
+    stack, inds, offsets = [], Int[], Int[]
+    scope, modules = Tuple{Variable, UnitRange, String}[], []
+    y = _find_scope(doc.blocks.ast, offset, stack, inds, offsets, scope, uri, server)
+
+    for (v, loc) in scope
+        if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
+            put!(server.user_modules, v.id.args[1])
+            push!(modules, v.id.args[1])
+        end
+    end
+    return y, stack, inds, offsets, scope, modules 
+end
+
+function _find_scope(x::EXPR, n::Int, stack::Vector, inds::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server)
     if x.head == STRING
         return x
     elseif x.head isa KEYWORD{Tokens.USING} || x.head isa KEYWORD{Tokens.IMPORT} || x.head isa KEYWORD{Tokens.IMPORTALL} || (x.head == TOPLEVEL && all(x.args[i] isa EXPR && (x.args[i].head isa KEYWORD{Tokens.IMPORT} || x.args[i].head isa KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
@@ -15,7 +29,7 @@ function _find_scope(x::EXPR, n::Int, path::Vector, ind::Vector{Int}, offsets::V
     if n > x.span
         return NOTHING
     end
-    push!(path, x)
+    push!(stack, x)
     for (i, a) in enumerate(x)
         if n > offset + a.span
             get_scope(a, sum(offsets) + offset, scope, uri, server)
@@ -26,23 +40,21 @@ function _find_scope(x::EXPR, n::Int, path::Vector, ind::Vector{Int}, offsets::V
                     push!(scope, (d, sum(offsets) + offset + (1:a.span), uri))
                 end
             end
-
-            push!(ind, i)
+            push!(inds, i)
             push!(offsets, offset)
-            
-            if x.head == BLOCK && length(path) > 1 && path[end - 1] isa EXPR && (path[end - 1].head == TOPLEVEL || path[end - 1].head isa KEYWORD{Tokens.MODULE} || path[end - 1].head isa KEYWORD{Tokens.BAREMODULE})
-                offset1 = sum(offsets) + offset
+            if (x.head == TOPLEVEL && length(stack) == 1 && first(stack).head == TOPLEVEL) || (length(stack) > 2 && stack[end - 1].head isa KEYWORD{Tokens.MODULE} && stack[end].head == BLOCK)
+                offset1 = sum(offsets) + a.span
                 for j = i + 1:length(x)
                     get_scope(x[j], offset1, scope, uri, server)
                     offset1 += x[j].span
                 end
             end
-            return _find_scope(a, n - offset, path, ind, offsets, scope, uri, server)
+            return _find_scope(a, n - offset, stack, inds, offsets, scope, uri, server)
         end
     end
 end
 
-_find_scope(x::Union{QUOTENODE,INSTANCE,ERROR}, n::Int, path::Vector, ind::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server) = x
+_find_scope(x::Union{QUOTENODE,INSTANCE,ERROR}, n::Int, stack::Vector, inds::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server) = x
 
 function get_scope(x, offset::Int, scope, uri::String, server) end
 
@@ -53,9 +65,10 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
     if contributes_scope(x)
         for a in x
             get_scope(a, offset, scope, uri, server)
+            offset += a.span
         end
     end
-    # extend to handle simple joinpath expressions
+
     if x.head == CALL && x.args[1] isa IDENTIFIER && x.args[1].val == :include && (x.args[2] isa LITERAL{Tokens.STRING} || x.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
         file = Expr(x.args[2])
         if !startswith(file, "/")
@@ -66,6 +79,8 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
         if file in keys(server.documents)
             incl_syms = get_symbols_follow(server.documents[file].blocks.ast, 0, [], file, server)
             append!(scope, incl_syms)
+            # doc1 = server.documents[file]
+            # info([(s->s[1].id).(incl_syms) (s->(get_position_at(doc1, first(s[2])), get_position_at(doc1, last(s[2])))).(incl_syms)])
         end
     end
 end
@@ -83,21 +98,6 @@ end
 
 find_scope(x::ERROR, n::Int) = ERROR, [], [], [], [], []
 
-
-function get_scope(doc::Document, offset::Int, server)
-    uri = doc._uri
-    stack, inds, offsets = [], Int[], Int[]
-    scope, modules = Tuple{Variable, UnitRange, String}[], []
-    y = _find_scope(doc.blocks.ast, offset, stack, inds, offsets, scope, uri, server)
-
-    for (v, loc) in scope
-        if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
-            put!(server.user_modules, v.id.args[1])
-            push!(modules, v.id.args[1])
-        end
-    end
-    return y, stack, inds, offsets, scope, modules 
-end
 
 
 

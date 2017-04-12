@@ -10,7 +10,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     
     for (v, loc, uri) in scope
         if word == string(v.id)
-            rng = Range(Position(get_position_at(doc, first(loc))..., one_based=true), Position(get_position_at(doc, last(loc))..., one_based=true))
+            doc1 = server.documents[uri]
+            rng = Range(Position(get_position_at(doc1, first(loc))..., one_based = true), Position(get_position_at(doc1, last(loc))..., one_based = true))
             push!(locations, Location(uri, rng))
         end
     end

@@ -17,8 +17,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     put!(server.user_modules, :Main)
     # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
     # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
-    server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
-    if server.rootPath!=""
+    server.rootPath = haskey(r.params, "rootPath") ? r.params["rootPath"] : ""
+    if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
                 if endswith(file, ".jl")

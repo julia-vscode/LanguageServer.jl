@@ -1,7 +1,16 @@
+
 function parse_diag(doc, server)
     ps = Parser.ParseState(doc._content)
     doc.blocks.ast, ps = Parser.parse(ps, true)
-
+    includes = String[]
+    for incl in Parser._get_includes(doc.blocks.ast)
+        if startswith(incl, "/")
+            push!(includes, filepath2uri(incl))
+        else
+            push!(includes, joinpath(dirname(doc._uri), incl))
+        end
+    end
+    doc.blocks.includes = includes
     # Lint/Formatting hints
     diags = map(ps.diagnostics) do h
         rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based=true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based=true))

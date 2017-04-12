@@ -5,6 +5,13 @@ function get_scope(doc::Document, offset::Int, server)
     uri = doc._uri
     stack, inds, offsets = [], Int[], Int[]
     scope, modules = Tuple{Variable, UnitRange, String}[], []
+    # Search for includes of this file
+    for (uri1, doc1) in server.documents
+        if uri in doc1.blocks.includes
+            get_symbols_follow(doc1.blocks.ast, offset::Int, scope, uri1, server)
+        end
+    end
+
     y = _find_scope(doc.blocks.ast, offset, stack, inds, offsets, scope, uri, server)
 
     for (v, loc) in scope

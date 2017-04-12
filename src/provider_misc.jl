@@ -14,6 +14,9 @@ const serverCapabilities = ServerCapabilities(
                         )
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
+    put!(server.user_modules, :Main)
+    # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
+    # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
     server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
     if server.rootPath!=""
         for (root, dirs, files) in walkdir(server.rootPath)
@@ -31,12 +34,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}},
     end
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
-
-    env_new = copy(ENV)
-    env_new["JULIA_PKGDIR"] = server.user_pkg_dir
-    # put!(server.user_modules, :Main)
-    server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
-    server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)

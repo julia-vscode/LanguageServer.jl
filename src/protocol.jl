@@ -19,12 +19,8 @@ type Range
     stop::Position # mismatch between vscode-ls protocol naming (should be 'end')
 end
 
-function JSON._writejson(io::IO, state::JSON.State, a::Range)
-    Base.print(io,"{\"start\":")
-    JSON._writejson(io,state,a.start)
-    Base.print(io,",\"end\":")
-    JSON._writejson(io,state,a.stop)
-    Base.print(io,"}")
+function JSON.lower(a::Range)
+    Dict("start" => a.start, "end" => a.stop)
 end
 
 Range(d::Dict) = Range(Position(d["start"]), Position(d["end"]))

@@ -80,6 +80,7 @@ function uri2filepath(uri::AbstractString)
 end
 
 function should_file_be_linted(uri, server)
+    !server.linter_is_installed && return false
     !server.runlinter && return false
 
     uri_path = uri2filepath(uri)

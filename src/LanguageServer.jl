@@ -1,7 +1,6 @@
 module LanguageServer
 
 using JSON
-using Lint
 using URIParser
 using JuliaParser
 

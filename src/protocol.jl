@@ -88,6 +88,10 @@ type SignatureHelpOptions
     triggerCharacters::Vector{String}
 end
 
+type DocumentLinkOptions
+    resolveProvider::Bool
+end
+
 type ServerCapabilities
     textDocumentSync::Int
     hoverProvider::Bool
@@ -96,8 +100,9 @@ type ServerCapabilities
     signatureHelpProvider::SignatureHelpOptions
     documentSymbolProvider::Bool
     referencesProvider::Bool
-    # documentHighlightProvider::Bool
     workspaceSymbolProvider::Bool
+    documentLinkProvider::DocumentLinkOptions
+    # documentHighlightProvider::Bool
     # codeActionProvider::Bool
     # codeLensProvider::CodeLensOptions
     # documentFormattingProvider::Bool
@@ -228,6 +233,11 @@ type DocumentSymbolParams
     textDocument::TextDocumentIdentifier 
 end 
 DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
+
+type DocumentLinkParams
+    textDocument::TextDocumentIdentifier
+end
+DocumentLinkParams(d::Dict) = DocumentLinkParams(TextDocumentIdentifier(d["textDocument"]))
 
 type WorkspaceSymbolParams 
     query::String 

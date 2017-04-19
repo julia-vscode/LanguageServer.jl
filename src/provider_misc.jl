@@ -1,7 +1,5 @@
 const TextDocumentSyncKind = Dict("None"=>0, "Full"=>1, "Incremental"=>2)
 
-
-
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
@@ -10,8 +8,9 @@ const serverCapabilities = ServerCapabilities(
                         SignatureHelpOptions(["("]),
                         true, # documentSymbolProvider 
                         true, # referencesProvider
-                        true # workspaceSymbolProvider
-                        )
+                        true, # workspaceSymbolProvider
+                        DocumentLinkOptions(false)
+)
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
     put!(server.user_modules, :Main)

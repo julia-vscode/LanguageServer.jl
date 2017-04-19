@@ -81,7 +81,7 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
         if !startswith(file, "/")
             file = joinpath(dirname(uri), file)
         else
-            filepath2uri(file)
+            file = filepath2uri(file)
         end
         if file in keys(server.documents)
             incl_syms = get_symbols_follow(server.documents[file].blocks.ast, 0, [], file, server)

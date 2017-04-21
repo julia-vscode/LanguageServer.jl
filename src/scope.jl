@@ -1,5 +1,5 @@
-import Parser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
-import Parser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
+import CSTParser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
+import CSTParser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
 
 function get_scope(doc::Document, offset::Int, server)
     uri = doc._uri

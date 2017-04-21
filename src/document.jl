@@ -4,11 +4,11 @@ type Document
     _line_offsets::Nullable{Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
-    blocks::Parser.File
+    blocks::CSTParser.File
     diagnostics::Vector
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, Parser.File(uri), [])
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [])
     end
 end
 

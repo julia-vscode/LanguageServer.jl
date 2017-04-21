@@ -5,11 +5,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     uri = tdpp.textDocument.uri
     doc = server.documents[uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    y, Y, I, O, S = Parser.find_scope(doc.blocks.ast, offset)
+    y, Y, I, O, S = CSTParser.find_scope(doc.blocks.ast, offset)
     locations = Location[]
-    if y isa Parser.IDENTIFIER
-        yid = Parser.get_id(y).val
-        s_id = findlast(s -> s[1].id == Parser.get_id(y).val, S)
+    if y isa CSTParser.IDENTIFIER
+        yid = CSTParser.get_id(y).val
+        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, S)
         if s_id >0
             V, LOC = S[s_id]
             locs = find_ref(doc.blocks.ast, V, LOC)
@@ -28,23 +28,23 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, pa
     return ReferenceParams(params)
 end
 
-function _find_ref(x::Parser.EXPR, V, LOC, offset, scope, refs)
-    if x.head == Parser.STRING || 
-        x.head isa Parser.KEYWORD{Tokens.USING} || 
-        x.head isa Parser.KEYWORD{Tokens.IMPORT} || 
-        x.head isa Parser.KEYWORD{Tokens.IMPORTALL} || 
-        (x.head == Parser.TOPLEVEL && all(x.args[i] isa Parser.EXPR && (x.args[i].head isa Parser.KEYWORD{Tokens.IMPORT} || x.args[i].head isa Parser.KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa Parser.KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
+function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
+    if x.head == CSTParser.STRING || 
+        x.head isa CSTParser.KEYWORD{Tokens.USING} || 
+        x.head isa CSTParser.KEYWORD{Tokens.IMPORT} || 
+        x.head isa CSTParser.KEYWORD{Tokens.IMPORTALL} || 
+        (x.head == CSTParser.TOPLEVEL && all(x.args[i] isa CSTParser.EXPR && (x.args[i].head isa CSTParser.KEYWORD{Tokens.IMPORT} || x.args[i].head isa CSTParser.KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa CSTParser.KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
         return x
     end
     for (i, a) in enumerate(x)
-        if a isa Parser.EXPR
+        if a isa CSTParser.EXPR
             if !isempty(a.defs)
                 for v in a.defs
                     push!(scope, (v, offset + (1:a.span)))
                 end
             end
-            if Parser.contributes_scope(a)
-                Parser.get_symbols(a, offset, scope)
+            if CSTParser.contributes_scope(a)
+                CSTParser.get_symbols(a, offset, scope)
             end
         end
         _find_ref(a, V, LOC, offset, copy(scope), refs)
@@ -52,11 +52,11 @@ function _find_ref(x::Parser.EXPR, V, LOC, offset, scope, refs)
     end
 end
 
-function _find_ref(x::Union{Parser.QUOTENODE,Parser.INSTANCE,Parser.ERROR}, V, LOC, offset, scope, refs)
+function _find_ref(x::Union{CSTParser.QUOTENODE,CSTParser.INSTANCE,CSTParser.ERROR}, V, LOC, offset, scope, refs)
 
 end
 
-function _find_ref(x::Parser.IDENTIFIER, V, LOC, offset, scope, refs)
+function _find_ref(x::CSTParser.IDENTIFIER, V, LOC, offset, scope, refs)
     if x.val == V.id
         scope_id = findlast(s -> s[1].id == V.id, scope)
         if scope_id > 0
@@ -68,7 +68,7 @@ function _find_ref(x::Parser.IDENTIFIER, V, LOC, offset, scope, refs)
     end
 end
 
-function find_ref(x::Parser.EXPR, V, LOC)
+function find_ref(x::CSTParser.EXPR, V, LOC)
     offset = 0
     scope = []
     refs = []

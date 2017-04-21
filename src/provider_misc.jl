@@ -121,7 +121,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[uri]
-    doc.blocks.ast = Parser.parse(doc._content, true)
+    parse_diag(doc, server)
 end
 
 

@@ -2,7 +2,7 @@ module LanguageServer
 
 using JSON
 using URIParser
-import Parser
+import CSTParser
 
 export LanguageServerInstance
 

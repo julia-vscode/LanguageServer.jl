@@ -1,14 +1,14 @@
 
 function parse_diag(doc, server)
     try
-        ps = Parser.ParseState(doc._content)
-        doc.blocks.ast, ps = Parser.parse(ps, true)
+        ps = CSTParser.ParseState(doc._content)
+        doc.blocks.ast, ps = CSTParser.parse(ps, true)
     catch er
         info("PARSING FAILED for $(doc._uri)")
     end
     try
         includes = String[]
-        for incl in Parser._get_includes(doc.blocks.ast)
+        for incl in CSTParser._get_includes(doc.blocks.ast)
             if startswith(incl, "/")
                 push!(includes, filepath2uri(incl))
             else
@@ -31,7 +31,7 @@ function parse_diag(doc, server)
     if ps.errored
         info("parsing $(doc._uri) failed")
         ast = doc.blocks.ast
-        if last(ast) isa Parser.ERROR
+        if last(ast) isa CSTParser.ERROR
             if length(ast) > 1
                 loc = sum(ast[i].span for i = 1:length(ast)-1):sizeof(doc._content)
             else

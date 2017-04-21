@@ -6,7 +6,8 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")}, DocumentLinkParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
-    links = get_links(doc.blocks.ast, 0, uri, server)
+    links = Tuple{String, UnitRange}[]
+    get_links(doc.blocks.ast, 0, uri, server, links)
     doclinks = DocumentLink[]
     for (uri2, loc) in links
         rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
@@ -37,7 +38,7 @@ function get_links(x::LITERAL{Tokens.STRING}, offset::Int, uri::String, server, 
     end
 end
 function get_links(x::EXPR, offset::Int, uri::String, server, links = Tuple{String, UnitRange}[])
-    if Parser.no_iter(x)
+    if CSTParser.no_iter(x)
         return links
     end
     for a in x

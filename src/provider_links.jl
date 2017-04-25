@@ -11,7 +11,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")}, Do
     doclinks = DocumentLink[]
     for (uri2, loc) in links
         rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
-        info(DocumentLink(rng, uri2))
         push!(doclinks, DocumentLink(rng, uri2))
     end
 

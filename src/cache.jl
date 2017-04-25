@@ -45,27 +45,27 @@ end
 
 sig(x) = []
 
-function sig(f::Union{UnionAll, DataType, Function})
-    out = []
-    t = Tuple{Vararg{Any}}
-    ft = isa(f, Type) ? Type{f} : typeof(f)
-    tt = isa(t, Type) ? Tuple{ft, t.parameters...} : Tuple{ft, t...}
-    world = typemax(UInt)
-    min = UInt[typemin(UInt)]
-    max = UInt[typemax(UInt)]
-    ms = ccall(:jl_matching_methods, Any, (Any, Cint, Cint, UInt, Ptr{UInt}, Ptr{UInt}), tt, -1, 1, world, min, max)::Array{Any, 1}
-    for (sig1, _, decl) in ms
-        while sig1 isa UnionAll
-            sig1 = sig1.body
-        end
-        ps = []
-        for i = 2:decl.nargs
-            push!(ps, (string(sig1.parameters[i])))
-        end
-        push!(out, (decl.file, decl.line, ps))
-    end
-    out
-end
+# function sig(f::Union{UnionAll, DataType, Function})
+#     out = []
+#     t = Tuple{Vararg{Any}}
+#     ft = isa(f, Type) ? Type{f} : typeof(f)
+#     tt = isa(t, Type) ? Tuple{ft, t.parameters...} : Tuple{ft, t...}
+#     world = typemax(UInt)
+#     min = UInt[typemin(UInt)]
+#     max = UInt[typemax(UInt)]
+#     ms = ccall(:jl_matching_methods, Any, (Any, Cint, Cint, UInt, Ptr{UInt}, Ptr{UInt}), tt, -1, 1, world, min, max)::Array{Any, 1}
+#     for (sig1, _, decl) in ms
+#         while sig1 isa UnionAll
+#             sig1 = sig1.body
+#         end
+#         ps = []
+#         for i = 2:decl.nargs
+#             push!(ps, (string(sig1.parameters[i])))
+#         end
+#         push!(out, (decl.file, decl.line, ps))
+#     end
+#     out
+# end
 
 
 function get_signatures(name, entry)

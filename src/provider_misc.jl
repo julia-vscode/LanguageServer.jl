@@ -12,8 +12,7 @@ const serverCapabilities = ServerCapabilities(
                         DocumentLinkOptions(false))
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")}, Dict{String, Any}}, server)
-    put!(server.user_modules, :Base)
-    put!(server.user_modules, :Core)
+    put!(server.user_modules, :Main)
     # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
     # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
     server.rootPath = haskey(r.params, "rootPath") ? r.params["rootPath"] : ""

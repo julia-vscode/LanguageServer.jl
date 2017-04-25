@@ -5,14 +5,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     uri = tdpp.textDocument.uri
     doc = server.documents[uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    y, Y, I, O, S = CSTParser.find_scope(doc.blocks.ast, offset)
+    y, Y, I, O, S = CSTParser.find_scope(doc.code.ast, offset)
     locations = Location[]
     if y isa CSTParser.IDENTIFIER
         yid = CSTParser.get_id(y).val
         s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, S)
-        if s_id >0
+        if s_id > 0
             V, LOC = S[s_id]
-            locs = find_ref(doc.blocks.ast, V, LOC)
+            locs = find_ref(doc.code.ast, V, LOC)
             for loc in locs
                 rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
 
@@ -52,7 +52,7 @@ function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
     end
 end
 
-function _find_ref(x::Union{CSTParser.QUOTENODE,CSTParser.INSTANCE,CSTParser.ERROR}, V, LOC, offset, scope, refs)
+function _find_ref(x::Union{CSTParser.QUOTENODE, CSTParser.INSTANCE, CSTParser.ERROR}, V, LOC, offset, scope, refs)
 
 end
 

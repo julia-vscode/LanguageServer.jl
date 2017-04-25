@@ -4,11 +4,11 @@ type SymbolInformation
     location::Location 
 end 
  
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")}, DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
     syms = SymbolInformation[]
-    scope = CSTParser.get_symbols(doc.blocks.ast)
+    scope = CSTParser.get_symbols(doc.code.ast)
     for (v, loc) in scope
         rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
 
@@ -30,11 +30,11 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}
 end
 
 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")}, WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     query = r.params.query
     for (uri, doc) in server.documents
-        scope = CSTParser.get_symbols(doc.blocks.ast)
+        scope = CSTParser.get_symbols(doc.code.ast)
         for (v, loc) in scope
             if ismatch(Regex(query, "i"), string(v.id))
                 rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))

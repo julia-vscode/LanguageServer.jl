@@ -2,7 +2,7 @@ import LanguageServer: LanguageServerInstance, Document, parseblocks
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
 
 function getresult(server)
-    str = takebuf_string(server.pipe_out)
+    str = String(take!(server.pipe_out))
     JSON.parse(str[search(str,'{'):end])["result"]["contents"]
 end
 

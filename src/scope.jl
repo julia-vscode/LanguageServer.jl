@@ -7,12 +7,12 @@ function get_scope(doc::Document, offset::Int, server)
     scope, modules = Tuple{Variable, UnitRange, String}[], []
     # Search for includes of this file
     for (uri1, doc1) in server.documents
-        if uri in doc1.blocks.includes
-            get_symbols_follow(doc1.blocks.ast, offset::Int, scope, uri1, server)
+        if uri in doc1.code.includes
+            get_symbols_follow(doc1.code.ast, offset::Int, scope, uri1, server)
         end
     end
 
-    y = _find_scope(doc.blocks.ast, offset, stack, inds, offsets, scope, uri, server)
+    y = _find_scope(doc.code.ast, offset, stack, inds, offsets, scope, uri, server)
 
     for (v, loc) in scope
         if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
@@ -61,7 +61,7 @@ function _find_scope(x::EXPR, n::Int, stack::Vector, inds::Vector{Int}, offsets:
     end
 end
 
-_find_scope(x::Union{QUOTENODE,INSTANCE,ERROR}, n::Int, stack::Vector, inds::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server) = x
+_find_scope(x::Union{QUOTENODE, INSTANCE, ERROR}, n::Int, stack::Vector, inds::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server) = x
 
 function get_scope(x, offset::Int, scope, uri::String, server) end
 
@@ -84,7 +84,7 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
             file = filepath2uri(file)
         end
         if file in keys(server.documents)
-            incl_syms = get_symbols_follow(server.documents[file].blocks.ast, 0, [], file, server)
+            incl_syms = get_symbols_follow(server.documents[file].code.ast, 0, [], file, server)
             append!(scope, incl_syms)
             # doc1 = server.documents[file]
             # info([(s->s[1].id).(incl_syms) (s->(get_position_at(doc1, first(s[2])), get_position_at(doc1, last(s[2])))).(incl_syms)])

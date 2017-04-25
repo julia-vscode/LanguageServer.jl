@@ -1,4 +1,4 @@
-const TextDocumentSyncKind = Dict("None"=>0, "Full"=>1, "Incremental"=>2)
+const TextDocumentSyncKind = Dict("None" => 0, "Full" => 1, "Incremental" => 2)
 
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
@@ -9,10 +9,9 @@ const serverCapabilities = ServerCapabilities(
                         true, # documentSymbolProvider 
                         true, # referencesProvider
                         true, # workspaceSymbolProvider
-                        DocumentLinkOptions(false)
-)
+                        DocumentLinkOptions(false))
 
-function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("initialize")}, Dict{String, Any}}, server)
     put!(server.user_modules, :Main)
     # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
     # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
@@ -39,7 +38,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return Any(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")}, DidOpenTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     if !haskey(server.documents, uri)
         server.documents[uri] = Document(uri, r.params.textDocument.text, false)
@@ -58,7 +57,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, param
     return DidOpenTextDocumentParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")}, DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     if !is_workspace_file(server.documents[uri])
         delete!(server.documents, uri)
@@ -71,12 +70,12 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, para
     return DidCloseTextDocumentParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")}, DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
-    blocks = server.documents[r.params.textDocument.uri].blocks
-    dirty = (last(r.params.contentChanges).range.start.line+1, last(r.params.contentChanges).range.start.character+1, first(r.params.contentChanges).range.stop.line+1, first(r.params.contentChanges).range.stop.character+1)
+    blocks = server.documents[r.params.textDocument.uri].code
+    dirty = (last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
     for c in r.params.contentChanges
-        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
+        update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
     end
     parse_diag(doc, server)
     
@@ -86,14 +85,14 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, par
     return DidChangeTextDocumentParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")}, CancelParams}, server)
     
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")}, DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        if change._type==FileChangeType_Created || (change._type==FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
+        if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
             server.documents[uri] = Document(uri, content, true)
@@ -101,10 +100,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             if should_file_be_linted(uri, server)
                 process_diagnostics(uri, server)
             end
-        elseif change._type==FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
+        elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
             delete!(server.documents, uri)
 
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     end
@@ -118,7 +117,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
     return CancelParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")}, DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[uri]
     parse_diag(doc, server)
@@ -130,22 +129,22 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, param
     return DidSaveTextDocumentParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")}, Dict{String, Any}}, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params)
     return Any(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")}, Dict{String, Any}}, server)
     if isempty(r.params["settings"])
-        server.runlinter=false
+        server.runlinter = false
         for uri in keys(server.documents)
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     else
-        server.runlinter=true
+        server.runlinter = true
         for uri in keys(server.documents)
             process_diagnostics(uri, server)
         end

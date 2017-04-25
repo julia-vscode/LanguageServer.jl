@@ -1,4 +1,4 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)

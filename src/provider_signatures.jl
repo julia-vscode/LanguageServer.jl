@@ -1,8 +1,8 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
     str = get_line(tdpp, server)
     pos = pos0 = min(length(str), tdpp.position.character)
@@ -10,32 +10,32 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     
     line = []
     cnt = 0
-    while cnt<pos && !eof(io)
+    while cnt < pos && !eof(io)
         cnt += 1
         push!(line, read(io, Char))
     end
     
     arg = b = 0
     word = "" 
-    while pos>1
-        if line[pos]=='(' 
-            if b==0
-                 word = get_word(tdpp, server, pos-pos0-1)
+    while pos > 1
+        if line[pos] == '(' 
+            if b == 0
+                word = get_word(tdpp, server, pos - pos0 - 1)
                 break
-            elseif b>0
+            elseif b > 0
                 b -= 1
             end
-        elseif line[pos]==',' && b==0
+        elseif line[pos] == ',' && b == 0
             arg += 1
-        elseif line[pos]==')'
+        elseif line[pos] == ')'
             b += 1
         end
         pos -= 1
     end
     
     
-    if word==""
-        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
+    if word == ""
+        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
         y, Y, I, O, scope, modules = get_scope(doc, offset, server)
         sigs = get_signatures(word, get_cache_entry(word, server, modules))
@@ -46,7 +46,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
             end
         end
         
-        signatureHelper = SignatureHelp(filter(s->length(s.parameters)>arg , sigs.signatures), 0, arg)
+        signatureHelper = SignatureHelp(filter(s->length(s.parameters) > arg, sigs.signatures), 0, arg)
         response = JSONRPC.Response(get(r.id), signatureHelper)
     end
     send(response, server)

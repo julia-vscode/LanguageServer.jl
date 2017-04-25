@@ -1,23 +1,23 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     line = get_line(tdpp, server)
     
 
-    if isempty(line) || line=="\n" || tdpp.position.character==0
+    if isempty(line) || line == "\n" || tdpp.position.character == 0
         word = ""
     else
         word = let io = IOBuffer()
             if isempty(line)
                 ""
             else
-                for c in reverse(line[1:chr2ind(line,min(length(line), tdpp.position.character))])
-                    if c=='\\' || c=='@'
+                for c in reverse(line[1:chr2ind(line, min(length(line), tdpp.position.character))])
+                    if c == '\\' || c == '@'
                         write(io, c)
                         break
                     end
-                    if !(Base.is_id_char(c) || c=='.' || c=='_' || c=='^')
+                    if !(Base.is_id_char(c) || c == '.' || c == '_' || c == '^')
                         break
                     end
                     write(io, c)
@@ -27,16 +27,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         end
     end
 
-    prefix = word[1:findlast(word,'.')]
+    prefix = word[1:findlast(word, '.')]
 
-    entries = Tuple{Symbol,Int,String}[]
+    entries = Tuple{Symbol, Int, String}[]
     if isempty(word) && isempty(prefix)
     elseif isempty(prefix) # Single word
         if startswith(word, "\\") # Latex completion
-            for (k,v) in Base.REPLCompletions.latex_symbols
+            for (k, v) in Base.REPLCompletions.latex_symbols
                 if startswith(string(k), word)
                     push!(entries, (Base.REPLCompletions.latex_symbols[k], 1, k))
-                    length(entries)>200 && break
+                    length(entries) > 200 && break
                 end
             end
         else
@@ -44,24 +44,24 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             for m in vcat([:Base, :Core], modules)
                 if startswith(string(m), word)
                     push!(entries, (string(m), 9, "Module: $m"))
-                    length(entries)>200 && break
+                    length(entries) > 200 && break
                 end
                 if m in keys(server.cache)
                     for k in server.cache[m][:EXPORTEDNAMES]
                         if startswith(string(k), word)
                             if isa(server.cache[m][k], Dict)
                                 push!(entries, (string(k), 9, "Module: $k"))
-                                length(entries)>200 && break
+                                length(entries) > 200 && break
                             else
                                 push!(entries, (string(k), CompletionItemKind(server.cache[m][k][1]), server.cache[m][k][2]))
-                                length(entries)>200 && break
+                                length(entries) > 200 && break
                             end
                         end
                     end
                 end
             end
             for (v, loc, uri) in scope
-                if length(string(v.id))>length(word) && word==string(v.id)[1:length(word)]
+                if length(string(v.id)) > length(word) && word == string(v.id)[1:length(word)]
                     push!(entries, (string(v.id), 6, ""))
                 end
             end
@@ -73,15 +73,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         vname = last(split(word, '.'))
         if topmodname in vcat([:Base, :Core], modules) && (modname in keys(server.cache))
             for (k, v) in server.cache[modname]
-                k==:EXPORTEDNAMES && continue
+                k == :EXPORTEDNAMES && continue
                 if startswith(string(k), vname)
                     n = string(modname, ".", k)
                     if isa(server.cache[modname][k], Dict)
                         push!(entries, (n, 9, "Module: $n"))
-                        length(entries)>200 && break
+                        length(entries) > 200 && break
                     else
                         push!(entries, (n, CompletionItemKind(v[1]), v[2]))
-                        length(entries)>200 && break
+                        length(entries) > 200 && break
                     end
                 end
             end
@@ -106,21 +106,21 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         if startswith(documentation, "\\")
             label  = strip(documentation, '\\')
             documentation = newtext
-            length(newtext)>1 && (newtext=newtext[1:1])
+            length(newtext) > 1 && (newtext = newtext[1:1])
         else
             label  = last(split(newtext, "."))
             documentation = replace(documentation, r"(`|\*\*)", "")
             documentation = replace(documentation, "\n\n", "\n")
         end
 
-        if endof(newtext)>=endof(word)
-            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word)+1:end]), []))
+        if endof(newtext) >= endof(word)
+            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word) + 1:end]), []))
         else
-            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c-endof(word)+endof(newtext), l, c), ""),[TextEdit(Range(l, c-endof(word), l, c-endof(word)+endof(newtext)), newtext)]))
+            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(word) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(word), l, c - endof(word) + endof(newtext)), newtext)]))
         end
     end
 
-    completion_list = CompletionList(true,CIs)
+    completion_list = CompletionList(true, CIs)
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)

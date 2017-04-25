@@ -1,8 +1,3 @@
-@static if VERSION <= v"0.6.0-dev.2474"
-    import Base: subtypes
-    subtypes(m::Module, x::DataType) = x.abstract ? sort!(collect(_subtypes(m, x)), by = string) : DataType[]
-end
-
 function modnames(m::AbstractString, top)
     s = Symbol(m)
     eval(:(using $s))
@@ -30,7 +25,6 @@ function modnames(M::Module, top)
                 if isa(x, Function)
                     doc = string(Docs.doc(Docs.Binding(M, n)))
                     d[n] = (:Function, doc, sig(x))
-                    # d[n] = (:Function, doc, [])
                 elseif isa(x, DataType)
                     if x.abstract
                         doc = "$n <: $(x.super)"
@@ -38,11 +32,9 @@ function modnames(M::Module, top)
                         doc = string(Docs.doc(Docs.Binding(M, n)))
                     end
                     d[n] = (:DataType, doc, sig(x), [(fieldname(x, i), parse(string(fieldtype(x, i)))) for i in 1:nfields(x)])
-                    # d[n] = (:DataType, doc, [], [(fieldname(x, i), parse(string(fieldtype(x, i)))) for i in 1:nfields(x)])
                 else
                     doc = string(Docs.doc(Docs.Binding(M, n)))
                     d[n] = (Symbol(typeof(x)), doc, sig(x))
-                    # d[n] = (Symbol(typeof(x)), doc, [])
                 end
             end
         end
@@ -50,22 +42,8 @@ function modnames(M::Module, top)
     return d
 end
 
+
 sig(x) = []
-# function sig(x::Union{UnionAll, DataType, Function})
-#     out = []
-#     for m in methods(x)
-#         n = m.nargs
-#         if n < 0
-#             continue
-#         end
-#         p = m.sig
-#         while p isa UnionAll
-#             p = p.body
-#         end
-#         push!(out, (string(m.file), m.line, [parse(string(p.parameters[i])) for i = 2:n]))
-#     end
-#     out
-# end
 
 function sig(f::Union{UnionAll, DataType, Function})
     out = []
@@ -75,7 +53,7 @@ function sig(f::Union{UnionAll, DataType, Function})
     world = typemax(UInt)
     min = UInt[typemin(UInt)]
     max = UInt[typemax(UInt)]
-    ms = ccall(:jl_matching_methods, Any, (Any, Cint, Cint, UInt, Ptr{UInt}, Ptr{UInt}), tt, -1, 1, world, min, max)::Array{Any,1}
+    ms = ccall(:jl_matching_methods, Any, (Any, Cint, Cint, UInt, Ptr{UInt}, Ptr{UInt}), tt, -1, 1, world, min, max)::Array{Any, 1}
     for (sig1, _, decl) in ms
         while sig1 isa UnionAll
             sig1 = sig1.body
@@ -88,6 +66,7 @@ function sig(f::Union{UnionAll, DataType, Function})
     end
     out
 end
+
 
 function get_signatures(name, entry)
     sigs = SignatureInformation[]
@@ -104,18 +83,16 @@ function get_signatures(name, entry)
     return signatureHelper
 end
 
+
 function get_definitions(name, entry)
     locs = Location[]
-    for (file, line, v, t) in entry[3]
+    for (file, line, t) in entry[3]
         startswith(string(file), "REPL[") && continue
         file = startswith(file, "/") ? file : Base.find_source_file(file)
         push!(locs, Location(is_windows() ? "file:///$(URIParser.escape(replace(file, '\\', '/')))" : "file:$(file)", line - 1))
     end
     return locs
 end
-
-
-
 
 
 updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
@@ -136,8 +113,7 @@ function updatecache(absentmodules::Vector{Symbol}, server)
     serialize(io_base64, top);
     close(io_base64);
     str = String(take!(io));
-    println(STDOUT, str);
-    "`, env = env_new))
+    println(STDOUT, str);"`, env = env_new))
     
     @async begin 
         str = readline(o)
@@ -148,14 +124,6 @@ function updatecache(absentmodules::Vector{Symbol}, server)
                 server.cache[k] = mods[k]
             end
         end
-        # str = readline(o)
-        # data = base64decode(String(chomp(str)))
-        # meths = deserialize(IOBuffer(data))
-        # for k in keys(meths)
-        #     if (k in keys(server.cache))
-        #         server.cache[k] = meths[k]
-        #     end
-        # end
         for m in absentmodules
             println("Loaded $m")
         end

@@ -1,8 +1,8 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, TextDocumentPositionParams}, server)
     tdpp = r.params
     uri = tdpp.textDocument.uri
     doc = server.documents[uri]
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character+1)
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
     word = get_word(tdpp, server)
     
     y, Y, I, O, scope, modules = get_scope(doc, offset, server)
@@ -16,7 +16,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         end
     end
 
-    response = JSONRPC.Response(get(r.id),locations)
+    response = JSONRPC.Response(get(r.id), locations)
     send(response, server)
 end
 

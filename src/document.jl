@@ -67,7 +67,7 @@ end
 
 function get_line_offsets(doc::Document)
     if isnull(doc._line_offsets)
-        line_offsets = Array(Int,0)
+        line_offsets = Array{Int}(0)
         text = doc._content
         is_line_start = true
         i = 1

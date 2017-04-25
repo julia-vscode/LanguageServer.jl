@@ -22,7 +22,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                     write(io, c)
                 end
-                reverse(takebuf_string(io))
+                reverse(String(take!(io)))
             end
         end
     end

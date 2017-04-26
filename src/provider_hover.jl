@@ -10,7 +10,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         for (v, loc, uri) in scope
             if Expr(y) == v.id
-                push!(documentation, MarkedString(string(Expr(v.val))))
+                if v.t == :Any
+                    push!(documentation, MarkedString("julia", string(Expr(v.val))))
+                else
+                    push!(documentation, MarkedString(string(v.t    )))
+                end
             end
         end
     elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}

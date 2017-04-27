@@ -1,11 +1,11 @@
 
 function parse_diag(doc, server)
-    try
-        ps = CSTParser.ParseState(doc._content)
-        doc.code.ast, ps = CSTParser.parse(ps, true)
-    catch er
-        info("PARSING FAILED for $(doc._uri)")
-    end
+    # try
+    ps = CSTParser.ParseState(doc._content)
+    doc.code.ast, ps = CSTParser.parse(ps, true)
+    # catch er
+    #     info("PARSING FAILED for $(doc._uri)")
+    # end
     try
         includes = String[]
         for incl in CSTParser._get_includes(doc.code.ast)

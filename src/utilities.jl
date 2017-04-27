@@ -30,7 +30,7 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return String(word)
 end
 
-function get_cache_entry(word, server, modules = [])
+function get_cache_entry(word::String, server, modules = [])
     allmod = vcat([:Base, :Core], modules)
     entry = (:EMPTY, "", [])
     if search(word, ".") != 0:-1
@@ -51,6 +51,61 @@ function get_cache_entry(word, server, modules = [])
         entry = (parse(word), "Module: $word", []) 
     end
     return entry
+end
+
+function unpack_dot(id, args = Symbol[])
+    if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
+        if id.args[2].value isa Symbol
+            unshift!(args, id.args[2].value)
+            unpack_dot(id.args[1], args)
+        else
+            return Symbol[]
+        end
+    elseif id isa Symbol
+        unshift!(args, id)
+    else
+        return Symbol[]
+    end
+    return args
+end
+
+function get_cache_entry(id, server, modules = [])
+    ids = unpack_dot(id)
+    if !isempty(ids)
+        for m in vcat([:Base, :Core], modules)
+            if m in keys(server.cache)
+                if first(ids) == m
+                    shift!(ids)
+                    return get_cache_entry(ids, server.cache[m])
+                elseif first(ids) in server.cache[m][:EXPORTEDNAMES]
+                    return get_cache_entry(ids, server.cache[m])
+                end
+            end
+        end
+    end
+    return entry = (:EMPTY, "", [])
+end
+
+function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
+    for (k, entry) in cache
+        if k == first(ids)
+            if length(ids) == 1
+                if entry isa Dict
+                    return ("Module: $word", []) 
+                else
+                    return entry
+                end
+            else
+                if entry isa Dict
+                    shift!(ids)
+                    return get_cache_entry(ids, entry)
+                else
+                    return entry = (:EMPTY, "", [])
+                end
+            end
+        end
+    end
+    return entry = (:EMPTY, "", [])
 end
 
 function uri2filepath(uri::AbstractString)

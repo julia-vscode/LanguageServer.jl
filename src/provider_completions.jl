@@ -48,7 +48,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                 end
                 if m in keys(server.cache)
                     for k in server.cache[m][:EXPORTEDNAMES]
-                        if startswith(string(k), word)
+                        if startswith(string(k), word) && k in keys(server.cache[m])
                             if isa(server.cache[m][k], Dict)
                                 push!(entries, (string(k), 9, "Module: $k"))
                                 length(entries) > 200 && break

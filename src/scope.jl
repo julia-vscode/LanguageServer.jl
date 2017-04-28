@@ -1,9 +1,9 @@
-import CSTParser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
+import CSTParser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable, FILE
 import CSTParser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
 
 function get_scope(doc::Document, offset::Int, server)
     uri = doc._uri
-    stack, inds, offsets = [], Int[], Int[]
+    stack, inds, offsets = CSTParser.SyntaxNode[], Int[], Int[]
     scope, modules = Tuple{Variable, UnitRange, String}[], []
     # Search for includes of this file
     for (uri1, doc1) in server.documents
@@ -14,7 +14,7 @@ function get_scope(doc::Document, offset::Int, server)
 
     y = _find_scope(doc.code.ast, offset, stack, inds, offsets, scope, uri, server)
 
-    for (v, loc) in scope
+    for (v, loc, uri1) in scope
         if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
             put!(server.user_modules, v.id.args[1])
             push!(modules, v.id.args[1])
@@ -49,7 +49,7 @@ function _find_scope(x::EXPR, n::Int, stack::Vector, inds::Vector{Int}, offsets:
             end
             push!(inds, i)
             push!(offsets, offset)
-            if (x.head == TOPLEVEL && length(stack) == 1 && first(stack).head == TOPLEVEL) || (length(stack) > 2 && stack[end - 1].head isa KEYWORD{Tokens.MODULE} && stack[end].head == BLOCK)
+            if (x.head == FILE && length(stack) == 1 && first(stack).head == FILE) || (length(stack) > 2 && stack[end - 1].head isa KEYWORD{Tokens.MODULE} && stack[end].head == BLOCK)
                 offset1 = sum(offsets) + a.span
                 for j = i + 1:length(x)
                     get_scope(x[j], offset1, scope, uri, server)
@@ -86,8 +86,6 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
         if file in keys(server.documents)
             incl_syms = get_symbols_follow(server.documents[file].code.ast, 0, [], file, server)
             append!(scope, incl_syms)
-            # doc1 = server.documents[file]
-            # info([(s->s[1].id).(incl_syms) (s->(get_position_at(doc1, first(s[2])), get_position_at(doc1, last(s[2])))).(incl_syms)])
         end
     end
 end
@@ -112,6 +110,18 @@ function get_symbols_follow(x, offset::Int, symbols, uri, server) end
 function get_symbols_follow(x::EXPR, offset::Int, symbols, uri, server)
     for a in x
         if a isa EXPR
+            if a.head == CALL && a.args[1] isa IDENTIFIER && a.args[1].val == :include && (a.args[2] isa LITERAL{Tokens.STRING} || a.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
+                file = Expr(a.args[2])
+                if !startswith(file, "/")
+                    file = joinpath(dirname(uri), file)
+                else
+                    file = filepath2uri(file)
+                end
+                if file in keys(server.documents)
+                    incl_syms = get_symbols_follow(server.documents[file].code.ast, 0, [], file, server)
+                    append!(symbols, incl_syms)
+                end
+            end
             if !isempty(a.defs)
                 for v in a.defs
                     push!(symbols, (v, offset + (1:a.span), uri))

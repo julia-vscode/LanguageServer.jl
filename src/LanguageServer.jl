@@ -9,7 +9,7 @@ export LanguageServerInstance
 include("document.jl")
 include("languageserverinstance.jl")
 include("jsonrpc.jl")
-include("protocol.jl")
+include("protocol/protocol.jl")
 include("cache.jl")
 include("scope.jl")
 include("provider_diagnostics.jl")

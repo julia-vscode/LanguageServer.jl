@@ -4,18 +4,35 @@ const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
                         CompletionOptions(false, ["."]),
-                        true, #definitionProvider
                         SignatureHelpOptions(["("]),
-                        true, # documentSymbolProvider 
+                        true, #definitionProvider
                         true, # referencesProvider
+                        false, # documentHighlightProvider
+                        true, # documentSymbolProvider 
                         true, # workspaceSymbolProvider
-                        DocumentLinkOptions(false))
+                        false, # codeActionProvider
+                        # CodeLensOptions(), 
+                        false, # documentFormattingProvider
+                        false, # documentRangeFormattingProvider
+                        # DocumentOnTypeFormattingOptions(), 
+                        false, # renameProvider
+                        DocumentLinkOptions(false),
+                        ExecuteCommandOptions(),
+                        nothing)
 
-function process(r::JSONRPC.Request{Val{Symbol("initialize")}, Dict{String, Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}, server)
     put!(server.user_modules, :Main)
     # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
     # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
-    server.rootPath = haskey(r.params, "rootPath") ? r.params["rootPath"] : ""
+    
+    if !isnull(r.params.rootUri )
+        server.rootPath = uri2filepath(r.params.rootUri)
+    elseif !isnull(r.params.rootPath)
+        server.rootPath = r.params.rootPath
+    else
+        server.rootPath = ""
+    end
+    
     if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
@@ -24,7 +41,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")}, Dict{String, Any}
                     filepath = joinpath(root, file)
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
-                    server.documents[uri] = Document(uri, content, true)
+                    server.documents[uri] = Document(uric, content, true)
                     parse_diag(server.documents[uri], server)
                 end
             end
@@ -35,7 +52,26 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")}, Dict{String, Any}
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
-    return Any(params)
+    return InitializeParams(params)
+end
+
+
+function process(r::JSONRPC.Request{Val{Symbol("initialized")}, Dict{String, Any}}, server) end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
+    return params
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server) end
+function JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params)
+    return params
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server) 
+    exit()
+end
+function JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params)
+    return params
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")}, DidOpenTextDocumentParams}, server)

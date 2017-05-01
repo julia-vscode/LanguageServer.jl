@@ -1,5 +1,3 @@
-const TextDocumentSyncKind = Dict("None" => 0, "Full" => 1, "Incremental" => 2)
-
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
@@ -25,10 +23,10 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}
     # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
     # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
     
-    if !isnull(r.params.rootUri )
-        server.rootPath = uri2filepath(r.params.rootUri)
+    if !isnull(r.params.rootUri)
+        server.rootPath = uri2filepath(r.params.rootUri.value)
     elseif !isnull(r.params.rootPath)
-        server.rootPath = r.params.rootPath
+        server.rootPath = r.params.rootPath.value
     else
         server.rootPath = ""
     end
@@ -41,7 +39,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}
                     filepath = joinpath(root, file)
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
-                    server.documents[uri] = Document(uric, content, true)
+                    server.documents[uri] = Document(uri, content, true)
                     parse_diag(server.documents[uri], server)
                 end
             end

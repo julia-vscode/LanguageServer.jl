@@ -1,7 +1,7 @@
-type DocumentLink
-    range::Range
-    target::String
-end
+# type DocumentLink
+#     range::Range
+#     target::String
+# end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")}, DocumentLinkParams}, server) 
     uri = r.params.textDocument.uri 

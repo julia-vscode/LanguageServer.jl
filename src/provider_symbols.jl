@@ -1,8 +1,8 @@
-type SymbolInformation 
-    name::String 
-    kind::Int 
-    location::Location 
-end 
+# type SymbolInformation 
+#     name::String 
+#     kind::Int 
+#     location::Location 
+# end 
  
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")}, DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 

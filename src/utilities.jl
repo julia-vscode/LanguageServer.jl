@@ -87,11 +87,14 @@ function get_cache_entry(id, server, modules = [])
 end
 
 function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
+    if isempty(ids)
+        return entry = (:EMPTY, "", [])
+    end
     for (k, entry) in cache
         if k == first(ids)
             if length(ids) == 1
                 if entry isa Dict
-                    return ("Module: $word", []) 
+                    return ("Module", []) 
                 else
                     return entry
                 end

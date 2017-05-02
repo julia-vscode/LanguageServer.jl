@@ -6,7 +6,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, Text
     word = get_word(tdpp, server)
     
     y, Y, I, O, scope, modules = get_scope(doc, offset, server)
-    locations = get_definitions(word, get_cache_entry(word, server, modules))
+    locations = get_definitions(word, get_cache_entry(word, server, unique(modules)))
     
     for (v, loc, uri) in scope
         if word == string(v.id)

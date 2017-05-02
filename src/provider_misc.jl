@@ -106,13 +106,11 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")}, DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
-    blocks = server.documents[r.params.textDocument.uri].code
-    dirty = (last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
+    dirty = get_offset(doc, last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1):get_offset(doc, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
     for c in r.params.contentChanges
         update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
     end
-    parse_diag(doc, server)
-    
+    parse_incremental(doc, dirty, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)

@@ -6,10 +6,10 @@ import CSTParser
 
 export LanguageServerInstance
 
+include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")
 include("jsonrpc.jl")
-include("protocol/protocol.jl")
 include("cache.jl")
 include("scope.jl")
 include("provider_diagnostics.jl")

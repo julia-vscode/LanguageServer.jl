@@ -5,7 +5,7 @@ type Document
     _open_in_editor::Bool
     _workspace_file::Bool
     code::CSTParser.File
-    diagnostics::Vector
+    diagnostics::Vector{Diagnostic}
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
         return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [])
@@ -46,7 +46,7 @@ end
 
 function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
-    current_offset = line_offsets[line]
+    current_offset = isempty(line_offsets) ? 0 : line_offsets[line]
     for i = 1:character - 1
         current_offset = nextind(doc._content, current_offset)
     end

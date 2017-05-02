@@ -6,7 +6,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
     y, Y, I, O, scope, modules = get_scope(doc, offset, server)
 
     if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
-        # entry = get_cache_entry(string(Expr(y)), server, modules)
         entry = get_cache_entry(Expr(y), server, unique(modules))
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         for (v, loc, uri) in scope
@@ -21,7 +20,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
     elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}
         prefix = Expr(last(Y).args[1])
         entry = get_cache_entry(Expr(last(Y)), server, unique(modules))
-        documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
+        documentation = entry[1] != :EMPTY ? String[entry[2]] : String[]
     elseif y isa CSTParser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
     else

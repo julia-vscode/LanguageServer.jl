@@ -94,7 +94,7 @@ function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
         if k == first(ids)
             if length(ids) == 1
                 if entry isa Dict
-                    return ("Module", []) 
+                    return (k, "Module", []) 
                 else
                     return entry
                 end

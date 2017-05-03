@@ -2,16 +2,17 @@ import Tokenize.Tokens
 # Find references to an identifier. Only works in file.
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
     tdpp = r.params
-    uri = tdpp.textDocument.uri
-    doc = server.documents[uri]
+    # uri = tdpp.textDocument.uri
+    doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    y, Y, I, O, S = CSTParser.find_scope(doc.code.ast, offset)
+    
+    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
     locations = Location[]
     if y isa CSTParser.IDENTIFIER
         yid = CSTParser.get_id(y).val
-        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, S)
+        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, scope)
         if s_id > 0
-            V, LOC = S[s_id]
+            V, LOC, uri = scope[s_id]
             locs = find_ref(doc.code.ast, V, LOC)
             for loc in locs
                 rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))

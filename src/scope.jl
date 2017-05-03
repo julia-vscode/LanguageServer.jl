@@ -6,12 +6,20 @@ function get_scope(doc::Document, offset::Int, server)
     stack, inds, offsets = CSTParser.SyntaxNode[], Int[], Int[]
     scope, modules = Tuple{Variable, UnitRange, String}[], []
     # Search for includes of this file
+    namespace = [:NOTHING]
     for (uri1, doc1) in server.documents
-        if uri in doc1.code.includes
-            get_symbols_follow(doc1.code.ast, offset::Int, scope, uri1, server)
+        if any(d[1] == uri for d in doc1.code.includes)
+            for (incl, ns) in doc1.code.includes
+                if incl == uri && !isempty(ns)
+                    namespace = ns
+                end
+            end
+            get_symbols_follow(doc1.code.ast, offset, scope, uri1, server)
         end
     end
 
+    current_namespace = repack_dot(namespace)
+    
     y = _find_scope(doc.code.ast, offset, stack, inds, offsets, scope, uri, server)
 
     for (v, loc, uri1) in scope
@@ -20,7 +28,7 @@ function get_scope(doc::Document, offset::Int, server)
             push!(modules, v.id.args[1])
         end
     end
-    return y, stack, inds, offsets, scope, modules 
+    return y, stack, inds, offsets, scope, modules, current_namespace
 end
 
 function _find_scope(x::EXPR, n::Int, stack::Vector, inds::Vector{Int}, offsets::Vector{Int}, scope, uri::String, server)
@@ -134,7 +142,11 @@ function get_symbols_follow(x::EXPR, offset::Int, symbols, uri, server)
                 m_scope = get_symbols_follow(a[3], 0, [], uri, server)
                 offset2 = offset + a[1].span + a[2].span
                 for mv in m_scope
-                    push!(symbols, (Variable(Expr(:(.), a.defs[1].id, QuoteNode(mv[1].id)), mv[1].t, mv[1].val), mv[2] + offset2, uri))
+                    if mv[3] == uri
+                        push!(symbols, (Variable(Expr(:(.), a.defs[1].id, QuoteNode(mv[1].id)), mv[1].t, mv[1].val), mv[2] + offset2, uri))
+                    else
+                        push!(symbols, (Variable(Expr(:(.), a.defs[1].id, QuoteNode(mv[1].id)), mv[1].t, mv[1].val), mv[2], mv[3]))
+                    end
                     
                 end
             end

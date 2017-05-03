@@ -10,9 +10,7 @@ function parse_diag(doc, server)
     end
     
     # includes
-    doc.code.includes = map(CSTParser._get_includes(doc.code.ast)) do incl
-        startswith(incl, "/") ? filepath2uri(incl) : joinpath(dirname(doc._uri), incl)
-    end
+    update_includes(doc, server)
 
     # diagnostics
     doc.diagnostics = map(unique(ps.diagnostics)) do h
@@ -48,7 +46,7 @@ function publish_diagnostics(doc::Document, server)
 end
 
 function parse_incremental(doc::Document, dirty::UnitRange, server)
-    isempty(doc.code.ast.args) && return parse_diag(doc, server)
+    isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_diag(doc, server)
 
     # parsing
     start_loc = stop_loc = loc = start_block = 0
@@ -85,9 +83,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     doc.code.ast.span = sizeof(doc._content)
 
     # get includes
-    doc.code.includes = map(CSTParser._get_includes(doc.code.ast)) do incl
-        startswith(incl, "/") ? filepath2uri(incl) : joinpath(dirname(doc._uri), incl)
-    end
+    update_includes(doc, server)
 
     # clear diagnostics for re-parsed regions
     delete_id = []
@@ -108,4 +104,10 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     parse_errored(doc, ps)
 
     publish_diagnostics(doc, server)
+end
+
+function update_includes(doc::Document, server::LanguageServerInstance)
+    doc.code.includes = map(CSTParser._get_includes(doc.code.ast)) do incl
+        (startswith(incl[1], "/") ? filepath2uri(incl[1]) : joinpath(dirname(doc._uri), incl[1]), incl[2])
+    end
 end

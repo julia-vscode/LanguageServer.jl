@@ -1,15 +1,15 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, TextDocumentPositionParams}, server)
     tdpp = r.params
-    uri = tdpp.textDocument.uri
-    doc = server.documents[uri]
+    doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
     word = get_word(tdpp, server)
-    
-    y, Y, I, O, scope, modules = get_scope(doc, offset, server)
+    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+
     locations = get_definitions(word, get_cache_entry(word, server, unique(modules)))
     
+    Ey = Expr(y)
     for (v, loc, uri) in scope
-        if word == string(v.id)
+        if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
             doc1 = server.documents[uri]
             rng = Range(Position(get_position_at(doc1, first(loc))..., one_based = true), Position(get_position_at(doc1, last(loc))..., one_based = true))
             push!(locations, Location(uri, rng))

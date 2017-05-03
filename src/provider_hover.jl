@@ -3,13 +3,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
 
-    y, Y, I, O, scope, modules = get_scope(doc, offset, server)
+    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
 
     if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
         entry = get_cache_entry(Expr(y), server, unique(modules))
         documentation = entry[1] != :EMPTY ? Any[entry[2]] : []
         for (v, loc, uri) in scope
-            if Expr(y) == v.id
+            Ey = Expr(y)
+            if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 if v.t == :Any
                     push!(documentation, MarkedString("julia", string(Expr(v.val))))
                 else

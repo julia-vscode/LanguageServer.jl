@@ -69,6 +69,16 @@ function unpack_dot(id, args = Symbol[])
     return args
 end
 
+
+repack_dot(args::Symbol) = args
+function repack_dot(args::Vector)
+    if length(args) == 1
+        return first(args)
+    else
+        return repack_dot([Expr(:., first(args), QuoteNode(args[2])); args[3:end]])
+    end
+end
+
 function get_cache_entry(id, server, modules = [])
     ids = unpack_dot(id)
     if !isempty(ids)

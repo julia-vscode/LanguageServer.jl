@@ -7,12 +7,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, Text
 
     locations = get_definitions(word, get_cache_entry(word, server, unique(modules)))
     
-    Ey = Expr(y)
-    for (v, loc, uri) in scope
-        if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
-            doc1 = server.documents[uri]
-            rng = Range(Position(get_position_at(doc1, first(loc))..., one_based = true), Position(get_position_at(doc1, last(loc))..., one_based = true))
-            push!(locations, Location(uri, rng))
+    if y != nothing
+        Ey = Expr(y)
+        for (v, loc, uri) in scope
+            if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
+                doc1 = server.documents[uri]
+                rng = Range(Position(get_position_at(doc1, first(loc))..., one_based = true), Position(get_position_at(doc1, last(loc))..., one_based = true))
+                push!(locations, Location(uri, rng))
+            end
         end
     end
 

@@ -10,7 +10,7 @@ const serverCapabilities = ServerCapabilities(
                         true, # workspaceSymbolProvider
                         false, # codeActionProvider
                         # CodeLensOptions(), 
-                        false, # documentFormattingProvider
+                        true, # documentFormattingProvider
                         false, # documentRangeFormattingProvider
                         # DocumentOnTypeFormattingOptions(), 
                         false, # renameProvider
@@ -40,7 +40,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)
-                    parse_diag(server.documents[uri], server)
+                    parse_all(server.documents[uri], server)
                 end
             end
         end
@@ -80,7 +80,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")}, DidOpen
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
 
-    parse_diag(server.documents[uri], server)
+    parse_all(server.documents[uri], server)
     
     if should_file_be_linted(r.params.textDocument.uri, server) 
         process_diagnostics(r.params.textDocument.uri, server) 
@@ -152,7 +152,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")}, DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[uri]
-    parse_diag(doc, server)
+    parse_all(doc, server)
 end
 
 

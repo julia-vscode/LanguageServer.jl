@@ -1,5 +1,4 @@
-
-function parse_diag(doc, server)
+function parse_all(doc, server)
     # Try blocks should be removed
     try
         ps = CSTParser.ParseState(doc._content)
@@ -19,34 +18,15 @@ function parse_diag(doc, server)
     end
 
     # Parsing failed
-    parse_errored(doc, ps)
+    if ps.errored
+        parse_errored(doc, ps)
+    end
 
     publish_diagnostics(doc, server)
 end
 
-function parse_errored(doc::Document, ps::CSTParser.ParseState)
-    if ps.errored
-        ast = doc.code.ast
-        if last(ast) isa CSTParser.ERROR
-            if length(ast) > 1
-                loc = sum(ast[i].span for i = 1:length(ast) - 1):sizeof(doc._content)
-            else
-                loc = 0:sizeof(doc._content)
-            end
-            rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
-            push!(doc.diagnostics, Diagnostic(rng, 1, "Parse failure", "Unknown", "Parse failure"))
-        end
-    end
-end
-
-function publish_diagnostics(doc::Document, server)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), publishDiagnosticsParams)
-    send(response, server)
-end
-
 function parse_incremental(doc::Document, dirty::UnitRange, server)
-    isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_diag(doc, server)
+    isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_all(doc, server)
 
     # parsing
     start_loc = stop_loc = loc = start_block = 0
@@ -61,7 +41,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
         loc += x.span
     end
 
-    (start_loc == 0 || start_block == 1) && return parse_diag(doc, server)
+    (start_loc == 0 || start_block == 1) && return parse_all(doc, server)
 
     ps = CSTParser.ParseState(doc._content)
     # Skip to start position
@@ -76,6 +56,10 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     end
     new_expressions, _ = CSTParser.parse(ps, true)
 
+    # Parsing failed
+    if ps.errored
+        return parse_all(doc, server)
+    end
     # delete all ast below start point
     deleteat!(doc.code.ast.args, start_block:length(doc.code.ast))
     # append new parsing
@@ -100,14 +84,30 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
         push!(doc.diagnostics, Diagnostic(rng, 2, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1])))
     end
 
-    # Parsing failed
-    parse_errored(doc, ps)
-
     publish_diagnostics(doc, server)
+end
+
+function publish_diagnostics(doc::Document, server)
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), publishDiagnosticsParams)
+    send(response, server)
 end
 
 function update_includes(doc::Document, server::LanguageServerInstance)
     doc.code.includes = map(CSTParser._get_includes(doc.code.ast)) do incl
         (startswith(incl[1], "/") ? filepath2uri(incl[1]) : joinpath(dirname(doc._uri), incl[1]), incl[2])
+    end
+end
+
+function parse_errored(doc::Document, ps::CSTParser.ParseState)
+    ast = doc.code.ast
+    if last(ast) isa CSTParser.ERROR
+        if length(ast) > 1
+            loc = sum(ast[i].span for i = 1:length(ast) - 1):sizeof(doc._content)
+        else
+            loc = 0:sizeof(doc._content)
+        end
+        rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
+        push!(doc.diagnostics, Diagnostic(rng, 1, "Parse failure", "Unknown", "Parse failure"))
     end
 end

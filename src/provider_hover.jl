@@ -24,8 +24,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
         documentation = entry[1] != :EMPTY ? String[entry[2]] : String[]
     elseif y isa CSTParser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
-    else
+    elseif y != nothing
         documentation = [string(Expr(y))]
+    else
+        documentation = [""]
     end
     response = JSONRPC.Response(get(r.id), Hover(documentation))
     send(response, server)

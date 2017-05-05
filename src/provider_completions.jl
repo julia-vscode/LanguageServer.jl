@@ -17,7 +17,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                         write(io, c)
                         break
                     end
-                    if !(Base.is_id_char(c) || c == '.' || c == '_' || c == '^')
+                    if !(Base.is_id_char(c) || c == '.' || c == '_')# || c == '^')
                         break
                     end
                     write(io, c)
@@ -61,7 +61,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                 end
             end
             for (v, loc, uri) in scope
-                # if length(string(v.id)) > length(word) && word == string(v.id)[1:length(word)]
                 if startswith(string(v.id), word)
                     push!(entries, (string(v.id), 6, ""))
                 end

@@ -182,11 +182,13 @@ type FormattingOptions
     tabSize::Integer
     insertSpaces::Bool
 end
+FormattingOptions(d::Dict) = FormattingOptions(d["tabSize"], d["insertSpaces"])
 
 type DocumentFormattingParams
     textDocument::TextDocumentIdentifier
     options::FormattingOptions
 end
+DocumentFormattingParams(d::Dict) = DocumentFormattingParams(TextDocumentIdentifier(d["textDocument"]), FormattingOptions(d["options"]))
 
 type DocumentRangeFormattingParams
     textDocument::TextDocumentIdentifier

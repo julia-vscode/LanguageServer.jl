@@ -13,8 +13,7 @@ function parse_all(doc, server)
 
     # diagnostics
     doc.diagnostics = map(unique(ps.diagnostics)) do h
-        rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
-        Diagnostic(rng, 2, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1]))
+        convert_diagnostic(h, doc)
     end
 
     # Parsing failed
@@ -80,11 +79,18 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
 
     # Add new diagnostics
     for h in unique(ps.diagnostics)
-        rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
-        push!(doc.diagnostics, Diagnostic(rng, 2, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1])))
+        
+        push!(doc.diagnostics, convert_diagnostic(h, doc))
     end
 
     publish_diagnostics(doc, server)
+end
+
+function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document)
+    rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
+    code = T isa CSTParser.Diagnostics.LintCodes ? 2 :
+            T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
+    Diagnostic(rng, code, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1]))
 end
 
 function publish_diagnostics(doc::Document, server)

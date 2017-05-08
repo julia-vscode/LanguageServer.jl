@@ -90,7 +90,7 @@ function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Docu
     rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
     code = T isa CSTParser.Diagnostics.LintCodes ? 2 :
             T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
-    Diagnostic(rng, code, string(typeof(h).parameters[1]), string(typeof(h).name), string(typeof(h).parameters[1]))
+    Diagnostic(rng, code, string(T), string(typeof(h).name), string(T))
 end
 
 function publish_diagnostics(doc::Document, server)

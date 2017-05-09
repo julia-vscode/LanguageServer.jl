@@ -71,7 +71,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     # clear diagnostics for re-parsed regions
     delete_id = []
     for (i, d) in enumerate(doc.diagnostics)
-        if get_offset(doc, d.range.start.line + 1, d.range.start.character + 1) > start_loc
+        if d.range.stop.line > length(get_line_offsets(doc)) || get_offset(doc, d.range.start.line + 1, d.range.start.character + 1) > start_loc
             push!(delete_id, i)
         end
     end
@@ -79,7 +79,6 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
 
     # Add new diagnostics
     for h in unique(ps.diagnostics)
-        
         push!(doc.diagnostics, convert_diagnostic(h, doc))
     end
 

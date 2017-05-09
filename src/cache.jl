@@ -116,36 +116,39 @@ end
 updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
-    env_new = copy(ENV)
-    env_new["JULIA_PKGDIR"] = server.user_pkg_dir
-
-    cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
-
-    o, i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "module LanguageServer; 
-    include(\"$cache_jl_path\");
-    end;
-    top=Dict();
-    for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
-        LanguageServer.modnames(m, top); 
-    end; 
-    io = IOBuffer();
-    io_base64 = Base64EncodePipe(io);
-    serialize(io_base64, top);
-    close(io_base64);
-    str = String(take!(io));
-    println(STDOUT, str);"`, env = env_new))
-    
-    @async begin 
-        str = readline(o)
-        data = base64decode(String(chomp(str)))
-        mods = deserialize(IOBuffer(data))
-        for k in keys(mods)
-            if !(k in keys(server.cache))
-                server.cache[k] = mods[k]
-            end
-        end
-        for m in absentmodules
-            println("Loaded $m")
-        end
+    for m in absentmodules
+        @eval try import $m end
     end
+    # env_new = copy(ENV)
+    # env_new["JULIA_PKGDIR"] = server.user_pkg_dir
+
+    # cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
+
+    # o, i, p = readandwrite(Cmd(`$JULIA_HOME/julia -e "module LanguageServer; 
+    # include(\"$cache_jl_path\");
+    # end;
+    # top=Dict();
+    # for m in [$(join((m->"\"$m\"").(absentmodules),", "))];
+    #     LanguageServer.modnames(m, top); 
+    # end; 
+    # io = IOBuffer();
+    # io_base64 = Base64EncodePipe(io);
+    # serialize(io_base64, top);
+    # close(io_base64);
+    # str = String(take!(io));
+    # println(STDOUT, str);"`, env = env_new))
+    
+    # @async begin 
+    #     str = readline(o)
+    #     data = base64decode(String(chomp(str)))
+    #     mods = deserialize(IOBuffer(data))
+    #     for k in keys(mods)
+    #         if !(k in keys(server.cache))
+    #             server.cache[k] = mods[k]
+    #         end
+    #     end
+    #     for m in absentmodules
+    #         println("Loaded $m")
+    #     end
+    # end
 end

@@ -41,8 +41,11 @@ function get_cache_entry(word::String, server, modules = [])
         end
     else
         for m in allmod
-            if m in keys(server.cache) && Symbol(word) in server.cache[m][:EXPORTEDNAMES]
-                entry = server.cache[m][Symbol(word)]
+            if isdefined(Main, m) && Symbol(word) in names(getfield(Main, m))
+                M = getfield(Main, m)
+                x = getfield(M, Symbol(word))
+                doc = string(Docs.doc(Docs.Binding(M, Symbol(word))))
+                entry = CacheEntry(typeof(x), doc, sig(x))
             end
         end
     end
@@ -79,16 +82,34 @@ function repack_dot(args::Vector)
     end
 end
 
+
+function get_module(ids::Vector{Symbol}, M = Main)
+    if isempty(ids)
+        return M
+    elseif isdefined(M, first(ids))
+        M = getfield(M, shift!(ids))
+        return get_module(ids, M)
+    else
+        return false
+    end
+end
+
+
 function get_cache_entry(id, server, modules = [])
     ids = unpack_dot(id)
     if !isempty(ids)
         for m in vcat([:Base, :Core], modules)
-            if m in keys(server.cache)
+            if isdefined(Main, m)
+                M = getfield(Main, m)
                 if first(ids) == m
-                    shift!(ids)
-                    return get_cache_entry(ids, server.cache[m])
-                elseif first(ids) in server.cache[m][:EXPORTEDNAMES]
-                    return get_cache_entry(ids, server.cache[m])
+                    if length(ids) == 1
+                        return get_cache_entry(ids, Main)
+                    else
+                        shift!(ids)
+                        return get_cache_entry(ids, M)
+                    end
+                elseif first(ids) in names(M)
+                    return get_cache_entry(ids, M)
                 end
             end
         end
@@ -96,28 +117,23 @@ function get_cache_entry(id, server, modules = [])
     return entry = EmptyCacheEntry
 end
 
-function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
+function get_cache_entry(ids::Vector{Symbol}, M::Module)
     if isempty(ids)
         return entry = EmptyCacheEntry
     end
-    for (k, entry) in cache
-        if k == first(ids)
-            if length(ids) == 1
-                if entry isa Dict
-                    return (k, "Module", []) 
-                else
-                    return entry
-                end
-            else
-                if entry isa Dict
-                    shift!(ids)
-                    return get_cache_entry(ids, entry)
-                else
-                    return entry = EmptyCacheEntry
-                end
-            end
+    if first(ids) in names(M, true, true)
+        x = getfield(M, first(ids))
+        if length(ids) == 1
+            doc = string(Docs.doc(Docs.Binding(M, first(ids))))
+            return CacheEntry(typeof(x), doc, sig(x))
+        elseif x isa Module
+            shift!(ids)
+            return get_cache_entry(ids, x)
+        else
+            return EmptyCacheEntry
         end
     end
+
     return entry = EmptyCacheEntry
 end
 

@@ -46,16 +46,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                     push!(entries, (string(m), 9, "Module: $m"))
                     length(entries) > 200 && break
                 end
-                if m in keys(server.cache)
-                    for k in server.cache[m][:EXPORTEDNAMES]
-                        if startswith(string(k), word) && k in keys(server.cache[m])
-                            if isa(server.cache[m][k], Dict)
-                                push!(entries, (string(k), 9, "Module: $k"))
-                                length(entries) > 200 && break
-                            else
-                                push!(entries, (string(k), CompletionItemKind(server.cache[m][k].t), server.cache[m][k].doc))
-                                length(entries) > 200 && break
-                            end
+                if isdefined(Main, m)
+                    M = getfield(Main, m)
+                    for n in names(M)
+                        if startswith(string(n), word)
+                            x = getfield(M, n)
+                            doc = string(Docs.doc(Docs.Binding(M, n)))
+                            push!(entries, (string(n), CompletionItemKind(typeof(x)), doc))
                         end
                     end
                 end
@@ -68,35 +65,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
         end
     else
         y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
-        modname = parse(strip(prefix, '.'))
         topmodname = Symbol(first(split(prefix, '.')))
+        modname = unpack_dot(parse(strip(prefix, '.')))
         vname = last(split(word, '.'))
-        if topmodname in vcat([:Base, :Core], unique(modules)) && (modname in keys(server.cache))
-            for (k, v) in server.cache[modname]
-                k == :EXPORTEDNAMES && continue
-                if startswith(string(k), vname)
-                    n = string(modname, ".", k)
-                    if isa(server.cache[modname][k], Dict)
-                        push!(entries, (n, 9, "Module: $n"))
-                        length(entries) > 200 && break
-                    else
-                        push!(entries, (n, CompletionItemKind(v.t), v.doc))
-                        length(entries) > 200 && break
-                    end
+        if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname)
+            M = get_module(modname)
+            for n in names(M, true, true)
+                if !startswith(string(n), "#") && startswith(string(n), vname) && isdefined(M, n)
+                    x = getfield(M, n)
+                    doc = string(Docs.doc(Docs.Binding(M, n)))
+                    push!(entries, (n, CompletionItemKind(typeof(x)), doc))
+                    length(entries) > 200 && break
                 end
             end
         end
-        # sword = split(word,".")
-        # if Symbol(sword[1]) in keys(ns.list)
-        #     t = get_type(Symbol.(sword[1:end-1]), ns)
-        #     fn = keys(get_fields(t, ns))
-        #     for f in fn
-        #         if length(string(f))>length(last(sword)) && last(sword)==string(f)[1:length(last(sword))]
-        #             push!(entries, (string(f), 6, ""))
-        #             length(entries)>200 && break
-        #         end
-        #     end
-        # end
     end
 
     l, c = tdpp.position.line, tdpp.position.character
@@ -113,10 +95,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
             documentation = replace(documentation, "\n\n", "\n")
         end
 
-        if endof(newtext) >= endof(word)
-            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word) + 1:end]), []))
-        else
+
+        if k == 1
             push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(word) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(word), l, c - endof(word) + endof(newtext)), newtext)]))
+        else
+            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word) - endof(prefix) + 1:end]), []))
         end
     end
 
@@ -129,4 +112,6 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
 end
+
+
 

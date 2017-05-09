@@ -100,7 +100,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")}, DidCh
     for c in r.params.contentChanges
         update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
     end
-    parse_incremental(doc, dirty, server)
+    # parse_incremental(doc, dirty, server)
+    parse_all(doc, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)

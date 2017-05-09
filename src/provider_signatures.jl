@@ -43,10 +43,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, T
         sigs = SignatureHelp(SignatureInformation[], 0, 0)
         
         for m in methods(x)
-            # p_sigs = [string(p) for p in m.sig.parameters[2:end]]
-            # desc = string(m)
-            # PI = map(ParameterInformation, p_sigs)
-            # push!(sigs.signatures, SignatureInformation(desc, "", PI))
+            args = Base.arg_decl_parts(m)[2]
+            p_sigs = [join(string.(p), "::") for p in args[2:end]]
+            desc = string(m)
+            PI = map(ParameterInformation, p_sigs)
+            push!(sigs.signatures, SignatureInformation(desc, "", PI))
         end
         
         

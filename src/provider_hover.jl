@@ -20,7 +20,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
         end
     elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}
         x = get_cache_entry(Expr(last(Y)), server, unique(modules))
-        documentation = x == nothing ? [] : Any[string(Docs.doc(x))] 
+        documentation = x == nothing ? [] : Any[string(Docs.doc(x))]
+        # Dot access of user defined variables goes here
     elseif y isa CSTParser.LITERAL
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
     elseif y != nothing

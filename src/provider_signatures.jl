@@ -38,8 +38,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, T
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
         y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+        x = get_cache_entry(parse(word), server, modules)
 
-        sigs = get_signatures(word, get_cache_entry(word, server, modules))
+        sigs = SignatureHelp(SignatureInformation[], 0, 0)
+        
+        for m in methods(x)
+            # p_sigs = [string(p) for p in m.sig.parameters[2:end]]
+            # desc = string(m)
+            # PI = map(ParameterInformation, p_sigs)
+            # push!(sigs.signatures, SignatureInformation(desc, "", PI))
+        end
+        
         
         for (v, loc, uri) in scope
             if v.t == :Function && (word == string(v.id) || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && word == string(v.id.args[2].value)))

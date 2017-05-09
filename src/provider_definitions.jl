@@ -5,7 +5,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, Text
     word = get_word(tdpp, server)
     y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
 
-    locations = get_definitions(word, get_cache_entry(word, server, unique(modules)))
+    # locations = get_definitions(word, get_cache_entry(word, server, unique(modules)))
+    locations = []
+    if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
+        x = get_cache_entry(Expr(y), server, unique(modules))
+    elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}
+        x = get_cache_entry(Expr(last(Y)), server, unique(modules))
+    else
+        x = nothing
+    end
+    for m in methods(x)
+        file = startswith(string(m.file), "/") ? string(m.file) : Base.find_source_file(string(m.file))
+        push!(locations, Location(is_windows() ? "file:///$(URIParser.escape(replace(file, '\\', '/')))" : "file:$(file)", Range(m.line - 1, 0, m.line, 0)))
+    end
+    
     
     if y != nothing
         Ey = Expr(y)

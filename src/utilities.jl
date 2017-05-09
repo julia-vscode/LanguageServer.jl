@@ -30,31 +30,6 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return String(word)
 end
 
-function get_cache_entry(word::String, server, modules = [])
-    allmod = vcat([:Base, :Core], modules)
-    entry = EmptyCacheEntry
-    if search(word, ".") != 0:-1
-        sword = split(word, ".")
-        modname = parse(join(sword[1:end - 1], "."))
-        if Symbol(first(sword)) in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
-            entry = server.cache[modname][Symbol(last(sword))]
-        end
-    else
-        for m in allmod
-            if isdefined(Main, m) && Symbol(word) in names(getfield(Main, m))
-                M = getfield(Main, m)
-                x = getfield(M, Symbol(word))
-                doc = string(Docs.doc(Docs.Binding(M, Symbol(word))))
-                entry = CacheEntry(typeof(x), doc, sig(x))
-            end
-        end
-    end
-
-    if isa(entry, Dict)
-        entry = (parse(word), "Module: $word", []) 
-    end
-    return entry
-end
 
 function unpack_dot(id, args = Symbol[])
     if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
@@ -114,27 +89,26 @@ function get_cache_entry(id, server, modules = [])
             end
         end
     end
-    return entry = EmptyCacheEntry
+    return nothing
 end
 
 function get_cache_entry(ids::Vector{Symbol}, M::Module)
     if isempty(ids)
-        return entry = EmptyCacheEntry
+        return nothing
     end
     if first(ids) in names(M, true, true)
         x = getfield(M, first(ids))
         if length(ids) == 1
-            doc = string(Docs.doc(Docs.Binding(M, first(ids))))
-            return CacheEntry(typeof(x), doc, sig(x))
+            return x
         elseif x isa Module
             shift!(ids)
             return get_cache_entry(ids, x)
         else
-            return EmptyCacheEntry
+            return nothing
         end
     end
 
-    return entry = EmptyCacheEntry
+    return nothing
 end
 
 function uri2filepath(uri::AbstractString)
@@ -185,3 +159,11 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
                         t == :DataType ? 5 :  
                         t == :Module ? 2 :
                         t == :Bool ? 17 : 13  
+
+updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
+
+function updatecache(absentmodules::Vector{Symbol}, server)
+    for m in absentmodules
+        @eval try import $m end
+    end
+end

@@ -19,7 +19,6 @@ const serverCapabilities = ServerCapabilities(
                         nothing)
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}, server)
-    put!(server.user_modules, :Main)
     
     if !isnull(r.params.rootUri)
         server.rootPath = uri2filepath(r.params.rootUri.value)

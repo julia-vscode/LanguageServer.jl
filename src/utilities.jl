@@ -32,7 +32,7 @@ end
 
 function get_cache_entry(word::String, server, modules = [])
     allmod = vcat([:Base, :Core], modules)
-    entry = (:EMPTY, "", [])
+    entry = EmptyCacheEntry
     if search(word, ".") != 0:-1
         sword = split(word, ".")
         modname = parse(join(sword[1:end - 1], "."))
@@ -93,12 +93,12 @@ function get_cache_entry(id, server, modules = [])
             end
         end
     end
-    return entry = (:EMPTY, "", [])
+    return entry = EmptyCacheEntry
 end
 
 function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
     if isempty(ids)
-        return entry = (:EMPTY, "", [])
+        return entry = EmptyCacheEntry
     end
     for (k, entry) in cache
         if k == first(ids)
@@ -113,12 +113,12 @@ function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
                     shift!(ids)
                     return get_cache_entry(ids, entry)
                 else
-                    return entry = (:EMPTY, "", [])
+                    return entry = EmptyCacheEntry
                 end
             end
         end
     end
-    return entry = (:EMPTY, "", [])
+    return entry = EmptyCacheEntry
 end
 
 function uri2filepath(uri::AbstractString)

@@ -20,8 +20,6 @@ const serverCapabilities = ServerCapabilities(
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")}, InitializeParams}, server)
     put!(server.user_modules, :Main)
-    # server.cache[:Base] = Dict(:EXPORTEDNAMES => [])
-    # server.cache[:Core] = Dict(:EXPORTEDNAMES => [])
     
     if !isnull(r.params.rootUri)
         server.rootPath = uri2filepath(r.params.rootUri.value)
@@ -74,17 +72,10 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")}, DidOpenTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    if !haskey(server.documents, uri)
-        server.documents[uri] = Document(uri, r.params.textDocument.text, false)
-    end
+    server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
-
-    parse_all(server.documents[uri], server)
-    
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
+    parse_all(doc, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params)

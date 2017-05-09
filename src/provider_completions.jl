@@ -53,7 +53,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                                 push!(entries, (string(k), 9, "Module: $k"))
                                 length(entries) > 200 && break
                             else
-                                push!(entries, (string(k), CompletionItemKind(server.cache[m][k][1]), server.cache[m][k][2]))
+                                push!(entries, (string(k), CompletionItemKind(server.cache[m][k].t), server.cache[m][k].doc))
                                 length(entries) > 200 && break
                             end
                         end
@@ -80,7 +80,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                         push!(entries, (n, 9, "Module: $n"))
                         length(entries) > 200 && break
                     else
-                        push!(entries, (n, CompletionItemKind(v[1]), v[2]))
+                        push!(entries, (n, CompletionItemKind(v.t), v.doc))
                         length(entries) > 200 && break
                     end
                 end

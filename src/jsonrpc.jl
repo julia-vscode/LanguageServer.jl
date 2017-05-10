@@ -21,6 +21,10 @@ end
 
 Response(id, result) = Response(id, Nullable(result), Nullable{Error}())
 
+type Notification{method,Tparams}
+    params::Nullable{Tparams}
+end
+
 function parse_params end
 
 function parse(::Type{Request}, message::AbstractString)
@@ -62,6 +66,14 @@ function JSON.json{TResult}(response::Response{TResult})
         error("Invalid JSON-RPC response object.")
     end
     return JSON.json(response_dict)
+end
+
+function JSON.json{method, Tparams}(response::Notification{method, Tparams})
+    notification_dict = Dict()
+    notification_dict["jsonrpc"] = "2.0"
+    notification_dict["method"] = string(method.parameters[1])
+    notification_dict["params"] = response.params
+    return JSON.json(notification_dict)
 end
 
 end

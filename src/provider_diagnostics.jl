@@ -12,9 +12,7 @@ function parse_all(doc, server)
     update_includes(doc, server)
 
     # diagnostics
-    doc.diagnostics = map(unique(ps.diagnostics)) do h
-        convert_diagnostic(h, doc)
-    end
+    doc.diagnostics = ps.diagnostics
 
     # Parsing failed
     if ps.errored
@@ -71,7 +69,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     # clear diagnostics for re-parsed regions
     delete_id = []
     for (i, d) in enumerate(doc.diagnostics)
-        if d.range.stop.line > length(get_line_offsets(doc)) || get_offset(doc, d.range.start.line + 1, d.range.start.character + 1) > start_loc
+        if last(d.loc) > sizeof(doc._content) || first(d.loc) > start_loc
             push!(delete_id, i)
         end
     end
@@ -79,7 +77,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
 
     # Add new diagnostics
     for h in unique(ps.diagnostics)
-        push!(doc.diagnostics, convert_diagnostic(h, doc))
+        push!(doc.diagnostics, h)
     end
 
     publish_diagnostics(doc, server)
@@ -87,13 +85,15 @@ end
 
 function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document)
     rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
-    code = T isa CSTParser.Diagnostics.LintCodes ? 2 :
+    code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
+            T isa CSTParser.Diagnostics.LintCodes ? 2 :
             T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
     Diagnostic(rng, code, string(T), string(typeof(h).name), string(T))
 end
 
 function publish_diagnostics(doc::Document, server)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+    ls_diags = convert_diagnostic.(doc.diagnostics, doc)
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, ls_diags)
     response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), publishDiagnosticsParams)
     send(response, server)
 end
@@ -112,7 +112,6 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
         else
             loc = 0:sizeof(doc._content)
         end
-        rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
-        push!(doc.diagnostics, Diagnostic(rng, 1, "Parse failure", "Unknown", "Parse failure"))
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), []))
     end
 end

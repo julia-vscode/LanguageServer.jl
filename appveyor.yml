@@ -1,5 +1,7 @@
 environment:
   matrix:
+  - JULIAVERSION: "julialang/bin/winnt/x86/0.6/julia-0.6-latest-win32.exe"
+  - JULIAVERSION: "julialang/bin/winnt/x64/0.6/julia-0.6-latest-win64.exe"
   - JULIAVERSION: "julianightlies/bin/winnt/x86/julia-latest-win32.exe"
   - JULIAVERSION: "julianightlies/bin/winnt/x64/julia-latest-win64.exe"
 
@@ -25,7 +27,6 @@ install:
 build_script:
 # Need to convert from shallow to complete for Pkg.clone to work
   - IF EXIST .git\shallow (git fetch --unshallow)
-  - C:\projects\julia\bin\julia -e "Pkg.clone(\"https://github.com/ZacLN/JuliaParser.jl\"); Pkg.checkout(\"JuliaParser\",\"posinfo\")"
   - C:\projects\julia\bin\julia -e "versioninfo();
       Pkg.clone(pwd(), \"LanguageServer\"); Pkg.build(\"LanguageServer\")"
 

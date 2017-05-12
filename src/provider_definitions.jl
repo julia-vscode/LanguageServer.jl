@@ -5,7 +5,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")}, Text
     word = get_word(tdpp, server)
     y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
 
-    locations = []
+    locations = Location[]
     if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
         x = get_cache_entry(Expr(y), server, unique(modules))
     elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}

@@ -82,7 +82,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
     end
 
     l, c = tdpp.position.line, tdpp.position.character
-    CIs = []
+    CIs = CompletionItem[]
     for (comp, k, documentation) in entries
         newtext = string(comp)
         if startswith(documentation, "\\")

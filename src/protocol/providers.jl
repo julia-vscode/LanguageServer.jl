@@ -32,7 +32,7 @@ type CompletionItem
 end
 # Make more specific if we extend completions (i.e. brackets for functions w/ arg placements)
 import Base.==  
-==(x::CompletionItem, y::CompletionItem) = a.label == b.label
+==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 
 type CompletionList
     isIncomplete::Bool

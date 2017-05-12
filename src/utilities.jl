@@ -70,7 +70,7 @@ function get_module(ids::Vector{Symbol}, M = Main)
 end
 
 
-function get_cache_entry(id, server, modules = [])
+function get_cache_entry(id, server, modules = Union{Symbol,Expr}[])
     ids = unpack_dot(id)
     if !isempty(ids)
         for m in vcat([:Base, :Core], modules)

@@ -8,7 +8,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, T
     pos = pos0 = min(length(str), tdpp.position.character)
     io = IOBuffer(str)
     
-    line = []
+    line = Char[]
     cnt = 0
     while cnt < pos && !eof(io)
         cnt += 1

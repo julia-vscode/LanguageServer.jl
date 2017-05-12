@@ -4,7 +4,7 @@ import CSTParser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
 function get_scope(doc::Document, offset::Int, server)
     uri = doc._uri
     stack, inds, offsets = CSTParser.SyntaxNode[], Int[], Int[]
-    scope, modules = Tuple{Variable, UnitRange, String}[], []
+    scope, modules = Tuple{Variable, UnitRange, String}[], Union{Symbol,Expr}[]
     # Search for includes of this file
     namespace = [:NOTHING]
     for (uri1, doc1) in server.documents

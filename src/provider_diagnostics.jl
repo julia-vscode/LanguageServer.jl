@@ -67,7 +67,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     update_includes(doc, server)
 
     # clear diagnostics for re-parsed regions
-    delete_id = []
+    delete_id = Int[]
     for (i, d) in enumerate(doc.diagnostics)
         if last(d.loc) > sizeof(doc._content) || first(d.loc) > start_loc
             push!(delete_id, i)

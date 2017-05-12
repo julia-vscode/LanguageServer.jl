@@ -26,10 +26,16 @@ end
 type ShowMessageRequestParams
     typ::Integer
     message::String
-    actions::Vector{MessageActionItem}
+    actions::Nullable{Vector{MessageActionItem}}
 end
 
-JSON.lower(a::ShowMessageRequestParams) = Dict("type" => a.typ, "message" => a.message, actions = JSON.lower(a.actions))
+function JSON.lower(a::ShowMessageRequestParams)
+    d = Dict("type" => a.typ, "message" => a.message)
+    if isnull(a.actions)
+        d["actions"] = JSON.lower(a.actions)
+    end
+    return d
+end
 
 type LogMessageParams
     typ::Integer

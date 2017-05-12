@@ -33,8 +33,15 @@ TextDocumentPositionParams(d::Dict) = TextDocumentPositionParams(TextDocumentIde
 
 type DocumentFilter
     language::Nullable{String}
-    scheme::String
+    scheme::Nullable{String}
     pattern::Nullable{String}
+end
+
+function DocumentFilter(d::Dict)
+    language = haskeynotnull(d, "language") ? d["language"] : Nullable{String}()
+    scheme = haskeynotnull(d, "scheme") ? d["scheme"] : Nullable{String}()
+    pattern = haskeynotnull(d, "pattern") ? d["pattern"] : Nullable{String}()
+    return DocumentFilter(language, scheme, pattern)
 end
 
 const DocumentSelector = Vector{DocumentFilter}

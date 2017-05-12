@@ -5,10 +5,11 @@ type Document
     _open_in_editor::Bool
     _workspace_file::Bool
     code::CSTParser.File
-    diagnostics::Vector{Diagnostic}
+    diagnostics::Vector{CSTParser.Diagnostics.Diagnostic}
+    _version::Int
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [])
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [], 0)
     end
 end
 
@@ -105,12 +106,17 @@ end
 # end
 
 function get_position_at(doc::Document, offset::Integer)
+    offset == 0 && return 1, 0
     line_offsets = get_line_offsets(doc)
     line = 0
     for (line, line_offset) in enumerate(line_offsets)
         if offset < line_offset
-            line -= 1
-            break
+            if offset == line_offset - 1
+                return line, 0
+            else
+                line -= 1
+                break
+            end
         end
     end
     ni = nextind(doc._content, line_offsets[line])

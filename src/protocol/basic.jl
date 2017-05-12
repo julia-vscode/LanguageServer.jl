@@ -45,7 +45,15 @@ type Diagnostic
     source::String
     message::String
 end
-Diagnostic(d::Dict) = Diagnostic(Range(d["range"]), d["severity"], d["code"], d["source"], d["message"])
+
+function Diagnostic(d::Dict)
+    Diagnostic(Range(d["range"]),
+                     haskeynotnull(d, "severity") ? d["severity"] : 0,
+                     haskeynotnull(d, "code") ? d["code"] : "",
+                     haskeynotnull(d, "source") ? d["source"] : "",
+                     d["message"])
+end
+# Diagnostic(d::Dict) = Diagnostic(Range(d["range"]), d["severity"], d["code"], d["source"], d["message"])
 
 const DiagnosticSeverity = Dict("Error" => 1, "Warning" => 2, "Information" => 3, "Hint" => 4)
 
@@ -53,7 +61,7 @@ const DiagnosticSeverity = Dict("Error" => 1, "Warning" => 2, "Information" => 3
 type Command
     title::String
     command::String
-    argument::Vector{Any}
+    arguments::Vector{Any}
 end
 
 type TextEdit

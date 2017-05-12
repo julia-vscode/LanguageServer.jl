@@ -30,6 +30,9 @@ type CompletionItem
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
 end
+# Make more specific if we extend completions (i.e. brackets for functions w/ arg placements)
+import Base.==  
+==(x::CompletionItem, y::CompletionItem) = a.label == b.label
 
 type CompletionList
     isIncomplete::Bool
@@ -42,6 +45,7 @@ type MarkedString
     value::AbstractString
 end
 MarkedString(x) = MarkedString("julia", string(x))
+Base.hash(x::MarkedString) = hash(x.value) # for unique
 
 type Hover
     contents::Vector{Union{AbstractString, MarkedString}}
@@ -142,7 +146,7 @@ type CodeActionParams
     range::Range
     context::CodeActionContext
 end
-CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"], Range(d["range"]), CodeActionContext(d["context"])))
+CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
 
 # Code Lens
 type CodeLensParams

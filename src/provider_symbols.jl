@@ -1,16 +1,13 @@
-# type SymbolInformation 
-#     name::String 
-#     kind::Int 
-#     location::Location 
-# end 
- 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")}, DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
     syms = SymbolInformation[]
     scope = CSTParser.get_symbols(doc.code.ast)
     for (v, loc) in scope
-        rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
+        start_l, start_c = get_position_at(doc, first(loc))
+        end_l, end_c = get_position_at(doc, last(loc))
+        rng = Range(start_l - 1, start_c - 1, end_l - 1, end_c)
+        # rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
 
         if v.t == :Function
             id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
@@ -37,7 +34,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")}, WorkspaceSy
         scope = CSTParser.get_symbols(doc.code.ast)
         for (v, loc) in scope
             if ismatch(Regex(query, "i"), string(v.id))
-                rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
+                start_l, start_c = get_position_at(doc, first(loc))
+                end_l, end_c = get_position_at(doc, last(loc))
+                rng = Range(start_l - 1, start_c - 1, end_l - 1, end_c)
+                # rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
                 if v.t == :Function
                     id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
                 else

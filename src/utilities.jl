@@ -30,28 +30,6 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
     return String(word)
 end
 
-function get_cache_entry(word::String, server, modules = [])
-    allmod = vcat([:Base, :Core], modules)
-    entry = EmptyCacheEntry
-    if search(word, ".") != 0:-1
-        sword = split(word, ".")
-        modname = parse(join(sword[1:end - 1], "."))
-        if Symbol(first(sword)) in allmod && modname in keys(server.cache) && Symbol(last(sword)) in keys(server.cache[modname])
-            entry = server.cache[modname][Symbol(last(sword))]
-        end
-    else
-        for m in allmod
-            if m in keys(server.cache) && Symbol(word) in server.cache[m][:EXPORTEDNAMES]
-                entry = server.cache[m][Symbol(word)]
-            end
-        end
-    end
-
-    if isa(entry, Dict)
-        entry = (parse(word), "Module: $word", []) 
-    end
-    return entry
-end
 
 function unpack_dot(id, args = Symbol[])
     if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
@@ -79,53 +57,65 @@ function repack_dot(args::Vector)
     end
 end
 
+
+function get_module(ids::Vector{Symbol}, M = Main)
+    if isempty(ids)
+        return M
+    elseif isdefined(M, first(ids))
+        M = getfield(M, shift!(ids))
+        return get_module(ids, M)
+    else
+        return false
+    end
+end
+
+
 function get_cache_entry(id, server, modules = [])
     ids = unpack_dot(id)
     if !isempty(ids)
         for m in vcat([:Base, :Core], modules)
-            if m in keys(server.cache)
+            if isdefined(Main, m)
+                M = getfield(Main, m)
                 if first(ids) == m
-                    shift!(ids)
-                    return get_cache_entry(ids, server.cache[m])
-                elseif first(ids) in server.cache[m][:EXPORTEDNAMES]
-                    return get_cache_entry(ids, server.cache[m])
+                    if length(ids) == 1
+                        return get_cache_entry(ids, Main)
+                    else
+                        shift!(ids)
+                        return get_cache_entry(ids, M)
+                    end
+                elseif first(ids) in names(M)
+                    return get_cache_entry(ids, M)
                 end
             end
         end
     end
-    return entry = EmptyCacheEntry
+    return nothing
 end
 
-function get_cache_entry(ids::Vector{Symbol}, cache::Dict)
+function get_cache_entry(ids::Vector{Symbol}, M::Module)
     if isempty(ids)
-        return entry = EmptyCacheEntry
+        return nothing
     end
-    for (k, entry) in cache
-        if k == first(ids)
-            if length(ids) == 1
-                if entry isa Dict
-                    return (k, "Module", []) 
-                else
-                    return entry
-                end
-            else
-                if entry isa Dict
-                    shift!(ids)
-                    return get_cache_entry(ids, entry)
-                else
-                    return entry = EmptyCacheEntry
-                end
-            end
+    if first(ids) in names(M, true, true)
+        x = getfield(M, first(ids))
+        if length(ids) == 1
+            return x
+        elseif x isa Module
+            shift!(ids)
+            return get_cache_entry(ids, x)
+        else
+            return nothing
         end
     end
-    return entry = EmptyCacheEntry
+
+    return nothing
 end
 
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
 
     if is_windows()
-        if if uri_path[1] == '\\' || uri_path[1] == '/'
+        if uri_path[1] == '\\' || uri_path[1] == '/'
             uri_path = uri_path[2:end]
         end
 
@@ -169,3 +159,11 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
                         t == :DataType ? 5 :  
                         t == :Module ? 2 :
                         t == :Bool ? 17 : 13  
+
+updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
+
+function updatecache(absentmodules::Vector{Symbol}, server)
+    for m in absentmodules
+        @eval try import $m end
+    end
+end

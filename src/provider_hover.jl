@@ -13,6 +13,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 if v.t == :Any
                     push!(documentation, MarkedString("julia", string(Expr(v.val))))
+                elseif v.t==:Function
+                    push!(documentation, MarkedString("julia", string(Expr(v.val.args[1]))))
                 else
                     push!(documentation, MarkedString(string(v.t)))
                 end
@@ -29,7 +31,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
     else
         documentation = [""]
     end
-    response = JSONRPC.Response(get(r.id), Hover(documentation))
+    response = JSONRPC.Response(get(r.id), Hover(unique(documentation)))
     send(response, server)
 end
 

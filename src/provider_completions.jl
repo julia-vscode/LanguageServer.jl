@@ -95,7 +95,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
             documentation = replace(documentation, "\n\n", "\n")
         end
 
-
         if k == 1
             push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(word) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(word), l, c - endof(word) + endof(newtext)), newtext)]))
         else
@@ -103,7 +102,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
         end
     end
 
-    completion_list = CompletionList(true, CIs)
+    completion_list = CompletionList(true, unique(CIs))
 
     response =  JSONRPC.Response(get(r.id), completion_list)
     send(response, server)

@@ -125,7 +125,7 @@ function uri2filepath(uri::AbstractString)
     uri_path = normpath(unescape(URI(uri).path))
 
     if is_windows()
-        if uri_path[1] == '\\'
+        if if uri_path[1] == '\\' || uri_path[1] == '/'
             uri_path = uri_path[2:end]
         end
 

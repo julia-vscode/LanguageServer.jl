@@ -1,5 +1,7 @@
-import LanguageServer: LanguageServerInstance, Document, parseblocks
+import LanguageServer: LanguageServerInstance, Document
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request,init_request), server)
+
 
 function getresult(server)
     str = String(take!(server.pipe_out))
@@ -21,23 +23,26 @@ end
 
 server.documents["testdoc"] = Document("testdoc", testtext, true)
 doc = server.documents["testdoc"]
-parseblocks(doc, server)
+LanguageServer.parse_all(doc, server)
+
+# clear init output
+take!(server.pipe_out)
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":0,"character":12}}}"""), server)
 
 res = getresult(server)
 
-@test res[1] == "Module"
+@test res[1]["value"] == "module"
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":1,"character":9}}}"""), server)
 
 res = getresult(server)
 
-@test res[1] == "DataType"
-@test res[2]["value"] == "type testtype\n    a\n    b::Float64\n    c::Vector{Float64}\nend"
+@test res[1]["value"] == "mutable"
+
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}"""), server)
 
 res = getresult(server)
 
-@test res[1]["value"] == "Function"
+@test res[1]["value"] == "testfunction(a, b::Float64, c::testtype)"

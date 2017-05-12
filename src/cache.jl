@@ -117,7 +117,7 @@ updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
 
 function updatecache(absentmodules::Vector{Symbol}, server)
     env_new = copy(ENV)
-    env_new["JULIA_PKGDIR"] = server.user_pkg_dir
+    env_new["JULIA_PKGDIR"] = realpath(joinpath(server.user_pkg_dir, ".."))
 
     cache_jl_path = replace(joinpath(dirname(@__FILE__), "cache.jl"), "\\", "\\\\")
 

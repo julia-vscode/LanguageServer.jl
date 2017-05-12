@@ -142,7 +142,7 @@ type CodeActionParams
     range::Range
     context::CodeActionContext
 end
-CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"], Range(d["range"]), CodeActionContext(d["context"])))
+CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
 
 # Code Lens
 type CodeLensParams

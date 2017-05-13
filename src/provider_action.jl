@@ -1,4 +1,4 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")}, CodeActionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
     doc = server.documents[r.params.textDocument.uri]
     commands = Command[]
     range = r.params.range

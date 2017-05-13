@@ -1,9 +1,8 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     line = get_line(tdpp, server)
-    
 
     if isempty(line) || line == "\n" || tdpp.position.character == 0
         word = ""
@@ -17,7 +16,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
                         write(io, c)
                         break
                     end
-                    if !(Base.is_id_char(c) || c == '.' || c == '_')# || c == '^')
+                    if !(Base.is_id_char(c) || c == '.' || c == '_')
                         break
                     end
                     write(io, c)
@@ -27,9 +26,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")}, Text
         end
     end
 
+    entries = Tuple{Symbol,Int,String}[]
     prefix = word[1:findlast(word, '.')]
-
-    entries = Tuple{Symbol, Int, String}[]
     if isempty(word) && isempty(prefix)
     elseif isempty(prefix) # Single word
         if startswith(word, "\\") # Latex completion
@@ -111,6 +109,3 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
 end
-
-
-

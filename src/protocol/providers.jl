@@ -48,7 +48,7 @@ MarkedString(x) = MarkedString("julia", string(x))
 Base.hash(x::MarkedString) = hash(x.value) # for unique
 
 type Hover
-    contents::Vector{Union{AbstractString, MarkedString}}
+    contents::Vector{Union{AbstractString,MarkedString}}
 end
 
 

@@ -5,7 +5,7 @@ function read_transport_layer(stream, debug_mode = false)
         push!(header, line)
         line = chomp(readline(stream))
     end
-    header_dict = Dict{String, String}()
+    header_dict = Dict{String,String}()
     for h in header
         h_parts = split(h, ":")
         header_dict[chomp(h_parts[1])] = chomp(h_parts[2])

@@ -95,16 +95,6 @@ function get_line_offsets(doc::Document)
     return get(doc._line_offsets)
 end
 
-# function get_position_at(doc::Document, offset::Integer)
-#     line_offsets = get_line_offsets(doc)
-#     for (line, line_offset) in enumerate(line_offsets)
-#         if offset < line_offset
-#             return line - 1, offset - line_offsets[line - 1] + 1
-#         end
-#     end
-#     return length(line_offsets), offset - line_offsets[end] + 1
-# end
-
 function get_position_at(doc::Document, offset::Integer)
     offset == 0 && return 1, 0
     line_offsets = get_line_offsets(doc)
@@ -122,8 +112,14 @@ function get_position_at(doc::Document, offset::Integer)
     ni = nextind(doc._content, line_offsets[line])
     ch = 1
     while offset >= ni
-        ch +=1
+        ch += 1
         ni = nextind(doc._content, ni)
     end
     return line, ch
+end
+
+function Range(doc::Document, rng::UnitRange)
+    start_l, start_c = get_position_at(doc, first(rng))
+    end_l, end_c = get_position_at(doc, last(rng))
+    rng = Range(start_l - 1, start_c - 1, end_l - 1, end_c)
 end

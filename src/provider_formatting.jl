@@ -1,4 +1,4 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")}, DocumentFormattingParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server)
     doc = server.documents[r.params.textDocument.uri]
     edits = TextEdit[]
 

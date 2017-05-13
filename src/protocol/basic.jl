@@ -6,9 +6,9 @@ type Position
     line::Int
     character::Int
 
-    function Position(line::Integer, character::Integer;one_based=false)
+    function Position(line::Integer, character::Integer;one_based = false)
         if one_based
-            return new(line-1, character-1)
+            return new(line - 1, character - 1)
         else
             return new(line, character)
         end
@@ -68,4 +68,3 @@ type TextEdit
     range::Range
     newText::String
 end
-

@@ -8,7 +8,7 @@ include("providers.jl")
 const MessageType = Dict("Error" => 1, "Warning" => 2, "Info" => 3, "Log" => 4)
 
 function Message(t::Int, text::AbstractString)
-    Dict("jsonrpc"=>"2.0", "method"=>"window/showMessage", "params"=>Dict("type"=>t, "message"=>text))
+    Dict("jsonrpc" => "2.0", "method" => "window/showMessage", "params" => Dict("type" => t, "message" => text))
 end
 
 type ShowMessageParams

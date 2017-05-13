@@ -1,4 +1,4 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
@@ -34,7 +34,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")}, T
     end
     
     
-    if word == ""
+    if isempty(word)
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
         y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)

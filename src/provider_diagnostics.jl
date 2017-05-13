@@ -94,7 +94,7 @@ end
 function publish_diagnostics(doc::Document, server)
     ls_diags = convert_diagnostic.(doc.diagnostics, doc)
     publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, ls_diags)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")}, PublishDiagnosticsParams}(Nullable{Union{String, Int64}}(), publishDiagnosticsParams)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
     send(response, server)
 end
 

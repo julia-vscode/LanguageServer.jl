@@ -15,11 +15,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
             V, LOC, uri = scope[s_id]
             locs = find_ref(doc.code.ast, V, LOC)
             for loc in locs
-                start_l, start_c = get_position_at(doc, first(loc))
-                end_l, end_c = get_position_at(doc, last(loc))
-                rng = Range(start_l - 1, start_c - 1, end_l - 1, end_c)
-
-                push!(locations, Location(uri, rng))
+                push!(locations, Location(uri, Range(doc, loc)))
             end
         end
     end
@@ -55,9 +51,7 @@ function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
     end
 end
 
-function _find_ref(x::Union{CSTParser.QUOTENODE, CSTParser.INSTANCE, CSTParser.ERROR}, V, LOC, offset, scope, refs)
-
-end
+function _find_ref(x::Union{CSTParser.QUOTENODE,CSTParser.INSTANCE,CSTParser.ERROR}, V, LOC, offset, scope, refs) end
 
 function _find_ref(x::CSTParser.IDENTIFIER, V, LOC, offset, scope, refs)
     if x.val == V.id
@@ -78,5 +72,3 @@ function find_ref(x::CSTParser.EXPR, V, LOC)
     _find_ref(x, V, LOC, offset, scope, refs)
     return refs
 end
-
-

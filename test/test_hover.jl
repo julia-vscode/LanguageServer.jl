@@ -1,6 +1,6 @@
 import LanguageServer: LanguageServerInstance, Document
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request,init_request), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, init_request), server)
 
 
 function getresult(server)

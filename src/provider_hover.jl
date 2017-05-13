@@ -1,4 +1,4 @@
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
@@ -13,14 +13,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")}, TextDocum
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 if v.t == :Any
                     push!(documentation, MarkedString("julia", string(Expr(v.val))))
-                elseif v.t==:Function
+                elseif v.t == :Function
                     push!(documentation, MarkedString("julia", string(Expr(v.val.args[1]))))
                 else
                     push!(documentation, MarkedString(string(v.t)))
                 end
             end
         end
-    elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16, Tokens.DOT}
+    elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16,Tokens.DOT}
         x = get_cache_entry(Expr(last(Y)), server, unique(modules))
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
         # Dot access of user defined variables goes here

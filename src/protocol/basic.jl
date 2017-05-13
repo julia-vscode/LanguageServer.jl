@@ -6,13 +6,7 @@ type Position
     line::Int
     character::Int
 
-    function Position(line::Integer, character::Integer;one_based = false)
-        if one_based
-            return new(line - 1, character - 1)
-        else
-            return new(line, character)
-        end
-    end
+    Position(line::Integer, character::Integer;one_based = false) = new(line - one_based, character - one_based)
 end
 Position(d::Dict) = Position(d["line"], d["character"])
 Position(line::Integer) = Position(line, 0)

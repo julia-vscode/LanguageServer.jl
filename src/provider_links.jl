@@ -22,7 +22,7 @@ function get_links(x, offset::Int, uri::String, server, links) end
 
 function get_links(x::LITERAL{Tokens.STRING}, offset::Int, uri::String, server, links)
     if endswith(x.val, ".jl")
-        if !startswith(x.val, "/")
+        if !isabspath(x.val)
             file = joinpath(dirname(uri), x.val)
         else
             file = filepath2uri(x.val)

@@ -1,4 +1,3 @@
-import Tokenize.Tokens
 # Find references to an identifier. Only works in file.
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
     tdpp = r.params
@@ -28,11 +27,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, pa
 end
 
 function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
-    if x.head == CSTParser.STRING || 
-        x.head isa CSTParser.KEYWORD{Tokens.USING} || 
-        x.head isa CSTParser.KEYWORD{Tokens.IMPORT} || 
-        x.head isa CSTParser.KEYWORD{Tokens.IMPORTALL} || 
-        (x.head == CSTParser.TOPLEVEL && all(x.args[i] isa CSTParser.EXPR && (x.args[i].head isa CSTParser.KEYWORD{Tokens.IMPORT} || x.args[i].head isa CSTParser.KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa CSTParser.KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
+    if CSTParser.no_iter(x)
         return x
     end
     for (i, a) in enumerate(x)

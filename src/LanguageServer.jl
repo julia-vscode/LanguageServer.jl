@@ -3,6 +3,7 @@ module LanguageServer
 using JSON
 using URIParser
 import CSTParser
+import Tokenize.Tokens
 
 export LanguageServerInstance
 

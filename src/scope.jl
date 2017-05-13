@@ -86,7 +86,7 @@ function get_scope(x::EXPR, offset::Int, scope, uri::String, server)
 
     if x.head == CALL && x.args[1] isa IDENTIFIER && x.args[1].val == :include && (x.args[2] isa LITERAL{Tokens.STRING} || x.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
         file = Expr(x.args[2])
-        if !startswith(file, "/")
+        if !isabspath(file)
             file = joinpath(dirname(uri), file)
         else
             file = filepath2uri(file)
@@ -120,7 +120,7 @@ function get_symbols_follow(x::EXPR, offset::Int, symbols, uri, server)
         if a isa EXPR
             if a.head == CALL && a.args[1] isa IDENTIFIER && a.args[1].val == :include && (a.args[2] isa LITERAL{Tokens.STRING} || a.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
                 file = Expr(a.args[2])
-                if !startswith(file, "/")
+                if !isabspath(file)
                     file = joinpath(dirname(uri), file)
                 else
                     file = filepath2uri(file)

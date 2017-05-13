@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         x = nothing
     end
     for m in methods(x)
-        file = startswith(string(m.file), "/") ? string(m.file) : Base.find_source_file(string(m.file))
+        file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
         push!(locations, Location(is_windows() ? "file:///$(URIParser.escape(replace(file, '\\', '/')))" : "file:$(file)", Range(m.line - 1, 0, m.line, 0)))
     end
     

@@ -139,7 +139,7 @@ function should_file_be_linted(uri, server)
         workspace_path = lowercase(workspace_path)
     end
 
-    if server.rootPath == ""
+    if isempty(server.rootPath)
         return false
     else
         return startswith(uri_path, workspace_path)

@@ -1,7 +1,7 @@
-function read_transport_layer(stream, debug_mode=false)
+function read_transport_layer(stream, debug_mode = false)
     header = String[]
     line = chomp(readline(stream))
-    while length(line)>0
+    while length(line) > 0
         push!(header, line)
         line = chomp(readline(stream))
     end
@@ -19,7 +19,7 @@ function read_transport_layer(stream, debug_mode=false)
     return message_str    
 end
 
-function write_transport_layer(stream, response, debug_mode=false)
+function write_transport_layer(stream, response, debug_mode = false)
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")

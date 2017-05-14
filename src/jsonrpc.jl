@@ -21,11 +21,15 @@ end
 
 Response(id, result) = Response(id, Nullable(result), Nullable{Error}())
 
+type Notification{method,Tparams}
+    params::Nullable{Tparams}
+end
+
 function parse_params end
 
 function parse(::Type{Request}, message::AbstractString)
     message_dict = JSON.parse(message)
-    if message_dict["jsonrpc"]!="2.0"
+    if message_dict["jsonrpc"] != "2.0"
         error("Invalid JSON-RPC version")
     end
     id = haskey(message_dict, "id") ? Nullable(message_dict["id"]) : Nullable{Union{String,Int64}}()
@@ -34,7 +38,7 @@ function parse(::Type{Request}, message::AbstractString)
 
     params_instance = parse_params(method, params)
 
-    ret = Request{method,typeof(params_instance)}(id,params_instance)
+    ret = Request{method,typeof(params_instance)}(id, params_instance)
 
     return ret
 end
@@ -62,6 +66,14 @@ function JSON.json{TResult}(response::Response{TResult})
         error("Invalid JSON-RPC response object.")
     end
     return JSON.json(response_dict)
+end
+
+function JSON.json{method,Tparams}(response::Notification{method,Tparams})
+    notification_dict = Dict()
+    notification_dict["jsonrpc"] = "2.0"
+    notification_dict["method"] = string(method.parameters[1])
+    notification_dict["params"] = response.params
+    return JSON.json(notification_dict)
 end
 
 end

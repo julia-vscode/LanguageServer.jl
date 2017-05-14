@@ -2,55 +2,63 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)
-    offset = get_offset(doc, tdpp.position.line+1, tdpp.position.character)
-    ns = get_names(tdpp.textDocument.uri, offset, server)
-
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
+    
     str = get_line(tdpp, server)
     pos = pos0 = min(length(str), tdpp.position.character)
     io = IOBuffer(str)
     
-    line = []
+    line = Char[]
     cnt = 0
-    while cnt<pos && !eof(io)
+    while cnt < pos && !eof(io)
         cnt += 1
         push!(line, read(io, Char))
     end
     
     arg = b = 0
     word = "" 
-    while pos>1
-        if line[pos]=='(' 
-            if b==0
-                 word = get_word(tdpp, server, pos-pos0-1)
+    while pos > 1
+        if line[pos] == '(' 
+            if b == 0
+                word = get_word(tdpp, server, pos - pos0 - 1)
                 break
-            elseif b>0
+            elseif b > 0
                 b -= 1
             end
-        elseif line[pos]==',' && b==0
+        elseif line[pos] == ',' && b == 0
             arg += 1
-        elseif line[pos]==')'
+        elseif line[pos] == ')'
             b += 1
         end
         pos -= 1
     end
     
     
-    if word==""
-        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id"=>get(r.id))))
+    if isempty(word)
+        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
-        sigs = get_signatures(word, get_cache_entry(word, server, ns.modules))
-        if Symbol(word) in keys(ns.list)
-            v = ns.list[Symbol(word)]
-            if isa(v, LocalVar)
-                v.t==:Function && push!(sigs.signatures, SignatureInformation(string(v.def.args[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(v.def.args[1])))))
-                for def in v.methods
-                    push!(sigs.signatures, SignatureInformation(string(def[1]), "", ParameterInformation.((x->string(x[1] ,"::", x[2])).(parsesignature(def[1])))))
-                end
-            else
-                append!(sigs.signatures, get_signatures(word, v).signatures)
+        y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+        x = get_cache_entry(parse(word), server, modules)
+
+        sigs = SignatureHelp(SignatureInformation[], 0, 0)
+        
+        for m in methods(x)
+            args = Base.arg_decl_parts(m)[2]
+            p_sigs = [join(string.(p), "::") for p in args[2:end]]
+            desc = string(m)
+            PI = map(ParameterInformation, p_sigs)
+            push!(sigs.signatures, SignatureInformation(desc, "", PI))
+        end
+        
+        
+        for (v, loc, uri) in scope
+            if v.t == :Function && (word == string(v.id) || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && word == string(v.id.args[2].value)))
+                sig_loc = v.val[1] isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? 2 : 1
+                push!(sigs.signatures, SignatureInformation(string(Expr(v.val[sig_loc])), "", [ParameterInformation(string(p.id)) for p in v.val[sig_loc].defs]))
             end
         end
-        signatureHelper = SignatureHelp(filter(s->length(s.parameters)>arg , sigs.signatures), 0, arg)
+        
+        signatureHelper = SignatureHelp(filter(s -> length(s.parameters) > arg, sigs.signatures), 0, arg)
         response = JSONRPC.Response(get(r.id), signatureHelper)
     end
     send(response, server)

@@ -2,38 +2,39 @@ using JSON
 
 init_request = """
 {
-    "jsonrpc":
-    "2.0",
+    "jsonrpc":"2.0",
     "id":0,
     "method":"initialize",
-    "params": {
-        "processId": 11116,
-        "rootPath": "",
-        "capabilities":{},
-        "trace":"off"
-    }
+    "params":{"processId":9902,
+              "rootPath":null,
+              "rootUri":null,
+              "capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{"dynamicRegistration":false},"didChangeWatchedFiles":{"dynamicRegistration":false},"symbol":{"dynamicRegistration":true},"executeCommand":{"dynamicRegistration":true}},"textDocument":{"synchronization":{"dynamicRegistration":true,"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"dynamicRegistration":true,"completionItem":{"snippetSupport":true}},"hover":{"dynamicRegistration":true},"signatureHelp":{"dynamicRegistration":true},"references":{"dynamicRegistration":true},"documentHighlight":{"dynamicRegistration":true},"documentSymbol":{"dynamicRegistration":true},"formatting":{"dynamicRegistration":true},"rangeFormatting":{"dynamicRegistration":true},"onTypeFormatting":{"dynamicRegistration":true},"definition":{"dynamicRegistration":true},"codeAction":{"dynamicRegistration":true},"codeLens":{"dynamicRegistration":true},"documentLink":{"dynamicRegistration":true},"rename":{"dynamicRegistration":true}}},
+              "trace":"off"}
 }
 """
 
 init_response_json = JSON.parse("""
 {
-    "id":0,
-    "jsonrpc":"2.0",
+    "id":0,"jsonrpc":"2.0",
     "result":{
-        "capabilities":{
-            "textDocumentSync":2,
-            "hoverProvider":true,
-            "completionProvider":{
-                "resolveProvider":false,
-                "triggerCharacters":["."]
-            },
-            "definitionProvider":true,
-            "signatureHelpProvider":{
-                "triggerCharacters":["("]
-            },
-            "documentSymbolProvider":true
-        }
-    }
+        "capabilities":{"textDocumentSync":2,
+                        "hoverProvider":true,
+                        "completionProvider":{"resolveProvider":false,"triggerCharacters":["."]},
+                        "signatureHelpProvider":{"triggerCharacters":["("]},
+                        "definitionProvider":true,
+                        "referencesProvider":true,
+                        "documentHighlightProvider":false,
+                        "documentSymbolProvider":true,
+                        "workspaceSymbolProvider":true,
+                        "codeActionProvider":true,
+                        "documentFormattingProvider":true,
+                        "documentRangeFormattingProvider":false,
+                        "renameProvider":false,
+                        "documentLinkProvider":{"resolveProvider":false},
+                        "executeCommandProvider":{"commands":[]},
+                        "experimental":null
+                    }
+            }
 }
 """)
 

@@ -1,17 +1,18 @@
-type SymbolInformation 
-    name::String 
-    kind::Int 
-    location::Location 
-end 
- 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
-    parseblocks(doc, server)
-
     syms = SymbolInformation[]
-    getsyminfo(doc.blocks, syms, uri, doc, server)
+    scope = CSTParser.get_symbols(doc.code.ast)
+    for (v, loc) in scope        
+        if v.t == :Function
+            id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
+        else
+            id = string(v.id)
+        end
 
+        push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc))))
+    end
+    
     response = JSONRPC.Response(get(r.id), syms) 
     send(response, server) 
 end
@@ -20,24 +21,29 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}
     return DocumentSymbolParams(params) 
 end
 
-function getsyminfo(blocks, syms, uri , doc, server, prefix="")
-    ns = get_names(blocks, 1, server).list
-    for (name, v) in ns
-        if !isa(v, LocalVar)
-        elseif v.t==:Module
-            v.def.args[3].typ = v.def.typ
-            getsyminfo(v.def.args[3], syms, uri, doc, server, string(name))
-        else 
-            k = SymbolKind(v.t)
-            if v.t==:Function && isa(v.def.args[1], Expr)
-                start = Position(get_position_at(doc, first(v.def.args[1].typ))..., one_based=true)
-            else
-                start = Position(get_position_at(doc, max(1, first(v.def.typ)))..., one_based=true)
-            end
-            stop = Position(get_position_at(doc, last(v.def.typ))..., one_based=true)
 
-            
-            push!(syms, SymbolInformation(string(isempty(prefix) ? "" : prefix*".",name), k, Location(uri, Range(start, stop))))
+function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+    syms = SymbolInformation[]
+    query = r.params.query
+    for (uri, doc) in server.documents
+        scope = CSTParser.get_symbols(doc.code.ast)
+        for (v, loc) in scope
+            if ismatch(Regex(query, "i"), string(v.id))
+                if v.t == :Function
+                    id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
+                else
+                    id = string(v.id)
+                end
+
+                push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc))))
+            end
         end
     end
+
+    response = JSONRPC.Response(get(r.id), syms) 
+    send(response, server) 
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params)
+    return WorkspaceSymbolParams(params) 
 end

@@ -1,4 +1,5 @@
-julia 0.5
-JSON 0.8.0
-Lint 0.2.5
-URIParser 0.1.6
+julia 0.6.0-rc1
+JSON 0.9.0
+URIParser 0.1.8
+CSTParser
+Tokenize

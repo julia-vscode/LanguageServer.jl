@@ -1,55 +1,80 @@
-const TextDocumentSyncKind = Dict("None"=>0, "Full"=>1, "Incremental"=>2)
-
-
-
 const serverCapabilities = ServerCapabilities(
                         TextDocumentSyncKind["Incremental"],
                         true, #hoverProvider
-                        CompletionOptions(false,["."]),
-                        true, #definitionProvider
+                        CompletionOptions(false, ["."]),
                         SignatureHelpOptions(["("]),
-                        true) # documentSymbolProvider 
+                        true, #definitionProvider
+                        true, # referencesProvider
+                        false, # documentHighlightProvider
+                        true, # documentSymbolProvider 
+                        true, # workspaceSymbolProvider
+                        true, # codeActionProvider
+                        # CodeLensOptions(), 
+                        true, # documentFormattingProvider
+                        false, # documentRangeFormattingProvider
+                        # DocumentOnTypeFormattingOptions(), 
+                        false, # renameProvider
+                        DocumentLinkOptions(false),
+                        ExecuteCommandOptions(),
+                        nothing)
 
-function process(r::JSONRPC.Request{Val{Symbol("initialize")},Dict{String,Any}}, server)
-    server.rootPath=haskey(r.params,"rootPath") ? r.params["rootPath"] : ""
-    if server.rootPath!=""
+function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
+    
+    if !isnull(r.params.rootUri)
+        server.rootPath = uri2filepath(r.params.rootUri.value)
+    elseif !isnull(r.params.rootPath)
+        server.rootPath = r.params.rootPath.value
+    else
+        server.rootPath = ""
+    end
+    
+    if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
-                if splitext(file)[2]==".jl"
+                if endswith(file, ".jl")
+                    info("parsed $file")
                     filepath = joinpath(root, file)
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)
+                    parse_all(server.documents[uri], server)
                 end
             end
         end
     end
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
     send(response, server)
-
-    env_new = copy(ENV)
-    env_new["JULIA_PKGDIR"] = realpath(joinpath(server.user_pkg_dir, ".."))
-
-    put!(server.user_modules, :Main)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
-    return Any(params)
+    return InitializeParams(params)
+end
+
+
+function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
+    return params
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server) end
+function JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params)
+    return params
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server) 
+    exit()
+end
+function JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params)
+    return params
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    if !haskey(server.documents, uri)
-        server.documents[uri] = Document(uri, r.params.textDocument.text, false)
-    end
+    server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[uri]
     set_open_in_editor(doc, true)
-
-    parseblocks(doc, server)
-    
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
+    parse_all(doc, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params)
@@ -71,15 +96,13 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
-    blocks = server.documents[r.params.textDocument.uri].blocks
-    dirty = (last(r.params.contentChanges).range.start.line+1, last(r.params.contentChanges).range.start.character+1, first(r.params.contentChanges).range.stop.line+1, first(r.params.contentChanges).range.stop.character+1)
+    doc._version = r.params.textDocument.version
+    dirty = get_offset(doc, last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1):get_offset(doc, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
     for c in r.params.contentChanges
-        update(doc, c.range.start.line+1, c.range.start.character+1, c.rangeLength, c.text)
+        update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
     end
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
-    parseblocks(doc, server, dirty...) 
+    # parse_incremental(doc, dirty, server)
+    parse_all(doc, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
@@ -93,7 +116,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        if change._type==FileChangeType_Created || (change._type==FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
+        if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
             server.documents[uri] = Document(uri, content, true)
@@ -101,7 +124,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             if should_file_be_linted(uri, server)
                 process_diagnostics(uri, server)
             end
-        elseif change._type==FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
+        elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
             delete!(server.documents, uri)
 
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
@@ -120,10 +143,8 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    parseblocks(server.documents[uri], server)
-    if should_file_be_linted(r.params.textDocument.uri, server) 
-        process_diagnostics(r.params.textDocument.uri, server) 
-    end
+    doc = server.documents[uri]
+    parse_all(doc, server)
 end
 
 
@@ -141,13 +162,13 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
     if isempty(r.params["settings"])
-        server.runlinter=false
+        server.runlinter = false
         for uri in keys(server.documents)
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     else
-        server.runlinter=true
+        server.runlinter = true
         for uri in keys(server.documents)
             process_diagnostics(uri, server)
         end

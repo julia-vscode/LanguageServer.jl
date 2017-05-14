@@ -132,7 +132,6 @@ function should_file_be_linted(uri, server)
     !server.runlinter && return false
 
     uri_path = uri2filepath(uri)
-
     workspace_path = server.rootPath
 
     if is_windows()

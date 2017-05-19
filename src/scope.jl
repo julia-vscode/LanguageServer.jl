@@ -17,8 +17,9 @@ mutable struct Scope
     namespace::Vector
     hittarget::Bool
     followincludes::Bool
+    intoplevel::Bool
 end
-Scope(uri::String, followincludes = true) = Scope(ScopePosition(), ScopePosition(uri, 0), [], [], [], [], [], false, followincludes)
+Scope(uri::String, followincludes = true) = Scope(ScopePosition(), ScopePosition(uri, 0), [], [], [], [], [], false, followincludes, true)
 
 
 function get_scope(doc::Document, offset::Int, server)
@@ -27,24 +28,16 @@ function get_scope(doc::Document, offset::Int, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true)
+    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true)
     get_toplevel(server.documents[last(path)].code.ast, s, server)
     scope = s.symbols
 
     s.current = ScopePosition(uri)
     y = _find_scope(doc.code.ast, s, server)
-    offsets = s.stack_offsets
-    scope = s.symbols
-    inds = s.stack_inds
-    stack = s.stack
-
 
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
+    modules = get_imports(s.symbols, server)
 
-    # Get imported modules
-    modules = get_imports(scope, server)
-
-    # return y, stack, inds, offsets, scope, modules, current_namespace
     return y, s, modules, current_namespace
 end
 
@@ -196,7 +189,7 @@ A wrapper around get_toplevel that adds the module name prefix to declared
 variables.
 """
 function get_module(x::EXPR, s::Scope, server)
-    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.head.span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes)
+    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.head.span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes, s.intoplevel)
     get_toplevel(x[3], s_module, server)
     offset2 = s.current.offset + x[1].span + x[2].span
     for (v, loc, uri) in s_module.symbols
@@ -249,9 +242,7 @@ function _find_scope(x::EXPR, s::Scope, server)
     if x.head == STRING
         return x
     elseif isimport(x)
-        for d in x.defs
-            unshift!(s.symbols, (d, s.current.offset + (1:x.span), s.current.uri))
-        end
+        !s.intoplevel && put_imports(x, s)
         return x
     elseif ismodule(x)
         push!(s.namespace, Expr(x.args[2]))
@@ -262,16 +253,17 @@ function _find_scope(x::EXPR, s::Scope, server)
     push!(s.stack, x)
     for (i, a) in enumerate(x)
         if s.current.offset + a.span < s.target.offset
-            get_scope(a, s, server)
+            !s.intoplevel && get_scope(a, s, server)
             s.current.offset += a.span
         else
-            if a isa EXPR
-                for d in a.defs
-                    push!(s.symbols, (d, s.current.offset + (1:a.span), s.current.uri))
-                end
+            if !s.intoplevel && a isa EXPR
+                get_symbols(a, s)
             end
             push!(s.stack_inds, i)
             push!(s.stack_offsets, s.current.offset)
+            if !contributes_scope(a) && s.intoplevel
+                s.intoplevel = false
+            end
             return _find_scope(a, s, server)
         end
     end

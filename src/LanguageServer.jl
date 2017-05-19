@@ -6,12 +6,14 @@ import CSTParser
 import Tokenize.Tokens
 
 export LanguageServerInstance
+const VariableLoc = Tuple{CSTParser.Variable,UnitRange,String}
 
 include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")
 include("jsonrpc.jl")
 include("scope.jl")
+include("scopemod.jl")
 include("provider_diagnostics.jl")
 include("provider_misc.jl")
 include("provider_hover.jl")

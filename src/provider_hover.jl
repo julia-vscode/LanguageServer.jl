@@ -3,12 +3,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
 
-    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+    y, s, modules, current_namespace = get_scope(doc, offset, server)
 
     if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
         x = get_cache_entry(Expr(y), server, unique(modules))
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))] 
-        for (v, loc, uri) in scope
+        for (v, loc, uri) in s.symbols
             Ey = Expr(y)
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 if v.t == :Any
@@ -20,8 +20,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                 end
             end
         end
-    elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16,Tokens.DOT}
-        x = get_cache_entry(Expr(last(Y)), server, unique(modules))
+    elseif y isa CSTParser.QUOTENODE && last(s.stack) isa CSTParser.EXPR && last(s.stack).head isa CSTParser.OPERATOR{16,Tokens.DOT}
+        x = get_cache_entry(Expr(last(s.stack)), server, unique(modules))
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
         # Dot access of user defined variables goes here
     elseif y isa CSTParser.LITERAL

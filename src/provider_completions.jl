@@ -38,7 +38,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+            y, s, modules, current_namespace = get_scope(doc, offset, server)
             for m in vcat([:Base, :Core], unique(modules))
                 if startswith(string(m), word)
                     push!(entries, (string(m), 9, "Module: $m"))
@@ -55,14 +55,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             end
-            for (v, loc, uri) in scope
-                if startswith(string(v.id), word)
+            for (v, loc, uri) in s.symbols
+                if startswith(string(v.id), word) 
                     push!(entries, (string(v.id), 6, ""))
+                elseif startswith(string(v.id), string(current_namespace, ".",word))
+                    push!(entries, (string(v.id)[length(string(current_namespace)) + 2:end], 6, ""))
                 end
             end
         end
     else
-        y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+        y, s, modules, current_namespace = get_scope(doc, offset, server)
         topmodname = Symbol(first(split(prefix, '.')))
         modname = unpack_dot(parse(strip(prefix, '.')))
         vname = last(split(word, '.'))

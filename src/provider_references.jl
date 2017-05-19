@@ -5,7 +5,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
-    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+    y, s, modules, current_namespace = get_scope(doc, offset, server)
+    
     locations = Location[]
     if y isa CSTParser.IDENTIFIER
         yid = CSTParser.get_id(y).val

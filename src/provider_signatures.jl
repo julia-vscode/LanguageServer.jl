@@ -54,6 +54,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         for (v, loc, uri) in s.symbols
             if v.t == :Function && (word == string(v.id) || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && word == string(v.id.args[2].value)))
                 sig_loc = v.val[1] isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? 2 : 1
+                sig_loc = v.val isa EXPR{CSTParser.FunctionDef} ? 2 : 1
                 push!(sigs.signatures, SignatureInformation(string(Expr(v.val[sig_loc])), "", [ParameterInformation(string(p.id)) for p in v.val[sig_loc].defs]))
             end
         end

@@ -9,7 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
             continue
         end
         if v.t == :Function
-            id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
+            id = string(Expr(v.val isa EXPR{CSTParser.FunctionDef} ? v.val.args[2] : v.val.args[1]))
         else
             id = string(v.id)
         end
@@ -34,7 +34,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
         for (v, loc, uri1) in s.symbols
             if ismatch(Regex(query, "i"), string(v.id))
                 if v.t == :Function
-                    id = string(Expr(v.val.head isa CSTParser.KEYWORD{CSTParser.Tokens.FUNCTION} ? v.val[2] : v.val[1]))
+                    id = string(Expr(v.val isa EXPR{CSTParser.FunctionDef} ? v.val.args[2] : v.val.args[1]))
                 else
                     id = string(v.id)
                 end

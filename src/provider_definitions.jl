@@ -6,9 +6,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     y, s, modules, current_namespace = get_scope(doc, offset, server)
 
     locations = Location[]
-    if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
+    if y isa EXPR{CSTParser.IDENTIFIER} || y isa EXPR{OP} where OP <: CSTParser.OPERATOR
         x = get_cache_entry(Expr(y), server, unique(modules))
-    elseif y isa CSTParser.QUOTENODE && last(s.stack) isa CSTParser.EXPR && last(s.stack).head isa CSTParser.OPERATOR{16,Tokens.DOT}
+    elseif y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa CSTParser.EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{16,Tokens.DOT}
         x = get_cache_entry(Expr(last(s.stack)), server, unique(modules))
     else
         x = nothing

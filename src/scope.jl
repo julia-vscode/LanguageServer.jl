@@ -1,5 +1,6 @@
-import CSTParser: IDENTIFIER, INSTANCE, QUOTENODE, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable, FILE
-import CSTParser: TOPLEVEL, STRING, BLOCK, CALL, NOTHING
+import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
+import CSTParser: TopLevel, String, Block, Call, NOTHING, FileH
+import CSTParser: contributes_scope
 
 mutable struct ScopePosition
     uri::String
@@ -11,7 +12,7 @@ mutable struct Scope
     target::ScopePosition
     current::ScopePosition
     symbols::Vector{VariableLoc}
-    stack::Vector{CSTParser.SyntaxNode}
+    stack::Vector{CSTParser.EXPR}
     stack_inds::Vector{Int}
     stack_offsets::Vector{Int}
     namespace::Vector
@@ -30,62 +31,20 @@ function get_scope(doc::Document, offset::Int, server)
     
     s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true)
     get_toplevel(server.documents[last(path)].code.ast, s, server)
-    scope = s.symbols
+    
 
     s.current = ScopePosition(uri)
     y = _find_scope(doc.code.ast, s, server)
 
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
-    modules = get_imports(s.symbols, server)
+    modules = collect_imports(s.symbols, server)
 
     return y, s, modules, current_namespace
 end
 
-"""
-    contributes_scope(x)
-Checks whether the body of `x` is included in the toplevel namespace.
-"""
-contributes_scope(x) = false
-function contributes_scope(x::EXPR)
-    x.head isa KEYWORD{Tokens.BLOCK} ||
-    x.head isa KEYWORD{Tokens.CONST} ||
-    x.head isa KEYWORD{Tokens.GLOBAL} || 
-    x.head isa KEYWORD{Tokens.IF} ||
-    x.head isa KEYWORD{Tokens.LOCAL} ||
-    x.head isa HEAD{Tokens.MACROCALL} 
-end
-
-find_scope(x::ERROR, n::Int) = ERROR, [], [], [], [], []
-
-"""
-    isinclude(x)
-Checks whether `x` is an expression that includes a file.
-"""
-isinclude(x) = false
-function isinclude(x::EXPR) 
-    x.head == CALL && x.args[1] isa IDENTIFIER && x.args[1].val == :include && (x.args[2] isa LITERAL{Tokens.STRING} || x.args[2] isa LITERAL{Tokens.TRIPLE_STRING})
-end
 
 
-"""
-    isimport(x)
-Checks whether `x` is an expression that imports a module.
-"""
-isimport(x) = false
-function isimport(x::EXPR)
-    x.head isa KEYWORD{Tokens.USING} || x.head isa KEYWORD{Tokens.IMPORT} || x.head isa KEYWORD{Tokens.IMPORTALL} || (x.head == TOPLEVEL && all(x.args[i] isa EXPR && (x.args[i].head isa KEYWORD{Tokens.IMPORT} || x.args[i].head isa KEYWORD{Tokens.IMPORTALL} || x.args[i].head isa KEYWORD{Tokens.USING}) for i = 1:length(x.args)))
-end
-
-"""
-    ismodule(x)
-Checks whether `x` is an expression that declares a module.
-"""
-ismodule(x) = false
-function ismodule(x::EXPR)
-    x.head isa KEYWORD{Tokens.MODULE} || x.head isa KEYWORD{Tokens.BAREMODULE}
-end
-
-function get_imports(S::Vector{VariableLoc}, server)
+function collect_imports(S::Vector{VariableLoc}, server)
     modules = Union{Symbol,Expr}[]
     rmid = Int[]
     for (i, (v, loc, uri1)) in enumerate(S)
@@ -100,11 +59,7 @@ function get_imports(S::Vector{VariableLoc}, server)
 end
 
 
-function get_toplevel(doc::Document, server, followincludes = true)
-    s = Scope(doc._uri, followincludes)
-    get_toplevel(doc.code.ast, s, server)
-    return s
-end
+
 
 """
     get_toplevel(x::EXPR, s::Scope, server)
@@ -112,36 +67,40 @@ end
 Collects declared variables within an expression, stops if a target 
 specified in `s` is met, will optionally follow includes.
 """
+function get_toplevel(doc::Document, server, followincludes = true)
+    s = Scope(doc._uri, followincludes)
+    get_toplevel(doc.code.ast, s, server)
+    return s
+end
+
 function get_toplevel(x::EXPR, s::Scope, server)
     if isimport(x)
-        put_imports(x, s)
+        get_imports(x, s)
         return
     end
-    for a in x
+    for a in x.args
         offset = s.current.offset
         if s.hittarget
             return
-        elseif (s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.span)) && !(contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a))
+        elseif (s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.span)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a))
             s.hittarget = true 
             return
         end
-        if a isa EXPR
-            if s.followincludes && isinclude(a)
-                get_include(a, s, server)
-            end
-            get_symbols(a, s)
+        if s.followincludes && isincludable(a)
+            follow_include(a, s, server)
+        end
+        get_symbols(a, s)
 
-            if ismodule(a)
-                get_module(a, s, server)
-            elseif contributes_scope(a)
-                get_toplevel(a, s, server)
-            end
-            
+        if ismodule(a)
+            get_module(a, s, server)
+        elseif contributes_scope(a)
+            get_toplevel(a, s, server)
         end
         s.current.offset = offset + a.span
     end
     return 
 end
+
 
 """
     get_symbols(x, s::Scope)
@@ -155,27 +114,7 @@ function get_symbols(x::EXPR, s::Scope)
     end
 end
 
-"""
-    get_include(x, s, server)
-
-Adds the contents of a file (in the workspace) to the current scope.
-"""
-function get_include(x::EXPR, s::Scope, server)
-    file = Expr(x.args[2])
-    if !isabspath(file)
-        file = joinpath(dirname(s.current.uri), file)
-    else
-        file = filepath2uri(file)
-    end
-    if file in keys(server.documents)
-        oldpos = s.current
-        s.current = ScopePosition(file, 0)
-        incl_syms = get_toplevel(server.documents[file].code.ast, s, server)
-        s.current = oldpos
-    end
-end
-
-function put_imports(x::EXPR, s::Scope)
+function get_imports(x::EXPR, s::Scope)
     for d in x.defs
         unshift!(s.symbols, (d, sum(s.stack_offsets) + (1:x.span), s.current.uri))
     end
@@ -189,9 +128,9 @@ A wrapper around get_toplevel that adds the module name prefix to declared
 variables.
 """
 function get_module(x::EXPR, s::Scope, server)
-    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.head.span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes, s.intoplevel)
-    get_toplevel(x[3], s_module, server)
-    offset2 = s.current.offset + x[1].span + x[2].span
+    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.args[1].span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes, s.intoplevel)
+    get_toplevel(x.args[3], s_module, server)
+    offset2 = s.current.offset + x.args[1].span + x.args[2].span
     for (v, loc, uri) in s_module.symbols
         if v.t == :IMPORTS
             push!(s.symbols, (v, loc, uri))
@@ -202,6 +141,89 @@ function get_module(x::EXPR, s::Scope, server)
         end
     end
 end
+
+_find_scope(x::EXPR{IDENTIFIER}, s::Scope, server) = x
+_find_scope(x::EXPR{CSTParser.Quotenode}, s::Scope, server) = x
+_find_scope(x::EXPR{L}, s::Scope, server) where L <: CSTParser.LITERAL = x
+
+
+function _find_scope(x::EXPR, s::Scope, server)
+    if isimport(x)
+        !s.intoplevel && get_imports(x, s)
+        return x
+    elseif ismodule(x)
+        push!(s.namespace, Expr(x.args[2]))
+    end
+    if s.current.offset + x.span < s.target.offset
+        return NOTHING
+    end
+    push!(s.stack, x)
+    for (i, a) in enumerate(x.args)
+        if s.current.offset + a.span < s.target.offset
+            !s.intoplevel && get_scope(a, s, server)
+            s.current.offset += a.span
+        else
+            if !s.intoplevel && a isa EXPR
+                get_symbols(a, s)
+            end
+            push!(s.stack_inds, i)
+            push!(s.stack_offsets, s.current.offset)
+            if !contributes_scope(a) && s.intoplevel
+                s.intoplevel = false
+            end
+            return _find_scope(a, s, server)
+        end
+    end
+end
+
+
+
+function get_scope(x, s::Scope, server) end
+
+function get_scope(x::EXPR, s::Scope, server)
+    offset = s.current.offset
+    for d in x.defs
+        push!(s.symbols, (d, offset + (1:x.span), s.current.uri))
+    end
+    if contributes_scope(x)
+        for a in x.args
+            get_scope(a, s, server)
+            offset += a.span
+        end
+    end
+
+    if isincludable(x)
+        follow_include(x, s, server)
+    end
+end
+
+
+"""
+    isincludable(x)
+Checks whether `x` is an expression that includes a file.
+"""
+isincludable(x) = false
+function isincludable(x::EXPR{Call})
+    x.args[1] isa EXPR{IDENTIFIER} && x.args[1].val == "include" && length(x.args) == 4 && (x.args[3] isa EXPR{LITERAL{Tokens.STRING}} || x.args[3] isa EXPR{LITERAL{Tokens.TRIPLE_STRING}})
+end
+
+"""
+    isimport(x)
+Checks whether `x` is an expression that imports a module.
+"""
+isimport(x) = false
+isimport(x::EXPR{CSTParser.Import}) = true
+isimport(x::EXPR{CSTParser.ImportAll}) = true
+isimport(x::EXPR{CSTParser.Using}) = true
+
+"""
+    ismodule(x)
+Checks whether `x` is an expression that declares a module.
+"""
+ismodule(x) = false
+ismodule(x::EXPR{CSTParser.ModuleH}) = true
+ismodule(x::EXPR{CSTParser.BareModule}) = true
+
 
 
 """
@@ -237,56 +259,46 @@ function findtopfile(uri::String, server, path = String[], namespace = [])
     end
 end
 
+"""
+    follow_include(x, s, server)
 
-function _find_scope(x::EXPR, s::Scope, server)
-    if x.head == STRING
-        return x
-    elseif isimport(x)
-        !s.intoplevel && put_imports(x, s)
-        return x
-    elseif ismodule(x)
-        push!(s.namespace, Expr(x.args[2]))
+Adds the contents of a file (in the workspace) to the current scope.
+"""
+function follow_include(x::EXPR{Call}, s::Scope, server)
+    file = Expr(x.args[3])
+    if !isabspath(file)
+        file = joinpath(dirname(s.current.uri), file)
+    else
+        file = filepath2uri(file)
     end
-    if s.current.offset + x.span < s.target.offset
-        return NOTHING
-    end
-    push!(s.stack, x)
-    for (i, a) in enumerate(x)
-        if s.current.offset + a.span < s.target.offset
-            !s.intoplevel && get_scope(a, s, server)
-            s.current.offset += a.span
-        else
-            if !s.intoplevel && a isa EXPR
-                get_symbols(a, s)
-            end
-            push!(s.stack_inds, i)
-            push!(s.stack_offsets, s.current.offset)
-            if !contributes_scope(a) && s.intoplevel
-                s.intoplevel = false
-            end
-            return _find_scope(a, s, server)
-        end
-    end
-end
-_find_scope(x, s::Scope, server) = x
-
-
-function get_scope(x, s::Scope, server) end
-
-function get_scope(x::EXPR, s::Scope, server)
-    offset = s.current.offset
-    for d in x.defs
-        push!(s.symbols, (d, offset + (1:x.span), s.current.uri))
-    end
-    if contributes_scope(x)
-        for a in x
-            get_scope(a, s, server)
-            offset += a.span
-        end
-    end
-
-    if isinclude(x)
-        get_include(x, s, server)
+    if file in keys(server.documents)
+        oldpos = s.current
+        s.current = ScopePosition(file, 0)
+        incl_syms = get_toplevel(server.documents[file].code.ast, s, server)
+        s.current = oldpos
     end
 end
 
+function _get_includes(x, files = []) end
+function _get_includes(x::EXPR{Call}, files = [])
+    if isincludable(x)
+        push!(files, (x.args[3].val, []))
+    end
+    return files
+end
+
+
+function _get_includes(x::EXPR, files = [])
+    for a in x.args
+        if a isa EXPR{CSTParser.ModuleH} || a isa EXPR{CSTParser.BareModule}
+            mname = Expr(a.args[2])
+            files1 = _get_includes(a)
+            for (f, ns) in files1
+                push!(files, (f, vcat(mname, ns)))
+            end
+        elseif !(x isa EXPR{Call})
+            _get_includes(a, files)
+        end
+    end
+    return files
+end

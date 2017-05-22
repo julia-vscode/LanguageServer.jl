@@ -2,7 +2,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},Doc
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
     links = Tuple{String,UnitRange}[]
-    get_links(doc.code.ast, 0, uri, server, links)
+    # get_links(doc.code.ast, 0, uri, server, links)
     doclinks = DocumentLink[]
     for (uri2, loc) in links
         rng = Range(Position(get_position_at(doc, first(loc))..., one_based = true), Position(get_position_at(doc, last(loc))..., one_based = true))
@@ -18,26 +18,26 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, 
 end
 
 
-function get_links(x, offset::Int, uri::String, server, links) end
+# function get_links(x, offset::Int, uri::String, server, links) end
 
-function get_links(x::LITERAL{Tokens.STRING}, offset::Int, uri::String, server, links)
-    if endswith(x.val, ".jl")
-        if !isabspath(x.val)
-            file = joinpath(dirname(uri), x.val)
-        else
-            file = filepath2uri(x.val)
-        end
-        push!(links, (file, offset + (1:x.span)))
-    end
-end
+# function get_links(x::LITERAL{Tokens.STRING}, offset::Int, uri::String, server, links)
+#     if endswith(x.val, ".jl")
+#         if !isabspath(x.val)
+#             file = joinpath(dirname(uri), x.val)
+#         else
+#             file = filepath2uri(x.val)
+#         end
+#         push!(links, (file, offset + (1:x.span)))
+#     end
+# end
 
-function get_links(x::EXPR, offset::Int, uri::String, server, links = Tuple{String,UnitRange}[])
-    if CSTParser.no_iter(x)
-        return links
-    end
-    for a in x
-        get_links(a, offset, uri, server, links)
-        offset += a.span
-    end
-    return links
-end
+# function get_links(x::EXPR, offset::Int, uri::String, server, links = Tuple{String,UnitRange}[])
+#     if CSTParser.no_iter(x)
+#         return links
+#     end
+#     for a in x
+#         get_links(a, offset, uri, server, links)
+#         offset += a.span
+#     end
+#     return links
+# end

@@ -1,18 +1,18 @@
 # Find references to an identifier. Only works in file.
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
     tdpp = r.params
-    # uri = tdpp.textDocument.uri
+    uri = tdpp.textDocument.uri
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
     y, s, modules, current_namespace = get_scope(doc, offset, server)
     
     locations = Location[]
-    if y isa CSTParser.IDENTIFIER
+    if y isa EXPR{CSTParser.IDENTIFIER}
         yid = CSTParser.get_id(y).val
-        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, scope)
+        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, s.symbols)
         if s_id > 0
-            V, LOC, uri = scope[s_id]
+            V, LOC, uri = s.symbols[s_id]
             locs = find_ref(doc.code.ast, V, LOC)
             for loc in locs
                 push!(locations, Location(uri, Range(doc, loc)))
@@ -28,15 +28,10 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, pa
 end
 
 function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
-    if CSTParser.no_iter(x)
-        return x
-    end
-    for (i, a) in enumerate(x)
+    for (i, a) in enumerate(x.args)
         if a isa CSTParser.EXPR
-            if !isempty(a.defs)
-                for v in a.defs
-                    push!(scope, (v, offset + (1:a.span)))
-                end
+            for v in a.defs
+                push!(scope, (v, offset + (1:a.span)))
             end
             if CSTParser.contributes_scope(a)
                 CSTParser.get_symbols(a, offset, scope)
@@ -47,9 +42,11 @@ function _find_ref(x::CSTParser.EXPR, V, LOC, offset, scope, refs)
     end
 end
 
-function _find_ref(x::Union{CSTParser.QUOTENODE,CSTParser.INSTANCE,CSTParser.ERROR}, V, LOC, offset, scope, refs) end
 
-function _find_ref(x::CSTParser.IDENTIFIER, V, LOC, offset, scope, refs)
+function _find_ref(x::EXPR{CSTParser.Quotenode}, V, LOC, offset, scope, refs) end
+function _find_ref(x::EXPR{CSTParser.ERROR}, V, LOC, offset, scope, refs) end
+
+function _find_ref(x::EXPR{CSTParser.IDENTIFIER}, V, LOC, offset, scope, refs)
     if x.val == V.id
         scope_id = findlast(s -> s[1].id == V.id, scope)
         if scope_id > 0
@@ -61,7 +58,7 @@ function _find_ref(x::CSTParser.IDENTIFIER, V, LOC, offset, scope, refs)
     end
 end
 
-function find_ref(x::CSTParser.EXPR, V, LOC)
+function find_ref(x::EXPR, V, LOC)
     offset = 0
     scope = Tuple{CSTParser.Variable,UnitRange}[]
     refs = UnitRange[]

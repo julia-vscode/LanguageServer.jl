@@ -80,7 +80,7 @@ function lint_run(x::EXPR, T::KEYWORD{Tokens.FUNCTION}, res, server)
     push!(res, x.args[1])
 end
 function lint_run(x::EXPR, T::HEAD{Tokens.CALL}, res, server)
-    if isinclude(x)
+    if isincludable(x)
         file = Expr(x.args[2])
         
         if !isabspath(file)

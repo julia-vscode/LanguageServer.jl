@@ -10,7 +10,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     locations = Location[]
     if y isa EXPR{CSTParser.IDENTIFIER}
         yid = CSTParser.get_id(y).val
-        s_id = findlast(s -> s[1].id == CSTParser.get_id(y).val, s.symbols)
+        s_id = findlast(s -> s[1].id == Symbol(CSTParser.get_id(y).val), s.symbols)
         if s_id > 0
             V, LOC, uri = s.symbols[s_id]
             locs = find_ref(doc.code.ast, V, LOC)
@@ -47,7 +47,7 @@ function _find_ref(x::EXPR{CSTParser.Quotenode}, V, LOC, offset, scope, refs) en
 function _find_ref(x::EXPR{CSTParser.ERROR}, V, LOC, offset, scope, refs) end
 
 function _find_ref(x::EXPR{CSTParser.IDENTIFIER}, V, LOC, offset, scope, refs)
-    if x.val == V.id
+    if Symbol(x.val) == V.id
         scope_id = findlast(s -> s[1].id == V.id, scope)
         if scope_id > 0
             v, loc = scope[scope_id]

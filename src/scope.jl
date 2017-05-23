@@ -134,8 +134,8 @@ function get_module(x::EXPR, s::Scope, server)
     for (v, loc, uri) in s_module.symbols
         if v.t == :IMPORTS
             push!(s.symbols, (v, loc, uri))
-        elseif uri == s.current.uri
-            push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc + offset2, s.current.uri))
+        # elseif uri == s.current.uri
+        #     push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc + offset2, s.current.uri))
         else
             push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
         end

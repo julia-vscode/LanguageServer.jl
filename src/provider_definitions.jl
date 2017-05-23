@@ -20,7 +20,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     
     
     if y != nothing
-        Ey = Expr(y)
+        if y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa CSTParser.EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{16,Tokens.DOT}
+            Ey = Expr(last(s.stack))
+        else
+            Ey = Expr(y)
+        end
         for (v, loc, uri) in s.symbols
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 doc1 = server.documents[uri]

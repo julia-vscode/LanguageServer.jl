@@ -32,8 +32,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
         pos -= 1
     end
-    
-    
+
     if isempty(word)
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
@@ -49,8 +48,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
             PI = map(ParameterInformation, p_sigs)
             push!(sigs.signatures, SignatureInformation(desc, "", PI))
         end
-        
-        
+
         for (v, loc, uri) in s.symbols
             if v.t == :Function && (word == string(v.id) || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && word == string(v.id.args[2].value)))
                 sig_loc = v.val isa EXPR{CSTParser.FunctionDef} ? 2 : 1

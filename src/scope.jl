@@ -1,5 +1,5 @@
 import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
-import CSTParser: TopLevel, String, Block, Call, NOTHING, FileH
+import CSTParser: TopLevel, Block, Call, NOTHING, FileH
 import CSTParser: contributes_scope
 
 mutable struct ScopePosition

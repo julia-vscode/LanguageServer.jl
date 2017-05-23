@@ -33,6 +33,7 @@ function WorkspaceClientCapabilities(d::Dict)
     executeCommand = haskeynotnull(d, "executeCommand") ? Capabilities(d["executeCommand"]) : Capabilities()
     return WorkspaceClientCapabilities(applyEdit, workspaceEdit, didChangeConfiguration, didChangeWatchedFiles, symbol, executeCommand)
 end
+WorkspaceClientCapabilities() = WorkspaceClientCapabilities(Dict())
 
 type SynchroizationCapabilities
     dynamicRegistration::Bool

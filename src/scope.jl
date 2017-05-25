@@ -47,7 +47,7 @@ end
 function collect_imports(s::Scope, server)
     modules = Symbol[]
     for (v, loc, uri1) in s.imports
-        if !(v.args[1] in modules)
+        if !(v.args[1] in modules) && v.args[1] isa Symbol
             push!(server.user_modules, (v.args[1], uri1, loc))
             push!(modules, v.args[1])
         end

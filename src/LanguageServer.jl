@@ -27,6 +27,7 @@ include("provider_symbols.jl")
 include("provider_action.jl")
 include("utilities.jl")
 include("lint.jl")
+include("jmd.jl")
 
 
 end

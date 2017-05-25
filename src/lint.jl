@@ -146,3 +146,109 @@ end
 #         end
 #     end
 # end
+
+
+function lint(doc::Document, offset::Int, server)
+    uri = doc._uri
+
+    # Find top file of include tree
+    path, namespace = findtopfile(uri, server)
+    
+    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true, [])
+    get_toplevel(server.documents[last(path)].code.ast, s, server)
+    
+    current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
+    s.current = ScopePosition(uri)
+    lint(doc.code.ast, s, server, true, 0, current_namespace)
+end
+
+function lint(x::EXPR{IDENTIFIER}, s::Scope, server, istop, ntop, ns)
+    found = false
+    Ex = Symbol(x.val)
+    for v in s.symbols
+        if Ex == v[1].id || Expr(:., ns, QuoteNode(Ex)) == v[1].id
+            found = true
+            break
+        end
+    end
+    if !found
+        for (impt,loc,uri) in s.imports
+            if length(impt.args) == 1
+                if Ex == impt.args[1]
+                    found = true
+                    break
+                else
+                    if isdefined(Main, impt.args[1]) && Ex in names(getfield(Main, impt.args[1]))
+                        found = true
+                        break
+                    end
+                end
+            else
+                if Ex == impt.args[end]
+                    found = true
+                    break
+                end
+            end
+        end
+    end
+    if !found
+        found = Ex in names(Core)
+    end
+    if !found
+        found = Ex in names(Base)
+    end
+    !found && println(x.val, "  ",basename(s.current.uri), "  ", s.current.offset + (0:x.span))
+end
+
+# function lint(x::EXPR{UnarySyntaxOpCall}, s::Scope, server, istop = true, ntop = 0)
+#     if x.args[1] isa EXPR{OPERATOR{PlusOp,Tokens.EX_OR,false}} 
+#     else
+#         invoke(lint, Tuple{EXPR, Scope, LanguageServerInstance, bool, Int}, x, s, server, istop, ntop)
+#     end
+# end
+
+function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
+end
+
+function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
+end
+
+function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, server, istop, ntop, ns)
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}} 
+        # println(Expr(x), "  ", s.current.offset + (0:x.span))
+    else
+        invoke(lint, Tuple{EXPR, Scope, LanguageServerInstance, Bool, Int, Any}, x, s, server, istop, ntop, ns)
+    end
+end
+
+function lint(x::EXPR, s::Scope, server, istop, ntop, ns) 
+    for a in x.args
+        offset = s.current.offset
+        # if s.hittarget
+        #     return
+        # elseif (s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.span)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a))
+        #     s.hittarget = true 
+        #     return
+        # end
+        # if s.followincludes && isincludable(a)
+        #     follow_include(a, s, server)
+        # end
+        if istop
+            ntop += length(x.defs)
+        else
+            get_symbols(a, s)
+        end
+
+        if ismodule(a)
+            # get_module(a, s, server)
+        elseif contributes_scope(a)
+            lint(a, s, server, istop, ntop, ns)
+        else
+            nls = length(s.symbols)
+            lint(a, s, server, false, ntop, ns)
+            deleteat!(s.symbols, nls + 1:length(s.symbols))
+        end
+        s.current.offset = offset + a.span
+    end
+    return 
+end

@@ -6,7 +6,7 @@ import CSTParser
 import Tokenize.Tokens
 
 export LanguageServerInstance
-const VariableLoc = Tuple{CSTParser.Variable,UnitRange,String}
+const VariableLoc = Tuple{CSTParser.Variable,UnitRange{Int},String}
 
 include("protocol/protocol.jl")
 include("document.jl")

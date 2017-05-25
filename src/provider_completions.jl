@@ -66,7 +66,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     else
         y, s, modules, current_namespace = get_scope(doc, offset, server)
         topmodname = Symbol(first(split(prefix, '.')))
-        modname = unpack_dot(parse(strip(prefix, '.')))
+        modname = unpack_dot(parse(strip(prefix, '.'), raise = false))
         vname = last(split(word, '.'))
         if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname)
             M = get_module(modname)

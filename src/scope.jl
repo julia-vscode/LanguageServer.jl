@@ -12,15 +12,17 @@ mutable struct Scope
     target::ScopePosition
     current::ScopePosition
     symbols::Vector{VariableLoc}
-    stack::Vector{CSTParser.EXPR}
+    stack::Vector{EXPR}
     stack_inds::Vector{Int}
     stack_offsets::Vector{Int}
     namespace::Vector
     hittarget::Bool
     followincludes::Bool
     intoplevel::Bool
+    imports::Vector{Tuple{Expr,UnitRange{Int},String}}
 end
-Scope(uri::String, followincludes = true) = Scope(ScopePosition(), ScopePosition(uri, 0), [], [], [], [], [], false, followincludes, true)
+
+Scope(uri::String, followincludes = true) = Scope(ScopePosition(), ScopePosition(uri, 0), [], [], [], [], [], false, followincludes, true, [])
 
 
 function get_scope(doc::Document, offset::Int, server)
@@ -29,7 +31,7 @@ function get_scope(doc::Document, offset::Int, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true)
+    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true, [])
     get_toplevel(server.documents[last(path)].code.ast, s, server)
     
 
@@ -37,24 +39,19 @@ function get_scope(doc::Document, offset::Int, server)
     y = _find_scope(doc.code.ast, s, server)
 
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
-    modules = collect_imports(s.symbols, server)
-
+    modules = collect_imports(s, server)
+    
     return y, s, modules, current_namespace
 end
 
-
-
-function collect_imports(S::Vector{VariableLoc}, server)
-    modules = Union{Symbol,Expr}[]
-    rmid = Int[]
-    for (i, (v, loc, uri1)) in enumerate(S)
-        if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
-            put!(server.user_modules, v.id.args[1])
-            push!(modules, v.id.args[1])
-            push!(rmid, i)
+function collect_imports(s::Scope, server)
+    modules = Symbol[]
+    for (v, loc, uri1) in s.imports
+        if !(v.args[1] in modules)
+            push!(server.user_modules, (v.args[1], uri1, loc))
+            push!(modules, v.args[1])
         end
     end
-    deleteat!(S, rmid)
     return modules
 end
 
@@ -74,10 +71,6 @@ function get_toplevel(doc::Document, server, followincludes = true)
 end
 
 function get_toplevel(x::EXPR, s::Scope, server)
-    if isimport(x)
-        get_imports(x, s)
-        return
-    end
     for a in x.args
         offset = s.current.offset
         if s.hittarget
@@ -114,9 +107,15 @@ function get_symbols(x::EXPR, s::Scope)
     end
 end
 
-function get_imports(x::EXPR, s::Scope)
+function get_symbols(x::EXPR{T}, s::Scope) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
     for d in x.defs
-        unshift!(s.symbols, (d, sum(s.stack_offsets) + (1:x.span), s.current.uri))
+        if d.id.head == :toplevel
+            for a in d.id.args
+                push!(s.imports, (a, sum(s.stack_offsets) + (1:x.span), s.current.uri))
+            end
+        else
+            push!(s.imports, (d.id, sum(s.stack_offsets) + (1:x.span), s.current.uri))
+        end
     end
 end
 
@@ -128,30 +127,27 @@ A wrapper around get_toplevel that adds the module name prefix to declared
 variables.
 """
 function get_module(x::EXPR, s::Scope, server)
-    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.args[1].span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes, s.intoplevel)
+    s_module = Scope(s.target, ScopePosition(s.current.uri, s.current.offset + x.args[1].span + x.args[2].span), [], [], [], [], [], s.hittarget, s.followincludes, s.intoplevel, [])
     get_toplevel(x.args[3], s_module, server)
     offset2 = s.current.offset + x.args[1].span + x.args[2].span
     for (v, loc, uri) in s_module.symbols
-        if v.t == :IMPORTS
-            push!(s.symbols, (v, loc, uri))
-        # elseif uri == s.current.uri
-        #     push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc + offset2, s.current.uri))
-        else
-            push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
-        end
+        push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
+        # if v.t == :IMPORTS
+        #     push!(s.symbols, (v, loc, uri))
+        # else
+        #     push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
+        # end
+    end
+    # NEEDS FIX: 
+    for impt in s_module.imports
+        push!(s.imports, impt)
     end
 end
 
-_find_scope(x::EXPR{IDENTIFIER}, s::Scope, server) = x
-_find_scope(x::EXPR{CSTParser.Quotenode}, s::Scope, server) = x
-_find_scope(x::EXPR{L}, s::Scope, server) where L <: CSTParser.LITERAL = x
-
+_find_scope(x::EXPR{T} , s::Scope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
 
 function _find_scope(x::EXPR, s::Scope, server)
-    if isimport(x)
-        !s.intoplevel && get_imports(x, s)
-        return x
-    elseif ismodule(x)
+    if ismodule(x)
         push!(s.namespace, Expr(x.args[2]))
     end
     if s.current.offset + x.span < s.target.offset
@@ -212,19 +208,14 @@ end
 Checks whether `x` is an expression that imports a module.
 """
 isimport(x) = false
-isimport(x::EXPR{CSTParser.Import}) = true
-isimport(x::EXPR{CSTParser.ImportAll}) = true
-isimport(x::EXPR{CSTParser.Using}) = true
+isimport(x::EXPR{T}) where T <: Union{CSTParser.Import,CSTParser.ImportAll,CSTParser.Using} = true
 
 """
     ismodule(x)
 Checks whether `x` is an expression that declares a module.
 """
 ismodule(x) = false
-ismodule(x::EXPR{CSTParser.ModuleH}) = true
-ismodule(x::EXPR{CSTParser.BareModule}) = true
-
-
+ismodule(x::EXPR{T}) where T <: Union{CSTParser.ModuleH, CSTParser.BareModule} = true
 
 """
     findtopfile(uri::String, server, path = String[], namespace = [])

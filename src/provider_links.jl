@@ -1,7 +1,7 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server) 
     uri = r.params.textDocument.uri 
     doc = server.documents[uri]
-    links = Tuple{String,UnitRange}[]
+    links = Tuple{String,UnitRange{Int}}[]
     # get_links(doc.code.ast, 0, uri, server, links)
     doclinks = DocumentLink[]
     for (uri2, loc) in links

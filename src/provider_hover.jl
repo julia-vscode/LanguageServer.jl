@@ -6,11 +6,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     y, s, modules, current_namespace = get_scope(doc, offset, server)
 
     if y isa EXPR{CSTParser.IDENTIFIER} || y isa EXPR{OP} where OP <: CSTParser.OPERATOR
-        x = get_cache_entry(Expr(y), server, unique(modules))
+        x = get_cache_entry(Expr(y), server, s)
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))] 
         get_scope_entry_doc(y, s, current_namespace, documentation)
     elseif y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{16,Tokens.DOT}
-        x = get_cache_entry(Expr(last(s.stack)), server, unique(modules))
+        x = get_cache_entry(Expr(last(s.stack)), server, s)
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
         get_scope_entry_doc(last(s.stack), s, current_namespace, documentation)
     elseif y isa EXPR{CSTParser.LITERAL}

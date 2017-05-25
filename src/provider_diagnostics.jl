@@ -22,7 +22,7 @@ function parse_all(doc, server)
     publish_diagnostics(doc, server)
 end
 
-function parse_incremental(doc::Document, dirty::UnitRange, server)
+function parse_incremental(doc::Document, dirty::UnitRange{Int}, server)
     isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_all(doc, server)
 
     # parsing
@@ -88,7 +88,7 @@ function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Docu
     code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
             T isa CSTParser.Diagnostics.LintCodes ? 2 :
             T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
-    Diagnostic(rng, code, string(T), string(typeof(h).name), string(T))
+    Diagnostic(rng, code, string(T), string(typeof(h).name), isempty(h.message) ? string(T) : h.message)
 end
 
 function publish_diagnostics(doc::Document, server)
@@ -113,6 +113,6 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
         else
             loc = 0:sizeof(doc._content)
         end
-        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), []))
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
     end
 end

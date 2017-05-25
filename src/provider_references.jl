@@ -60,8 +60,8 @@ end
 
 function find_ref(x::EXPR, V, LOC)
     offset = 0
-    scope = Tuple{CSTParser.Variable,UnitRange}[]
-    refs = UnitRange[]
+    scope = Tuple{CSTParser.Variable,UnitRange{Int}}[]
+    refs = UnitRange{Int}[]
     _find_ref(x, V, LOC, offset, scope, refs)
     return refs
 end

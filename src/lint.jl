@@ -18,11 +18,12 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
         allsymbols = []
         for uri in topfiles
             s = get_toplevel(server.documents[uri], server)
+            for (v, loc, uri1) in s.imports
+                push!(modules, v.args[1])
+                push!(import_stmts, (v, loc, uri))
+            end
             for (v, loc, uri1) in s.symbols
-                if v.t == :IMPORTS && v.id isa Expr && v.id.args[1] isa Symbol && v.id.args[1] != :.
-                    push!(modules, v.id.args[1])
-                    push!(import_stmts, (v, loc, uri))
-                elseif v.t == :module
+                if v.t == :module
                     push!(module_decl, v.id)
                 elseif v.t == :mutable || v.t == :immutable || v.t == :abstract || v.t == :bitstype
                     push!(datatypes, (v, loc, uri))

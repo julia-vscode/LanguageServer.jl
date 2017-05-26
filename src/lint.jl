@@ -149,13 +149,13 @@ end
 # end
 
 
-function lint(doc::Document, offset::Int, server)
+function lint(doc::Document, server)
     uri = doc._uri
 
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = Scope(ScopePosition(uri, offset), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true, [])
+    s = Scope(ScopePosition(uri, sizeof(doc._content)), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true, [])
     get_toplevel(server.documents[last(path)].code.ast, s, server)
     
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
@@ -166,12 +166,18 @@ end
 function lint(x::EXPR{IDENTIFIER}, s::Scope, server, istop, ntop, ns)
     found = false
     Ex = Symbol(x.val)
-    for v in s.symbols
-        if Ex == v[1].id || Expr(:., ns, QuoteNode(Ex)) == v[1].id
-            found = true
-            break
+    if Ex == :end
+        found = true
+    end
+    if !found
+        for v in s.symbols
+            if Ex == v[1].id || Expr(:., ns, QuoteNode(Ex)) == v[1].id
+                found = true
+                break
+            end
         end
     end
+    
     if !found
         for (impt,loc,uri) in s.imports
             if length(impt.args) == 1
@@ -201,6 +207,9 @@ function lint(x::EXPR{IDENTIFIER}, s::Scope, server, istop, ntop, ns)
     !found && println(x.val, "  ",basename(s.current.uri), "  ", s.current.offset + (0:x.span))
 end
 
+function lint(x::EXPR{CSTParser.Quotenode}, s::Scope, server, istop, ntop, ns)
+end
+
 # function lint(x::EXPR{UnarySyntaxOpCall}, s::Scope, server, istop = true, ntop = 0)
 #     if x.args[1] isa EXPR{OPERATOR{PlusOp,Tokens.EX_OR,false}} 
 #     else
@@ -211,8 +220,6 @@ end
 function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
 end
 
-function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
-end
 
 function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, server, istop, ntop, ns)
     if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}} 

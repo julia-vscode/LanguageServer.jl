@@ -70,12 +70,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         vname = last(split(word, '.'))
         if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname)
             M = get_module(modname)
-            for n in names(M, true, true)
-                if !startswith(string(n), "#") && startswith(string(n), vname) && isdefined(M, n)
-                    x = getfield(M, n)
-                    doc = string(Docs.doc(Docs.Binding(M, n)))
-                    push!(entries, (n, CompletionItemKind(typeof(x)), doc))
-                    length(entries) > 200 && break
+            if M isa Module
+                for n in names(M, true, true)
+                    if !startswith(string(n), "#") && startswith(string(n), vname) && isdefined(M, n)
+                        x = getfield(M, n)
+                        doc = string(Docs.doc(Docs.Binding(M, n)))
+                        push!(entries, (n, CompletionItemKind(typeof(x)), doc))
+                        length(entries) > 200 && break
+                    end
                 end
             end
         end

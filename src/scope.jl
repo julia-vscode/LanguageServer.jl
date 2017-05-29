@@ -114,7 +114,9 @@ function get_symbols(x::EXPR{T}, s::Scope) where T <: Union{CSTParser.Using,CSTP
                 push!(s.imports, (a, sum(s.stack_offsets) + (1:x.span), s.current.uri))
             end
         else
-            push!(s.imports, (d.id, sum(s.stack_offsets) + (1:x.span), s.current.uri))
+            if all(isa.(d.id.args, Symbol))
+                push!(s.imports, (d.id, sum(s.stack_offsets) + (1:x.span), s.current.uri))
+            end
         end
     end
 end

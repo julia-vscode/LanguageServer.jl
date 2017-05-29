@@ -211,9 +211,6 @@ end
 function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
 end
 
-function lint(x::EXPR{T}, s::Scope, server, istop, ntop, ns) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
-end
-
 function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, server, istop, ntop, ns)
     if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}} 
         # println(Expr(x), "  ", s.current.offset + (0:x.span))

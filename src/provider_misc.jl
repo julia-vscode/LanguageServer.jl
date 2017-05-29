@@ -28,6 +28,16 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         server.rootPath = ""
     end
     
+    response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
+    send(response, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
+    return InitializeParams(params)
+end
+
+
+function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) 
     if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
@@ -42,16 +52,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
             end
         end
     end
-    response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
-    send(response, server)
 end
-
-function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
-    return InitializeParams(params)
-end
-
-
-function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
     return params

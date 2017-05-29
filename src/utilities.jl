@@ -71,7 +71,7 @@ end
 
 function _isdefined(x::Expr)
     ids = unpack_dot(x)
-    return  isempty(ids) ? false : _isdefined(ids)
+    return isempty(ids) ? false : _isdefined(ids)
 end
 
 function _isdefined(ids::Vector{Symbol}, M = Main)

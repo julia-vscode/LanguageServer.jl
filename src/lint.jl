@@ -2,8 +2,9 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
     warnings = []
     if isdir(server.rootPath) && "REQUIRE" in readdir(server.rootPath)
         topfiles = []
+        rootUri = is_windows() ? string("file:///", replace(replace(server.rootPath, "\\", "/"), ":", "%3A")) : string("file://", server.rootPath, "/src")
         for (uri, doc) in server.documents
-            if startswith(uri, string("file://", server.rootPath, "/src"))
+            if startswith(uri, rootUri)
                 tf,ns = LanguageServer.findtopfile(uri, server)
                 push!(topfiles, last(tf))
             end

@@ -6,6 +6,7 @@ import CSTParser
 import Tokenize.Tokens
 
 export LanguageServerInstance
+const VariableLoc = Tuple{CSTParser.Variable,UnitRange{Int},String}
 
 include("protocol/protocol.jl")
 include("document.jl")
@@ -25,6 +26,7 @@ include("transport.jl")
 include("provider_symbols.jl")
 include("provider_action.jl")
 include("utilities.jl")
+include("lint.jl")
 
 
 end

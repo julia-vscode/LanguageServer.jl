@@ -33,9 +33,9 @@ end
 
 function unpack_dot(id, args = Symbol[])
     if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
-        if id.args[2].value isa Symbol
+        if id.args[2].value isa Symbol && ((id.args[1] isa Expr && id.args[1].head == :.) || id.args[1] isa Symbol)
             unshift!(args, id.args[2].value)
-            unpack_dot(id.args[1], args)
+            args = unpack_dot(id.args[1], args)
         else
             return Symbol[]
         end
@@ -69,10 +69,39 @@ function get_module(ids::Vector{Symbol}, M = Main)
     end
 end
 
+function _isdefined(x::Expr)
+    ids = unpack_dot(x)
+    return isempty(ids) ? false : _isdefined(ids)
+end
 
-function get_cache_entry(id, server, modules = Union{Symbol,Expr}[])
+function _isdefined(ids::Vector{Symbol}, M = Main)
+    if isempty(ids)
+        return true
+    elseif isdefined(M, first(ids))
+        M = getfield(M, shift!(ids))
+        return _isdefined(ids, M)
+    else
+        return false
+    end
+end
+
+function get_cache_entry(id, server, s::Scope)
     ids = unpack_dot(id)
     if !isempty(ids)
+        modules = []
+        for i in s.imports
+            top_mod = i[1].args[1]
+            if !(top_mod in modules) && top_mod != :Base && top_mod != :Core
+                push!(modules, top_mod)
+            end
+        end
+        if length(ids) == 1
+            for (impt, loc, uri) in s.imports
+                if first(ids) == last(impt.args)
+                    ids = Vector{Symbol}(impt.args)
+                end
+            end
+        end
         for m in vcat([:Base, :Core], unique(modules))
             if isdefined(Main, m)
                 M = getfield(Main, m)

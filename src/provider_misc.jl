@@ -73,6 +73,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[uri]
+    if startswith(uri, string("file://", server.rootPath))
+        doc._workspace_file = true
+    end
     set_open_in_editor(doc, true)
     parse_all(doc, server)
 end

@@ -22,7 +22,7 @@ function parse_all(doc, server)
     publish_diagnostics(doc, server)
 end
 
-function parse_incremental(doc::Document, dirty::UnitRange, server)
+function parse_incremental(doc::Document, dirty::UnitRange{Int}, server)
     isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_all(doc, server)
 
     # parsing
@@ -43,7 +43,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
     ps = CSTParser.ParseState(doc._content)
     # Skip to start position
     if start_block > 5
-        start_loc1 = sum(doc.code.ast[i].span for i = 1:start_block - 3)
+        start_loc1 = sum(doc.code.ast.args[i].span for i = 1:start_block - 3)
         skip(ps.l.io, start_loc1)
         # CSTParser.Tokenize.Lexers.emit(ps.l, CSTParser.Tokenize.Tokens.ERROR)
     end
@@ -58,7 +58,7 @@ function parse_incremental(doc::Document, dirty::UnitRange, server)
         return parse_all(doc, server)
     end
     # delete all ast below start point
-    deleteat!(doc.code.ast.args, start_block:length(doc.code.ast))
+    deleteat!(doc.code.ast.args, start_block:length(doc.code.ast.args))
     # append new parsing
     append!(doc.code.ast.args, new_expressions.args)
     doc.code.ast.span = sizeof(doc._content)
@@ -88,7 +88,7 @@ function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Docu
     code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
             T isa CSTParser.Diagnostics.LintCodes ? 2 :
             T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
-    Diagnostic(rng, code, string(T), string(typeof(h).name), string(T))
+    Diagnostic(rng, code, string(T), string(typeof(h).name), isempty(h.message) ? string(T) : h.message)
 end
 
 function publish_diagnostics(doc::Document, server)
@@ -99,7 +99,7 @@ function publish_diagnostics(doc::Document, server)
 end
 
 function update_includes(doc::Document, server::LanguageServerInstance)
-    doc.code.includes = map(CSTParser._get_includes(doc.code.ast)) do incl
+    doc.code.includes = map(_get_includes(doc.code.ast)) do incl
         (isabspath(incl[1]) ? filepath2uri(incl[1]) : joinpath(dirname(doc._uri), incl[1]), incl[2])
         
     end
@@ -107,12 +107,12 @@ end
 
 function parse_errored(doc::Document, ps::CSTParser.ParseState)
     ast = doc.code.ast
-    if last(ast) isa CSTParser.ERROR
-        if length(ast) > 1
-            loc = sum(ast[i].span for i = 1:length(ast) - 1):sizeof(doc._content)
+    if last(ast.args) isa EXPR{CSTParser.ERROR}
+        if length(ast.args) > 1
+            loc = sum(ast.args[i].span for i = 1:length(ast.args) - 1):sizeof(doc._content)
         else
             loc = 0:sizeof(doc._content)
         end
-        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), []))
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
     end
 end

@@ -3,13 +3,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
     word = get_word(tdpp, server)
-    y, Y, I, O, scope, modules, current_namespace = get_scope(doc, offset, server)
+    y, s, modules, current_namespace = get_scope(doc, offset, server)
 
     locations = Location[]
-    if y isa CSTParser.IDENTIFIER || y isa CSTParser.OPERATOR
-        x = get_cache_entry(Expr(y), server, unique(modules))
-    elseif y isa CSTParser.QUOTENODE && last(Y) isa CSTParser.EXPR && last(Y).head isa CSTParser.OPERATOR{16,Tokens.DOT}
-        x = get_cache_entry(Expr(last(Y)), server, unique(modules))
+    if y isa EXPR{CSTParser.IDENTIFIER} || y isa EXPR{OP} where OP <: CSTParser.OPERATOR
+        x = get_cache_entry(Expr(y), server, s)
+    elseif y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa CSTParser.EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{16,Tokens.DOT}
+        x = get_cache_entry(Expr(last(s.stack)), server, s)
     else
         x = nothing
     end
@@ -20,8 +20,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     
     
     if y != nothing
-        Ey = Expr(y)
-        for (v, loc, uri) in scope
+        if y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa CSTParser.EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{16,Tokens.DOT}
+            Ey = Expr(last(s.stack))
+        else
+            Ey = Expr(y)
+        end
+        for (v, loc, uri) in s.symbols
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 doc1 = server.documents[uri]
                 push!(locations, Location(uri, Range(doc1, loc)))

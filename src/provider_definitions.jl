@@ -28,7 +28,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         for (v, loc, uri) in s.symbols
             if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
                 doc1 = server.documents[uri]
-                push!(locations, Location(uri, Range(doc1, loc)))
+                ws_offset = trailing_ws_length(get_last_token(v.val))
+                loc1 = loc.start:loc.stop - ws_offset
+                push!(locations, Location(uri, Range(doc1, loc1)))
             end
         end
     end
@@ -39,4 +41,25 @@ end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params)
     return TextDocumentPositionParams(params)
+end
+
+# NEEDS FIX: This is in CSTParser next release, remove.
+function get_last_token(x::CSTParser.EXPR)
+    if isempty(x.args)
+        return x
+    else
+        return get_last_token(last(x.args))
+    end
+end
+
+function trailing_ws_length(x::CSTParser.EXPR{CSTParser.IDENTIFIER})
+    x.span - sizeof(x.val)
+end
+
+function trailing_ws_length(x::CSTParser.EXPR{P}) where P <: CSTParser.PUNCTUATION
+    x.span - 1
+end
+
+function trailing_ws_length(x::CSTParser.EXPR{K}) where K <: CSTParser.KEYWORD{T} where T
+    x.span - sizeof(string(T))
 end

@@ -26,66 +26,6 @@ function parse_all(doc, server)
     publish_diagnostics(doc, server)
 end
 
-function parse_incremental(doc::Document, dirty::UnitRange{Int}, server)
-    isempty(doc.code.ast.args) || sizeof(doc._content) < 800 && return parse_all(doc, server)
-
-    # parsing
-    start_loc = stop_loc = loc = start_block = 0
-    for (i, x) in enumerate(doc.code.ast)
-        if loc < first(dirty) <= loc + x.span || x isa CSTParser.ERROR
-            start_loc = loc
-            start_block = i
-        end
-        if loc < last(dirty) <= loc + x.span
-            stop_loc = loc + x.span
-        end
-        loc += x.span
-    end
-
-    (start_loc == 0 || start_block == 1) && return parse_all(doc, server)
-
-    ps = CSTParser.ParseState(doc._content)
-    # Skip to start position
-    if start_block > 5
-        start_loc1 = sum(doc.code.ast.args[i].span for i = 1:start_block - 3)
-        skip(ps.l.io, start_loc1)
-        # CSTParser.Tokenize.Lexers.emit(ps.l, CSTParser.Tokenize.Tokens.ERROR)
-    end
-
-    while ps.nt.startbyte < start_loc
-        next(ps)
-    end
-    new_expressions, _ = CSTParser.parse(ps, true)
-
-    # Parsing failed
-    if ps.errored
-        return parse_all(doc, server)
-    end
-    # delete all ast below start point
-    deleteat!(doc.code.ast.args, start_block:length(doc.code.ast.args))
-    # append new parsing
-    append!(doc.code.ast.args, new_expressions.args)
-    doc.code.ast.span = sizeof(doc._content)
-
-    # get includes
-    update_includes(doc, server)
-
-    # clear diagnostics for re-parsed regions
-    delete_id = Int[]
-    for (i, d) in enumerate(doc.diagnostics)
-        if last(d.loc) > sizeof(doc._content) || first(d.loc) > start_loc
-            push!(delete_id, i)
-        end
-    end
-    deleteat!(doc.diagnostics, delete_id)
-
-    # Add new diagnostics
-    for h in unique(ps.diagnostics)
-        push!(doc.diagnostics, h)
-    end
-
-    publish_diagnostics(doc, server)
-end
 
 function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document)
     rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))

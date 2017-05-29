@@ -124,9 +124,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             content = String(read(filepath))
             server.documents[uri] = Document(uri, content, true)
 
-            if should_file_be_linted(uri, server)
-                process_diagnostics(uri, server)
-            end
         elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
             delete!(server.documents, uri)
 
@@ -172,9 +169,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
         end
     else
         server.runlinter = true
-        for uri in keys(server.documents)
-            process_diagnostics(uri, server)
-        end
     end
 end
 

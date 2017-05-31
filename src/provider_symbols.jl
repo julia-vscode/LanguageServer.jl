@@ -5,16 +5,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     s = get_toplevel(doc, server, false)
 
     for (v, loc, uri1) in s.symbols
-        if v.t == :IMPORTS
-            continue
-        end
         if v.t == :Function
             id = string(Expr(v.val isa EXPR{CSTParser.FunctionDef} ? v.val.args[2] : v.val.args[1]))
         else
             id = string(v.id)
         end
-
-        push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc))))
+        ws_offset = trailing_ws_length(get_last_token(v.val))
+        loc1 = loc.start:loc.stop - ws_offset
+        push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc1))))
     end
     
     response = JSONRPC.Response(get(r.id), syms) 

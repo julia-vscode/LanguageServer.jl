@@ -1,23 +1,17 @@
 function parse_all(doc, server)
     # Try blocks should be removed
-    try
-        ps = CSTParser.ParseState(doc._content)
-        if endswith(doc._uri, ".jmd")
-            doc.code.ast, ps = parse_jmd(ps, doc._content)
-        else
-            doc.code.ast, ps = CSTParser.parse(ps, true)
-        end
-        update_includes(doc, server)
-        doc.diagnostics = ps.diagnostics
-        if ps.errored
-            parse_errored(doc, ps)
-        end
-    catch er
-        info("PARSING FAILED for $(doc._uri)")
-        info(er)
-        empty!(doc.diagnostics)
-        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
+    ps = CSTParser.ParseState(doc._content)
+    if endswith(doc._uri, ".jmd")
+        doc.code.ast, ps = parse_jmd(ps, doc._content)
+    else
+        doc.code.ast, ps = CSTParser.parse(ps, true)
     end
+    update_includes(doc, server)
+    doc.diagnostics = ps.diagnostics
+    if ps.errored
+        parse_errored(doc, ps)
+    end
+    
     publish_diagnostics(doc, server)
 end
 

@@ -9,13 +9,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     
     locations = Location[]
     if y isa EXPR{CSTParser.IDENTIFIER}
+        id_length = length(y.val)
         yid = CSTParser.get_id(y).val
         s_id = findlast(s -> s[1].id == Symbol(CSTParser.get_id(y).val), s.symbols)
         if s_id > 0
             V, LOC, uri = s.symbols[s_id]
             locs = find_ref(doc.code.ast, V, LOC)
+            
             for loc in locs
-                push!(locations, Location(uri, Range(doc, loc)))
+                loc1 = first(loc) + (0:id_length)
+                push!(locations, Location(uri, Range(doc, loc1)))
             end
         end
     end

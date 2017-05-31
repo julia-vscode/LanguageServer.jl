@@ -12,12 +12,13 @@ function parse_all(doc, server)
         if ps.errored
             parse_errored(doc, ps)
         end
-
-        publish_diagnostics(doc, server)
     catch er
         info("PARSING FAILED for $(doc._uri)")
         info(er)
+        empty!(doc.diagnostics)
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
     end
+    publish_diagnostics(doc, server)
 end
 
 

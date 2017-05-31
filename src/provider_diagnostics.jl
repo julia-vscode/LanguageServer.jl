@@ -7,24 +7,20 @@ function parse_all(doc, server)
         else
             doc.code.ast, ps = CSTParser.parse(ps, true)
         end
+        update_includes(doc, server)
+        doc.diagnostics = ps.diagnostics
+        if ps.errored
+            parse_errored(doc, ps)
+        end
     catch er
         info("PARSING FAILED for $(doc._uri)")
         info(er)
+        empty!(doc.diagnostics)
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
     end
-    
-    # includes
-    update_includes(doc, server)
-
-    # diagnostics
-    doc.diagnostics = ps.diagnostics
-
-    # Parsing failed
-    if ps.errored
-        parse_errored(doc, ps)
-    end
-
     publish_diagnostics(doc, server)
 end
+
 
 
 function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document)

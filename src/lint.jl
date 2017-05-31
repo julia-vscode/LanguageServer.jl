@@ -105,9 +105,25 @@ mutable struct LintState
     istop::Bool
     ntop::Int
     ns
-    diagnostics::Vector{Diagnostic}
-    symbols::Set
-    locals::Vector{Set}
+    diagnostics::Vector{CSTParser.Diagnostics.Diagnostic}
+    symbols::Dict
+    locals::Vector{Dict}
+end
+
+function add_name!(d::Dict, k)
+    if haskey(d, k)
+        d[k] += 1
+    else
+        d[k] = 1
+    end
+end
+
+function remove_name!(d::Dict, k)
+    if d[k] > 1
+        d[k] -= 1
+    else
+        delete!(d, k)
+    end
 end
 
 function lint(doc::Document, server)
@@ -122,7 +138,11 @@ function lint(doc::Document, server)
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
     s.current = ScopePosition(uri)
 
-    L = LintState(true, 0, current_namespace, [], Set{Any}(v[1].id for v in s.symbols), Set[])
+    Lnames = Dict{Any, Int}()
+    for v in s.symbols
+        add_name!(Lnames, v[1].id)
+    end
+    L = LintState(true, 0, current_namespace, [], Lnames, Dict{Any,Int}[])
     lint(doc.code.ast, s, L, server, true)
 
     return L
@@ -139,9 +159,9 @@ function lint(x::EXPR{CSTParser.Generator}, s::Scope, L::LintState, server, isto
         r = x.args[i]
         for v in r.defs
             push!(s.symbols, (v, s.current.offset + offset + (1:r.span), s.current.uri))
-            push!(L.symbols, v.id)
+            add_name!(L.symbols, v.id)
             if !isempty(L.locals)
-                push!(last(L.locals), v.id)
+                add_name!(last(L.locals), v.id)
             end
         end
         offset += r.span
@@ -160,20 +180,12 @@ function lint(x::EXPR{IDENTIFIER}, s::Scope, L::LintState, server, istop)
     found = Ex in BaseCoreNames
     
     if !found
-        # for (v, loc, uri) in s.symbols
-        #     if Ex == v.id || Expr(:., L.ns, QuoteNode(Ex)) == v.id
-        #         found = true
-        #         break
-        #     end
-        # end
-    end
-    if !found
-        if Ex in L.symbols
+        if haskey(L.symbols, Ex)
             found = true
         end
     end
     if !found
-        if Expr(:., L.ns, QuoteNode(Ex)) in L.symbols
+        if haskey(L.symbols, Expr(:., L.ns, QuoteNode(Ex)))
             found = true
         end
     end
@@ -199,11 +211,11 @@ function lint(x::EXPR{IDENTIFIER}, s::Scope, L::LintState, server, istop)
         end
     end
     if !found
-        # println(x.val, "  ",basename(s.current.uri), "  ", s.current.offset + (0:x.span))
         loc = s.current.offset + (0:sizeof(x.val))
-        doc = server.documents[s.current.uri]
-        rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
-        push!(L.diagnostics, Diagnostic(rng, 1, "VarNotFound", "julia-lint", "Possible use of undeclared variable $(x.val)"))
+        # doc = server.documents[s.current.uri]
+        # rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
+        # push!(L.diagnostics, Diagnostic(rng, 1, "VarNotFound", "julia-lint", "Possible use of undeclared variable $(x.val)"))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Possible use of undeclared variable $(x.val)"))
     end
 end
 
@@ -224,9 +236,9 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, L::LintState, ser
         params = CSTParser._get_fparams(x)
         for p in params
             push!(s.symbols, (Variable(p, :DataType, x.args[3]), s.current.offset + (0:x.span), s.current.uri))
-            push!(L.symbols, p)
+            add_name!(L.symbols, p)
             if !isempty(L.locals)
-                push!(last(L.locals), p)
+                add_name!(last(L.locals), p)
             end
         end
 
@@ -251,10 +263,12 @@ function lint(x::EXPR, s::Scope, L::LintState, server, istop)
             lint(a, s, L, server, istop)
         else
             nls = length(s.symbols)
-            push!(L.locals, Set())
+            push!(L.locals, Dict{Any,Int}())
             lint(a, s, L, server, false)
             deleteat!(s.symbols, nls + 1:length(s.symbols))
-            setdiff!(L.symbols, pop!(L.locals))
+            for k in keys(pop!(L.locals))
+                remove_name!(L.symbols, k)
+            end
         end
         s.current.offset = offset + a.span
     end
@@ -265,9 +279,9 @@ function get_symbols(x, s::Scope, L::LintState) end
 function get_symbols(x::EXPR, s::Scope, L::LintState)
     for v in x.defs
         push!(s.symbols, (v, s.current.offset + (1:x.span), s.current.uri))
-        push!(L.symbols, v.id)
+        add_name!(L.symbols, v.id)
         if !isempty(L.locals)
-            push!(last(L.locals), v.id)
+            add_name!(last(L.locals), v.id)
         end
     end
 end

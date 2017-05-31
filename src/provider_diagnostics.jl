@@ -7,23 +7,17 @@ function parse_all(doc, server)
         else
             doc.code.ast, ps = CSTParser.parse(ps, true)
         end
+        update_includes(doc, server)
+        doc.diagnostics = ps.diagnostics
+        if ps.errored
+            parse_errored(doc, ps)
+        end
+
+        publish_diagnostics(doc, server)
     catch er
         info("PARSING FAILED for $(doc._uri)")
         info(er)
     end
-    
-    # includes
-    update_includes(doc, server)
-
-    # diagnostics
-    doc.diagnostics = ps.diagnostics
-
-    # Parsing failed
-    if ps.errored
-        parse_errored(doc, ps)
-    end
-
-    publish_diagnostics(doc, server)
 end
 
 

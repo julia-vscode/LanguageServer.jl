@@ -60,6 +60,14 @@ function trailing_ws_length(x::CSTParser.EXPR{P}) where P <: CSTParser.PUNCTUATI
     x.span - 1
 end
 
+function trailing_ws_length(x::CSTParser.EXPR{L}) where L <: CSTParser.LITERAL
+    x.span - sizeof(x.val)
+end
+
+function trailing_ws_length(x::CSTParser.EXPR{OP}) where OP <: CSTParser.OPERATOR{P,K,dot} where {P,K,dot}
+    x.span - sizeof(string(UNICODE_OPS_REVERSE[K])) - dot
+end
+
 function trailing_ws_length(x::CSTParser.EXPR{K}) where K <: CSTParser.KEYWORD{T} where T
     x.span - sizeof(string(T))
 end

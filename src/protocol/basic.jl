@@ -2,7 +2,7 @@
 
 const DocumentUri = String
 
-type Position
+mutable struct Position
     line::Int
     character::Int
 
@@ -12,7 +12,7 @@ Position(d::Dict) = Position(d["line"], d["character"])
 Position(line::Integer) = Position(line, 0)
 
 
-type Range
+mutable struct Range
     start::Position
     stop::Position 
 end
@@ -25,14 +25,14 @@ function JSON.lower(a::Range)
     Dict("start" => a.start, "end" => a.stop)
 end
 
-type Location
+mutable struct Location
     uri::String
     range::Range
 end
 Location(d::Dict) = Location(d["uri"], Range(d["range"]))
 Location(f::String, line::Integer) = Location(f, Range(line))
 
-type Diagnostic
+mutable struct Diagnostic
     range::Range
     severity::Int
     code::String
@@ -52,13 +52,13 @@ end
 const DiagnosticSeverity = Dict("Error" => 1, "Warning" => 2, "Information" => 3, "Hint" => 4)
 
 
-type Command
+mutable struct Command
     title::String
     command::String
     arguments::Vector{Any}
 end
 
-type TextEdit
+mutable struct TextEdit
     range::Range
     newText::String
 end

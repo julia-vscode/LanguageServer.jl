@@ -3,19 +3,19 @@
 
 # From client
 
-type WorkspaceEditCapabilities
+mutable struct WorkspaceEditCapabilities
     documentChanges::Bool
 end
 WorkspaceEditCapabilities(d::Dict) = haskeynotnull(d, "applyEdit") ? WorkspaceEditCapabilities(d["applyEdit"]) : WorkspaceEditCapabilities(false)
 WorkspaceEditCapabilities() = WorkspaceEditCapabilities(false)
 
-type Capabilities
+mutable struct Capabilities
     dynamicRegistration::Bool
 end
 Capabilities(d::Dict) = haskeynotnull(d, "dynamicRegistration") ? Capabilities(d["dynamicRegistration"]) : Capabilities()
 Capabilities() = Capabilities(false)
 
-type WorkspaceClientCapabilities
+mutable struct WorkspaceClientCapabilities
     applyEdit::Nullable{Bool}
     workspaceEdit::WorkspaceEditCapabilities
     didChangeConfiguration::Capabilities
@@ -35,7 +35,7 @@ function WorkspaceClientCapabilities(d::Dict)
 end
 WorkspaceClientCapabilities() = WorkspaceClientCapabilities(Dict())
 
-type SynchroizationCapabilities
+mutable struct SynchroizationCapabilities
     dynamicRegistration::Bool
     willSave::Bool
     willSaveWaitUntil::Bool
@@ -50,13 +50,13 @@ function SynchroizationCapabilities(d::Dict)
 end
 SynchroizationCapabilities() = SynchroizationCapabilities(false, false, false, false)
 
-type CompletionItemCapabilities
+mutable struct CompletionItemCapabilities
     snippetSupport::Bool
 end
 CompletionItemCapabilities(d::Dict) = haskeynotnull(d, "snippetSupport") ? CompletionItemCapabilities(d["snippetSupport"]) : CompletionItemCapabilities(false)
 CompletionItemCapabilities() = CompletionItemCapabilities(false)
 
-type CompletionCapabilities
+mutable struct CompletionCapabilities
     dynamicRegistration::Bool
     completionItem::CompletionItemCapabilities
 end
@@ -67,7 +67,7 @@ function CompletionCapabilities(d::Dict)
 end
 CompletionCapabilities() = CompletionCapabilities(false, CompletionItemCapabilities())
 
-type TextDocumentClientCapabilities
+mutable struct TextDocumentClientCapabilities
     synchroization::SynchroizationCapabilities
     completion::CompletionCapabilities
     hover::Capabilities
@@ -118,7 +118,7 @@ TextDocumentClientCapabilities() = TextDocumentClientCapabilities(Synchroization
                                                                   Capabilities(),
                                                                   Capabilities())
 
-type ClientCapabilities
+mutable struct ClientCapabilities
     workspace::WorkspaceClientCapabilities
     textDocument::TextDocumentClientCapabilities
     experimental::Any
@@ -130,7 +130,7 @@ function ClientCapabilities(d::Dict)
     return ClientCapabilities(workspace, textDocument, nothing)
 end
 
-type InitializeParams
+mutable struct InitializeParams
     processId::Int
     rootPath::Nullable{DocumentUri}
     rootUri::Nullable{DocumentUri}
@@ -150,41 +150,41 @@ end
 
 
 # Server Response
-type CompletionOptions 
+mutable struct CompletionOptions 
     resolveProvider::Bool
     triggerCharacters::Vector{String}
 end
 
-type SignatureHelpOptions
+mutable struct SignatureHelpOptions
     triggerCharacters::Vector{String}
 end
 
-type CodeLensOptions
+mutable struct CodeLensOptions
     resolveProvider::Bool
 end
 CodeLensOptions() = CodeLensOptions(false)
 
-type DocumentOnTypeFormattingOptions
+mutable struct DocumentOnTypeFormattingOptions
     firstTriggerCharacter::String
     moreTriggerCharacters::Vector{String}
 end
 DocumentOnTypeFormattingOptions() = DocumentOnTypeFormattingOptions("", [])
 
-type DocumentLinkOptions
+mutable struct DocumentLinkOptions
     resolveProvider::Bool
 end
 
-type ExecuteCommandOptions
+mutable struct ExecuteCommandOptions
     commands::Vector{String}
 end
 ExecuteCommandOptions() = ExecuteCommandOptions([])
 
-type SaveOptions
+mutable struct SaveOptions
     includeText::Bool
 end
 const TextDocumentSyncKind = Dict("None" => 0, "Full" => 1, "Incremental" => 2)
 
-type TextDocumentSyncOptions
+mutable struct TextDocumentSyncOptions
     openClose::Bool
     change::Int
     willSave::Bool
@@ -192,7 +192,7 @@ type TextDocumentSyncOptions
     save::SaveOptions
 end
 
-type ServerCapabilities
+mutable struct ServerCapabilities
     textDocumentSync::Int
     hoverProvider::Bool
     completionProvider::CompletionOptions
@@ -213,7 +213,7 @@ type ServerCapabilities
     experimental
 end
 
-type InitializeResult
+mutable struct InitializeResult
     capabilities::ServerCapabilities
 end
 
@@ -221,25 +221,25 @@ end
 
 # Configuration
 
-type Registration
+mutable struct Registration
     id::String
     method::String
     registerOptions::Any
 end
 
-type RegistrationParams
+mutable struct RegistrationParams
     registrations::Vector{Registration}
 end
 
-type Unregistration
+mutable struct Unregistration
     id::String
     method::String
 end
 
-type UnregistrationParams
+mutable struct UnregistrationParams
     unregistrations::Vector{Unregistration}
 end
 
-type DidChangeConfiguration
+mutable struct DidChangeConfiguration
     settings::Any
 end

@@ -1,11 +1,11 @@
-type TextDocumentIdentifier
+mutable struct TextDocumentIdentifier
     uri::DocumentUri
 end
 
 TextDocumentIdentifier(d::Dict) = TextDocumentIdentifier(d["uri"])
 
 
-type TextDocumentItem
+mutable struct TextDocumentItem
     uri::DocumentUri
     languageId::String
     version::Int
@@ -15,7 +15,7 @@ end
 TextDocumentItem(d::Dict) = TextDocumentItem(d["uri"], d["languageId"], d["version"], d["text"])
 
 
-type VersionedTextDocumentIdentifier
+mutable struct VersionedTextDocumentIdentifier
     uri::DocumentUri
     version::Int
 end
@@ -23,7 +23,7 @@ end
 VersionedTextDocumentIdentifier(d::Dict) = VersionedTextDocumentIdentifier(d["uri"], d["version"])
 
 
-type TextDocumentPositionParams
+mutable struct TextDocumentPositionParams
     textDocument::TextDocumentIdentifier
     position::Position
 end
@@ -31,7 +31,7 @@ end
 TextDocumentPositionParams(d::Dict) = TextDocumentPositionParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]))
 
 
-type DocumentFilter
+mutable struct DocumentFilter
     language::Nullable{String}
     scheme::Nullable{String}
     pattern::Nullable{String}
@@ -46,30 +46,30 @@ end
 
 const DocumentSelector = Vector{DocumentFilter}
 
-type TextDocumentRegistrationOptions
+mutable struct TextDocumentRegistrationOptions
     documentSelector::DocumentSelector
 end
 
-type TextDocumentEdit
+mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
     edits::Vector{TextEdit}
 end
 
 
-type WorkspaceEdit
+mutable struct WorkspaceEdit
     changes
     documentChanges::Vector{TextDocumentEdit}
 end
 
 
-type DidOpenTextDocumentParams
+mutable struct DidOpenTextDocumentParams
     textDocument::TextDocumentItem
 end
 
 DidOpenTextDocumentParams(d::Dict) = DidOpenTextDocumentParams(TextDocumentItem(d["textDocument"]))
 
 
-type TextDocumentContentChangeEvent 
+mutable struct TextDocumentContentChangeEvent 
     range::Range
     rangeLength::Int
     text::String
@@ -87,7 +87,7 @@ function TextDocumentContentChangeEvent(d::Dict)
   end
 
 
-type DidChangeTextDocumentParams
+mutable struct DidChangeTextDocumentParams
     textDocument::VersionedTextDocumentIdentifier
     contentChanges::Vector{TextDocumentContentChangeEvent}
 end
@@ -95,7 +95,7 @@ end
 DidChangeTextDocumentParams(d::Dict) = DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(d["textDocument"]), TextDocumentContentChangeEvent.(d["contentChanges"]))
 
 
-type DidSaveTextDocumentParams
+mutable struct DidSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
 end
 
@@ -103,7 +103,7 @@ DidSaveTextDocumentParams(d::Dict) = DidSaveTextDocumentParams(TextDocumentIdent
 
 
 
-type DidCloseTextDocumentParams
+mutable struct DidCloseTextDocumentParams
     textDocument::TextDocumentIdentifier
 end
 
@@ -115,13 +115,13 @@ const FileChangeType_Created = 1
 const FileChangeType_Changed = 2
 const FileChangeType_Deleted = 3
 
-type FileEvent
+mutable struct FileEvent
     uri::String
     _type::Int
 end
 FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
 
-type DidChangeWatchedFilesParams
+mutable struct DidChangeWatchedFilesParams
     changes::Vector{FileEvent}
 end
 

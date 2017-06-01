@@ -60,7 +60,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             for (v, loc, uri) in s.symbols
                 if startswith(string(v.id), word) 
                     push!(entries, (string(v.id), 6, ""))
-                elseif startswith(string(v.id), string(current_namespace, ".",word))
+                elseif startswith(string(v.id), string(current_namespace, ".", word))
                     push!(entries, (string(v.id)[length(string(current_namespace)) + 2:end], 6, ""))
                 end
             end

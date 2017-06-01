@@ -5,15 +5,15 @@ import Base.parse
 
 export Request, Response, parse_params
 
-type Request{method,Tparams}
+mutable struct Request{method,Tparams}
     id::Nullable{Union{String,Int64}}
     params::Tparams
 end
 
-type Error
+mutable struct Error
 end
 
-type Response{Tresult}
+mutable struct Response{Tresult}
     id::Union{String,Int64}
     result::Nullable{Tresult}
     error::Nullable{Error}
@@ -21,7 +21,7 @@ end
 
 Response(id, result) = Response(id, Nullable(result), Nullable{Error}())
 
-type Notification{method,Tparams}
+mutable struct Notification{method,Tparams}
     params::Nullable{Tparams}
 end
 
@@ -43,7 +43,7 @@ function parse(::Type{Request}, message::AbstractString)
     return ret
 end
 
-function JSON.json{method,Tparams}(request::Request{method,Tparams})
+function JSON.json(request::Request{method,Tparams}) where {method, Tparams}
     request_dict = Dict()
     request_dict["jsonrpc"] = "2.0"
     request_dict["method"] = string(method.parameters[1])
@@ -54,7 +54,7 @@ function JSON.json{method,Tparams}(request::Request{method,Tparams})
     return JSON.json(request_dict)
 end
 
-function JSON.json{TResult}(response::Response{TResult})
+function JSON.json(response::Response{TResult}) where {TResult}
     response_dict = Dict()
     response_dict["jsonrpc"] = "2.0"
     response_dict["id"] = response.id
@@ -68,7 +68,7 @@ function JSON.json{TResult}(response::Response{TResult})
     return JSON.json(response_dict)
 end
 
-function JSON.json{method,Tparams}(response::Notification{method,Tparams})
+function JSON.json(response::Notification{method,Tparams}) where {method, Tparams}
     notification_dict = Dict()
     notification_dict["jsonrpc"] = "2.0"
     notification_dict["method"] = string(method.parameters[1])

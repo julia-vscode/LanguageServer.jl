@@ -146,7 +146,7 @@ function get_module(x::EXPR, s::Scope, server)
     end
 end
 
-_find_scope(x::EXPR{T} , s::Scope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
+_find_scope(x::EXPR{T}, s::Scope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
 
 function _find_scope(x::EXPR, s::Scope, server)
     if ismodule(x)
@@ -217,7 +217,7 @@ isimport(x::EXPR{T}) where T <: Union{CSTParser.Import,CSTParser.ImportAll,CSTPa
 Checks whether `x` is an expression that declares a module.
 """
 ismodule(x) = false
-ismodule(x::EXPR{T}) where T <: Union{CSTParser.ModuleH, CSTParser.BareModule} = true
+ismodule(x::EXPR{T}) where T <: Union{CSTParser.ModuleH,CSTParser.BareModule} = true
 
 """
     findtopfile(uri::String, server, path = String[], namespace = [])

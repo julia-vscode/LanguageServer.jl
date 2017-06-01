@@ -1,4 +1,4 @@
-type Document
+mutable struct Document
     _uri::String
     _content::String
     _line_offsets::Nullable{Vector{Int}}

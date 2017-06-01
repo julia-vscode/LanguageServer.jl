@@ -5,7 +5,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
         rootUri = is_windows() ? string("file:///", replace(replace(server.rootPath, "\\", "/"), ":", "%3A")) : string("file://", server.rootPath, "/src")
         for (uri, doc) in server.documents
             if startswith(uri, rootUri)
-                tf,ns = LanguageServer.findtopfile(uri, server)
+                tf, ns = LanguageServer.findtopfile(uri, server)
                 push!(topfiles, last(tf))
             end
         end
@@ -52,7 +52,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
                 #         push!(warnings, "$r declared in REQUIRE but version $ver not available")
                 #     end
                 # end
-                mloc = findfirst(z-> z==r, modules)
+                mloc = findfirst(z -> z == r, modules)
                 if mloc > 0
                     push!(rmid, mloc)
                 else
@@ -70,12 +70,6 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
     end
     for w in warnings
         response = JSONRPC.Notification{Val{Symbol("window/showMessage")},ShowMessageParams}(ShowMessageParams(3, w))
-        send(response, server)
-    end
-    for (uri, doc) in server.documents
-        L = lint(doc, server)
-        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, L.diagnostics)
-        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
         send(response, server)
     end
 end
@@ -100,6 +94,10 @@ function get_REQUIRE(server)
     return req
 end
 
+
+
+
+const BaseCoreNames = Set(vcat(names(Base), names(Core), :end, :new, :ccall))
 
 mutable struct LintState
     istop::Bool
@@ -138,7 +136,7 @@ function lint(doc::Document, server)
     current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
     s.current = ScopePosition(uri)
 
-    Lnames = Dict{Any, Int}()
+    Lnames = Dict{Any,Int}()
     for v in s.symbols
         add_name!(Lnames, v[1].id)
     end
@@ -147,11 +145,6 @@ function lint(doc::Document, server)
 
     return L
 end
-
-const BaseCoreNames = Set(vcat(names(Base), names(Core), :end, :new))
-
-# function lint(x::EXPR{CSTParser.MacroCall}, s::Scope, L::LintState, server, istop)
-# end
 
 function lint(x::EXPR{CSTParser.Generator}, s::Scope, L::LintState, server, istop)
     offset = x.args[1].span + x.args[2].span
@@ -191,13 +184,13 @@ function lint(x::EXPR{IDENTIFIER}, s::Scope, L::LintState, server, istop)
     end
 
     if !found
-        for (impt,loc,uri) in s.imports
+        for (impt, loc, uri) in s.imports
             if length(impt.args) == 1
                 if Ex == impt.args[1]
                     found = true
                     break
                 else
-                    if isdefined(Main, impt.args[1]) && Ex in names(getfield(Main, impt.args[1]))
+                    if isdefined(Main, impt.args[1]) && getfield(Main, impt.args[1]) isa Module && Ex in names(getfield(Main, impt.args[1]))
                         found = true
                         break
                     end
@@ -212,24 +205,56 @@ function lint(x::EXPR{IDENTIFIER}, s::Scope, L::LintState, server, istop)
     end
     if !found
         loc = s.current.offset + (0:sizeof(x.val))
-        # doc = server.documents[s.current.uri]
-        # rng = Range(Position(get_position_at(doc, first(loc) + 1)..., one_based = true), Position(get_position_at(doc, last(loc) + 1)..., one_based = true))
-        # push!(L.diagnostics, Diagnostic(rng, 1, "VarNotFound", "julia-lint", "Possible use of undeclared variable $(x.val)"))
         push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Possible use of undeclared variable $(x.val)"))
     end
 end
 
 function lint(x::EXPR{CSTParser.Quotenode}, s::Scope, L::LintState, server, istop)
 end
+
 function lint(x::EXPR{CSTParser.Quote}, s::Scope, L::LintState, server, istop)
+    # NEEDS FIX: traverse args only linting -> x isa EXPR{UnarySyntaxOpCall} && x.args[1] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.PlusOp, Tokens.EX_OR}
 end
 
+
+# Types
 function lint(x::EXPR{T}, s::Scope, L::LintState, server, istop) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
+    # NEEDS FIX: allow use of undeclared parameters
 end
+
+function lint(x::EXPR{CSTParser.Abstract}, s::Scope, L::LintState, server, istop)
+    # NEEDS FIX: allow use of undeclared parameters
+end
+
+
+function lint(x::EXPR{CSTParser.Macro}, s::Scope, L::LintState, server, istop)
+    s.current.offset += x.args[1].span + x.args[2].span
+    get_symbols(x.args[2], s, L)
+    lint(x.args[3], s, L, server, istop)
+end
+
+function lint(x::EXPR{CSTParser.x_Str}, s::Scope, L::LintState, server, istop)
+    s.current.offset += x.args[1].span
+    lint(x.args[2], s, L, server, istop)
+end
+
+
+function lint(x::EXPR{CSTParser.Const}, s::Scope, L::LintState, server, istop)
+    # NEEDS FIX: skip if declaring parameterised type alias
+    if x.args[2] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2].args[1] isa EXPR{CSTParser.Curly} && x.args[2].args[3] isa EXPR{CSTParser.Curly}
+    else
+        invoke(lint, Tuple{EXPR,Scope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+    end
+end
+
+function lint(x::EXPR{T}, s::Scope, L::LintState, server, istop) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
+end
+
+
 
 function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, L::LintState, server, istop)
-    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}} 
-        # println(Expr(x), "  ", s.current.offset + (0:x.span))
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
+        # NEEDS FIX: check whether module or field of type
         lint(x.args[1], s, L, server, istop)
     elseif x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}} 
         offset = s.current.offset
@@ -242,9 +267,9 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::Scope, L::LintState, ser
             end
         end
 
-        invoke(lint, Tuple{EXPR, Scope, LintState, LanguageServerInstance, Bool}, x, s, L, server, istop)
+        invoke(lint, Tuple{EXPR,Scope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
     else
-        invoke(lint, Tuple{EXPR, Scope, LintState, LanguageServerInstance, Bool}, x, s, L, server, istop)
+        invoke(lint, Tuple{EXPR,Scope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
     end
 end
 

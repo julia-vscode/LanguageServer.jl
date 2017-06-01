@@ -12,8 +12,14 @@ function parse_all(doc, server)
         parse_errored(doc, ps)
     end
     
+    if doc._runlinter
+        L = lint(doc, server)
+        append!(ps.diagnostics, L.diagnostics)
+    end
+    
     publish_diagnostics(doc, server)
 end
+
 
 
 function convert_diagnostic{T}(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document)

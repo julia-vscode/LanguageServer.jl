@@ -99,6 +99,14 @@ end
 
 const BaseCoreNames = Set(vcat(names(Base), names(Core), :end, :new, :ccall))
 
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
+    server.documents[r.uri]._runlinter != server.documents[r.uri]._runlinter
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params)
+    return TextDocumentIdentifier(params["textDocument"])
+end
+
 mutable struct LintState
     istop::Bool
     ntop::Int

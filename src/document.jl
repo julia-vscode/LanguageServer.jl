@@ -7,9 +7,10 @@ type Document
     code::CSTParser.File
     diagnostics::Vector{CSTParser.Diagnostics.Diagnostic}
     _version::Int
+    _runlinter::Bool
 
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [], 0)
+        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [], 0, true)
     end
 end
 

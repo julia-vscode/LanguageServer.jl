@@ -35,9 +35,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
 
     if !isempty(tde.edits)
         push!(commands, Command("Fix deprecation", "language-julia.applytextedit", [WorkspaceEdit(nothing, [tde])]))
+    end
+    if !isempty(tdeall.edits)
         push!(commands, Command("Fix all similar deprecations in file", "language-julia.applytextedit", [WorkspaceEdit(nothing, [tdeall])]))
     end
-
     response = JSONRPC.Response(get(r.id), commands)
     send(response, server)
 end

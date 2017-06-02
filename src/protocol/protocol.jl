@@ -11,7 +11,7 @@ function Message(t::Int, text::AbstractString)
     Dict("jsonrpc" => "2.0", "method" => "window/showMessage", "params" => Dict("type" => t, "message" => text))
 end
 
-type ShowMessageParams
+mutable struct ShowMessageParams
     typ::Integer
     message::String
 end
@@ -19,11 +19,11 @@ end
 JSON.lower(a::ShowMessageParams) = Dict("type" => a.typ, "message" => a.message)
 
 
-type MessageActionItem
+mutable struct MessageActionItem
     title::String
 end
 
-type ShowMessageRequestParams
+mutable struct ShowMessageRequestParams
     typ::Integer
     message::String
     actions::Nullable{Vector{MessageActionItem}}
@@ -37,7 +37,7 @@ function JSON.lower(a::ShowMessageRequestParams)
     return d
 end
 
-type LogMessageParams
+mutable struct LogMessageParams
     typ::Integer
     message::String
 end
@@ -45,7 +45,7 @@ end
 JSON.lower(a::LogMessageParams) = Dict("type" => a.typ, "message" => a.message)
 
 
-type CancelParams
+mutable struct CancelParams
     id::Union{String,Int64}
 end
 CancelParams(d::Dict) = CancelParams(d["id"])

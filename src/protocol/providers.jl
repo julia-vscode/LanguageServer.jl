@@ -1,4 +1,4 @@
-type PublishDiagnosticsParams
+mutable struct PublishDiagnosticsParams
     uri::String
     diagnostics::Vector{Diagnostic}
 end
@@ -23,7 +23,7 @@ end
 #                                 "File" => 17,
 #                                 "Reference" => 18)
 
-type CompletionItem
+mutable struct CompletionItem
     label::String
     kind::Int
     documentation::String
@@ -34,51 +34,51 @@ end
 import Base.==  
 ==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 
-type CompletionList
+mutable struct CompletionList
     isIncomplete::Bool
     items::Vector{CompletionItem}
 end
 
 
-type MarkedString
+mutable struct MarkedString
     language::String
     value::AbstractString
 end
 MarkedString(x) = MarkedString("julia", string(x))
 Base.hash(x::MarkedString) = hash(x.value) # for unique
 
-type Hover
+mutable struct Hover
     contents::Vector{Union{AbstractString,MarkedString}}
 end
 
 
-type ParameterInformation
+mutable struct ParameterInformation
     label::String
     #documentation::String
 end
 
-type SignatureInformation
+mutable struct SignatureInformation
     label::String
     documentation::String
     parameters::Vector{ParameterInformation}
 end
 
-type SignatureHelp
+mutable struct SignatureHelp
     signatures::Vector{SignatureInformation}
     activeSignature::Int
     activeParameter::Int
 end
 
-type SignatureHelpRegistrationOptions end
+mutable struct SignatureHelpRegistrationOptions end
 
 
-type ReferenceContext
+mutable struct ReferenceContext
     includeDeclaration::Bool
 end
 
 ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
 
-type ReferenceParams
+mutable struct ReferenceParams
     textDocument::TextDocumentIdentifier
     position::Position
     context::ReferenceContext
@@ -89,13 +89,13 @@ ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocumen
 
 const DocumentHighlightKind = Dict("Text" => 1, "Read" => 2, "Write" => 3)
 
-type DocumentHighlight
+mutable struct DocumentHighlight
     range::Range
     kind::Integer
 end
 
 # Document Symbols Provider
-type DocumentSymbolParams 
+mutable struct DocumentSymbolParams 
     textDocument::TextDocumentIdentifier 
 end 
 
@@ -120,7 +120,7 @@ DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["t
 #                         "Boolean" => 17,
 #                         "Array" => 18)
 
-type SymbolInformation 
+mutable struct SymbolInformation 
     name::String 
     kind::Int 
     location::Location 
@@ -128,7 +128,7 @@ type SymbolInformation
 end 
 SymbolInformation(name::String, kind::Int, location::Location) = SymbolInformation(name, kind, location, "")
 
-type WorkspaceSymbolParams 
+mutable struct WorkspaceSymbolParams 
     query::String 
 end 
 WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
@@ -136,12 +136,12 @@ WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
 
 # CodeAction
 
-type CodeActionContext
+mutable struct CodeActionContext
     diagnostics::Vector{Diagnostic}
 end
 CodeActionContext(d::Dict) = CodeActionContext(Diagnostic.(d["diagnostics"]))
 
-type CodeActionParams
+mutable struct CodeActionParams
     textDocument::TextDocumentIdentifier
     range::Range
     context::CodeActionContext
@@ -149,31 +149,31 @@ end
 CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
 
 # Code Lens
-type CodeLensParams
+mutable struct CodeLensParams
     textDocument::TextDocumentIdentifier
 end
 CodeLensParams(d::Dict) = CodeLensParams(TextDocumentIdentifier(d["textDocument"]))
 
-type CodeLens
+mutable struct CodeLens
     range::Range
     command::Command
     data::Any
 end
 
-type CodeLensRegistrationOptions
+mutable struct CodeLensRegistrationOptions
     resolveProvider::Bool
 end
 
 
 # Document Link Provider
 
-type DocumentLinkParams
+mutable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
 end
 
 DocumentLinkParams(d::Dict) = DocumentLinkParams(TextDocumentIdentifier(d["textDocument"]))
 
-type DocumentLink
+mutable struct DocumentLink
     range::Range
     target::String
 end
@@ -182,32 +182,32 @@ end
 
 # Document Formatting
 
-type FormattingOptions
+mutable struct FormattingOptions
     tabSize::Integer
     insertSpaces::Bool
 end
 FormattingOptions(d::Dict) = FormattingOptions(d["tabSize"], d["insertSpaces"])
 
-type DocumentFormattingParams
+mutable struct DocumentFormattingParams
     textDocument::TextDocumentIdentifier
     options::FormattingOptions
 end
 DocumentFormattingParams(d::Dict) = DocumentFormattingParams(TextDocumentIdentifier(d["textDocument"]), FormattingOptions(d["options"]))
 
-type DocumentRangeFormattingParams
+mutable struct DocumentRangeFormattingParams
     textDocument::TextDocumentIdentifier
     range::Range
     options::FormattingOptions
 end
 
-type DocumentOnTypeFormattingParams
+mutable struct DocumentOnTypeFormattingParams
     textDocument::TextDocumentIdentifier
     position::Position
     ch::String
     options::FormattingOptions
 end
 
-type DocumentOnTypeFormattingRegistrationOptions
+mutable struct DocumentOnTypeFormattingRegistrationOptions
     documentSelector::DocumentSelector
     firstTriggerCharacter::String
     moreTriggerCharacer::Vector{String}
@@ -216,7 +216,7 @@ end
 
 # Rename
 
-type RenameParams
+mutable struct RenameParams
     textDocument::TextDocumentIdentifier
     position::Position
     newName::String
@@ -225,23 +225,23 @@ end
 
 # Execute Command
 
-type ExecuteCommandParams
+mutable struct ExecuteCommandParams
     command::String
     arguments::Vector{Any}
 end
 
-type ExecuteCommandRegistrationOptions
+mutable struct ExecuteCommandRegistrationOptions
     commands::Vector{String}
 end
 
 
 # WorkspaceEdit
 
-type ApplyWorkspaceEditParams
+mutable struct ApplyWorkspaceEditParams
     edit::WorkspaceEdit
 end
 
-type ApplyWorkspaceEditResponse
+mutable struct ApplyWorkspaceEditResponse
     applied::Bool
 end
 ApplyWorkspaceEditResponse(d::Dict) = ApplyWorkspaceEditResponse(d["applied"])

@@ -1,4 +1,4 @@
-type LanguageServerInstance
+mutable struct LanguageServerInstance
     pipe_in
     pipe_out
 
@@ -26,7 +26,7 @@ function Base.run(server::LanguageServerInstance)
     loaded = []
     wontload = []
     @schedule begin
-        for (modname,uri,loc) in server.user_modules
+        for (modname, uri, loc) in server.user_modules
             if !(modname in wontload || modname in loaded) 
                 try 
                     @eval import $modname

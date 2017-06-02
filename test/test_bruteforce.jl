@@ -1,59 +1,86 @@
 using LanguageServer
-for n in names(LanguageServer, true, true)
-    eval(:(import LanguageServer.$n))
-end
 import LanguageServer.JSONRPC:Request, parse
-Range = LanguageServer.Range
+import LanguageServer: process, lint
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
+init_request = """
+{
+    "jsonrpc":"2.0",
+    "id":0,
+    "method":"initialize",
+    "params":{"processId":9902,
+              "rootPath":null,
+              "rootUri":"$(Pkg.dir("LanguageServer"))",
+              "capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{"dynamicRegistration":false},"didChangeWatchedFiles":{"dynamicRegistration":false},"symbol":{"dynamicRegistration":true},"executeCommand":{"dynamicRegistration":true}},"textDocument":{"synchronization":{"dynamicRegistration":true,"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"dynamicRegistration":true,"completionItem":{"snippetSupport":true}},"hover":{"dynamicRegistration":true},"signatureHelp":{"dynamicRegistration":true},"references":{"dynamicRegistration":true},"documentHighlight":{"dynamicRegistration":true},"documentSymbol":{"dynamicRegistration":true},"formatting":{"dynamicRegistration":true},"rangeFormatting":{"dynamicRegistration":true},"onTypeFormatting":{"dynamicRegistration":true},"definition":{"dynamicRegistration":true},"codeAction":{"dynamicRegistration":true},"codeLens":{"dynamicRegistration":true},"documentLink":{"dynamicRegistration":true},"rename":{"dynamicRegistration":true}}},
+              "trace":"off"}
+}"""
 
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), true)
-process(parse(Request, """{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"processId":6729,"rootPath":"$(Pkg.dir("LanguageServer"))","capabilities":{},"trace":"off"}}"""), server)
-process(parse(Request, """{"jsonrpc":"2.0","method":"\$/setTraceNotification","params":{"value":"off"}}"""), server)
-process(parse(Request, """{"jsonrpc":"2.0","method":"workspace/didChangeConfiguration","params":{"settings":{}}}"""), server)
+process(LanguageServer.parse(Request,init_request), server)
+process(LanguageServer.parse(Request, """{"jsonrpc":"2.0","method":"initialized","params":{}}"""), server)
 
 
+# Workspace Symbols
+r = parse(Request, """{"jsonrpc":"2.0","id":59,"method":"workspace/symbol","params":{"query":""}}""")
+process(r, server);
 
-
-
-function test(uri, method, server)
-    text = readstring(uri[8:end])
-    server.debug_mode = false
-    r = parse(Request, """{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"$uri","languageId":"julia","version":1,"text":""}}}""")
-    r.params.textDocument.text = text
+# Document Symbols
+for (uri, doc) in server.documents
+    r = parse(Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$(uri)"}}}""")
     process(r, server)
-    doc = server.documents[uri]
-    get_line_offsets(doc::Document)    
-    nl =  length(doc._line_offsets.value) - 1
-    nc = diff(doc._line_offsets.value) - 1
+end
 
-    r = parse(Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$uri"}}}""")
-    process(r, server)
-    for l = 0:nl - 1
-        for c = 0:nc[l + 1]
-            try
-                r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"$method","params":{"textDocument":{"uri":"$uri"},"position":{"line":$l,"character":$c}}}""")
-                process(r, server)
-            catch e
-                println(l, ":", c)
-                error(e)
-            end
+# Hovers
+
+for (uri, doc) in server.documents
+    print("Hovers: $uri ")
+    for loc in 1:sizeof(doc._content)-1
+        line, character = LanguageServer.get_position_at(doc, loc)
+        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        process(r, server)
+        while !isempty(server.user_modules.data)
+            take!(server.user_modules)
         end
     end
-    server.debug_mode = true
+    println("($(sizeof(doc._content)))")
 end
 
-
-allmethods = ["textDocument/hover"
-              "textDocument/completion"
-              "textDocument/signatureHelp"
-              "textDocument/definition"] 
-
-uri, method = "", ""
-for uri in collect(filter(f -> ismatch(r"/src/", f), keys(server.documents)))
-    for method in allmethods
-        println(uri, "   ", method)
-        test(uri, method, server)
+# Completions
+for (uri, doc) in server.documents
+    print("Completions: $uri ")
+    for loc in 1:sizeof(doc._content)-1
+        line, character = LanguageServer.get_position_at(doc, loc)
+        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        process(r, server)
+        while !isempty(server.user_modules.data)
+            take!(server.user_modules)
+        end
     end
+    println("($(sizeof(doc._content)))")
 end
 
+# Definitions
+for (uri, doc) in server.documents
+    print("Definitions: $uri ")
+    for loc in 1:sizeof(doc._content)-1
+        line, character = LanguageServer.get_position_at(doc, loc)
+        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        process(r, server)
+        while !isempty(server.user_modules.data)
+            take!(server.user_modules)
+        end
+    end
+    println("($(sizeof(doc._content)))")
+end
 
-
+# Signatures
+for (uri, doc) in server.documents
+    print("Signatures: $uri ")
+    for loc in 1:sizeof(doc._content)-1
+        line, character = LanguageServer.get_position_at(doc, loc)
+        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        process(r, server)
+        while !isempty(server.user_modules.data)
+            take!(server.user_modules)
+        end
+    end
+    println("($(sizeof(doc._content)))")
+end

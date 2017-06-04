@@ -27,7 +27,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     entries = Tuple{Symbol,Int,String}[]
-    prefix = word[1:findlast(word, '.')]
+    # prefix = word[1:findlast(word, '.')]
+    prefix = word[1:searchlast(word, '.')]
     if isempty(word) && isempty(prefix)
     elseif isempty(prefix) # Single word
         if startswith(word, "\\") # Latex completion
@@ -114,4 +115,19 @@ end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
+end
+
+function searchlast(str, c)
+    i0 = search(str, c, 1)
+    if i0 == 0 
+        return 0
+    else
+        while true
+            i1 = search(str, c, i0 + 1)
+            if i1 == 0
+                return i0
+            end
+            i0 = i1
+        end
+    end
 end

@@ -53,7 +53,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
                     doc._runlinter = true
                 end
             end
-            for doc in server.documents
+            for (uri, doc) in server.documents
                 lint(doc, server)
             end
         end

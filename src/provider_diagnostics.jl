@@ -23,7 +23,7 @@ end
 
 
 function convert_diagnostic(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document) where {T}
-    rng = Range(Position(get_position_at(doc, first(h.loc) + 1)..., one_based = true), Position(get_position_at(doc, last(h.loc) + 1)..., one_based = true))
+    rng = Range(doc, h.loc)
     code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
             T isa CSTParser.Diagnostics.LintCodes ? 2 :
             T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3

@@ -1,10 +1,8 @@
 using LanguageServer
 using Base.Test
+Range =  LanguageServer.Range
 
-tests = ["document", "communication", "hover"]
-
-for t in tests
-    fp = joinpath("test_$t.jl")
-    println("$fp ...")
-    include(fp)
-end
+include("test_document.jl")
+include("test_communication.jl")
+include("test_hover.jl")
+include("test_lint.jl")

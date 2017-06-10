@@ -107,6 +107,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     doc = server.documents[r.params.textDocument.uri]
     doc._version = r.params.textDocument.version
+    isempty(r.params.contentChanges) && return
     dirty = get_offset(doc, last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1):get_offset(doc, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
     for c in r.params.contentChanges
         update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)

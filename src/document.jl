@@ -122,5 +122,5 @@ end
 function Range(doc::Document, rng::UnitRange)
     start_l, start_c = get_position_at(doc, first(rng))
     end_l, end_c = get_position_at(doc, last(rng))
-    rng = Range(start_l - 1, start_c - 1, end_l - 1, end_c)
+    rng = Range(start_l - 1, start_c, end_l - 1, end_c)
 end

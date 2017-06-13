@@ -27,7 +27,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     entries = Tuple{Symbol,Int,String}[]
-    # prefix = word[1:findlast(word, '.')]
+    
+    if word == "end"
+        push!(entries, ("end", 6, "end"))
+    end
+
     prefix = word[1:searchlast(word, '.')]
     if isempty(word) && isempty(prefix)
     elseif isempty(prefix) # Single word

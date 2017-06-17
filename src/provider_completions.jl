@@ -30,6 +30,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     
     if word == "end"
         push!(entries, ("end", 6, "end"))
+    elseif word == "else"
+        push!(entries, ("else", 6, "else"))
+    elseif word == "elseif"
+        push!(entries, ("elseif", 6, "elseif"))
+    elseif word == "catch"
+        push!(entries, ("catch", 6, "catch"))
+    elseif word == "finally"
+        push!(entries, ("finally", 6, "finally"))
     end
 
     prefix = word[1:searchlast(word, '.')]

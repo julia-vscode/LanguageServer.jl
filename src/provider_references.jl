@@ -17,7 +17,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
             locs = find_ref(doc.code.ast, V, LOC)
             
             for loc in locs
-                loc1 = first(loc) + (0:id_length)
+                loc1 = first(loc) + (0:id_length) - 1
                 push!(locations, Location(uri, Range(doc, loc1)))
             end
         end

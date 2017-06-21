@@ -9,7 +9,7 @@ function parse_jmd(ps, str)
     end
     top = CSTParser.EXPR{CSTParser.Block}([], 0, [], "")
     if isempty(blocks)
-        return top
+        return top, ps
     end
 
     for (startbyte, b) in blocks

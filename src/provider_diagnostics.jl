@@ -11,13 +11,14 @@ function parse_all(doc, server)
     if ps.errored
         parse_errored(doc, ps)
     end
-    
-    if doc._runlinter
-        L = lint(doc, server)
-        append!(ps.diagnostics, L.diagnostics)
+    if server.runlinter
+        if doc._runlinter
+            L = lint(doc, server)
+            append!(ps.diagnostics, L.diagnostics)
+        end
+        
+        publish_diagnostics(doc, server)
     end
-    
-    publish_diagnostics(doc, server)
 end
 
 

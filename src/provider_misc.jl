@@ -42,8 +42,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
                 if endswith(file, ".jl")
-                    info("parsed $file")
                     filepath = joinpath(root, file)
+                    info("parsed $filepath")
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)

@@ -17,7 +17,7 @@ init_response_json = JSON.parse("""
 {
     "id":0,"jsonrpc":"2.0",
     "result":{
-        "capabilities":{"textDocumentSync":1,
+        "capabilities":{"textDocumentSync":2,
                         "hoverProvider":true,
                         "completionProvider":{"resolveProvider":false,"triggerCharacters":["."]},
                         "signatureHelpProvider":{"triggerCharacters":["("]},

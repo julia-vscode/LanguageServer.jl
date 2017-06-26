@@ -40,7 +40,19 @@ function Base.run(server::LanguageServerInstance)
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
         request = parse(JSONRPC.Request, message)
-
+        serverbusy(server)
         process(request, server)
+        serverready(server)
+        
     end
 end
+
+function serverbusy(server)
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusBusy")), server.debug_mode)
+end
+
+function serverready(server)
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusReady")), server.debug_mode)
+end
+
+

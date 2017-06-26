@@ -141,7 +141,7 @@ function lint(doc::Document, server)
     s = Scope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), [], [], [], [], namespace, false, true, true, Diagnostic[])
     get_toplevel(server.documents[last(path)].code.ast, s, server)
     
-    current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
+    current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(reverse(s.namespace))
     s.current = ScopePosition(uri)
 
     Lnames = Dict{Any,Int}()

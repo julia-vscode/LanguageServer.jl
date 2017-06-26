@@ -38,7 +38,7 @@ function get_scope(doc::Document, offset::Int, server)
     s.current = ScopePosition(uri)
     y = _find_scope(doc.code.ast, s, server)
 
-    current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(s.namespace)
+    current_namespace = isempty(s.namespace) ? :NOTHING : repack_dot(reverse(s.namespace))
     modules = collect_imports(s, server)
     
     return y, s, modules, current_namespace
@@ -133,17 +133,17 @@ function get_module(x::EXPR, s::Scope, server)
     get_toplevel(x.args[3], s_module, server)
     offset2 = s.current.offset + x.args[1].span + x.args[2].span
     for (v, loc, uri) in s_module.symbols
-        push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
-        # if v.t == :IMPORTS
-        #     push!(s.symbols, (v, loc, uri))
-        # else
-        #     push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
-        # end
+        # push!(s.symbols, (Variable(Expr(:(.), x.defs[1].id, QuoteNode(v.id)), v.t, v.val), loc, uri))
+        push!(s.symbols, (Variable(add_dot_prefix(x.defs[1].id, v.id), v.t, v.val), loc, uri))
     end
     # NEEDS FIX: 
     for impt in s_module.imports
         push!(s.imports, impt)
     end
+end
+
+function add_dot_prefix(prefix ,x)
+    repack_dot(vcat(prefix, unpack_dot(x)))
 end
 
 _find_scope(x::EXPR{T}, s::Scope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x

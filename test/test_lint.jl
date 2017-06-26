@@ -1,5 +1,5 @@
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), true)
-
+server.runlinter = true
 function ≂(r1::LanguageServer.Range, r2::LanguageServer.Range)
     r1.start.line == r2.start.line &&
     r1.start.character == r2.start.character &&

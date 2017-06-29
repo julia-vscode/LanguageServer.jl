@@ -3,7 +3,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
     word = get_word(tdpp, server)
-    y, s, modules, current_namespace = get_scope(doc, offset, server)
+    y, s, modules, current_namespace = scope(doc, offset, server)
 
     locations = Location[]
     if y isa EXPR{CSTParser.IDENTIFIER} || y isa EXPR{OP} where OP <: CSTParser.OPERATOR
@@ -25,12 +25,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         else
             Ey = Expr(y)
         end
-        for (v, loc, uri) in s.symbols
-            if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
-                doc1 = server.documents[uri]
-                ws_offset = trailing_ws_length(get_last_token(v.val))
-                loc1 = loc.start:loc.stop - ws_offset
-                push!(locations, Location(uri, Range(doc1, loc1)))
+        nsEy = join(vcat(s.namespace, Ey), ".")
+        if haskey(s.symbols, nsEy)
+            for (v, loc, uri) in s.symbols[nsEy]
+                if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && Ey == v.id.args[2].value)
+                    doc1 = server.documents[uri]
+                    ws_offset = trailing_ws_length(get_last_token(v.val))
+                    loc1 = loc.start:loc.stop - ws_offset
+                    push!(locations, Location(uri, Range(doc1, loc1)))
+                end
             end
         end
     end

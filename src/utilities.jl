@@ -57,6 +57,27 @@ function repack_dot(args::Vector)
     end
 end
 
+function repack_dot(args::Vector{Symbol})
+    if length(args) == 1
+        return first(args)
+    else
+        out = Expr(:., args[1], QuoteNode(args[2]))
+        for i = 3:length(args)
+            out = Expr(:., out, QuoteNode(args[i]))
+        end
+        return out
+    end
+end
+
+function make_name(ns, id)
+    io = IOBuffer()
+    for x in ns
+        print(io, x)
+        print(io, ".")
+    end
+    print(io, id)
+    String(take!(io))
+end
 
 function get_module(ids::Vector{Symbol}, M = Main)
     if isempty(ids)
@@ -85,20 +106,23 @@ function _isdefined(ids::Vector{Symbol}, M = Main)
     end
 end
 
-function get_cache_entry(id, server, s::Scope)
+function get_cache_entry(id, server, s::TopLevelScope)
     ids = unpack_dot(id)
     if !isempty(ids)
         modules = []
-        for i in s.imports
-            top_mod = i[1].args[1]
-            if !(top_mod in modules) && top_mod != :Base && top_mod != :Core
-                push!(modules, top_mod)
+        ns = isempty(s.namespace) ? "toplevel" : string(repack_dot(reverse(s.namespace)))
+        if haskey(s.imports, ns)
+            for i in s.imports[ns]
+                top_mod = i[1].args[1]
+                if !(top_mod in modules) && top_mod != :Base && top_mod != :Core
+                    push!(modules, top_mod)
+                end
             end
-        end
-        if length(ids) == 1
-            for (impt, loc, uri) in s.imports
-                if first(ids) == last(impt.args)
-                    ids = Vector{Symbol}(impt.args)
+            if length(ids) == 1
+                for (impt, loc, uri) in s.imports[ns]
+                    if first(ids) == last(impt.args)
+                        ids = Vector{Symbol}(impt.args)
+                    end
                 end
             end
         end

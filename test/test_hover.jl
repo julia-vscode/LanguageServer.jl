@@ -8,7 +8,8 @@ function getresult(server)
     JSON.parse(str[search(str, '{'):end])["result"]["contents"]
 end
 
-testtext = """module testmodule
+testtext = """
+module testmodule
 type testtype
     a
     b::Float64
@@ -19,6 +20,7 @@ function testfunction(a, b::Float64, c::testtype)
     return c
 end
 end
+testmodule
 """
 
 server.documents["testdoc"] = Document("testdoc", testtext, true)
@@ -28,7 +30,7 @@ LanguageServer.parse_all(doc, server)
 # clear init output
 take!(server.pipe_out)
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":0,"character":12}}}"""), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":11,"character":5}}}"""), server)
 
 res = getresult(server)
 

@@ -75,32 +75,58 @@ end
 end
 
 @testset "deprecated type syntaxes" begin 
-    server.documents["none"] = doc = LanguageServer.Document("none","""
-    abstract T
-    type T end
-    immutable T end
-    typealias T T
-    bitstype T 8
-    """,true)
-    LanguageServer.parse_all(doc, server)
+    @testset "abstract" begin
+        server.documents["none"] = doc = LanguageServer.Document("none","""
+        abstract T
+        """,true)
+        LanguageServer.parse_all(doc, server)
 
-    d = doc.diagnostics[1]
-    @test d.loc == 0:8
-    @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 8)
+        d = doc.diagnostics[1]
+        @test d.loc == 0:8
+        @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 8)
+    end
 
-    d = doc.diagnostics[2]
-    @test d.loc == 11:15
-    @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(1, 0, 1, 4)
-    
-    d = doc.diagnostics[3]
-    @test d.loc == 22:31
-    @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(2, 0, 2, 9)
-    
-    d = doc.diagnostics[4]
-    @test d.loc == 38:47
-    @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(3, 0, 3, 9)
+    @testset "type" begin
+        server.documents["none"] = doc = LanguageServer.Document("none","""
+        type T end
+        """,true)
+        LanguageServer.parse_all(doc, server)
 
-    d = doc.diagnostics[5]
-    @test d.loc == 52:60
-    @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(4, 0, 4, 8)
+        d = doc.diagnostics[1]
+        @test d.loc == 0:4
+        @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 4)
+    end
+
+    @testset "immutable" begin
+        server.documents["none"] = doc = LanguageServer.Document("none","""
+        immutable T end
+        """,true)
+        LanguageServer.parse_all(doc, server)
+
+        d = doc.diagnostics[1]
+        @test d.loc == 0:9
+        @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 9)
+    end
+
+    @testset "typealias" begin
+        server.documents["none"] = doc = LanguageServer.Document("none","""
+        immutable T end
+        """,true)
+        LanguageServer.parse_all(doc, server)
+
+        d = doc.diagnostics[1]
+        @test d.loc == 0:9
+        @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 9)
+    end
+
+    @testset "bitstype" begin
+        server.documents["none"] = doc = LanguageServer.Document("none","""
+        bitstype a b
+        """,true)
+        LanguageServer.parse_all(doc, server)
+
+        d = doc.diagnostics[1]
+        @test d.loc == 0:8
+        @test LanguageServer.convert_diagnostic(d, doc).range ≂ Range(0, 0, 0, 8)
+    end
 end

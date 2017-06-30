@@ -143,6 +143,21 @@ end
 
 function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)
     # NEEDS FIX: allow use of undeclared parameters
+    if length(x.args) == 2 # deprecated syntax
+        s_pos = x.args[1].span
+        l_pos = s.current.offset + x.span - trailing_ws_length(get_last_token(x))
+        decl = x.args[2]
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.abstractDeprecation}(s.current.offset + (0:8), [CSTParser.Diagnostics.TextEdit(l_pos:l_pos, " end"), CSTParser.Diagnostics.TextEdit(s.current.offset + (0:s_pos), "abstract type ")], "This specification for abstract types is deprecated"))
+    else
+        offset = x.args[1].span + x.args[2].span
+        decl = x.args[3]
+    end
+    name = CSTParser.get_id(decl)
+    nsEx = make_name(s.namespace, name.val)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        loc = s.current.offset + offset + (0:sizeof(name.val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+    end
 end
 
 

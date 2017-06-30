@@ -140,8 +140,31 @@ end
 function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server, istop)
     if x.args[1] isa EXPR{CSTParser.KEYWORD{Tokens.TYPE}}
         push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.typeDeprecation}(s.current.offset + (0:4), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "mutable struct ")], "Use of deprecated `type` syntax"))
+
+        name = CSTParser.get_id(x.args[2])
+        nsEx = make_name(s.namespace, name.val)
+        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+            loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        end
+        offset = s.current.offset + x.args[1].span + x.args[2].span
+        for a in x.args[3].args
+            if CSTParser.declares_function(a)
+                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+                if fname.val != name
+                    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
+                end
+            end
+            offset += a.span
+        end
     else
         name = CSTParser.get_id(x.args[3])
+        name = CSTParser.get_id(x.args[3])
+        nsEx = make_name(s.namespace, name.val)
+        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+            loc = s.current.offset + x.args[1].span + x.args[2].span + (0:sizeof(name.val))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        end
         offset = s.current.offset + x.args[1].span + x.args[2].span + x.args[3].span
         for a in x.args[4].args
             if CSTParser.declares_function(a)
@@ -158,19 +181,24 @@ end
 function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server, istop)
     if x.args[1] isa EXPR{CSTParser.KEYWORD{Tokens.IMMUTABLE}}
         push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.immutableDeprecation}(s.current.offset + (0:9), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "struct ")], "Use of deprecated `immutable` syntax"))
-    else
-        name = CSTParser.get_id(x.args[2])
-        offset = s.current.offset + x.args[1].span + x.args[2].span
-        for a in x.args[3].args
-            if CSTParser.declares_function(a)
-                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
-                if fname.val != name
-                    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
-                end
-            end
-            offset += a.span
-        end
     end
+    name = CSTParser.get_id(x.args[2])
+    nsEx = make_name(s.namespace, name.val)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+    end
+    offset = s.current.offset + x.args[1].span + x.args[2].span
+    for a in x.args[3].args
+        if CSTParser.declares_function(a)
+            fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+            if fname.val != name
+                push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
+            end
+        end
+        offset += a.span
+    end
+    
 end
 
 function lint_struct_body(x, s::TopLevelScope, L::LintState, server, istop)

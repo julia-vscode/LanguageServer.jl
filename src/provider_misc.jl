@@ -42,6 +42,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
             for file in files
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
+                    !isfile(filepath) && continue
                     info("parsed $filepath")
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)

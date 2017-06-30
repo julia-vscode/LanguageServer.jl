@@ -26,7 +26,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
             end
         end
     end
-    sort!(file_actions, lt = (a,b) -> last(b.range) < first(a.range))
+    sort!(file_actions, lt = (a, b) -> last(b.range) < first(a.range))
     for a in file_actions
         start_l, start_c = get_position_at(doc, first(a.range))
         end_l, end_c = get_position_at(doc, last(a.range))

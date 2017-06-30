@@ -51,7 +51,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            y, s, modules, current_namespace = get_scope(doc, offset, server)
+            y, s, modules, current_namespace = scope(doc, offset, server)
             for m in vcat([:Base, :Core], unique(modules))
                 if startswith(string(m), word)
                     push!(entries, (string(m), 9, "Module: $m"))
@@ -70,20 +70,23 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             end
-            for (v, loc, uri) in s.symbols
-                if startswith(string(v.id), word) 
-                    push!(entries, (string(v.id), 6, ""))
-                elseif startswith(string(v.id), string(current_namespace, ".", word))
-                    push!(entries, (string(v.id)[length(string(current_namespace)) + 2:end], 6, ""))
+            if y != nothing
+                Ey = Expr(y)
+                nsEy = make_name(s.namespace, Ey)
+                partial = current_namespace == "toplevel" ? string(Ey) : nsEy
+                for (name, V) in s.symbols
+                    if startswith(string(name), partial) 
+                        push!(entries, (string(first(V)[1].id), 6, ""))
+                    end
                 end
             end
         end
     else
-        y, s, modules, current_namespace = get_scope(doc, offset, server)
+        y, s, modules, current_namespace = scope(doc, offset, server)
         topmodname = Symbol(first(split(prefix, '.')))
         modname = unpack_dot(parse(strip(prefix, '.'), raise = false))
         vname = last(split(word, '.'))
-        if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname)
+        if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname) || (topmodname in BaseCoreNames && isdefined(Main, topmodname) && getfield(Main, topmodname) isa Module)
             M = get_module(modname)
             if M isa Module
                 for n in names(M, true, true)

@@ -137,8 +137,72 @@ end
 
 
 # Types
-function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
-    # NEEDS FIX: allow use of undeclared parameters
+function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server, istop)
+    if x.args[1] isa EXPR{CSTParser.KEYWORD{Tokens.TYPE}}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.typeDeprecation}(s.current.offset + (0:4), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "mutable struct ")], "Use of deprecated `type` syntax"))
+
+        name = CSTParser.get_id(x.args[2])
+        nsEx = make_name(s.namespace, name.val)
+        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+            loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        end
+        offset = s.current.offset + x.args[1].span + x.args[2].span
+        for a in x.args[3].args
+            if CSTParser.declares_function(a)
+                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+                if fname.val != name
+                    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
+                end
+            end
+            offset += a.span
+        end
+    else
+        name = CSTParser.get_id(x.args[3])
+        name = CSTParser.get_id(x.args[3])
+        nsEx = make_name(s.namespace, name.val)
+        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+            loc = s.current.offset + x.args[1].span + x.args[2].span + (0:sizeof(name.val))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        end
+        offset = s.current.offset + x.args[1].span + x.args[2].span + x.args[3].span
+        for a in x.args[4].args
+            if CSTParser.declares_function(a)
+                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+                if fname.val != name
+                    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
+                end
+            end
+            offset += a.span
+        end
+    end
+end
+
+function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server, istop)
+    if x.args[1] isa EXPR{CSTParser.KEYWORD{Tokens.IMMUTABLE}}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.immutableDeprecation}(s.current.offset + (0:9), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "struct ")], "Use of deprecated `immutable` syntax"))
+    end
+    name = CSTParser.get_id(x.args[2])
+    nsEx = make_name(s.namespace, name.val)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+    end
+    offset = s.current.offset + x.args[1].span + x.args[2].span
+    for a in x.args[3].args
+        if CSTParser.declares_function(a)
+            fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+            if fname.val != name
+                push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
+            end
+        end
+        offset += a.span
+    end
+    
+end
+
+function lint_struct_body(x, s::TopLevelScope, L::LintState, server, istop)
+
 end
 
 function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)
@@ -160,6 +224,42 @@ function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, serve
     end
 end
 
+function lint(x::EXPR{CSTParser.Bitstype}, s::TopLevelScope, L::LintState, server, istop)
+    offset = x.args[1].span + x.args[2].span
+    
+    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.bitstypeDeprecation}(s.current.offset + (0:8), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:(x.span)), string("primitive type ", Expr(x.args[3])," ", Expr(x.args[2]), " end"))], "This specification for primitive types is deprecated"))
+    
+    name = CSTParser.get_id(x.args[3])
+    nsEx = make_name(s.namespace, name.val)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        loc = s.current.offset + offset + (0:sizeof(name.val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+    end
+
+    if x.args[2] isa EXPR{CSTParser.LITERAL{Tokens.INTEGER}} && mod(Expr(x.args[2]), 8) != 0
+        loc = s.current.offset + x.args[1].span + (0:sizeof(x.args[2].val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Invalid number of bits in primitive type $(name.val)"))
+    end
+end
+
+function lint(x::EXPR{CSTParser.Primitive}, s::TopLevelScope, L::LintState, server, istop)
+    name = CSTParser.get_id(x.args[3])
+    nsEx = make_name(s.namespace, name.val)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        loc = s.current.offset + x.args[1].span + x.args[2].span + (0:sizeof(name.val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+    end
+
+    if x.args[4] isa EXPR{CSTParser.LITERAL{Tokens.INTEGER}} && mod(Expr(x.args[4]), 8) != 0
+        loc = s.current.offset + x.args[1].span + x.args[2].span + x.args[3].span + (0:sizeof(x.args[4].val))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Invalid number of bits in primitive type $(name.val)"))
+    end
+end
+
+function lint(x::EXPR{CSTParser.TypeAlias}, s::TopLevelScope, L::LintState, server, istop)
+    offset = x.args[1].span    
+    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.typealiasDeprecation}(s.current.offset + (0:9), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:(x.span)), string("const ", Expr(x.args[2]), " = ", Expr(x.args[3])))], "This specification for type aliases is deprecated"))
+end
 
 function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].span + x.args[2].span

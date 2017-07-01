@@ -62,7 +62,7 @@ end
 
 function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop)
     Ex = Symbol(x.val)
-    nsEx = make_name(s.namespace, Ex)
+    nsEx = make_name(s.namespace, x.val)
     found = Ex in BaseCoreNames
 
     if !found
@@ -104,12 +104,27 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     end
 end
 
+function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
+    if x.args[1] isa EXPR{IDENTIFIER}
+        nsEx = make_name(s.namespace, x.args[1].val)
+        if haskey(s.symbols, nsEx) && !(last(s.symbols[nsEx])[1].t == :Function || last(s.symbols[nsEx])[1].t == :immutable || last(s.symbols[nsEx])[1].t == :mutable)
+            loc = s.current.offset + (0:sizeof(x.args[1].val))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "$(x.val) is not callable"))
+        end
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,Any,Any}, x, s, L, server, istop)
+end
+
+function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
+    s.current.offset += x.args[1].span + x.args[2].span
+    lint(x.args[3], s, L, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.Generator}, s::TopLevelScope, L::LintState, server, istop)
     offset = x.args[1].span + x.args[2].span
     for i = 3:length(x.args)
         r = x.args[i]
         for v in r.defs
-            # name = join(vcat(s.namespace, v.id), ".")
             name = make_name(s.namespace, v.id)
             if haskey(s.symbols, name)
                 push!(s.symbols[name], (v, s.current.offset + (1:r.span), s.current.uri))
@@ -121,11 +136,6 @@ function lint(x::EXPR{CSTParser.Generator}, s::TopLevelScope, L::LintState, serv
         offset += r.span
     end
     lint(x.args[1], s, L, server, istop)
-end
-
-function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
-    s.current.offset += x.args[1].span + x.args[2].span
-    lint(x.args[3], s, L, server, istop)
 end
 
 function lint(x::EXPR{CSTParser.Quotenode}, s::TopLevelScope, L::LintState, server, istop)
@@ -199,10 +209,6 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
         offset += a.span
     end
     
-end
-
-function lint_struct_body(x, s::TopLevelScope, L::LintState, server, istop)
-
 end
 
 function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)

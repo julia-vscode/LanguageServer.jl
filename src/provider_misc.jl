@@ -19,7 +19,6 @@ const serverCapabilities = ServerCapabilities(
                         nothing)
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
-    
     if !isnull(r.params.rootUri)
         server.rootPath = uri2filepath(r.params.rootUri.value)
     elseif !isnull(r.params.rootPath)
@@ -43,6 +42,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
             for file in files
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
+                    !isfile(filepath) && continue
                     info("parsed $filepath")
                     uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
                     content = readstring(filepath)
@@ -53,9 +53,9 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
                     doc._runlinter = true
                 end
             end
-            for (uri, doc) in server.documents
-                lint(doc, server)
-            end
+            # for (uri, doc) in server.documents
+            #     lint(doc, server)
+            # end
         end
     end
 end
@@ -93,10 +93,13 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    if !is_workspace_file(server.documents[uri])
+    doc = server.documents[uri]
+    empty!(doc.diagnostics)
+    publish_diagnostics(doc, server)
+    if !is_workspace_file(doc)
         delete!(server.documents, uri)
     else
-        set_open_in_editor(server.documents[uri], false)
+        set_open_in_editor(doc, false)
     end
 end
 

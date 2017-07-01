@@ -46,7 +46,6 @@ else
     error("Unknown operating system.")
 end
 
-
 @async begin    
     server = listen(global_socket_name)
     try

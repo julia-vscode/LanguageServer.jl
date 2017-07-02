@@ -58,6 +58,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
             # end
         end
     end
+    server.isrunning = true
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)

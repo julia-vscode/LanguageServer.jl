@@ -8,3 +8,7 @@
 ## Overview
 
 This package implements the Microsoft [Language Server Protocol](https://github.com/Microsoft/language-server-protocol) for the [Julia](http://julialang.org/) programming language. The package is currently used by the [Julia extension](https://marketplace.visualstudio.com/items?itemName=julialang.language-julia) for [VS Code](https://code.visualstudio.com/) and the [atom-julia-lsp-client](https://github.com/pfitzseb/atom-julia-lsp-client) for [Atom](https://atom.io/).
+
+Text editors with a client for the Language Server Protocol are able to make use of the Julia Language Server for completion and code linting:
+
+- [Neovim](../../wiki/Neovim)

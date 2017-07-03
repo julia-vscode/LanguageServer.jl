@@ -61,7 +61,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     M = getfield(Main, m)
                     if M isa Module
                         for n in names(M)
-                            if startswith(string(n), word)
+                            if startswith(string(n), word) && isdefined(M, n)
                                 x = getfield(M, n)
                                 doc = string(Docs.doc(Docs.Binding(M, n)))
                                 push!(entries, (string(n), CompletionItemKind(typeof(x)), doc))

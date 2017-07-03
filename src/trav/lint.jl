@@ -263,8 +263,10 @@ function lint(x::EXPR{CSTParser.Primitive}, s::TopLevelScope, L::LintState, serv
 end
 
 function lint(x::EXPR{CSTParser.TypeAlias}, s::TopLevelScope, L::LintState, server, istop)
-    offset = x.args[1].span    
-    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.typealiasDeprecation}(s.current.offset + (0:9), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:(x.span)), string("const ", Expr(x.args[2]), " = ", Expr(x.args[3])))], "This specification for type aliases is deprecated"))
+    offset = x.args[1].span
+    lt = CSTParser.get_last_token(x)
+    tws = CSTParser.trailing_ws_length(lt)
+    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.typealiasDeprecation}(s.current.offset + (0:9), [CSTParser.Diagnostics.TextEdit(s.current.offset + (0:(x.span - tws)), string("const ", Expr(x.args[2]), " = ", Expr(x.args[3])))], "This specification for type aliases is deprecated"))
 end
 
 function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)

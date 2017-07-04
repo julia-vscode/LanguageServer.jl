@@ -5,6 +5,10 @@ mutable struct RefState
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
+    if !haskey(server.documents, r.params.textDocument.uri)
+        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        return
+    end
     tdpp = r.params
     uri = tdpp.textDocument.uri
     doc = server.documents[tdpp.textDocument.uri]

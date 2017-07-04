@@ -1,4 +1,8 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server)
+    if !haskey(server.documents, r.params.textDocument.uri)
+        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        return
+    end
     doc = server.documents[r.params.textDocument.uri]
     edits = TextEdit[]
 

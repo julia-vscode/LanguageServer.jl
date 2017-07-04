@@ -1,4 +1,8 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
+    if !haskey(server.documents, r.params.textDocument.uri)
+        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        return
+    end
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     word = get_word(tdpp, server)

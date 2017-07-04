@@ -1,4 +1,8 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
+    if !haskey(server.documents, r.params.textDocument.uri)
+        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        return
+    end
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)

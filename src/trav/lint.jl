@@ -104,16 +104,16 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     end
 end
 
-function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
-    if x.args[1] isa EXPR{IDENTIFIER}
-        nsEx = make_name(s.namespace, x.args[1].val)
-        if haskey(s.symbols, nsEx) && !(last(s.symbols[nsEx])[1].t == :Function || last(s.symbols[nsEx])[1].t == :immutable || last(s.symbols[nsEx])[1].t == :mutable)
-            loc = s.current.offset + (0:sizeof(x.args[1].val))
-            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "$(x.val) is not callable"))
-        end
-    end
-    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,Any,Any}, x, s, L, server, istop)
-end
+# function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
+#     if x.args[1] isa EXPR{IDENTIFIER}
+#         nsEx = make_name(s.namespace, x.args[1].val)
+#         if haskey(s.symbols, nsEx) && !(last(s.symbols[nsEx])[1].t == :Function || last(s.symbols[nsEx])[1].t == :immutable || last(s.symbols[nsEx])[1].t == :mutable)
+#             loc = s.current.offset + (0:sizeof(x.args[1].val))
+#             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "$(x.val) is not callable"))
+#         end
+#     end
+#     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,Any,Any}, x, s, L, server, istop)
+# end
 
 function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].span + x.args[2].span

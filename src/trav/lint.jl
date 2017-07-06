@@ -179,7 +179,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         for a in x.args[4].args
             if CSTParser.declares_function(a)
                 fname = CSTParser._get_fname(CSTParser._get_fsig(a))
-                if fname.val != name
+                if fname.val != name.val
                     push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
                 end
             end
@@ -202,7 +202,7 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     for a in x.args[3].args
         if CSTParser.declares_function(a)
             fname = CSTParser._get_fname(CSTParser._get_fsig(a))
-            if fname.val != name
+            if fname.val != name.val
                 push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.span), [], "Constructor name does not match type name"))
             end
         end

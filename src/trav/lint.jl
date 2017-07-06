@@ -43,7 +43,7 @@ function lint(x::EXPR, s::TopLevelScope, L::LintState, server, istop)
             if !(a isa EXPR{IDENTIFIER})
                 push!(L.locals, Set{String}())
             end
-            lint(a, s, L, server, false)
+            lint(a, s, L, server, ismodule(a))
             
             # Delete local scope
             if !(a isa EXPR{IDENTIFIER})
@@ -66,7 +66,7 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     found = Ex in BaseCoreNames
 
     if !found
-        if haskey(s.symbols, Ex)
+        if haskey(s.symbols, x.val)
             found = true
         end
     end

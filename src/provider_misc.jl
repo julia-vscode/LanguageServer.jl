@@ -65,7 +65,9 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
     return params
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server) end
+function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
+    send(nothing, server)
+end
 function JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params)
     return params
 end

@@ -76,7 +76,7 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
         end
     end
     
-    ns = isempty(L.ns) ? "toplevel" : join(L.ns, ".")
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
 
     if !found && haskey(s.imports, ns)
         for (impt, loc, uri) in s.imports[ns]
@@ -102,6 +102,11 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
         loc = s.current.offset + (0:sizeof(x.val))
         push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Possible use of undeclared variable $(x.val)"))
     end
+end
+
+function lint(x::EXPR{CSTParser.ModuleH}, s::TopLevelScope, L::LintState, server, istop)
+    s.current.offset += x.args[1].span + x.args[2].span
+    lint(x.args[3], s, L, server, istop)
 end
 
 # function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
@@ -153,7 +158,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
 
         name = CSTParser.get_id(x.args[2])
         nsEx = make_name(s.namespace, name.val)
-        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
             loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
         end
@@ -170,7 +175,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
     else
         name = CSTParser.get_id(x.args[3])
         nsEx = make_name(s.namespace, name.val)
-        if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
             loc = s.current.offset + x.args[1].span + x.args[2].span + (0:sizeof(name.val))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
         end
@@ -193,7 +198,7 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     end
     name = CSTParser.get_id(x.args[2])
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
         loc = s.current.offset + x.args[1].span + (0:sizeof(name.val))
         push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
     end
@@ -207,7 +212,6 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
         end
         offset += a.span
     end
-    
 end
 
 function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)

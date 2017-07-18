@@ -90,8 +90,21 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
                         break
                     end
                 end
-            else
-                if Ex == impt.args[end]
+            elseif Ex == impt.args[end]
+                found = true
+                break
+            elseif impt.head == :using && length(impt.args) == 2 && isdefined(Main, impt.args[1]) && isdefined(Main, impt.args[2])
+                m = getfield(Main, impt.args[1])
+                m = getfield(m, impt.args[2])
+                if m isa Module && Ex in names(m)
+                    found = true
+                    break
+                end
+            elseif impt.head == :using && length(impt.args) == 3 && isdefined(Main, impt.args[1]) && isdefined(Main, impt.args[2]) && isdefined(Main, impt.args[3])
+                m = getfield(Main, impt.args[1])
+                m = getfield(m, impt.args[2])
+                m = getfield(m, impt.args[3])
+                if m isa Module && Ex in names(m)
                     found = true
                     break
                 end

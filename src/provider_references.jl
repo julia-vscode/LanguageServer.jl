@@ -102,7 +102,7 @@ end
 function references(x::EXPR{Call}, s::TopLevelScope, L::LintState, R::RefState, server, istop)
     if isincludable(x)
         file = Expr(x.args[3])
-        file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), file)
+        file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
         if file in keys(server.documents)
             oldpos = s.current
             s.current = ScopePosition(file, 0)

@@ -45,7 +45,7 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
             toplevel(a, s, server)
         elseif s.followincludes && isincludable(a)
             file = Expr(a.args[3])
-            file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), file)
+            file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
             if file in keys(server.documents)
                 oldpos = s.current
                 s.current = ScopePosition(file, 0)

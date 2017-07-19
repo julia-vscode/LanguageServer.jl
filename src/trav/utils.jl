@@ -59,7 +59,7 @@ end
 function _get_includes(x, files = []) end
 function _get_includes(x::EXPR{Call}, files = [])
     if isincludable(x)
-        push!(files, (x.args[3].val, []))
+        push!(files, (normpath(x.args[3].val), []))
     end
     return files
 end

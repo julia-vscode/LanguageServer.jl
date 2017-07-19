@@ -120,6 +120,42 @@ end
 #     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,Any,Any}, x, s, L, server, istop)
 # end
 
+function _lint_sig(sig, s, L, fname, offset)
+    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly}# && !haswhere
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.parameterisedDeprecation}((offset + sig.args[1].args[1].span):(offset + sig.args[1].span), [], "Use of deprecated parameter syntax"))
+        
+        trailingws = last(sig.args) isa EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}} ? last(sig.args).span - 1 : 0
+        loc1 = offset + sig.span - trailingws
+
+        push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(loc1:loc1, string(" where {", join((Expr(t) for t in sig.args[1].args[2:end] if !(t isa EXPR{P} where P <: CSTParser.PUNCTUATION) ), ","), "}")))
+        push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit((offset + sig.args[1].args[1].span):(offset + sig.args[1].span), ""))
+    end
+    argnames = [arg.id for arg in sig.defs]
+    if fname in argnames
+        tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(sig))
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DuplicateArgumentName}(offset + (0:sig.span-tws), [], "Use of function name as argument name"))
+    end
+    if !allunique(argnames)
+        tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(sig))
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DuplicateArgumentName}(offset + (0:sig.span-tws), [], "Use of duplicate argument names"))
+    end
+    firstkw = 0
+    for i = 2:length(sig.args)
+        arg = sig.args[i]
+        if !(arg isa EXPR{P} where P <: CSTParser.PUNCTUATION)
+            if firstkw > 0 && i > firstkw && !(arg isa EXPR{CSTParser.Kw})
+
+            end
+        end
+    end
+end
+
+function lint(x::EXPR{CSTParser.FunctionDef}, s::TopLevelScope, L::LintState, server, istop)
+    _lint_sig(x.args[2], s, L, x.defs[1].id, s.current.offset + x.args[1].span)
+
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].span + x.args[2].span
     lint(x.args[3], s, L, server, istop)
@@ -275,6 +311,7 @@ end
 function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].span + x.args[2].span
     get_symbols(x.args[2], s, L)
+    _lint_sig(x.args[2], s, L, x.defs[1].id, s.current.offset)
     lint(x.args[3], s, L, server, istop)
 end
 
@@ -290,6 +327,73 @@ function lint(x::EXPR{CSTParser.Const}, s::TopLevelScope, L::LintState, server, 
     else
         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
     end
+end
+
+function lint(x::EXPR{CSTParser.For}, s::TopLevelScope, L::LintState, server, istop)
+    s.current.offset += x.args[1].span
+    if x.args[2] isa EXPR{Block}
+        for r in x.args[2].args
+            _lint_range(r, s, L)
+            s.current.offset += r.span
+            get_symbols(r, s, L)
+        end
+    else
+        _lint_range(x.args[2], s, L)
+        get_symbols(x.args[2], s, L)
+    end
+    s.current.offset += x.args[2].span
+    lint(x.args[3], s, L, server, istop)
+end
+
+function _lint_range(x::EXPR{CSTParser.BinaryOpCall}, s::TopLevelScope, L::LintState)
+    if ((x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.IN,false}} || x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.ELEMENT_OF,false}}))
+        if x.args[3] isa EXPR{L} where L <: LITERAL
+            push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.LoopOverSingle}(s.current.offset + (0:x.span), [], "You are trying to loop over a single instance"))
+        end
+    else
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.RangeNonAssignment}(s.current.offset + (0:x.span), [], "You must assign (using =, in or ∈) in a range")) 
+    end
+end
+
+function _lint_range(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintState)
+    # assignment tracking occurs in parse_operator(..)
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+        if x.args[3] isa EXPR{L} where L <: LITERAL
+            push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.LoopOverSingle}(s.current.offset + (0:x.span), [], "You are trying to loop over a single instance"))
+        end
+    end
+end
+
+function _lint_range(x, s::TopLevelScope, L::LintState)
+    push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.RangeNonAssignment}(s.current.offset + (0:x.span), [], "You must assign (using =, in or ∈) in a range")) 
+end
+
+function _lint_range(x::EXPR{P}, s::TopLevelScope, L::LintState) where P <: CSTParser.PUNCTUATION
+end
+
+function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, istop) 
+    cond = x.args[2]
+    if cond isa EXPR{CSTParser.BinarySyntaxOpCall} && cond.args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.AssignmentOp}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.CondAssignment}(s.current.offset + x.args[1].span + (0:cond.span), [], "An assignment rather than comparison operator has been used"))
+    end
+    if cond isa EXPR{LITERAL{Tokens.TRUE}}
+        if length(x.args) == 6
+            push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].span + cond.span + x.args[3].span + x.args[4].span + (0:x.args[5].span), [], "This code is never reached"))
+        end
+    elseif cond isa EXPR{LITERAL{Tokens.FALSE}}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].span + x.args[2].span + (0:x.args[3].span), [], "This code is never reached"))
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
+function lint(x::EXPR{CSTParser.While}, s::TopLevelScope, L::LintState, server, istop) 
+    # Linting
+    if x.args[2] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2].args[2] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.AssignmentOp}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.CondAssignment}(s.current.offset + x.args[1].span + (0:x.args[2].span), [], "An assignment rather than comparison operator has been used"))
+    elseif x.args[2] isa EXPR{LITERAL{Tokens.FALSE}}
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + (0:x.span), [], "This code is never reached"))
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end
 
 function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
@@ -324,8 +428,6 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintSt
         offset = s.current.offset
         params = CSTParser._get_fparams(x)
         for p in params
-            
-            # name = join(vcat(isempty(s.namespace) ? "toplevel" : s.namespace, p), ".")
             name = make_name(isempty(s.namespace) ? "toplevel" : s.namespace, p)
             v = Variable(p, :DataType, x.args[3])
             if haskey(s.symbols, name)
@@ -336,6 +438,9 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintSt
             push!(last(L.locals), name)
         end
 
+        invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+    elseif x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}} && CSTParser.is_func_call(x.args[1])
+        _lint_sig(x.args[1], s, L, x.defs[1].id, s.current.offset)
         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
     else
         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)

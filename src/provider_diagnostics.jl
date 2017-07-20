@@ -53,6 +53,6 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
         else
             loc = 0:sizeof(doc._content)
         end
-        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(0:sizeof(doc._content), [], "Parsing failure"))
+        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
     end
 end

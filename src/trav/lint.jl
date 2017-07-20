@@ -214,6 +214,9 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     end
 end
 
+function lint(x::EXPR{CSTParser.ERROR}, s::TopLevelScope, L::LintState, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)
     # NEEDS FIX: allow use of undeclared parameters
     if length(x.args) == 2 # deprecated syntax

@@ -28,6 +28,7 @@ end
 
 
 _scope(x::EXPR{T}, s::TopLevelScope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
+_scope(x::EXPR{CSTParser.KEYWORD{Tokens.END}}, s::TopLevelScope, server)= x
 
 function _scope(x::EXPR, s::TopLevelScope, server)
     if ismodule(x)
@@ -70,7 +71,7 @@ function get_scope(x::EXPR, s::TopLevelScope, server)
 
     if isincludable(x)
         file = Expr(x.args[3])
-        file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), file)
+        file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
         if file in keys(server.documents)
             oldpos = s.current
             s.current = ScopePosition(file, 0)

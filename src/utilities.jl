@@ -178,7 +178,7 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
-    string("file://", file)
+    string("file://", normpath(file))
 end
 
 function should_file_be_linted(uri, server)

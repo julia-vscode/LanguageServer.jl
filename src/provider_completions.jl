@@ -15,12 +15,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             if isempty(line)
                 ""
             else
-                for c in reverse(line[1:chr2ind(line, min(length(line), tdpp.position.character))])
+                rline = reverse(line[1:chr2ind(line, min(length(line), tdpp.position.character))])
+                for (i,c) in enumerate(rline)
                     if c == '\\' || c == '@'
                         write(io, c)
                         break
                     end
-                    if !(Base.is_id_char(c) || c == '.' || c == '_')
+                    if !(Base.is_id_char(c) || c == '.' || c == '_' || (c == '^' && i < length(rline) && rline[i+1] == '\\'))
                         break
                     end
                     write(io, c)

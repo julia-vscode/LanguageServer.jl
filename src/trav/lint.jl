@@ -134,7 +134,7 @@ end
 # end
 
 function _lint_sig(sig, s, L, fname, offset)
-    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly}# && !haswhere
+    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa EXPR{CSTParser.UnarySyntaxOpCall} && sig.args[1].args[1].args[2].args[1] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}})
         push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.parameterisedDeprecation}((offset + sig.args[1].args[1].span):(offset + sig.args[1].span), [], "Use of deprecated parameter syntax"))
         
         trailingws = last(sig.args) isa EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}} ? last(sig.args).span - 1 : 0
@@ -417,22 +417,20 @@ function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T
 end
 
 function lint(x::EXPR{CSTParser.Export}, s::TopLevelScope, L::LintState, server, istop)
-    offset = s.current.offset
+    
     exported_names = Set{String}()
     for a in x.args
         if a isa EXPR{IDENTIFIER}
-            loc = offset + (0:sizeof(x.val))
+            loc = s.current.offset + (0:sizeof(x.val))
             if a.val in exported_names
                 push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.DuplicateArgument}(loc, [], "Variable $(x.val) is already exported"))
             else
                 push!(exported_names, a.val)
             end
-            nsEx = make_name(s.namespace, a.val)
-            if !haskey(s.symbols, nsEx)
-                push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "Variable $(x.val) is exported but not defined within the namespace"))
-            end
+
+            lint(a, s, L, server, istop)
         end
-        offset += a.span
+        s.current.offset += a.span
     end
 end
 

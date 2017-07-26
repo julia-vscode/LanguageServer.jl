@@ -122,7 +122,7 @@ end
 function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
     if x.args[1] isa EXPR{IDENTIFIER}
         nsEx = make_name(s.namespace, x.val)
-        # l127
+        # l127 : 1 arg version of `write`
         if x.args[1].val == "write" && length(x.args) == 4 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function form"))
 
@@ -130,6 +130,11 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             arg = CSTParser.isstring(x.args[3]) ? string('\"', x.args[3].val, '\"') : Expr(x.args[3])
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.span), string("write(STDOUT, ", arg,")")))
+        # l129 : 3 arg version of `delete!`
+        elseif x.args[1].val == "delete!" && length(x.args) == 8 && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "`delete!(ENV, k, def)` should be replaced with `pop!(ENV, k, def)`. Be aware that `pop!` returns `k` or `def`, while `delete!` returns `ENV` or `def`."))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "pop!"))
         end
     end
 

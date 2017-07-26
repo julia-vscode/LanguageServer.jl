@@ -203,6 +203,10 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             if !isimported
                 push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "`quadgk` has been moved to the package QuadGK.jl.\nRun Pkg.add(\"QuadGK\") to install QuadGK on Julia v0.6 and later, and then run `using QuadGK`."))
             end
+        elseif x.args[1].val == "bitbroadcast" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "broadcast"))
         end
     end
 

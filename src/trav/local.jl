@@ -4,7 +4,7 @@ function scope(doc::Document, offset::Int, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict(:toplevel => []))
+    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict(:toplevel => []), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
     
 
@@ -72,6 +72,9 @@ function get_scope(x::EXPR, s::TopLevelScope, server)
     if isincludable(x)
         file = Expr(x.args[3])
         file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+        
+        file in s.path && return
+        
         if file in keys(server.documents)
             oldpos = s.current
             s.current = ScopePosition(file, 0)

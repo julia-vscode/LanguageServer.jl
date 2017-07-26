@@ -19,10 +19,11 @@ mutable struct TopLevelScope
     followincludes::Bool
     intoplevel::Bool
     imports::Dict{String,Vector{Tuple{Expr,UnitRange{Int},String}}}
+    path::Vector{String}
 end
 
 function toplevel(doc, server, followincludes = true)
-    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict(:toplevel => []))
+    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict(:toplevel => []), [])
 
     toplevel(doc.code.ast, s, server)
     return s
@@ -46,7 +47,11 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
         elseif s.followincludes && isincludable(a)
             file = Expr(a.args[3])
             file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+
+            file in s.path && return
+
             if file in keys(server.documents)
+                push!(s.path, file)
                 oldpos = s.current
                 s.current = ScopePosition(file, 0)
                 incl_syms = toplevel(server.documents[file].code.ast, s, server)

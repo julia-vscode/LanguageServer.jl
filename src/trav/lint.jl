@@ -117,6 +117,25 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     end
 end
 
+
+
+function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
+    if x.args[1] isa EXPR{IDENTIFIER}
+        nsEx = make_name(s.namespace, x.val)
+        # l127
+        if x.args[1].val == "write" && length(x.args) == 4 && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function form"))
+
+            # may need fixing for triple quoted strgins
+            arg = CSTParser.isstring(x.args[3]) ? string('\"', x.args[3].val, '\"') : Expr(x.args[3])
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.span), string("write(STDOUT, ", arg,")")))
+        end
+    end
+
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.ModuleH}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].span + x.args[2].span
     lint(x.args[3], s, L, server, istop)

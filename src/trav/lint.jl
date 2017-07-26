@@ -135,35 +135,74 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "`delete!(ENV, k, def)` should be replaced with `pop!(ENV, k, def)`. Be aware that `pop!` returns `k` or `def`, while `delete!` returns `ENV` or `def`."))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "pop!"))
+        # l372 : ipermutedims
         elseif x.args[1].val == "ipermutedims" && length(x.args) == 6 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + sum(x.args[i].span for i = 1:4) + (0:x.args[5].span), string("invperm(", Expr(x.args[5]), ")")))
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "permutedims"))
-        # is(a, b) -> a === b
+        # l381 : is(a, b) -> a === b
         elseif x.args[1].val == "is" && length(x.args) == 6 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + sum(x.args[i].span for i = 1:5) + (0:x.args[6].span), ""))
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + sum(x.args[i].span for i = 1:3) + (0:x.args[4].span), " === "))
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:sum(x.args[i].span for i = 1:2)) , ""))
+        # l465
         elseif x.args[1].val == "den" && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "denominator"))
+        # l466
         elseif x.args[1].val == "num" && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "numerator"))
+        # l471
         elseif x.args[1].val == "takebuf_array" && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "take!"))
+        # l472
         elseif x.args[1].val == "takebuf_string" && length(x.args) == 4 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + sum(x.args[i].span for i = 1:3) + (0:x.args[4].span), "))"))
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "String(take!"))
+        # l527/528 : sumabs(args...) -> sum(abs, args...)
+        elseif x.args[1].val == "sumabs" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:sum(x.args[i].span for i = 1:2)) , "sum(abs, "))
+        # l529/530 : sumabs2(args...) -> sum(abs2, args...)
+        elseif x.args[1].val == "sumabs2" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:sum(x.args[i].span for i = 1:2)) , "sum(abs2, "))
+        # l531/532 : minabs(args...) -> minimum(abs, args...)
+        elseif x.args[1].val == "minabs" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:sum(x.args[i].span for i = 1:2)) , "minimum(abs, "))
+        # l533/534 : maxabs(args...) -> maximum(abs, args...)
+        elseif x.args[1].val == "maxabs" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:sum(x.args[i].span for i = 1:2)) , "maximum(abs, "))
+        elseif x.args[1].val == "quadgk" && !(nsEx in keys(s.symbols))
+            ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+            
+            isimported = false
+            if haskey(s.imports, ns)
+                for (impt, loc, uri) in s.imports[ns]
+                    if (impt.head == :using && impt.args[1] == :QuadGK) || (impt.head == :import && last(impt.args) == :quadgk)
+                        isimported = true
+                    end
+                end
+            end
+            if !isimported
+                push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "`quadgk` has been moved to the package QuadGK.jl.\nRun Pkg.add(\"QuadGK\") to install QuadGK on Julia v0.6 and later, and then run `using QuadGK`."))
+            end
         end
     end
 

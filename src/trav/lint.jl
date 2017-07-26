@@ -148,6 +148,15 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "numerator"))
+        elseif x.args[1].val == "takebuf_array" && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "take!"))
+        elseif x.args[1].val == "takebuf_string" && length(x.args) == 4 && !(nsEx in keys(s.symbols))
+            push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].span), [], "Use of deprecated function"))
+            
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + sum(x.args[i].span for i = 1:3) + (0:x.args[4].span), "))"))
+            push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].span), "String(take!"))
         end
     end
 

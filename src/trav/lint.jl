@@ -65,6 +65,12 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     nsEx = make_name(s.namespace, x.val)
     found = Ex in BaseCoreNames
 
+    if x.val == "FloatRange" && !(nsEx in keys(s.symbols))
+        push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.span), [], "Use of deprecated `FloatRange`, use `StepRangeLen` instead."))
+        
+        push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.span), "StepRangeLen"))
+    end
+
     if !found
         if haskey(s.symbols, x.val)
             found = true

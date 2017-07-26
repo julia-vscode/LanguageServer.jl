@@ -10,8 +10,8 @@ function lint(doc::Document, server)
     tic()
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
-    
-    s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []))
+
+    s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
 
     current_namespace = isempty(s.namespace) ? "toplevel" : join(reverse(s.namespace), ".")

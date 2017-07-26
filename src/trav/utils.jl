@@ -44,13 +44,17 @@ function findtopfile(uri::String, server, path = String[], namespace = [])
     if isempty(follow)
         push!(path, uri)
         return path, namespace
-    elseif length(follow) > 1
-        for f in follow
-            warn("$uri is included by more than one file, following the first: $f")
-        end
-        push!(path, uri)
-        return findtopfile(first(follow), server, path, namespace)
     else
+        if length(follow) > 1
+            for f in follow
+                warn("$uri is included by more than one file, following the first: $f")
+            end
+        end
+        if uri in path
+            response = JSONRPC.Notification{Val{Symbol("window/showMessage")},ShowMessageParams}(ShowMessageParams(3, "Circular reference detected in : $uri"))
+            send(response, server)
+            return path, namespace
+        end
         push!(path, uri)
         return findtopfile(first(follow), server, path, namespace)
     end

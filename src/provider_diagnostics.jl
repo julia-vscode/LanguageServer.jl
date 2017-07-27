@@ -48,10 +48,13 @@ end
 function parse_errored(doc::Document, ps::CSTParser.ParseState)
     ast = doc.code.ast
     if last(ast.args) isa EXPR{CSTParser.ERROR}
+        err_loc = ps.nt.startbyte
         if length(ast.args) > 1
-            loc = ps.nt.startbyte:sizeof(doc._content)
+            start_loc = sum(ast.args[i].span for i = 1:length(ast.args) - 1)
+            loc = start_loc:err_loc
         else
             loc = 0:sizeof(doc._content)
+            loc = 0:err_loc
         end
         push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
     end

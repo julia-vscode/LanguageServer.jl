@@ -26,7 +26,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
 
             rootfile = last(findtopfile(uri, server)[1])
 
-            s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []))
+            s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []), [])
             toplevel(server.documents[rootfile].code.ast, s, server)
             s.current.offset = 0
             L = LintState(true, [], [], [])

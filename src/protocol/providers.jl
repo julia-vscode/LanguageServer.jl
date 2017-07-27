@@ -221,6 +221,7 @@ mutable struct RenameParams
     position::Position
     newName::String
 end
+RenameParams(d::Dict) = RenameParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), d["newName"])
 
 
 # Execute Command

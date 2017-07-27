@@ -13,7 +13,7 @@ const serverCapabilities = ServerCapabilities(
                         true, # documentFormattingProvider
                         false, # documentRangeFormattingProvider
                         # DocumentOnTypeFormattingOptions(), 
-                        false, # renameProvider
+                        true, # renameProvider
                         DocumentLinkOptions(false),
                         ExecuteCommandOptions(),
                         nothing)

@@ -29,7 +29,7 @@ init_response_json = JSON.parse("""
                         "codeActionProvider":true,
                         "documentFormattingProvider":true,
                         "documentRangeFormattingProvider":false,
-                        "renameProvider":false,
+                        "renameProvider":true,
                         "documentLinkProvider":{"resolveProvider":false},
                         "executeCommandProvider":{"commands":[]},
                         "experimental":null

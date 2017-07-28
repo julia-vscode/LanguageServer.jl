@@ -19,9 +19,18 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         get_scope_entry_doc(last(s.stack), s, current_namespace, documentation)
     elseif y isa EXPR{CSTParser.LITERAL}
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
-    elseif y isa EXPR{CSTParser.KEYWORD{Tokens.END}}
+    elseif y isa EXPR{CSTParser.KEYWORD{Tokens.END}} && !isempty(s.stack)
         expr_type = Expr(last(s.stack).args[1])
         documentation = [MarkedString("Closes `$expr_type` expression")]
+    elseif y isa EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}} && !isempty(s.stack)
+        last_ex = last(s.stack)
+        if last_ex isa EXPR{CSTParser.Call}
+            documentation = [MarkedString("Closes `$(Expr(last_ex.args[1]))` call")]
+        elseif last_ex isa EXPR{CSTParser.TupleH}
+            documentation = [MarkedString("Closes a tuple")]
+        else
+            documentation = [""]
+        end
     elseif y != nothing
         documentation = [string(Expr(y))]
     else

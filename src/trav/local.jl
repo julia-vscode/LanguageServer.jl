@@ -28,7 +28,8 @@ end
 
 
 _scope(x::EXPR{T}, s::TopLevelScope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
-_scope(x::EXPR{CSTParser.KEYWORD{Tokens.END}}, s::TopLevelScope, server)= x
+_scope(x::EXPR{CSTParser.KEYWORD{Tokens.END}}, s::TopLevelScope, server) = x
+_scope(x::EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}}, s::TopLevelScope, server) = x
 
 function _scope(x::EXPR, s::TopLevelScope, server)
     if ismodule(x)

@@ -98,3 +98,52 @@ function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTPars
         end
     end
 end
+
+
+function get_defs(x::EXPR{CSTParser.Struct}) 
+    Variable(string(Expr(CSTParser.get_id(x.args[2]))), :mutable, x)
+end
+
+function get_defs(x::EXPR{CSTParser.Mutable}) 
+    Variable(string(Expr(CSTParser.get_id(x.args[3]))), :mutable, x)
+end
+
+function get_defs(x::CSTParser.Abstract)
+    if length(x.args) == 4
+        Variable(string(Expr(CSTParser.get_id(x.args[3]))), :abstract, x)
+    else
+        Variable(string(Expr(CSTParser.get_id(x.args[2]))), :abstract, x)
+    end
+end
+
+function get_defs(x::CSTParser.Primitive)
+    Variable(string(Expr(CSTParser.get_id(x.args[3]))), :primitive, x)
+end
+
+function get_defs(x) end
+
+function get_defs(x::EXPR{CSTParser.ModuleH})
+    Variable(string(Expr(CSTParser.get_id(x.args[2]))), :module, x)
+end
+
+function get_defs(x::EXPR{CSTParser.BareModule})
+    Variable(string(Expr(CSTParser.get_id(x.args[2]))), :baremodule, x)
+end
+
+function get_defs(x::EXPR{CSTParser.FunctionDef})
+    Variable(string(Expr(CSTParser._get_fname(x.args[2]))), :function, x)
+end
+
+function get_defs(x::EXPR{CSTParser.Macro})
+    Variable(string(Expr(CSTParser._get_fname(x.args[2]))), :macro, x)
+end
+
+function get_defs(x::EXPR{CSTParser.BinarySyntaxOpCall})
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+        if CSTParser.is_func_call(x.args[1])
+            Variable(string(Expr(CSTParser._get_fname(x.args[1]))), :function, x)
+        else
+        end
+    end
+    
+end

@@ -64,6 +64,7 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
 end
 
 function toplevel_symbols(x, s::TopLevelScope) end
+
 function toplevel_symbols(x::EXPR, s::TopLevelScope)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
@@ -141,10 +142,12 @@ end
 function get_defs(x::EXPR{CSTParser.BinarySyntaxOpCall})
     if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
         if CSTParser.is_func_call(x.args[1])
-            Variable[Variable(string(Expr(CSTParser._get_fname(x.args[1]))), :function, x)]
+            return Variable[Variable(string(Expr(CSTParser._get_fname(x.args[1]))), :function, x)]
         else
-            _track_assignment(x.args[1], x.args[3])
+            return _track_assignment(x.args[1], x.args[3])
         end
+    else
+        return Variable[]
     end
 end
 

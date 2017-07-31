@@ -47,6 +47,7 @@ function _scope(x::EXPR, s::TopLevelScope, server)
             _for_scope(a, s, server)
         elseif x isa EXPR{CSTParser.Let} && i == 1
             _let_scope(x, s, server)
+        elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
         end
         if s.current.offset + a.span < s.target.offset
             !s.intoplevel && get_scope(a, s, server)

@@ -48,6 +48,7 @@ function _scope(x::EXPR, s::TopLevelScope, server)
         elseif x isa EXPR{CSTParser.Let} && i == 1
             _let_scope(x, s, server)
         elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
+            _anon_func_scope(x, s, server)
         end
         if s.current.offset + a.span < s.target.offset
             !s.intoplevel && get_scope(a, s, server)
@@ -131,6 +132,34 @@ function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server)
                     s.symbols[name] = [var_item]
                 end
             end
+        end
+    end
+end
+
+function _anon_func_scope(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, server)
+    if x.args[1] isa EXPR{CSTParser.TupleH}
+        for a in x.args[1].args
+            if !(a isa EXPR{T} where T <: CSTParser.PUNCTUATION)
+                arg_id = CSTParser.get_id(a).val
+                arg_t = CSTParser.get_t(x)
+                name = make_name(s.namespace, arg_id)
+                var_item = (Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].span), s.current.uri)
+                if haskey(s.symbols, name)
+                    push!(s.symbols[name], var_item)
+                else
+                    s.symbols[name] = [var_item]
+                end
+            end
+        end
+    else
+        arg_id = CSTParser.get_id(x.args[1]).val
+        arg_t = CSTParser.get_t(x.args[1])
+        name = make_name(s.namespace, arg_id)
+        var_item = (Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].span), s.current.uri)
+        if haskey(s.symbols, name)
+            push!(s.symbols[name], var_item)
+        else
+            s.symbols[name] = [var_item]
         end
     end
 end

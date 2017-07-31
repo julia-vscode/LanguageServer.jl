@@ -61,7 +61,7 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
             references(a, s, L, R, server, istop)
         else
             if ismodule(a)
-                push!(s.namespace, a.defs[1].id)
+                push!(s.namespace, a.args[2].val)
             end
             # Add new local scope
             if !(a isa EXPR{IDENTIFIER})

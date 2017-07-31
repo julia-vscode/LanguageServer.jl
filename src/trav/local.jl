@@ -34,7 +34,7 @@ _scope(x::EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}}, s::TopLevelScope, server) 
 function _scope(x::EXPR, s::TopLevelScope, server)
     if ismodule(x)
         toplevel_symbols(x, s)
-        push!(s.namespace, x.defs[1].id)
+        push!(s.namespace, x.args[2].val)
     end
     if s.current.offset + x.span < s.target.offset
         return NOTHING

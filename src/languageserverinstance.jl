@@ -37,6 +37,7 @@ function Base.run(server::LanguageServerInstance)
                             publish_diagnostics(doc, server)
                         end
                     end
+                    push!(loaded, modname)
                 catch err
                     push!(wontload, modname)
                 end

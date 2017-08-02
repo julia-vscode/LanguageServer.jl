@@ -23,6 +23,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
         ns_name = make_name(s.namespace, Expr(y))
         if haskey(s.symbols, ns_name)
             var_def = last(s.symbols[ns_name])
+            if var_def[1].t in (:Function, :mutable, :immutable, :abstract)
+                for i = length(s.symbols[ns_name])-1:-1:1
+                    if s.symbols[ns_name][i][1].t in (:Function, :mutable, :immutable, :abstract)
+                        var_def = s.symbols[ns_name][i]
+                    else
+                        break
+                    end
+                end
+            end
 
             rootfile = last(findtopfile(uri, server)[1])
 
@@ -91,8 +100,18 @@ function references(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, R::RefS
 
     if nsEx == R.targetid
         if haskey(s.symbols, nsEx)
-            uri, loc = last(s.symbols[nsEx])[2:3]
-            if uri == R.target[2] && loc == R.target[3]
+            var_def = last(s.symbols[nsEx])
+            if var_def[1].t in (:Function, :mutable, :immutable, :abstract)
+                for i = length(s.symbols[nsEx])-1:-1:1
+                    if s.symbols[nsEx][i][1].t in (:Function, :mutable, :immutable, :abstract)
+                        var_def = s.symbols[nsEx][i]
+                    else
+                        break
+                    end
+                end
+            end
+            loc, uri = var_def[2:3]
+            if loc == R.target[2] && uri == R.target[3]
                 push!(R.refs, (s.current.offset, s.current.uri))
             end
         end

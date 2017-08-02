@@ -32,11 +32,11 @@ end
 function toplevel(x::EXPR, s::TopLevelScope, server)
     for a in x.args
         offset = s.current.offset
+        toplevel_symbols(a, s)
         if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.span)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
             s.hittarget = true 
             return
         end
-        toplevel_symbols(a, s)
 
         if ismodule(a)
             push!(s.namespace, a.defs[1].id)

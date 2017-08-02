@@ -138,6 +138,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             filepath = uri2filepath(uri)
             content = String(read(filepath))
             server.documents[uri] = Document(uri, content, true)
+            parse_all(server.documents[uri], server)
 
         elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
             delete!(server.documents, uri)

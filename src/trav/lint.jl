@@ -86,7 +86,10 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
 
     if !found && haskey(s.imports, ns)
         for (impt, loc, uri) in s.imports[ns]
-            if length(impt.args) == 1
+            if Ex == impt.args[1]
+                found = true
+                break
+            elseif length(impt.args) == 1
                 if Ex == impt.args[1]
                     found = true
                     break

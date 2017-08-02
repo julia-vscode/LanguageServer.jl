@@ -52,7 +52,7 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
             if uri in keys(server.documents)
                 push!(s.path, uri)
                 oldpos = s.current
-                s.current = ScopePosition(file, 0)
+                s.current = ScopePosition(uri, 0)
                 incl_syms = toplevel(server.documents[uri].code.ast, s, server)
                 s.current = oldpos
             end

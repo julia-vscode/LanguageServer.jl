@@ -75,6 +75,33 @@ function toplevel_symbols(x::EXPR, s::TopLevelScope)
     end
 end
 
+function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope)
+    if x.args[1].val == "@enum"
+        offset = sum(x.args[i].span for i = 1:3)
+        enum_name = Symbol(x.args[3].val)
+        v = Variable(enum_name, :Enum, x)
+        name = make_name(s.namespace, enum_name)
+        if haskey(s.symbols, name)
+            push!(s.symbols[name], (v, s.current.offset + (0:x.span), s.current.uri))
+        else
+            s.symbols[name] = [(v, s.current.offset + (0:x.span), s.current.uri)]
+        end
+        for i = 4:length(x.args)
+            a = x.args[i]
+            if !(a isa EXPR{T} where T <: CSTParser.PUNCTUATION) && a isa EXPR{CSTParser.IDENTIFIER}
+                v = Variable(a.val, enum_name, x)
+                name = make_name(s.namespace, a.val)
+                if haskey(s.symbols, name)
+                    push!(s.symbols[name], (v, offset + (1:a.span), s.current.uri))
+                else
+                    s.symbols[name] = [(v, offset + (1:a.span), s.current.uri)]
+                end
+            end
+            offset += a.span
+        end
+    end
+end
+
 
 function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
     if isempty(s.namespace)

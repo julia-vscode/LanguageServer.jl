@@ -31,6 +31,13 @@ function Base.run(server::LanguageServerInstance)
             if !(modname in wontload || modname in loaded) 
                 try 
                     @eval import $modname
+                    for (uri, doc) in server.documents
+                        if doc._open_in_editor
+                            doc.diagnostics = lint(doc, server).diagnostics
+                            publish_diagnostics(doc, server)
+                        end
+                    end
+                    push!(loaded, modname)
                 catch err
                     push!(wontload, modname)
                 end

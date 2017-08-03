@@ -66,9 +66,10 @@ function get_scope(x::EXPR, s::TopLevelScope, server)
     if contributes_scope(x)
         for a in x.args
             get_scope(a, s, server)
-            offset += a.span
+            s.current.offset += a.span
         end
     end
+    s.current.offset = offset
 
     if isincludable(x)
         file = Expr(x.args[3])

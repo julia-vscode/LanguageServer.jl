@@ -235,17 +235,6 @@ function lint(x::EXPR{CSTParser.ModuleH}, s::TopLevelScope, L::LintState, server
     lint(x.args[3], s, L, server, istop)
 end
 
-# function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)
-#     if x.args[1] isa EXPR{IDENTIFIER}
-#         nsEx = make_name(s.namespace, x.args[1].val)
-#         if haskey(s.symbols, nsEx) && !(last(s.symbols[nsEx])[1].t == :Function || last(s.symbols[nsEx])[1].t == :immutable || last(s.symbols[nsEx])[1].t == :mutable)
-#             loc = s.current.offset + (0:sizeof(x.args[1].val))
-#             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(loc, [], "$(x.val) is not callable"))
-#         end
-#     end
-#     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,Any,Any}, x, s, L, server, istop)
-# end
-
 function _lint_sig(sig, s, L, fname, offset)
     if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa EXPR{CSTParser.UnarySyntaxOpCall} && sig.args[1].args[1].args[2].args[1] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}})
         push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.parameterisedDeprecation}((offset + sig.args[1].args[1].span):(offset + sig.args[1].span), [], "Use of deprecated parameter syntax"))
@@ -310,6 +299,11 @@ end
 
 function lint(x::EXPR{CSTParser.Quote}, s::TopLevelScope, L::LintState, server, istop)
     # NEEDS FIX: traverse args only linting -> x isa EXPR{UnarySyntaxOpCall} && x.args[1] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.PlusOp, Tokens.EX_OR}
+end
+
+function lint(x::EXPR{CSTParser.StringH}, s::TopLevelScope, L::LintState, server, istop)
+    # NEEDS FIX: StringH constructor must track whether initial token is 
+    # a STRING or TRIPLE_STRING in order to calculate offsets.
 end
 
 

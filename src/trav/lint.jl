@@ -510,7 +510,7 @@ function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, ist
             push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].span + cond.span + x.args[3].span + x.args[4].span + (0:x.args[5].span), [], "This code is never reached"))
         end
     elseif cond isa EXPR{LITERAL{Tokens.FALSE}}
-        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].span + x.args[2].span + (0:x.args[3].span), [], "This code is never reached"))
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].span + (0:x.args[2].span + x.args[3].span), [], "This code is never reached"))
     end
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end

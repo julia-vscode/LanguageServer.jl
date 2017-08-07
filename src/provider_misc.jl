@@ -96,6 +96,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
+    !(uri in keys(server.documents)) && return
     doc = server.documents[uri]
     empty!(doc.diagnostics)
     publish_diagnostics(doc, server)

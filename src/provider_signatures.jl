@@ -37,7 +37,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         pos -= 1
     end
 
-    if isempty(word) || parse(word, raise = false).head == :error
+    if isempty(word) || iserrorexpr(parse(word, raise = false))
         response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
     else
         y, s, modules, current_namespace = scope(doc, offset, server)

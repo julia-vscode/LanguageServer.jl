@@ -37,6 +37,13 @@ end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) 
+    if isdir(joinpath(server.rootPath, ".git")) && isfile(joinpath(server.rootPath, ".git", "HEAD"))
+        @async begin
+            watch_file(joinpath(server.rootPath, ".git", "HEAD"))
+            
+            process(JSONRPC.Request{Val{:initialized},Dict{String,Any}}(Nullable{Int}(), Dict{String,Any}()), server)
+        end
+    end
     if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files

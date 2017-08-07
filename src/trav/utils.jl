@@ -83,3 +83,6 @@ function _get_includes(x::EXPR, files = [])
     end
     return files
 end
+
+iserrorexpr(x::Expr) = x.head == :error
+iserrorexpr(x) = false

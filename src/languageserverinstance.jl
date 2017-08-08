@@ -28,7 +28,7 @@ function Base.run(server::LanguageServerInstance)
     wontload = []
     @schedule begin
         for (modname, uri, loc) in server.user_modules
-            if !(modname in wontload || modname in loaded) 
+            if !(modname in wontload || modname in loaded || modname == :.) 
                 try 
                     @eval import $modname
                     for (uri, doc) in server.documents

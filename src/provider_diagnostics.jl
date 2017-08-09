@@ -50,7 +50,7 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
     if last(ast.args) isa EXPR{CSTParser.ERROR}
         err_loc = ps.nt.startbyte
         if length(ast.args) > 1
-            start_loc = sum(ast.args[i].span for i = 1:length(ast.args) - 1)
+            start_loc = sum(ast.args[i].fullspan for i = 1:length(ast.args) - 1)
             loc = start_loc:err_loc
         else
             loc = 0:sizeof(doc._content)

@@ -30,6 +30,7 @@ function Base.run(server::LanguageServerInstance)
         for (modname, uri, loc) in server.user_modules
             if !(modname in wontload || modname in loaded) 
                 try 
+                    info("IMPORTING: $modname")
                     @eval import $modname
                 catch err
                     push!(wontload, modname)

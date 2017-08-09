@@ -1,4 +1,9 @@
 module LanguageServer
+mutable struct Variable
+    id
+    t
+    val
+end
 
 using JSON
 using URIParser
@@ -6,7 +11,7 @@ import CSTParser
 import Tokenize.Tokens
 
 export LanguageServerInstance
-const VariableLoc = Tuple{CSTParser.Variable,UnitRange{Int},String}
+const VariableLoc = Tuple{Variable,UnitRange{Int},String}
 
 include("protocol/protocol.jl")
 include("document.jl")

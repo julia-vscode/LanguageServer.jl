@@ -79,7 +79,7 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
                 pop!(s.namespace)
             end
         end
-        s.current.offset = offset + a.span
+        s.current.offset = offset + a.fullspan
     end
     return
 end
@@ -113,97 +113,3 @@ function references(x::EXPR{Call}, s::TopLevelScope, L::LintState, R::RefState, 
         invoke(references, Tuple{EXPR,TopLevelScope,LintState,RefState,Any,Any}, x, s, L, R, server, istop)
     end
 end
-
-# function lint(x::EXPR{CSTParser.Generator}, s::TopLevelScope, L::LintState, server, istop)
-#     offset = x.args[1].span + x.args[2].span
-#     for i = 3:length(x.args)
-#         r = x.args[i]
-#         for v in r.defs
-#             # name = join(vcat(s.namespace, v.id), ".")
-#             name = make_name(s.namespace, v.id)
-#             if haskey(s.symbols, name)
-#                 push!(s.symbols[name], (v, s.current.offset + (1:r.span), s.current.uri))
-#             else
-#                 s.symbols[name] = [(v, s.current.offset + (1:r.span), s.current.uri)]
-#             end
-#             push!(last(L.locals), name)
-#         end
-#         offset += r.span
-#     end
-#     lint(x.args[1], s, L, server, istop)
-# end
-
-# function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
-#     s.current.offset += x.args[1].span + x.args[2].span
-#     lint(x.args[3], s, L, server, istop)
-# end
-
-
-
-# function lint(x::EXPR{CSTParser.Quotenode}, s::TopLevelScope, L::LintState, server, istop)
-# end
-
-# function lint(x::EXPR{CSTParser.Quote}, s::TopLevelScope, L::LintState, server, istop)
-#     # NEEDS FIX: traverse args only linting -> x isa EXPR{UnarySyntaxOpCall} && x.args[1] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.PlusOp, Tokens.EX_OR}
-# end
-
-
-# Types
-# function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Struct,CSTParser.Mutable}
-#     # NEEDS FIX: allow use of undeclared parameters
-# end
-
-# function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, server, istop)
-#     # NEEDS FIX: allow use of undeclared parameters
-# end
-
-
-# function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
-#     s.current.offset += x.args[1].span + x.args[2].span
-#     get_symbols(x.args[2], s, L)
-#     lint(x.args[3], s, L, server, istop)
-# end
-
-# function lint(x::EXPR{CSTParser.x_Str}, s::TopLevelScope, L::LintState, server, istop)
-#     s.current.offset += x.args[1].span
-#     lint(x.args[2], s, L, server, istop)
-# end
-
-
-# function lint(x::EXPR{CSTParser.Const}, s::TopLevelScope, L::LintState, server, istop)
-#     # NEEDS FIX: skip if declaring parameterised type alias
-#     if x.args[2] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2].args[1] isa EXPR{CSTParser.Curly} && x.args[2].args[3] isa EXPR{CSTParser.Curly}
-#     else
-#         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
-#     end
-# end
-
-# function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
-#     #  NEEDS FIX: 
-# end
-
-# function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintState, server, istop)
-#     if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
-#         # NEEDS FIX: check whether module or field of type
-#         lint(x.args[1], s, L, server, istop)
-#     elseif x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}} 
-#         offset = s.current.offset
-#         params = CSTParser._get_fparams(x)
-#         for p in params
-            
-#             # name = join(vcat(isempty(s.namespace) ? "toplevel" : s.namespace, p), ".")
-#             name = make_name(isempty(s.namespace) ? "toplevel" : s.namespace, p)
-#             v = Variable(p, :DataType, x.args[3])
-#             if haskey(s.symbols, name)
-#                 push!(s.symbols[name], (v, s.current.offset + (1:x.span), s.current.uri))
-#             else
-#                 s.symbols[name] = [(v, s.current.offset + (1:x.span), s.current.uri)]
-#             end
-#             push!(last(L.locals), name)
-#         end
-
-#         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
-#     else
-#         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
-#     end
-# end

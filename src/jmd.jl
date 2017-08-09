@@ -25,8 +25,8 @@ function parse_jmd(ps, str)
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
-            top.span = sum(x.span for x in top.args)
-            currentbyte = top.span + 1
+            top.fullspan = sum(x.fullspan for x in top.args)
+            currentbyte = top.fullspan + 1
         elseif b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.CMD}} && startswith(b.val, "`j ")
             blockstr = b.val[4:end - 1]
             ps = ParseState(blockstr)
@@ -36,14 +36,14 @@ function parse_jmd(ps, str)
 
             args, ps = parse(ps, true)
             append!(top.args, args.args)
-            top.span = sum(x.span for x in top.args)
-            currentbyte = top.span + 1
+            top.fullspan = sum(x.fullspan for x in top.args)
+            currentbyte = top.fullspan + 1
         end
     end
 
     prec_str_size = currentbyte:sizeof(str)
     push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), [], ""))
-    top.span = sum(x.span for x in top.args)
+    top.fullspan = sum(x.fullspan for x in top.args)
 
     return top, ps
 end

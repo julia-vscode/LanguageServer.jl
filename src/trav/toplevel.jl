@@ -1,4 +1,4 @@
-import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, HEAD, Tokens, Variable
+import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, Tokens, Variable
 import CSTParser: TopLevel, Block, Call, NOTHING, FileH
 import CSTParser: contributes_scope
 
@@ -32,7 +32,7 @@ end
 function toplevel(x::EXPR, s::TopLevelScope, server)
     for a in x.args
         offset = s.current.offset
-        if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.span)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
+        if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
             s.hittarget = true 
             return
         end
@@ -58,7 +58,7 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
                 s.current = oldpos
             end
         end
-        s.current.offset = offset + a.span
+        s.current.offset = offset + a.fullspan
     end
     return 
 end
@@ -68,7 +68,7 @@ function toplevel_symbols(x, s::TopLevelScope) end
 function toplevel_symbols(x::EXPR, s::TopLevelScope)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
-        var_item = (v, s.current.offset + (0:x.span), s.current.uri)
+        var_item = (v, s.current.offset + (0:x.fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
@@ -90,11 +90,11 @@ function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTPars
     for d in get_defs(x)
         if d.id.head == :toplevel
             for a in d.id.args
-                push!(s.imports[ns], (a, sum(s.current.offset) + (0:x.span), s.current.uri))
+                push!(s.imports[ns], (a, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
             end
         else
             if all(i -> i isa Symbol, d.id.args)
-                push!(s.imports[ns], (d.id, sum(s.current.offset) + (0:x.span), s.current.uri))
+                push!(s.imports[ns], (d.id, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
             end
         end
     end
@@ -109,7 +109,7 @@ function get_defs(x::EXPR{CSTParser.Mutable})
     [Variable(string(Expr(CSTParser.get_id(x.args[3]))), :mutable, x)]
 end
 
-function get_defs(x::CSTParser.Abstract)
+function get_defs(x::EXPR{CSTParser.Abstract})
     if length(x.args) == 4
         [Variable(string(Expr(CSTParser.get_id(x.args[3]))), :abstract, x)]
     else
@@ -117,7 +117,7 @@ function get_defs(x::CSTParser.Abstract)
     end
 end
 
-function get_defs(x::CSTParser.Primitive)
+function get_defs(x::EXPR{CSTParser.Primitive})
     [Variable(string(Expr(CSTParser.get_id(x.args[3]))), :primitive, x)]
 end
 
@@ -136,7 +136,7 @@ function get_defs(x::EXPR{CSTParser.FunctionDef})
 end
 
 function get_defs(x::EXPR{CSTParser.Macro})
-    [Variable(string(Expr(CSTParser._get_fname(x.args[2]))), :macro, x)]
+    [Variable(string("@", Expr(CSTParser._get_fname(x.args[2]))), :macro, x)]
 end
 
 function get_defs(x::EXPR{CSTParser.BinarySyntaxOpCall})

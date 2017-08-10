@@ -28,10 +28,17 @@ function Base.run(server::LanguageServerInstance)
     wontload = []
     @schedule begin
         for (modname, uri, loc) in server.user_modules
-            if !(modname in wontload || modname in loaded) 
+            if !(modname in wontload || modname in loaded || modname == :.) 
                 try 
                     info("IMPORTING: $modname")
                     @eval import $modname
+                    for (uri, doc) in server.documents
+                        if doc._open_in_editor
+                            doc.diagnostics = lint(doc, server).diagnostics
+                            publish_diagnostics(doc, server)
+                        end
+                    end
+                    push!(loaded, modname)
                 catch err
                     push!(wontload, modname)
                 end

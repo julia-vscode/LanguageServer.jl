@@ -5,8 +5,15 @@ mutable struct Variable
     val
 end
 
+mutable struct LSDiagnostic{C}
+    loc::UnitRange
+    actions::Vector
+    message::String
+end
+
 using JSON
 using URIParser
+import DocumentFormat
 import CSTParser
 import Tokenize.Tokens
 

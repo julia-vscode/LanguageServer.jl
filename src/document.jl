@@ -5,7 +5,7 @@ mutable struct Document
     _open_in_editor::Bool
     _workspace_file::Bool
     code::CSTParser.File
-    diagnostics::Vector{CSTParser.Diagnostics.Diagnostic}
+    diagnostics::Vector{Diagnostic}
     _version::Int
     _runlinter::Bool
 

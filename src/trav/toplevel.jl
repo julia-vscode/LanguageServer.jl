@@ -32,11 +32,11 @@ end
 function toplevel(x::EXPR, s::TopLevelScope, server)
     for a in x.args
         offset = s.current.offset
+        toplevel_symbols(a, s)
         if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
             s.hittarget = true 
             return
         end
-        toplevel_symbols(a, s)
 
         if ismodule(a)
             push!(s.namespace, a.args[2].val)
@@ -46,15 +46,14 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
             toplevel(a, s, server)
         elseif s.followincludes && isincludable(a)
             file = Expr(a.args[3])
-            file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+            uri = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
 
-            file in s.path && return
-
-            if file in keys(server.documents)
-                push!(s.path, file)
+            uri in s.path && return
+            if uri in keys(server.documents)
+                push!(s.path, uri)
                 oldpos = s.current
-                s.current = ScopePosition(file, 0)
-                incl_syms = toplevel(server.documents[file].code.ast, s, server)
+                s.current = ScopePosition(uri, 0)
+                incl_syms = toplevel(server.documents[uri].code.ast, s, server)
                 s.current = oldpos
             end
         end
@@ -73,6 +72,33 @@ function toplevel_symbols(x::EXPR, s::TopLevelScope)
             push!(s.symbols[name], var_item)
         else
             s.symbols[name] = [var_item]
+        end
+    end
+end
+
+function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope)
+    if x.args[1].val == "@enum"
+        offset = sum(x.args[i].fullspan for i = 1:3)
+        enum_name = Symbol(x.args[3].val)
+        v = Variable(enum_name, :Enum, x)
+        name = make_name(s.namespace, enum_name)
+        if haskey(s.symbols, name)
+            push!(s.symbols[name], (v, s.current.offset + x.span, s.current.uri))
+        else
+            s.symbols[name] = [(v, s.current.offset + x.span, s.current.uri)]
+        end
+        for i = 4:length(x.args)
+            a = x.args[i]
+            if !(a isa EXPR{T} where T <: CSTParser.PUNCTUATION) && a isa EXPR{CSTParser.IDENTIFIER}
+                v = Variable(a.val, enum_name, x)
+                name = make_name(s.namespace, a.val)
+                if haskey(s.symbols, name)
+                    push!(s.symbols[name], (v, offset + (1:a.fullspan), s.current.uri))
+                else
+                    s.symbols[name] = [(v, offset + (1:a.fullspan), s.current.uri)]
+                end
+            end
+            offset += a.fullspan
         end
     end
 end

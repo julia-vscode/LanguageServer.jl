@@ -107,7 +107,7 @@ for f in [test_scope,test_undefvar]
         @testset "try" begin
             @test f("""
             try
-                sin(x)
+                sin(1)
             catch err
                 sin(err)
             end

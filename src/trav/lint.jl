@@ -86,7 +86,10 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
 
     if !found && haskey(s.imports, ns)
         for (impt, loc, uri) in s.imports[ns]
-            if length(impt.args) == 1
+            if Ex == impt.args[1]
+                found = true
+                break
+            elseif length(impt.args) == 1
                 if Ex == impt.args[1]
                     found = true
                     break
@@ -213,6 +216,14 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [], "Use of deprecated function"))
             
             push!(last(L.diagnostics).actions, CSTParser.Diagnostics.TextEdit(s.current.offset + (0:x.args[1].fullspan), "broadcast"))
+        elseif x.args[1].val == "include"
+            file = x.args[3].val
+            uri = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+            if !(isincludable(x) && uri in keys(server.documents))
+                tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(x))
+                push!(L.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.PossibleTypo}(s.current.offset + (0:x.fullspan - tws), [], "Could not include $file"))
+            end
+            
         end
     end
 
@@ -277,10 +288,32 @@ function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, 
     s.current.offset += x.args[1].fullspan
     _fsig_scope(x.args[2], s, server, last(L.locals))
     # _lint_sig(x.args[2], s, L, fname, s.current.offset + x.args[1].fullspan)
-
+    # @show keys(s.symbols)
     s.current.offset += x.args[2].fullspan
     lint(x.args[3], s, L, server, istop)
     # invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
+function lint(x::EXPR{CSTParser.Try}, s::TopLevelScope, L::LintState, server, istop)
+    # NEEDS FIX
+    offset = s.current.offset
+    s.current.offset += x.args[1].fullspan
+    push!(L.locals, Set{String}())
+    lint(x.args[2], s, L, server, istop)
+    for k in pop!(L.locals)
+        remove_symbol(s.symbols, k)
+    end
+    s.current.offset = offset + sum(x.args[i].fullspan for i = 1:3)
+    push!(L.locals, Set{String}())
+    _try_scope(x, s, server)
+    @show keys(s.symbols)
+    for i = 4:length(x.args)
+        s.current.offset = offset + sum(x.args[j].fullspan for j = 1:i-1)
+        lint(x.args[i], s, L, server, istop)
+    end
+    for k in pop!(L.locals)
+        remove_symbol(s.symbols, k)
+    end
 end
 
 function lint(x::EXPR{CSTParser.Kw}, s::TopLevelScope, L::LintState, server, istop)
@@ -306,6 +339,11 @@ function lint(x::EXPR{CSTParser.Quote}, s::TopLevelScope, L::LintState, server, 
     # NEEDS FIX: traverse args only linting -> x isa EXPR{UnarySyntaxOpCall} && x.args[1] isa EXPR{OP} where OP <: CSTParser.OPERATOR{CSTParser.PlusOp, Tokens.EX_OR}
 end
 
+function lint(x::EXPR{CSTParser.StringH}, s::TopLevelScope, L::LintState, server, istop)
+    # NEEDS FIX: StringH constructor must track whether initial token is 
+    # a STRING or TRIPLE_STRING in order to calculate offsets.
+end
+
 
 # Types
 function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server, istop)
@@ -322,7 +360,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         for a in x.args[3].args
             if CSTParser.declares_function(a)
                 fname = CSTParser._get_fname(CSTParser._get_fsig(a))
-                if fname.val != name.val
+                if fname.val != name.val && !(fname isa EXPR{CSTParser.InvisBrackets} && fname.args[2] isa EXPR{CSTParser.UnarySyntaxOpCall} && fname.args[2].args[1] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}})
                     push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.MisnamedConstructor}(offset + (0:a.fullspan), [], "Constructor name does not match type name"))
                 end
             end
@@ -514,7 +552,7 @@ function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, ist
             push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].fullspan + cond.fullspan + x.args[3].fullspan + x.args[4].fullspan + (0:x.args[5].fullspan), [], "This code is never reached"))
         end
     elseif cond isa EXPR{LITERAL{Tokens.FALSE}}
-        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:x.args[3].fullspan), [], "This code is never reached"))
+        push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan + x.args[3].fullspan), [], "This code is never reached"))
     end
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end
@@ -527,6 +565,14 @@ function lint(x::EXPR{CSTParser.While}, s::TopLevelScope, L::LintState, server, 
         push!(L.diagnostics, CSTParser.Diagnostic{CSTParser.Diagnostics.DeadCode}(s.current.offset + (0:x.fullspan), [], "This code is never reached"))
     end
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
+
+
+function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Local,CSTParser.Global}
+    if length(x.args) > 2
+        invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+    end
 end
 
 function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}

@@ -53,6 +53,8 @@ function _scope(x::EXPR, s::TopLevelScope, server)
             _anon_func_scope(x, s, server)
         elseif x isa EXPR{CSTParser.Generator}
             _generator_scope(x, s, server)
+        elseif x isa EXPR{CSTParser.Try} && i == 3
+            _try_scope(x, s, server)
         end
         if s.current.offset + a.fullspan < s.target.offset
             !s.intoplevel && get_scope(a, s, server)
@@ -137,6 +139,29 @@ function _generator_scope(x::EXPR{CSTParser.Generator}, s::TopLevelScope, server
     s.current.offset = offset
 end
 
+function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [])
+    offset = s.current.offset
+    if x.args[3] isa EXPR{CSTParser.KEYWORD{Tokens.CATCH}} && x.args[4].fullspan > 0
+        s.current.offset += sum(x.args[i].fullspan for i = 1:3)
+        
+        d = Variable(x.args[4].val, :Any, x.args[4])
+        name = make_name(s.namespace, d.id)
+        var_item = (d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
+        if haskey(s.symbols, name)
+            push!(s.symbols[name], var_item)
+        else
+            s.symbols[name] = [var_item]
+        end
+        push!(locals, name)
+    end
+    for i = 3:length(x.args)
+        a = x.args[i]
+        _for_scope(a, s, server)
+        s.current.offset += a.fullspan
+    end
+    s.current.offset = offset
+end
+
 function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server)
     for i = 2:length(x.args) - 2
         if x.args[i] isa EXPR{CSTParser.BinarySyntaxOpCall}
@@ -210,9 +235,10 @@ function get_scope(x::EXPR, s::TopLevelScope, server)
     if contributes_scope(x)
         for a in x.args
             get_scope(a, s, server)
-            offset += a.fullspan
+            s.current.offset += a.fullspan
         end
     end
+    s.current.offset = offset
 
     if isincludable(x)
         file = Expr(x.args[3])

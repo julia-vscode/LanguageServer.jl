@@ -35,18 +35,21 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return InitializeParams(params)
 end
 
-
+function isjuliabasedir(path)
+    fs = readdir(path)
+    if "base" in fs && isdir(joinpath(path, "base"))
+        return isjuliabasedir(joinpath(path, "base"))
+    end
+    all(f -> f in fs, ["base.jl", "coreimg.jl", "coreio.jl", "inference.jl"])
+end
 function load_rootpath(path)
-    jbasepath = dirname(abspath(Base.find_source_file(functionloc(eval, Tuple{ANY})[1])))
-    jpath = join(split(jbasepath, "/")[1:end-1], "/")
     !(path == "" || 
     path == homedir() ||
-    path == jbasepath ||
-    path == jpath) &&
+    isjuliabasedir(path)) &&
     isdir(path)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server)
     if load_rootpath(server.rootPath)
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files

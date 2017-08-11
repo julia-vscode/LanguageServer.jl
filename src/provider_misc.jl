@@ -36,8 +36,18 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 
+function load_rootpath(path)
+    jbasepath = dirname(abspath(Base.find_source_file(functionloc(eval, Tuple{ANY})[1])))
+    jpath = join(split(jbasepath, "/")[1:end-1], "/")
+    !(path == "" || 
+    path == homedir() ||
+    path == jbasepath ||
+    path == jpath) &&
+    isdir(path)
+end
+
 function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) 
-    if server.rootPath != ""
+    if load_rootpath(server.rootPath)
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
                 if endswith(file, ".jl")

@@ -59,11 +59,30 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, pa
 end
 
 function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server, istop) 
-    for a in x.args
+    for (i, a) in enumerate(x.args)
         offset = s.current.offset
         if istop
         else
             get_symbols(a, s, L)
+        end
+        if (x isa EXPR{CSTParser.FunctionDef} || x isa EXPR{CSTParser.Macro}) && i == 2
+            _fsig_scope(a, s, server, last(L.locals))
+        elseif x isa EXPR{CSTParser.For} && i == 2
+            _for_scope(a, s, server, last(L.loclas))
+        elseif x isa EXPR{CSTParser.Let} && i == 1
+            _let_scope(x, s, server, last(L.locals))
+        elseif x isa EXPR{CSTParser.Do} && i == 2
+            _do_scope(x, s, server, last(L.locals))
+        elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} 
+            if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
+                _anon_func_scope(x, s, server, last(L.locals))
+            elseif i == 1 && CSTParser.declares_function(x)
+                _fsig_scope(a, s, server, last(L.locals))
+            end
+        elseif x isa EXPR{CSTParser.Generator}
+            _generator_scope(x, s, server, last(L.locals))
+        elseif x isa EXPR{CSTParser.Try} && i == 3
+            _try_scope(x, s, server, last(L.locals))
         end
 
         if contributes_scope(a)

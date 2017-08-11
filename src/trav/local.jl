@@ -131,12 +131,12 @@ function _for_scope(range::EXPR{CSTParser.Block}, s::TopLevelScope, server, loca
     end
 end
 
-function _generator_scope(x::EXPR{CSTParser.Generator}, s::TopLevelScope, server)
+function _generator_scope(x::EXPR{CSTParser.Generator}, s::TopLevelScope, server, locals = [])
     offset = s.current.offset
     s.current.offset += sum(x.args[i].fullspan for i = 1:2)
     for i = 3:length(x.args)
         a = x.args[i]
-        _for_scope(a, s, server)
+        _for_scope(a, s, server, locals)
         s.current.offset += a.fullspan
     end
     s.current.offset = offset
@@ -165,7 +165,7 @@ function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [
     s.current.offset = offset
 end
 
-function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server)
+function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server, locals = [])
     for i = 2:length(x.args) - 2
         if x.args[i] isa EXPR{CSTParser.BinarySyntaxOpCall}
             defs = _track_assignment(x.args[i].args[1], x.args[i].args[3])
@@ -177,6 +177,7 @@ function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server)
                 else
                     s.symbols[name] = [var_item]
                 end
+                push!(locals, name)
             end
         end
     end

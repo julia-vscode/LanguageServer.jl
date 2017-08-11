@@ -4,7 +4,6 @@ mutable struct LanguageServerInstance
 
     rootPath::String 
     documents::Dict{String,Document}
-    user_modules::Channel{Tuple{Symbol,String,UnitRange{Int}}}
 
     debug_mode::Bool
     runlinter::Bool
@@ -13,7 +12,7 @@ mutable struct LanguageServerInstance
     user_pkg_dir::String
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, "", Dict{String,Document}(), Channel{Tuple{Symbol,String,UnitRange{Int}}}(500), debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, "", Dict{String,Document}(), debug_mode, false, false, user_pkg_dir)
     end
 end
 
@@ -24,28 +23,6 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
-    loaded = []
-    wontload = []
-    @schedule begin
-        for (modname, uri, loc) in server.user_modules
-            if !(modname in wontload || modname in loaded || modname == :.) 
-                try 
-                    info("IMPORTING: $modname")
-                    @eval import $modname
-                    for (uri, doc) in server.documents
-                        if doc._open_in_editor
-                            doc.diagnostics = lint(doc, server).diagnostics
-                            publish_diagnostics(doc, server)
-                        end
-                    end
-                    push!(loaded, modname)
-                catch err
-                    push!(wontload, modname)
-                end
-            end
-        end
-    end
-
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
         request = parse(JSONRPC.Request, message)

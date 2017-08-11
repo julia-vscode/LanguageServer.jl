@@ -17,7 +17,6 @@ function scope(doc::Document, offset::Int, server)
     modules = Symbol[]
     for (v, loc, uri1) in s.imports[current_namespace == "toplevel" ? "toplevel" : haskey(s.imports, current_namespace) ? current_namespace : "toplevel"]
         if !(v.args[1] in modules) && v.args[1] isa Symbol
-            push!(server.user_modules, (v.args[1], uri1, loc))
             push!(modules, v.args[1])
         end
     end
@@ -49,8 +48,12 @@ function _scope(x::EXPR, s::TopLevelScope, server)
             _let_scope(x, s, server)
         elseif x isa EXPR{CSTParser.Do} && i == 2
             _do_scope(x, s, server)
-        elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
-            _anon_func_scope(x, s, server)
+        elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} 
+            if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
+                _anon_func_scope(x, s, server)
+            elseif i == 1 && CSTParser.declares_function(x)
+                _fsig_scope(a, s, server)
+            end
         elseif x isa EXPR{CSTParser.Generator}
             _generator_scope(x, s, server)
         elseif x isa EXPR{CSTParser.Try} && i == 3

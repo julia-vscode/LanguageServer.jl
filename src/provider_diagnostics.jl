@@ -7,14 +7,13 @@ function parse_all(doc, server)
         doc.code.ast, ps = CSTParser.parse(ps, true)
     end
     update_includes(doc, server)
-    doc.diagnostics = ps.diagnostics
     if ps.errored
         parse_errored(doc, ps)
     end
     if server.runlinter
         if doc._runlinter
             L = lint(doc, server)
-            append!(ps.diagnostics, L.diagnostics)
+            doc.diagnostics = L.diagnostics
         end
         
         publish_diagnostics(doc, server)
@@ -23,11 +22,10 @@ end
 
 
 
-function convert_diagnostic(h::CSTParser.Diagnostics.Diagnostic{T}, doc::Document) where {T}
+function convert_diagnostic(h::LSDiagnostic{T}, doc::Document) where {T}
     rng = Range(doc, h.loc)
     code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
-            T isa CSTParser.Diagnostics.LintCodes ? 2 :
-            T isa CSTParser.Diagnostics.FormatCodes ? 4 : 3
+            T isa LintCodes ? 2 : 3
     Diagnostic(rng, code, string(T), string(typeof(h).name), isempty(h.message) ? string(T) : h.message)
 end
 
@@ -56,6 +54,6 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
             loc = 0:sizeof(doc._content)
             loc = 0:err_loc
         end
-        push!(doc.diagnostics, CSTParser.Diagnostics.Diagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
+        push!(doc.diagnostics, LSDiagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
     end
 end

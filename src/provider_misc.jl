@@ -53,9 +53,9 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}
                     doc._runlinter = true
                 end
             end
-            # for (uri, doc) in server.documents
-            #     lint(doc, server)
-            # end
+            for (uri, doc) in server.documents
+                lint(doc, server)
+            end
         end
     end
     server.isrunning = true
@@ -306,10 +306,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Void}, s
     for m in names(Main)
         if isdefined(Main, m) && getfield(Main, m) isa Module
             M = getfield(Main, m)
-            # info("found Module $m at $(functionloc(first(methods(M.eval)))[1])")
-            # if startswith(functionloc(first(methods(M.eval)))[1], Pkg.dir())
             if !(m in [:Base, :Core, :Main])
-                # info("found Module $m in pkgdir")
                 try
                     reload(string(m))
                     push!(reloaded, string(m))

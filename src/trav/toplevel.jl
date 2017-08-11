@@ -1,4 +1,4 @@
-import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, Tokens, Variable
+import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, Tokens
 import CSTParser: TopLevel, Block, Call, NOTHING, FileH
 import CSTParser: contributes_scope
 
@@ -105,29 +105,38 @@ end
 
 
 function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
-    if isempty(s.namespace)
-        ns = "toplevel"
-    else
-        ns = join(s.namespace, ".")
-    end
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    
     if !haskey(s.imports, ns)
         s.imports[ns] = []
     end
-    for d in get_defs(x)
-        if d.id.head == :toplevel
-            for a in d.id.args
-                push!(s.imports[ns], (a, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
-            end
-        else
-            if all(i -> i isa Symbol, d.id.args)
-                push!(s.imports[ns], (d.id, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
+    if x.args[2] isa EXPR{CSTParser.IDENTIFIER}
+        topmodname = Expr(x.args[2])
+        if !isdefined(Main, topmodname)
+            try 
+                @eval import $topmodname 
+                if isfile(Pkg.dir(string(topmodname)))
+                    @async begin
+                        watch_file(Pkg.dir(string(topmodname)))
+                        info("reloading: $topmodname")
+                        reload(string(topmodname))
+                    end
+                end
             end
         end
+    end
+    expr = Expr(x)
+    if expr.head != :toplevel
+        expr = Expr(:toplevel, expr)
+    end
+    for a in expr.args
+        push!(s.imports[ns], (a, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
     end
 end
 
 
-function get_defs(x::EXPR{CSTParser.Struct}) 
+
+function get_defs(x::EXPR{CSTParser.Struct})
     [Variable(string(Expr(CSTParser.get_id(x.args[2]))), :mutable, x)]
 end
 

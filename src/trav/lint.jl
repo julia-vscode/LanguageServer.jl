@@ -26,7 +26,6 @@ typealiasDeprecation,
 parameterisedDeprecation)
 
 mutable struct LintState
-    istop::Bool
     ns::Vector{Union{Symbol,EXPR}}
     diagnostics::Vector{LSDiagnostic}
     locals::Vector{Set{String}}
@@ -46,7 +45,7 @@ function lint(doc::Document, server)
     s.current = ScopePosition(uri)
     s.namespace = namespace
 
-    L = LintState(true, reverse(namespace), [], [])
+    L = LintState(reverse(namespace), [], [])
     lint(doc.code.ast, s, L, server, true)
     server.debug_mode && info("linting $uri: done ($(toq()))")
     return L
@@ -646,10 +645,6 @@ function get_symbols(x::EXPR, s::TopLevelScope, L::LintState)
         end
         push!(last(L.locals), name)
     end
-end
-
-function get_symbols(x::EXPR{T}, s::TopLevelScope, L::LintState) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
-    toplevel_symbols(x, s)
 end
 
 

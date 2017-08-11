@@ -93,7 +93,7 @@ function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
     end
     for j = 2:length(sig.args)
         if !(sig.args[j] isa EXPR{P} where P <: CSTParser.PUNCTUATION)
-            arg_id = CSTParser.get_id(sig.args[j]).val
+            arg_id = CSTParser._arg_id(sig.args[j]).val
             arg_t = CSTParser.get_t(sig.args[j])
             name = make_name(s.namespace, arg_id)
             var_item = (Variable(arg_id, arg_t, sig1), s.current.offset + (0:sig.fullspan), s.current.uri)

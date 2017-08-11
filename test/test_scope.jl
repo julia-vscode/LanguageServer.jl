@@ -13,7 +13,7 @@ function test_undefvar(str, offset = 0)
     x = CSTParser.parse(str,true)
     s = LanguageServer.TopLevelScope(LanguageServer.ScopePosition("none", typemax(Int)), LanguageServer.ScopePosition("none", 0), false, Dict(), LanguageServer.EXPR[], Symbol[], false, true, Dict(:toplevel => []), [])
     LanguageServer.toplevel(x, s, server)
-    L = LanguageServer.LintState(true, [], [], [])
+    L = LanguageServer.LintState([], [], [])
     s.current.offset = 0
     LanguageServer.lint(x, s, L, server, true)
     isempty(L.diagnostics)
@@ -127,6 +127,18 @@ for f in [test_scope,test_undefvar]
             end
             func(1)
             """, 35)
+            @test f("""
+            function func(arg = 1)
+                arg
+            end
+            func(1)
+            """, 29)
+            @test f("""
+            function func(arg::T)
+                arg
+            end
+            func(1)
+            """, 28)
         end
 
         @testset "macros" begin

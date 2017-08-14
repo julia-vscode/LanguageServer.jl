@@ -92,18 +92,28 @@ function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
         sig = sig.args[1]
     end
     for j = 2:length(sig.args)
-        if !(sig.args[j] isa EXPR{P} where P <: CSTParser.PUNCTUATION)
-            arg_id = CSTParser._arg_id(sig.args[j]).val
-            arg_t = CSTParser.get_t(sig.args[j])
-            name = make_name(s.namespace, arg_id)
-            var_item = (Variable(arg_id, arg_t, sig1), s.current.offset + (0:sig.fullspan), s.current.uri)
-            if haskey(s.symbols, name)
-                push!(s.symbols[name], var_item)
-            else
-                s.symbols[name] = [var_item]
+        if sig.args[j] isa EXPR{CSTParser.Parameters}
+            for parg in sig.args[j].args
+                _add_sigarg(parg, sig, s, loc)
             end
-            push!(loc, name)
+        else
+            _add_sigarg(sig.args[j], sig, s, loc)
         end
+    end
+end
+
+function _add_sigarg(arg, sig, s, loc)
+    if !(arg isa EXPR{P} where P <: CSTParser.PUNCTUATION)
+        arg_id = CSTParser._arg_id(arg).val
+        arg_t = CSTParser.get_t(arg)
+        name = make_name(s.namespace, arg_id)
+        var_item = (Variable(arg_id, arg_t, sig), s.current.offset + (0:sig.fullspan), s.current.uri)
+        if haskey(s.symbols, name)
+            push!(s.symbols[name], var_item)
+        else
+            s.symbols[name] = [var_item]
+        end
+        push!(loc, name)
     end
 end
 

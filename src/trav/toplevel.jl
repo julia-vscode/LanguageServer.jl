@@ -184,6 +184,18 @@ function get_defs(x::EXPR{CSTParser.BinarySyntaxOpCall})
     if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
         if CSTParser.is_func_call(x.args[1])
             return Variable[Variable(Expr(CSTParser._get_fname(x.args[1])), :function, x)]
+        elseif x.args[3] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[3].args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+            defs = Variable[]
+            val = x.args[3]
+            while val isa EXPR{CSTParser.BinarySyntaxOpCall} && val.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+                val = val.args[3]
+            end
+            decl = x
+            while decl isa EXPR{CSTParser.BinarySyntaxOpCall} && decl.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+                _track_assignment(decl.args[1], val, defs)
+                decl = decl.args[3]
+            end
+            return defs
         else
             return _track_assignment(x.args[1], x.args[3])
         end

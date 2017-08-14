@@ -71,6 +71,10 @@ for f in [test_scope,test_undefvar]
             var1
             var2
             """, 24)
+            # @test f("""
+            # var1 = var2 = 12345
+            # var2
+            # """, 22)
         end
 
         @testset "anon func" begin
@@ -134,11 +138,11 @@ for f in [test_scope,test_undefvar]
             func(1)
             """, 29)
             @test f("""
-            function func(arg::T)
+            function func(arg::T) where T
                 arg
             end
             func(1)
-            """, 28)
+            """, 36)
         end
 
         @testset "macros" begin

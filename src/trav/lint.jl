@@ -162,7 +162,7 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             # may need fixing for triple quoted strgins
             arg = CSTParser.isstring(x.args[3]) ? string('\"', x.args[3].val, '\"') : Expr(x.args[3])
             
-            push!(last(L.diagnostics).actions, TextEdit(s.current.offset + (0:x.fullspan), string("write(STDOUT, ", arg,")")))
+            push!(last(L.diagnostics).actions, TextEdit(s.current.offset + (0:x.fullspan), string("write(STDOUT, ", arg, ")")))
         # l129 : 3 arg version of `delete!`
         elseif x.args[1].val == "delete!" && length(x.args) == 8 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [DocumentFormat.TextEdit(s.current.offset + (0:x.args[1].fullspan), "pop!")], "`delete!(ENV, k, def)` should be replaced with `pop!(ENV, k, def)`. Be aware that `pop!` returns `k` or `def`, while `delete!` returns `ENV` or `def`."))
@@ -255,17 +255,17 @@ function _lint_sig(sig, s, L, fname, offset)
     for i = 2:length(sig.args)
         arg = sig.args[i]
         if !(arg isa EXPR{P} where P <: CSTParser.PUNCTUATION)
-            arg_id = CSTParser.get_id(arg).val
+            arg_id = CSTParser._arg_id(arg).val
 
             if arg_id in argnames
                 tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(sig))
-                push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan-tws), [], "Use of duplicate argument names"))
+                push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan - tws), [], "Use of duplicate argument names"))
             end
 
             push!(argnames, arg_id)
-            if fname in argnames
+            if fname != "" && fname in argnames
                 tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(sig))
-                push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan-tws), [], "Use of function name as argument name"))
+                push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan - tws), [], "Use of function name as argument name"))
             end
             if firstkw > 0 && i > firstkw && !(arg isa EXPR{CSTParser.Kw})
 
@@ -279,7 +279,7 @@ function lint(x::EXPR{CSTParser.FunctionDef}, s::TopLevelScope, L::LintState, se
     fname = CSTParser._get_fname(x).val
     s.current.offset += x.args[1].fullspan
     _fsig_scope(x.args[2], s, server, last(L.locals))
-    _lint_sig(x.args[2], s, L, fname, s.current.offset + x.args[1].fullspan)
+    _lint_sig(x.args[2], s, L, fname, s.current.offset)
 
     s.current.offset = offset
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
@@ -292,7 +292,6 @@ function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, 
     s.current.offset += x.args[1].fullspan
     _fsig_scope(x.args[2], s, server, last(L.locals))
     # _lint_sig(x.args[2], s, L, fname, s.current.offset + x.args[1].fullspan)
-    # @show keys(s.symbols)
     s.current.offset += x.args[2].fullspan
     lint(x.args[3], s, L, server, istop)
     # invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
@@ -311,7 +310,7 @@ function lint(x::EXPR{CSTParser.Try}, s::TopLevelScope, L::LintState, server, is
     push!(L.locals, Set{String}())
     _try_scope(x, s, server)
     for i = 4:length(x.args)
-        s.current.offset = offset + sum(x.args[j].fullspan for j = 1:i-1)
+        s.current.offset = offset + sum(x.args[j].fullspan for j = 1:i - 1)
         lint(x.args[i], s, L, server, istop)
     end
     for k in pop!(L.locals)
@@ -357,7 +356,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         nsEx = make_name(s.namespace, name.val)
         if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
             loc = s.current.offset + x.args[1].fullspan + (0:sizeof(name.val))
-            push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+            push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
         end
         offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan
         for a in x.args[3].args
@@ -374,7 +373,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         nsEx = make_name(s.namespace, name.val)
         if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
             loc = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:sizeof(name.val))
-            push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+            push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
         end
         offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + x.args[3].fullspan
         for a in x.args[4].args
@@ -397,7 +396,7 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     nsEx = make_name(s.namespace, name.val)
     if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
         loc = s.current.offset + x.args[1].fullspan + (0:sizeof(name.val))
-        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
     offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan
     for a in x.args[3].args
@@ -427,22 +426,22 @@ function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, serve
     end
     name = CSTParser.get_id(decl)
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
         loc = s.current.offset + offset + (0:sizeof(name.val))
-        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
 end
 
 function lint(x::EXPR{CSTParser.Bitstype}, s::TopLevelScope, L::LintState, server, istop)
     offset = x.args[1].fullspan + x.args[2].fullspan
     
-    push!(L.diagnostics, LSDiagnostic{bitstypeDeprecation}(s.current.offset + (0:8), [DocumentFormat.TextEdit(s.current.offset + (0:(x.fullspan)), string("primitive type ", Expr(x.args[3])," ", Expr(x.args[2]), " end"))], "This specification for primitive types is deprecated"))
+    push!(L.diagnostics, LSDiagnostic{bitstypeDeprecation}(s.current.offset + (0:8), [DocumentFormat.TextEdit(s.current.offset + (0:(x.fullspan)), string("primitive type ", Expr(x.args[3]), " ", Expr(x.args[2]), " end"))], "This specification for primitive types is deprecated"))
     
     name = CSTParser.get_id(x.args[3])
     nsEx = make_name(s.namespace, name.val)
     if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
         loc = s.current.offset + offset + (0:sizeof(name.val))
-        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
 
     if x.args[2] isa EXPR{CSTParser.LITERAL{Tokens.INTEGER}} && mod(Expr(x.args[2]), 8) != 0
@@ -456,7 +455,7 @@ function lint(x::EXPR{CSTParser.Primitive}, s::TopLevelScope, L::LintState, serv
     nsEx = make_name(s.namespace, name.val)
     if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
         loc = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:sizeof(name.val))
-        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare $(x.val) constant, it already has a value"))
+        push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
 
     if x.args[4] isa EXPR{CSTParser.LITERAL{Tokens.INTEGER}} && mod(Expr(x.args[4]), 8) != 0
@@ -472,12 +471,12 @@ function lint(x::EXPR{CSTParser.TypeAlias}, s::TopLevelScope, L::LintState, serv
     push!(L.diagnostics, LSDiagnostic{typealiasDeprecation}(s.current.offset + (0:9), [DocumentFormat.TextEdit(s.current.offset + (0:(x.fullspan - tws)), string("const ", Expr(x.args[2]), " = ", Expr(x.args[3])))], "This specification for type aliases is deprecated"))
 end
 
-function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
-    s.current.offset += x.args[1].fullspan + x.args[2].fullspan
-    mname = CSTParser._get_fname(x).val
-    _lint_sig(x.args[2], s, L, mname, s.current.offset)
-    lint(x.args[3], s, L, server, istop)
-end
+# function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
+#     s.current.offset += x.args[1].fullspan + x.args[2].fullspan
+#     mname = CSTParser._get_fname(x).val
+#     _lint_sig(x.args[2], s, L, mname, s.current.offset)
+#     lint(x.args[3], s, L, server, istop)
+# end
 
 function lint(x::EXPR{CSTParser.x_Str}, s::TopLevelScope, L::LintState, server, istop)
     s.current.offset += x.args[1].fullspan

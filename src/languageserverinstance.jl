@@ -5,6 +5,7 @@ mutable struct LanguageServerInstance
     rootPath::String 
     documents::Dict{String,Document}
 
+    loaded_modules::Dict{String,Tuple{Set{String},Set{String}}}
     debug_mode::Bool
     runlinter::Bool
     isrunning::Bool
@@ -12,7 +13,7 @@ mutable struct LanguageServerInstance
     user_pkg_dir::String
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, "", Dict{String,Document}(), debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, "", Dict{String,Document}(), Dict{String,Tuple{Set{String},Set{String}}}(), debug_mode, false, false, user_pkg_dir)
     end
 end
 

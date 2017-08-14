@@ -68,7 +68,7 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
         if (x isa EXPR{CSTParser.FunctionDef} || x isa EXPR{CSTParser.Macro}) && i == 2
             _fsig_scope(a, s, server, last(L.locals))
         elseif x isa EXPR{CSTParser.For} && i == 2
-            _for_scope(a, s, server, last(L.loclas))
+            _for_scope(a, s, server, last(L.locals))
         elseif x isa EXPR{CSTParser.Let} && i == 1
             _let_scope(x, s, server, last(L.locals))
         elseif x isa EXPR{CSTParser.Do} && i == 2

@@ -114,7 +114,8 @@ function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTPars
         topmodname = Expr(x.args[2])
         if !isdefined(Main, topmodname)
             try 
-                @eval import $topmodname 
+                @eval import $topmodname
+                # server.loaded_modules
                 if isfile(Pkg.dir(string(topmodname)))
                     @async begin
                         watch_file(Pkg.dir(string(topmodname)))
@@ -137,11 +138,11 @@ end
 
 
 function get_defs(x::EXPR{CSTParser.Struct})
-    [Variable(Expr(CSTParser.get_id(x.args[2])), :mutable, x)]
+    [Variable(Expr(CSTParser.get_id(x.args[2])), :struct, x)]
 end
 
 function get_defs(x::EXPR{CSTParser.Mutable}) 
-    [Variable(Expr(CSTParser.get_id(x.args[3])), :mutable, x)]
+    [Variable(Expr(CSTParser.get_id(x.args[3])), Symbol("mutable struct"), x)]
 end
 
 function get_defs(x::EXPR{CSTParser.Abstract})

@@ -227,7 +227,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, ser
         module_decl = Union{Symbol,Expr}[]
         allsymbols = []
         for uri in topfiles
-            s = get_toplevel(server.documents[uri], server)
+            s = toplevel(server.documents[uri], server)
             for (v, loc, uri1) in s.imports
                 push!(modules, v.args[1])
                 push!(import_stmts, (v, loc, uri))

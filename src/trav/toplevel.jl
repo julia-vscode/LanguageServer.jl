@@ -142,7 +142,11 @@ function get_defs(x::EXPR{CSTParser.Struct})
 end
 
 function get_defs(x::EXPR{CSTParser.Mutable}) 
-    [Variable(Expr(CSTParser.get_id(x.args[3])), Symbol("mutable struct"), x)]
+    if length(x.args) == 5
+        [Variable(Expr(CSTParser.get_id(x.args[3])), Symbol("mutable struct"), x)]
+    else # deprecated syntax
+        [Variable(Expr(CSTParser.get_id(x.args[2])), Symbol("mutable struct"), x)]
+    end
 end
 
 function get_defs(x::EXPR{CSTParser.Abstract})
@@ -153,9 +157,10 @@ function get_defs(x::EXPR{CSTParser.Abstract})
     end
 end
 
-function get_defs(x::EXPR{CSTParser.Primitive})
+function get_defs(x::EXPR{T}) where T <: Union{CSTParser.Primitive,CSTParser.Bitstype}
     [Variable(Expr(CSTParser.get_id(x.args[3])), :primitive, x)]
 end
+
 
 function get_defs(x) return Variable[] end
 

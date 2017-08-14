@@ -239,7 +239,11 @@ function lint(x::EXPR{CSTParser.ModuleH}, s::TopLevelScope, L::LintState, server
     lint(x.args[3], s, L, server, istop)
 end
 
-function _lint_sig(sig, s, L, fname, offset)
+function _lint_sig(sig1, s, L, fname, offset)
+    sig = sig1
+    while sig isa EXPR{CSTParser.BinarySyntaxOpCall} && (sig.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}} || sig.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}})
+        sig = sig.args[1]
+    end
     if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa EXPR{CSTParser.UnarySyntaxOpCall} && sig.args[1].args[1].args[2].args[1] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}})
         push!(L.diagnostics, LSDiagnostic{parameterisedDeprecation}((offset + sig.args[1].args[1].fullspan):(offset + sig.args[1].fullspan), [], "Use of deprecated parameter syntax"))
         

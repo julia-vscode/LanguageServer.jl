@@ -36,7 +36,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
 end
 
 
-function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     if server.rootPath != ""
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files

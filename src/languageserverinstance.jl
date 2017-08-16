@@ -13,7 +13,11 @@ mutable struct LanguageServerInstance
     user_pkg_dir::String
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, "", Dict{String,Document}(), Dict{String,Tuple{Set{String},Set{String}}}(), debug_mode, false, false, user_pkg_dir)
+        loaded_modules = Dict{String,Tuple{Set{String},Set{String}}}()
+        loaded_modules["Base"] = load_mod_names(Base)
+        loaded_modules["Core"] = load_mod_names(Core)
+
+        new(pipe_in, pipe_out, "", Dict{String,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
     end
 end
 

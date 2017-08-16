@@ -47,6 +47,24 @@ function unpack_dot(id, args = Symbol[])
     return args
 end
 
+_isdotexpr(x) = false
+_isdotexpr(x::EXPR{CSTParser.BinarySyntaxOpCall}) = x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
+
+function unpack_dot(x::EXPR)
+    args = EXPR[]
+    val = x
+    while _isdotexpr(val)
+        if val.args[3] isa EXPR{Quotenode}
+            unshift!(args, val.args[3].args[1])
+        else
+            unshift!(args, val.args[3])
+        end
+        val = val.args[1]
+    end
+    unshift!(args, val)
+    return args
+end
+
 
 repack_dot(args::Symbol) = args
 function repack_dot(args::Vector)
@@ -106,61 +124,48 @@ function _isdefined(ids::Vector{Symbol}, M = Main)
     end
 end
 
-function get_cache_entry(id, server, s::TopLevelScope)
-    ids = unpack_dot(id)
-    if !isempty(ids)
-        modules = []
-        ns = isempty(s.namespace) ? "toplevel" : string(repack_dot(reverse(s.namespace)))
-        if haskey(s.imports, ns)
-            for i in s.imports[ns]
-                top_mod = i[1].args[1]
-                if !(top_mod in modules) && top_mod != :Base && top_mod != :Core
-                    push!(modules, top_mod)
-                end
-            end
-            if length(ids) == 1
-                for (impt, loc, uri) in s.imports[ns]
-                    if first(ids) == last(impt.args)
-                        ids = Vector{Symbol}(impt.args)
-                    end
-                end
-            end
-        end
-        for m in vcat([:Base, :Core], unique(modules))
-            if isdefined(Main, m)
-                M = getfield(Main, m)
-                if first(ids) == m
-                    if length(ids) == 1
-                        return get_cache_entry(ids, Main)
-                    else
-                        shift!(ids)
-                        return get_cache_entry(ids, M)
-                    end
-                elseif first(ids) in names(M)
-                    return get_cache_entry(ids, M)
-                end
-            end
-        end
+function _getfield(names::Vector{Symbol})
+    val = Main
+    for i = 1:length(names)
+        !isdefined(val, names[i]) && return
+        val = getfield(val, names[i])
     end
-    return nothing
+    return val
 end
 
-function get_cache_entry(ids::Vector{Symbol}, M::Module)
-    if isempty(ids)
-        return nothing
+
+function get_cache_entry(x, server, s::TopLevelScope) end
+
+get_cache_entry(x::EXPR{IDENTIFIER}, server, s::TopLevelScope) = get_cache_entry(x.val, server, s)
+
+get_cache_entry(x::EXPR{<:CSTParser.OPERATOR}, server, s::TopLevelScope) = get_cache_entry(string(Expr(x)), server, s)
+
+function get_cache_entry(x::EXPR{CSTParser.BinarySyntaxOpCall}, server, s::TopLevelScope)
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
+        args = unpack_dot(x)
+        if first(args) isa EXPR{IDENTIFIER} && (Symbol(first(args).val) in BaseCoreNames || (haskey(s.imported_names, ns) && first(args).val in s.imported_names[ns]))
+            return _getfield(Expr.(args))
+        end
+    else
+        return
     end
-    if first(ids) in names(M, true, true)
-        x = getfield(M, first(ids))
-        if length(ids) == 1
-            return x
-        elseif x isa Module
-            shift!(ids)
-            return get_cache_entry(ids, x)
-        else
-            return nothing
+end
+
+function get_cache_entry(x::String, server, s::TopLevelScope)
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    if Symbol(x) in BaseCoreNames
+        return getfield(Main, Symbol(x))
+    elseif haskey(s.imported_names, ns) && x in s.imported_names[ns]
+        for (M, (exported, internal)) in server.loaded_modules
+            splitmod = split(M, ".")
+            if x == last(splitmod)
+                return _getfield(Symbol.(splitmod))
+            elseif x in internal
+                return _getfield(vcat(Symbol.(splitmod), Symbol(x)))
+            end
         end
     end
-
     return nothing
 end
 
@@ -199,7 +204,7 @@ function should_file_be_linted(uri, server)
 end
 
 
-sprintrange(range::Range) = "($(range.start.line+1),$(range.start.character)):($(range.stop.line+1),$(range.stop.character+1))" 
+sprintrange(range::Range) = "($(range.start.line + 1),$(range.start.character)):($(range.stop.line + 1),$(range.stop.character + 1))" 
 
 CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 : 
                                 t == :Function ? 3 : 

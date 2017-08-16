@@ -37,11 +37,9 @@ function lint(doc::Document, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
 
-    s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []), [])
+    s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
 
-    current_namespace = isempty(s.namespace) ? "toplevel" : join(reverse(s.namespace), ".")
-    
     s.current = ScopePosition(uri)
     s.namespace = namespace
 
@@ -108,42 +106,12 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
 
-    if !found && haskey(s.imports, ns)
-        for (impt, loc, uri) in s.imports[ns]
-            if Ex == impt.args[1]
-                found = true
-                break
-            elseif length(impt.args) == 1
-                if Ex == impt.args[1]
-                    found = true
-                    break
-                else
-                    if isdefined(Main, impt.args[1]) && getfield(Main, impt.args[1]) isa Module && Ex in names(getfield(Main, impt.args[1]))
-                        found = true
-                        break
-                    end
-                end
-            elseif Ex == impt.args[end]
-                found = true
-                break
-            elseif impt.head == :using && length(impt.args) == 2 && isdefined(Main, impt.args[1]) && isdefined(Main, impt.args[2])
-                m = getfield(Main, impt.args[1])
-                m = getfield(m, impt.args[2])
-                if m isa Module && Ex in names(m)
-                    found = true
-                    break
-                end
-            elseif impt.head == :using && length(impt.args) == 3 && isdefined(Main, impt.args[1]) && isdefined(Main, impt.args[2]) && isdefined(Main, impt.args[3])
-                m = getfield(Main, impt.args[1])
-                m = getfield(m, impt.args[2])
-                m = getfield(m, impt.args[3])
-                if m isa Module && Ex in names(m)
-                    found = true
-                    break
-                end
-            end
+    if !found && haskey(s.imported_names, ns)
+        if string(Ex) in s.imported_names[ns]
+            found = true
         end
     end
+    
     if !found
         loc = s.current.offset + (0:sizeof(x.val))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Possible use of undeclared variable $(x.val)"))
@@ -208,15 +176,7 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [DocumentFormat.TextEdit(s.current.offset + (0:sum(x.args[i].fullspan for i = 1:2)) , "maximum(abs, ")], "Use of deprecated function"))
         elseif x.args[1].val == "quadgk" && !(nsEx in keys(s.symbols))
             ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-            isimported = false
-            if haskey(s.imports, ns)
-                for (impt, loc, uri) in s.imports[ns]
-                    if (impt.head == :using && impt.args[1] == :QuadGK) || (impt.head == :import && last(impt.args) == :quadgk)
-                        isimported = true
-                    end
-                end
-            end
-            if !isimported
+            if !("quadgk" in s.imported_names[ns])
                 push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [], "`quadgk` has been moved to the package QuadGK.jl.\nRun Pkg.add(\"QuadGK\") to install QuadGK on Julia v0.6 and later, and then run `using QuadGK`."))
             end
         elseif x.args[1].val == "bitbroadcast" && !(nsEx in keys(s.symbols))
@@ -258,7 +218,7 @@ function _lint_sig(sig1, s, L, fname, offset)
     argnames = []
     for i = 2:length(sig.args)
         arg = sig.args[i]
-        if !(arg isa EXPR{P} where P <: CSTParser.PUNCTUATION)
+        if !(arg isa EXPR{<:CSTParser.PUNCTUATION})
             arg_id = CSTParser._arg_id(arg).val
 
             if arg_id in argnames
@@ -329,10 +289,11 @@ end
 
 function lint(x::EXPR{CSTParser.Generator}, s::TopLevelScope, L::LintState, server, istop)
     offset = s.current.offset
+    s.current.offset += sum(x.args[i].fullspan for i = 1:2)
     for i = 3:length(x.args)
         r = x.args[i]
         _for_scope(r, s, server, last(L.locals))
-        offset += r.fullspan
+        s.current.offset += r.fullspan
     end
     s.current.offset = offset
     lint(x.args[1], s, L, server, istop)
@@ -545,7 +506,7 @@ function _lint_range(x, s::TopLevelScope, L::LintState)
     push!(L.diagnostics, LSDiagnostic{RangeNonAssignment}(s.current.offset + (0:x.fullspan), [], "You must assign (using =, in or ∈) in a range")) 
 end
 
-function _lint_range(x::EXPR{P}, s::TopLevelScope, L::LintState) where P <: CSTParser.PUNCTUATION
+function _lint_range(x::EXPR{<:CSTParser.PUNCTUATION}, s::TopLevelScope, L::LintState)
 end
 
 function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, istop) 
@@ -609,7 +570,7 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintSt
         lint(x.args[1], s, L, server, istop)
     elseif x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}} 
         offset = s.current.offset
-        params = CSTParser._get_fparams(x)
+        params = _get_fparams(x)
         for p in params
             name = make_name(isempty(s.namespace) ? "toplevel" : s.namespace, p)
             v = Variable(p, :DataType, x.args[3])

@@ -1,7 +1,7 @@
 function test_scope(str, offset)
     server = LanguageServer.LanguageServerInstance(false,false,false)
     x = CSTParser.parse(str,true)
-    s = LanguageServer.TopLevelScope(LanguageServer.ScopePosition("none", offset), LanguageServer.ScopePosition("none", 0), false, Dict(), LanguageServer.EXPR[], Symbol[], false, true, Dict(:toplevel => []), [])
+    s = LanguageServer.TopLevelScope(LanguageServer.ScopePosition("none", offset), LanguageServer.ScopePosition("none", 0), false, Dict(), LanguageServer.EXPR[], Symbol[], false, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     LanguageServer.toplevel(x, s, server)
     s.current.offset = 0
     y = LanguageServer._scope(x, s, server)
@@ -11,7 +11,7 @@ end
 function test_undefvar(str, offset = 0)
     server = LanguageServer.LanguageServerInstance(false,false,false)
     x = CSTParser.parse(str,true)
-    s = LanguageServer.TopLevelScope(LanguageServer.ScopePosition("none", typemax(Int)), LanguageServer.ScopePosition("none", 0), false, Dict(), LanguageServer.EXPR[], Symbol[], false, true, Dict(:toplevel => []), [])
+    s = LanguageServer.TopLevelScope(LanguageServer.ScopePosition("none", typemax(Int)), LanguageServer.ScopePosition("none", 0), false, Dict(), LanguageServer.EXPR[], Symbol[], false, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     LanguageServer.toplevel(x, s, server)
     L = LanguageServer.LintState([], [], [])
     s.current.offset = 0

@@ -7,16 +7,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
 
-    y, s, modules, current_namespace = scope(doc, offset, server)
+    y, s = scope(doc, offset, server)
 
     if y isa EXPR{CSTParser.IDENTIFIER} || y isa EXPR{OP} where OP <: CSTParser.OPERATOR
-        x = get_cache_entry(Expr(y), server, s)
+        x = get_cache_entry(y, server, s)
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))] 
-        get_scope_entry_doc(y, s, current_namespace, documentation)
+        get_scope_entry_doc(y, s, documentation)
     elseif y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa EXPR{CSTParser.BinarySyntaxOpCall} && last(s.stack).args[2] isa EXPR{CSTParser.OPERATOR{16,Tokens.DOT,false}}
-        x = get_cache_entry(Expr(last(s.stack)), server, s)
+        x = get_cache_entry(last(s.stack), server, s)
         documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
-        get_scope_entry_doc(last(s.stack), s, current_namespace, documentation)
+        get_scope_entry_doc(last(s.stack), s, documentation)
     elseif y isa EXPR{CSTParser.LITERAL}
         documentation = [string(lowercase(string(typeof(y).parameters[1])), ":"), MarkedString(string(Expr(y)))]
     elseif y isa EXPR{CSTParser.KEYWORD{Tokens.END}} && !isempty(s.stack)
@@ -31,7 +31,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         else
             documentation = [""]
         end
-    elseif y != nothing
+    elseif y != nothing && !(y isa EXPR{<:CSTParser.PUNCTUATION})
         documentation = [string(Expr(y))]
     else
         documentation = [""]
@@ -44,7 +44,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params)
     return TextDocumentPositionParams(params)
 end
 
-function get_scope_entry_doc(y::EXPR, s::TopLevelScope, current_namespace, documentation)
+function get_scope_entry_doc(y::EXPR, s::TopLevelScope, documentation)
     Ey = Expr(y)
     nsEy = join(vcat(s.namespace, Ey), ".")
     if haskey(s.symbols, nsEy)

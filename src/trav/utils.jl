@@ -86,3 +86,46 @@ end
 
 iserrorexpr(x::Expr) = x.head == :error
 iserrorexpr(x) = false
+
+
+_get_fparams(x::EXPR, args = Symbol[]) = args
+
+function _get_fparams(x::EXPR{Call}, args = Symbol[])
+    if x.args[1] isa EXPR{CSTParser.Curly}
+        _get_fparams(x.args[1], args)
+    end
+    unique(args)
+end
+
+function _get_fparams(x::EXPR{CSTParser.Curly}, args = Symbol[])
+    for i = 3:length(x.args)
+        a = x.args[i]
+        if !(a isa EXPR{<:CSTParser.PUNCTUATION})
+            if a isa EXPR{IDENTIFIER}
+                push!(args, Expr(a))
+            elseif a isa EXPR{CSTParser.BinarySyntaxOpCall} && a.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.ISSUBTYPE,false}}
+                push!(args, Expr(a).args[1])
+            end
+        end
+    end
+    unique(args)
+end
+
+function _get_fparams(x::EXPR{CSTParser.BinarySyntaxOpCall}, args = Symbol[])
+    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}}
+        if x.args[1] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[1].args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}}
+            _get_fparams(x.args[1], args)
+        end
+        for i = 3:length(x.args)
+            a = x.args[i]
+            if !(a isa EXPR{<:CSTParser.PUNCTUATION})
+                if a isa EXPR{IDENTIFIER}
+                    push!(args, Expr(a))
+                elseif a isa EXPR{CSTParser.BinarySyntaxOpCall} && a.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.ISSUBTYPE,false}} && a.args[1] isa EXPR{IDENTIFIER}
+                    push!(args, Expr(a.args[1]))
+                end
+            end
+        end
+    end
+    return unique(args)
+end

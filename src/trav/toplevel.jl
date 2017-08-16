@@ -18,12 +18,12 @@ mutable struct TopLevelScope
     namespace::Vector{Symbol}
     followincludes::Bool
     intoplevel::Bool
-    imports::Dict{String,Vector{Tuple{Expr,UnitRange{Int},String}}}
+    imported_names::Dict{String,Set{String}}
     path::Vector{String}
 end
 
 function toplevel(doc, server, followincludes = true)
-    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict(:toplevel => []), [])
+    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
 
     toplevel(doc.code.ast, s, server)
     return s
@@ -32,7 +32,7 @@ end
 function toplevel(x::EXPR, s::TopLevelScope, server)
     for a in x.args
         offset = s.current.offset
-        toplevel_symbols(a, s)
+        toplevel_symbols(a, s, server)
         if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
             s.hittarget = true 
             return
@@ -62,9 +62,9 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
     return 
 end
 
-function toplevel_symbols(x, s::TopLevelScope) end
+function toplevel_symbols(x, s::TopLevelScope, server) end
 
-function toplevel_symbols(x::EXPR, s::TopLevelScope)
+function toplevel_symbols(x::EXPR, s::TopLevelScope, server)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
         var_item = (v, s.current.offset + (0:x.fullspan), s.current.uri)
@@ -76,7 +76,7 @@ function toplevel_symbols(x::EXPR, s::TopLevelScope)
     end
 end
 
-function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope)
+function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server)
     if x.args[1].val == "@enum"
         offset = sum(x.args[i].fullspan for i = 1:3)
         enum_name = Symbol(x.args[3].val)
@@ -104,38 +104,56 @@ function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope)
 end
 
 
-function toplevel_symbols(x::EXPR{T}, s::TopLevelScope) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
+function toplevel_symbols(x::EXPR{T}, s::TopLevelScope, server) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    
-    if !haskey(s.imports, ns)
-        s.imports[ns] = []
+    if !haskey(s.imported_names, ns)
+        s.imported_names[ns] = Set()
     end
     if x.args[2] isa EXPR{CSTParser.IDENTIFIER}
-        topmodname = Expr(x.args[2])
-        if !isdefined(Main, topmodname)
+        topmodname = x.args[2].val
+        if !isdefined(Main, Symbol(topmodname))
             try 
-                @eval import $topmodname
-                # server.loaded_modules
-                if isfile(Pkg.dir(string(topmodname)))
+                @eval import $(Symbol(topmodname))
+                server.loaded_modules[topmodname] = load_mod_names(topmodname)
+
+                if isfile(Pkg.dir(topmodname))
                     @async begin
-                        watch_file(Pkg.dir(string(topmodname)))
+                        watch_file(Pkg.dir(topmodname))
                         info("reloading: $topmodname")
-                        reload(string(topmodname))
+                        reload(topmodname)
                     end
                 end
             end
+        elseif !(topmodname in keys(server.loaded_modules))
+            server.loaded_modules[topmodname] = load_mod_names(topmodname)
         end
     end
     expr = Expr(x)
-    if expr.head != :toplevel
-        expr = Expr(:toplevel, expr)
-    end
-    for a in expr.args
-        push!(s.imports[ns], (a, sum(s.current.offset) + (0:x.fullspan), s.current.uri))
-    end
+    get_imported_names(expr, s, server)
 end
 
+function load_mod_names(topmodname)
+    load_mod_names(getfield(Main, Symbol(topmodname)))
+end
 
+function load_mod_names(mod::Module)
+    expt_names = Set{String}()
+    for name in names(mod)
+        sname = string(name)
+        if !startswith(sname, "#")
+            push!(expt_names, sname)
+        end
+    end
+    int_names = Set{String}()
+    for name in names(mod, true, true)
+        sname = string(name)
+        if !startswith(sname, "#")
+            push!(int_names, sname)
+        end
+    end
+
+    expt_names, int_names
+end
 
 function get_defs(x::EXPR{CSTParser.Struct})
     [Variable(Expr(CSTParser.get_id(x.args[2])), :struct, x)]
@@ -239,4 +257,49 @@ function _track_assignment(x::EXPR{CSTParser.TupleH}, val, defs::Vector{Variable
         _track_assignment(a, val, defs)
     end
     return defs
+end
+
+function get_imported_names(x::Expr, s, server)
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    if x.head == :toplevel
+        for a in x.args
+            get_imported_names(a, s, server)
+        end
+    elseif x.head == :using || x.head == :importall
+        if x.args[1] == :.
+        elseif length(x.args) == 1 && x.args[1] isa Symbol && string(x.args[1]) in keys(server.loaded_modules)
+            union!(s.imported_names[ns], server.loaded_modules[string(x.args[1])][1])
+        elseif length(x.args) > 1 && all(a -> a isa Symbol, x.args) && isdefined(Main, x.args[1])
+            val = Main
+            for i = 1:length(x.args)
+                !isdefined(val, x.args[i]) && return
+                val = getfield(val, x.args[i])
+            end
+            if val isa Module
+                modname = join(x.args, ".")
+                if !(modname in keys(server.loaded_modules))
+                    server.loaded_modules[modname] = load_mod_names(val)
+                end
+                union!(s.imported_names[ns], server.loaded_modules[modname][1])
+            else
+                push!(s.imported_names[ns], string(x.args[2]))
+            end
+        end
+    elseif x.head == :import
+        if x.args[1] == :.
+        elseif length(x.args) == 2 && x.args[1] isa Symbol && x.args[1] in keys(server.loaded_modules) && string(x.args[2]) in server.loaded_modules[x.args[1]][2]
+            push!(s.imported_names[ns], string(x.args[1]))
+            push!(s.imported_names[ns], string(x.args[2]))
+        else
+            val = Main
+            for i = 1:length(x.args)
+                !isdefined(val, x.args[i]) && return
+                if i == 1
+                    push!(s.imported_names[ns], string(x.args[1]))
+                end
+                val = getfield(val, x.args[i])
+            end
+            push!(s.imported_names[ns], string(x.args[end]))
+        end
+    end
 end

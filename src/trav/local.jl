@@ -4,7 +4,7 @@ function scope(doc::Document, offset::Int, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict(:toplevel => []), [])
+    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
     
 
@@ -12,27 +12,18 @@ function scope(doc::Document, offset::Int, server)
     s.namespace = namespace
     y = _scope(doc.code.ast, s, server)
 
-    current_namespace = isempty(s.namespace) ? "toplevel" : join(reverse(s.namespace), ".")
-    
-    modules = Symbol[]
-    for (v, loc, uri1) in s.imports[current_namespace == "toplevel" ? "toplevel" : haskey(s.imports, current_namespace) ? current_namespace : "toplevel"]
-        if !(v.args[1] in modules) && v.args[1] isa Symbol
-            push!(modules, v.args[1])
-        end
-    end
-    
-    return y, s, modules, current_namespace
+    return y, s
 end
-
-
 
 _scope(x::EXPR{T}, s::TopLevelScope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL} = x
 _scope(x::EXPR{CSTParser.KEYWORD{Tokens.END}}, s::TopLevelScope, server) = x
 _scope(x::EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}}, s::TopLevelScope, server) = x
+_scope(x::EXPR{CSTParser.PUNCTUATION{Tokens.LPAREN}}, s::TopLevelScope, server) = x
+_scope(x::EXPR{CSTParser.PUNCTUATION{Tokens.COMMA}}, s::TopLevelScope, server) = x
 
 function _scope(x::EXPR, s::TopLevelScope, server)
     if ismodule(x)
-        toplevel_symbols(x, s)
+        toplevel_symbols(x, s, server)
         push!(s.namespace, x.args[2].val)
     end
     if s.current.offset + x.fullspan < s.target.offset
@@ -64,7 +55,7 @@ function _scope(x::EXPR, s::TopLevelScope, server)
             s.current.offset += a.fullspan
         else
             if !s.intoplevel && a isa EXPR
-                toplevel_symbols(a, s)
+                toplevel_symbols(a, s, server)
             end
             if !contributes_scope(a) && s.intoplevel
                 s.intoplevel = false
@@ -76,7 +67,7 @@ end
 
 # Add parameters and function arguments to the local scope
 function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
-    params = CSTParser._get_fparams(sig1)
+    params = _get_fparams(sig1)
     for p in params
         name = make_name(s.namespace, p)
         var_item = (Variable(p, :DataType, sig1), s.current.offset + (0:sig1.fullspan), s.current.uri)
@@ -245,7 +236,7 @@ function get_scope(x, s::TopLevelScope, server) end
 
 function get_scope(x::EXPR, s::TopLevelScope, server)
     offset = s.current.offset
-    toplevel_symbols(x, s)
+    toplevel_symbols(x, s, server)
     if contributes_scope(x)
         for a in x.args
             get_scope(a, s, server)

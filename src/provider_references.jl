@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
-    y, s, modules, current_namespace = scope(doc, offset, server)
+    y, s = scope(doc, offset, server)
     
     locations = Location[]
     if y isa EXPR{CSTParser.IDENTIFIER}
@@ -35,7 +35,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
 
             rootfile = last(findtopfile(uri, server)[1])
 
-            s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict("toplevel" => []), [])
+            s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
             toplevel(server.documents[rootfile].code.ast, s, server)
             s.current.offset = 0
             L = LintState([], [], [])

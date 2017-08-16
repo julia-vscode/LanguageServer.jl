@@ -29,7 +29,7 @@ function parse_jmd(ps, str)
             currentbyte = top.fullspan + 1
         elseif b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.CMD}} && startswith(b.val, "`j ")
             blockstr = b.val[4:end - 1]
-            ps = ParseState(blockstr)
+            ps = CSTParser.ParseState(blockstr)
             next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
             push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), [], ""))

@@ -49,7 +49,7 @@ function load_rootpath(path)
     isdir(path)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("initialized")},Dict{String,Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     if load_rootpath(server.rootPath)
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files

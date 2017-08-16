@@ -72,10 +72,10 @@ for f in [test_scope,test_undefvar]
             var1
             var2
             """, 24)
-            # @test f("""
-            # var1 = var2 = 12345
-            # var2
-            # """, 22)
+            @test f("""
+            var1 = var2 = 12345
+            var2
+            """, 22)
         end
 
         @testset "anon func" begin

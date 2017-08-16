@@ -469,7 +469,9 @@ function lint(x::EXPR{CSTParser.For}, s::TopLevelScope, L::LintState, server, is
         _lint_range(x.args[2], s, L)
         get_symbols(x.args[2], s, L)
     end
-    s.current.offset += x.args[2].fullspan
+    offset = s.current.offset
+    lint(x.args[2], s, L, server, istop)
+    s.current.offset = offset + x.args[2].fullspan
     lint(x.args[3], s, L, server, istop)
 end
 

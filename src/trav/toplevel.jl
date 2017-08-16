@@ -282,6 +282,9 @@ function get_imported_names(x::Expr, s, server)
                 end
                 union!(s.imported_names[ns], server.loaded_modules[modname][1])
             else
+                if isempty(s.namespace)
+                    push!(s.imported_names[ns], string(x.args[1]))
+                end
                 push!(s.imported_names[ns], string(x.args[2]))
             end
         end
@@ -293,7 +296,7 @@ function get_imported_names(x::Expr, s, server)
         else
             val = Main
             for i = 1:length(x.args)
-                !isdefined(val, x.args[i]) && return
+                (!(x.args[i] isa Symbol) || !isdefined(val, x.args[i])) && return
                 if i == 1
                     push!(s.imported_names[ns], string(x.args[1]))
                 end

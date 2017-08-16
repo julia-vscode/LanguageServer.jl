@@ -5,7 +5,8 @@ function test_scope(str, offset)
     LanguageServer.toplevel(x, s, server)
     s.current.offset = 0
     y = LanguageServer._scope(x, s, server)
-    y.val in keys(s.symbols)
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    y.val in keys(s.symbols) || y.val in s.imported_names[ns]
 end
 
 function test_undefvar(str, offset = 0)
@@ -182,6 +183,26 @@ for f in [test_scope,test_undefvar]
             baremodule name end
             name
             """, 23)
+        end
+
+        @testset "misc" begin
+            @test f("""
+            function(file)
+                newstr = file
+            end
+            """, 29) # julia-vscode issue 241
+
+            @test f("""
+            using Optim: minimizer
+            res = Optim.optimize(x->sum(x.^2), ones(2))
+            """, 33) # julia-vscode issue 222
+
+            @test !f("""
+            module A
+            using Optim: minimizer
+            res = Optim.optimize(x->sum(x.^2), ones(2))
+            end
+            """, 41) # julia-vscode issue 222
         end
     end
 end

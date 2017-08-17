@@ -109,27 +109,37 @@ function toplevel_symbols(x::EXPR{T}, s::TopLevelScope, server) where T <: Union
     if !haskey(s.imported_names, ns)
         s.imported_names[ns] = Set()
     end
-    if x.args[2] isa EXPR{CSTParser.IDENTIFIER}
-        topmodname = x.args[2].val
-        if !isdefined(Main, Symbol(topmodname))
-            try 
-                @eval import $(Symbol(topmodname))
-                server.loaded_modules[topmodname] = load_mod_names(topmodname)
+    expr = Expr(x)
+    import_modules(expr, server)
+    get_imported_names(expr, s, server)
+end
 
-                if isfile(Pkg.dir(topmodname))
-                    @async begin
-                        watch_file(Pkg.dir(topmodname))
-                        info("reloading: $topmodname")
-                        reload(topmodname)
+function import_modules(x::Expr, server)
+    if x.head == :toplevel
+        for a in x.args
+            import_modules(a, server)
+        end
+    else
+        if x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
+            topmodname = x.args[1]
+            if !isdefined(Main, topmodname)
+                try 
+                    @eval import $topmodname
+                    server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
+    
+                    if isfile(Pkg.dir(string(topmodname)))
+                        @async begin
+                            watch_file(Pkg.dir(string(topmodname)))
+                            info("reloading: $topmodname")
+                            reload(string(topmodname))
+                        end
                     end
                 end
+            elseif !(string(topmodname) in keys(server.loaded_modules))
+                server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
             end
-        elseif !(topmodname in keys(server.loaded_modules))
-            server.loaded_modules[topmodname] = load_mod_names(topmodname)
         end
     end
-    expr = Expr(x)
-    get_imported_names(expr, s, server)
 end
 
 function load_mod_names(topmodname)

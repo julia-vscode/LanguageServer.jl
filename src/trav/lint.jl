@@ -130,7 +130,7 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             # may need fixing for triple quoted strgins
             arg = CSTParser.isstring(x.args[3]) ? string('\"', x.args[3].val, '\"') : Expr(x.args[3])
             
-            push!(last(L.diagnostics).actions, TextEdit(s.current.offset + (0:x.fullspan), string("write(STDOUT, ", arg, ")")))
+            push!(last(L.diagnostics).actions, DocumentFormat.TextEdit(s.current.offset + (0:x.fullspan), string("write(STDOUT, ", arg, ")")))
         # l129 : 3 arg version of `delete!`
         elseif x.args[1].val == "delete!" && length(x.args) == 8 && !(nsEx in keys(s.symbols))
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [DocumentFormat.TextEdit(s.current.offset + (0:x.args[1].fullspan), "pop!")], "`delete!(ENV, k, def)` should be replaced with `pop!(ENV, k, def)`. Be aware that `pop!` returns `k` or `def`, while `delete!` returns `ENV` or `def`."))

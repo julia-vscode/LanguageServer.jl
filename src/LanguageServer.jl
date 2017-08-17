@@ -1,21 +1,21 @@
 module LanguageServer
-mutable struct Variable
-    id
-    t
-    val
-end
-
-mutable struct LSDiagnostic{C}
-    loc::UnitRange
-    actions::Vector
-    message::String
-end
-
 using JSON
 using URIParser
 import DocumentFormat
 import CSTParser
 import Tokenize.Tokens
+
+mutable struct Variable
+    id
+    t
+    val::CSTParser.EXPR
+end
+
+mutable struct LSDiagnostic{C}
+    loc::UnitRange{Int}
+    actions::Vector{DocumentFormat.TextEdit}
+    message::String
+end
 
 export LanguageServerInstance
 const VariableLoc = Tuple{Variable,UnitRange{Int},String}

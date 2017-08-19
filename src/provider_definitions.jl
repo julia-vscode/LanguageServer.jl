@@ -41,12 +41,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         end
         nsEy = join(vcat(s.namespace, Ey), ".")
         if haskey(s.symbols, nsEy)
-            for (v, loc, uri) in s.symbols[nsEy]
-                if Ey == v.id || (v.id isa Expr && v.id.head == :. && v.id.args[1] == ns && Ey == v.id.args[2].value)
-                    doc1 = server.documents[uri]
-                    ws_offset = trailing_ws_length(get_last_token(v.val))
-                    loc1 = loc.start:loc.stop - ws_offset
-                    push!(locations, Location(uri, Range(doc1, loc1)))
+            for vl in s.symbols[nsEy]
+                if Ey == vl.v.id || (vl.v.id isa Expr && vl.v.id.head == :. && vl.v.id.args[1] == ns && Ey == vl.v.id.args[2].value)
+                    doc1 = server.documents[vl.uri]
+                    ws_offset = trailing_ws_length(get_last_token(vl.v.val))
+                    loc1 = vl.loc.start:vl.loc.stop - ws_offset
+                    push!(locations, Location(vl.uri, Range(doc1, loc1)))
                 end
             end
         end

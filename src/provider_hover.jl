@@ -48,13 +48,13 @@ function get_scope_entry_doc(y::EXPR, s::TopLevelScope, documentation)
     Ey = Expr(y)
     nsEy = join(vcat(s.namespace, Ey), ".")
     if haskey(s.symbols, nsEy)
-        for (v, loc, uri) in s.symbols[nsEy]
-            if v.t == :Any
-                push!(documentation, MarkedString("julia", string(Expr(v.val))))
-            elseif v.t == :Function
-                push!(documentation, MarkedString("julia", string(Expr(CSTParser._get_fsig(v.val)))))
+        for vl in s.symbols[nsEy]
+            if vl.v.t == :Any
+                push!(documentation, MarkedString("julia", string(Expr(vl.v.val))))
+            elseif vl.v.t == :Function
+                push!(documentation, MarkedString("julia", string(Expr(CSTParser._get_fsig(vl.v.val)))))
             else
-                push!(documentation, MarkedString(string(v.t)))
+                push!(documentation, MarkedString(string(vl.v.t)))
             end
         end
     end

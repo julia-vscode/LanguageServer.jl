@@ -18,7 +18,12 @@ mutable struct LSDiagnostic{C}
 end
 
 export LanguageServerInstance
-const VariableLoc = Tuple{Variable,UnitRange{Int},String}
+
+struct VariableLoc
+    v::Variable
+    loc::UnitRange{Int}
+    uri::String
+end
 
 include("protocol/protocol.jl")
 include("document.jl")

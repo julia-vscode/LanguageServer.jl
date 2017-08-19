@@ -81,7 +81,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 partial = ns == "toplevel" ? string(Ey) : nsEy
                 for (name, V) in s.symbols
                     if startswith(string(name), partial) 
-                        push!(entries, (string(first(V)[1].id), 6, ""))
+                        push!(entries, (string(first(V).v.id), 6, ""))
                     end
                 end
             end

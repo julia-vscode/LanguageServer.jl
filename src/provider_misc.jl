@@ -50,6 +50,7 @@ function load_rootpath(path)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
+    server.debug_mode && tic()
     if load_rootpath(server.rootPath)
         for (root, dirs, files) in walkdir(server.rootPath)
             for file in files
@@ -72,6 +73,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             publish_diagnostics(doc, server)
         end
     end
+    server.debug_mode && info("Startup time: $(toq())")
     server.isrunning = true
 end
 

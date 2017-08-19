@@ -67,11 +67,11 @@ function toplevel_symbols(x, s::TopLevelScope, server) end
 function toplevel_symbols(x::EXPR, s::TopLevelScope, server)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
-        var_item = (v, s.current.offset + (0:x.fullspan), s.current.uri)
+        var_item = VariableLoc(v, s.current.offset + (0:x.fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
     end
 end
@@ -82,20 +82,22 @@ function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server
         enum_name = Symbol(x.args[3].val)
         v = Variable(enum_name, :Enum, x)
         name = make_name(s.namespace, enum_name)
+        var_item = VariableLoc(v, s.current.offset + x.span, s.current.uri)
         if haskey(s.symbols, name)
-            push!(s.symbols[name], (v, s.current.offset + x.span, s.current.uri))
+            push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [(v, s.current.offset + x.span, s.current.uri)]
+            s.symbols[name] = VariableLoc[var_item]
         end
         for i = 4:length(x.args)
             a = x.args[i]
             if !(a isa EXPR{T} where T <: CSTParser.PUNCTUATION) && a isa EXPR{CSTParser.IDENTIFIER}
                 v = Variable(a.val, enum_name, x)
                 name = make_name(s.namespace, a.val)
+                var_item = VariableLoc(v, offset + (1:a.fullspan), s.current.uri)
                 if haskey(s.symbols, name)
-                    push!(s.symbols[name], (v, offset + (1:a.fullspan), s.current.uri))
+                    push!(s.symbols[name], var_item)
                 else
-                    s.symbols[name] = [(v, offset + (1:a.fullspan), s.current.uri)]
+                    s.symbols[name] = VariableLoc[var_item]
                 end
             end
             offset += a.fullspan

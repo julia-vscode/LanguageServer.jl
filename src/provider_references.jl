@@ -14,6 +14,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
+    locations = references(doc, offset, server)
+    response = JSONRPC.Response(get(r.id), locations)
+    send(response, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params)
+    return ReferenceParams(params)
+end
+
+function references(doc, offset, server)
     y, s = scope(doc, offset, server)
     
     locations = Location[]
@@ -23,9 +33,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
         ns_name = make_name(s.namespace, Expr(y))
         if haskey(s.symbols, ns_name)
             var_def = last(s.symbols[ns_name])
-            if var_def[1].t in (:Function, :mutable, :immutable, :abstract)
+            if var_def.v.t in (:Function, :mutable, :immutable, :abstract)
                 for i = length(s.symbols[ns_name])-1:-1:1
-                    if s.symbols[ns_name][i][1].t in (:Function, :mutable, :immutable, :abstract)
+                    if s.symbols[ns_name][i].v.t in (:Function, :mutable, :immutable, :abstract)
                         var_def = s.symbols[ns_name][i]
                     else
                         break
@@ -33,9 +43,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
                 end
             end
 
-            rootfile = last(findtopfile(uri, server)[1])
+            rootfile = last(findtopfile(doc._uri, server)[1])
 
-            s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
+            s = TopLevelScope(ScopePosition(doc._uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
             toplevel(server.documents[rootfile].code.ast, s, server)
             s.current.offset = 0
             L = LintState([], [], [])
@@ -48,14 +58,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
                 push!(locations, Location(uri1, Range(doc1, loc1)))
             end
         end
-
     end
-    response = JSONRPC.Response(get(r.id), locations)
-    send(response, server)
-end
-
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params)
-    return ReferenceParams(params)
+    return locations
 end
 
 function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server, istop) 
@@ -120,17 +124,17 @@ function references(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, R::RefS
     if nsEx == R.targetid
         if haskey(s.symbols, nsEx)
             var_def = last(s.symbols[nsEx])
-            if var_def[1].t in (:Function, :mutable, :immutable, :abstract)
+            if var_def.v.t in (:Function, :mutable, :immutable, :abstract)
                 for i = length(s.symbols[nsEx])-1:-1:1
-                    if s.symbols[nsEx][i][1].t in (:Function, :mutable, :immutable, :abstract)
+                    if s.symbols[nsEx][i].v.t in (:Function, :mutable, :immutable, :abstract)
                         var_def = s.symbols[nsEx][i]
                     else
                         break
                     end
                 end
             end
-            loc, uri = var_def[2:3]
-            if loc == R.target[2] && uri == R.target[3]
+            
+            if var_def.loc == R.target.loc && var_def.uri == R.target.uri
                 push!(R.refs, (s.current.offset, s.current.uri))
             end
         end

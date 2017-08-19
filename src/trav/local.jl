@@ -70,11 +70,11 @@ function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
     params = _get_fparams(sig1)
     for p in params
         name = make_name(s.namespace, p)
-        var_item = (Variable(p, :DataType, sig1), s.current.offset + (0:sig1.fullspan), s.current.uri)
+        var_item = VariableLoc(Variable(p, :DataType, sig1), s.current.offset + (0:sig1.fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
         push!(loc, name)
     end
@@ -98,11 +98,11 @@ function _add_sigarg(arg, sig, s, loc)
         arg_id = CSTParser._arg_id(arg).val
         arg_t = CSTParser.get_t(arg)
         name = make_name(s.namespace, arg_id)
-        var_item = (Variable(arg_id, arg_t, sig), s.current.offset + (0:sig.fullspan), s.current.uri)
+        var_item = VariableLoc(Variable(arg_id, arg_t, sig), s.current.offset + (0:sig.fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
         push!(loc, name)
     end
@@ -115,11 +115,11 @@ function _for_scope(range::EXPR{T}, s::TopLevelScope, server, locals = []) where
         defs = _track_assignment(range.args[1], range.args[3])
         for d in defs
             name = make_name(s.namespace, d.id)
-            var_item = (d, s.current.offset + (0:range.fullspan), s.current.uri)
+            var_item = VariableLoc(d, s.current.offset + (0:range.fullspan), s.current.uri)
             if haskey(s.symbols, name)
                 push!(s.symbols[name], var_item)
             else
-                s.symbols[name] = [var_item]
+                s.symbols[name] = VariableLoc[var_item]
             end
             push!(locals, name)
         end
@@ -150,11 +150,11 @@ function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [
         
         d = Variable(x.args[4].val, :Any, x.args[4])
         name = make_name(s.namespace, d.id)
-        var_item = (d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
+        var_item = VariableLoc(d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
         push!(locals, name)
     end
@@ -172,11 +172,11 @@ function _let_scope(x::EXPR{CSTParser.Let}, s::TopLevelScope, server, locals = [
             defs = _track_assignment(x.args[i].args[1], x.args[i].args[3])
             for d in defs
                 name = make_name(s.namespace, d.id)
-                var_item = (d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
+                var_item = VariableLoc(d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
                 if haskey(s.symbols, name)
                     push!(s.symbols[name], var_item)
                 else
-                    s.symbols[name] = [var_item]
+                    s.symbols[name] = VariableLoc[var_item]
                 end
                 push!(locals, name)
             end
@@ -191,11 +191,11 @@ function _anon_func_scope(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScop
                 arg_id = CSTParser.get_id(a).val
                 arg_t = CSTParser.get_t(x)
                 name = make_name(s.namespace, arg_id)
-                var_item = (Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].fullspan), s.current.uri)
+                var_item = VariableLoc(Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].fullspan), s.current.uri)
                 if haskey(s.symbols, name)
                     push!(s.symbols[name], var_item)
                 else
-                    s.symbols[name] = [var_item]
+                    s.symbols[name] = VariableLoc[var_item]
                 end
                 push!(locals, name)
             end
@@ -204,11 +204,11 @@ function _anon_func_scope(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScop
         arg_id = CSTParser.get_id(x.args[1]).val
         arg_t = CSTParser.get_t(x.args[1])
         name = make_name(s.namespace, arg_id)
-        var_item = (Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].fullspan), s.current.uri)
+        var_item = VariableLoc(Variable(arg_id, arg_t, x.args[1]), s.current.offset + (0:x.args[1].fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
         push!(locals, name)
     end
@@ -221,11 +221,11 @@ function _do_scope(x::EXPR{CSTParser.Do}, s::TopLevelScope, server, locals = [])
             arg_id = CSTParser.get_id(a).val
             arg_t = CSTParser.get_t(a)
             name = make_name(s.namespace, arg_id)
-            var_item = (Variable(arg_id, arg_t, x.args[1]), s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:x.args[3].fullspan), s.current.uri)
+            var_item = VariableLoc(Variable(arg_id, arg_t, x.args[1]), s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:x.args[3].fullspan), s.current.uri)
             if haskey(s.symbols, name)
                 push!(s.symbols[name], var_item)
             else
-                s.symbols[name] = [var_item]
+                s.symbols[name] = VariableLoc[var_item]
             end
             push!(locals, name)
         end

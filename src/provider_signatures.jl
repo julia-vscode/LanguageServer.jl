@@ -36,9 +36,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     
     nsEy = join(vcat(s.namespace, fname.val), ".")
     if haskey(s.symbols, nsEy)
-        for (v, loc, uri) in s.symbols[nsEy]
-            if v.t == :function
-                sig = CSTParser._get_fsig(v.val)
+        for vl in s.symbols[nsEy]
+            if vl.v.t == :function
+                sig = CSTParser._get_fsig(vl.v.val)
                 Ps = ParameterInformation[]
                 for j = 2:length(sig.args)
                     if sig.args[j] isa EXPR{CSTParser.Parameters}

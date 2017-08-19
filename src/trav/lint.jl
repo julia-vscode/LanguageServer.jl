@@ -319,7 +319,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
 
         name = CSTParser.get_id(x.args[2])
         nsEx = make_name(s.namespace, name.val)
-        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx]).loc) == s.current.offset)
             loc = s.current.offset + x.args[1].fullspan + (0:sizeof(name.val))
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
         end
@@ -336,7 +336,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
     else
         name = CSTParser.get_id(x.args[3])
         nsEx = make_name(s.namespace, name.val)
-        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
+        if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx]).loc) == s.current.offset)
             loc = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:sizeof(name.val))
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
         end
@@ -359,7 +359,7 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     end
     name = CSTParser.get_id(x.args[2])
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx]).loc) == s.current.offset)
         loc = s.current.offset + x.args[1].fullspan + (0:sizeof(name.val))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
@@ -391,7 +391,7 @@ function lint(x::EXPR{CSTParser.Abstract}, s::TopLevelScope, L::LintState, serve
     end
     name = CSTParser.get_id(decl)
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(first(first(s.symbols[nsEx]).loc) == s.current.offset)
         loc = s.current.offset + offset + (0:sizeof(name.val))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
@@ -404,7 +404,7 @@ function lint(x::EXPR{CSTParser.Bitstype}, s::TopLevelScope, L::LintState, serve
     
     name = CSTParser.get_id(x.args[3])
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx]).loc) == s.current.offset)
         loc = s.current.offset + offset + (0:sizeof(name.val))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
@@ -418,7 +418,7 @@ end
 function lint(x::EXPR{CSTParser.Primitive}, s::TopLevelScope, L::LintState, server, istop)
     name = CSTParser.get_id(x.args[3])
     nsEx = make_name(s.namespace, name.val)
-    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx])[2]) == s.current.offset)
+    if haskey(s.symbols, nsEx) && !(length(s.symbols[nsEx]) == 1 && first(first(s.symbols[nsEx]).loc) == s.current.offset)
         loc = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:sizeof(name.val))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
@@ -577,9 +577,9 @@ function lint(x::EXPR{CSTParser.BinarySyntaxOpCall}, s::TopLevelScope, L::LintSt
             name = make_name(isempty(s.namespace) ? "toplevel" : s.namespace, p)
             v = Variable(p, :DataType, x.args[3])
             if haskey(s.symbols, name)
-                push!(s.symbols[name], (v, s.current.offset + (1:x.fullspan), s.current.uri))
+                push!(s.symbols[name], VariableLoc(v, s.current.offset + (1:x.fullspan), s.current.uri))
             else
-                s.symbols[name] = [(v, s.current.offset + (1:x.fullspan), s.current.uri)]
+                s.symbols[name] = VariableLoc[VariableLoc(v, s.current.offset + (1:x.fullspan), s.current.uri)]
             end
             push!(last(L.locals), name)
         end
@@ -603,11 +603,11 @@ function get_symbols(x, s::TopLevelScope, L::LintState) end
 function get_symbols(x::EXPR, s::TopLevelScope, L::LintState)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
-        var_item = (v, s.current.offset + (0:x.fullspan), s.current.uri)
+        var_item = VariableLoc(v, s.current.offset + (0:x.fullspan), s.current.uri)
         if haskey(s.symbols, name)
             push!(s.symbols[name], var_item)
         else
-            s.symbols[name] = [var_item]
+            s.symbols[name] = VariableLoc[var_item]
         end
         push!(last(L.locals), name)
     end

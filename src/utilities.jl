@@ -154,7 +154,7 @@ end
 
 function get_cache_entry(x::String, server, s::TopLevelScope)
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    if Symbol(x) in BaseCoreNames
+    if Symbol(x) in BaseCoreNames && isdefined(Main, Symbol(x))
         return getfield(Main, Symbol(x))
     elseif haskey(s.imported_names, ns) && x in s.imported_names[ns]
         for (M, (exported, internal)) in server.loaded_modules

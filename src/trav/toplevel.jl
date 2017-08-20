@@ -19,11 +19,12 @@ mutable struct TopLevelScope
     followincludes::Bool
     intoplevel::Bool
     imported_names::Dict{String,Set{String}}
+    exported_names::Dict{String,Set{String}}
     path::Vector{String}
 end
 
 function toplevel(doc, server, followincludes = true)
-    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
+    s = TopLevelScope(ScopePosition("none", 0), ScopePosition(doc._uri, 0), false, Dict(), EXPR[], Symbol[], followincludes, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
 
     toplevel(doc.code.ast, s, server)
     return s
@@ -105,6 +106,17 @@ function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server
     end
 end
 
+function toplevel_symbols(x::EXPR{CSTParser.Export}, s::TopLevelScope, server)
+    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+    if !haskey(s.exported_names, ns)
+        s.exported_names[ns] = Set()
+    end
+    for a in x.args
+        if a isa EXPR{IDENTIFIER}
+            push!(s.exported_names[ns], a.val)
+        end
+    end
+end
 
 function toplevel_symbols(x::EXPR{T}, s::TopLevelScope, server) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
@@ -299,13 +311,25 @@ function get_imported_names(x::Expr, s, server)
                 end
                 push!(s.imported_names[ns], string(x.args[2]))
             end
+        # load locally defined modules
+        elseif all(x -> x isa Symbol, x.args) && join(x.args, ".") in keys(s.exported_names)
+            for id in s.exported_names[join(x.args, ".")]
+                nsname = join([join(x.args, "."), id], ".")
+                if haskey(s.symbols, nsname)
+                    vl = s.symbols[nsname]
+                    s.symbols[make_name(s.namespace, last(vl).v.id)] = vl
+                end
+            end
+        elseif all(x -> x isa Symbol, x.args) && join(x.args, ".") in keys(s.symbols)
+            vl = s.symbols[join(x.args, ".")]
+            s.symbols[make_name(s.namespace, last(vl).v.id)] = vl
         end
     elseif x.head == :import
         if x.args[1] == :.
         elseif length(x.args) == 2 && x.args[1] isa Symbol && x.args[1] in keys(server.loaded_modules) && string(x.args[2]) in server.loaded_modules[x.args[1]][2]
             push!(s.imported_names[ns], string(x.args[1]))
             push!(s.imported_names[ns], string(x.args[2]))
-        else
+        elseif x.args[1] isa Symbol && isdefined(Main, x.args[1])
             val = Main
             for i = 1:length(x.args)
                 (!(x.args[i] isa Symbol) || !isdefined(val, x.args[i])) && return
@@ -315,6 +339,10 @@ function get_imported_names(x::Expr, s, server)
                 val = getfield(val, x.args[i])
             end
             push!(s.imported_names[ns], string(x.args[end]))
+        # load locally defined modules
+        elseif all(x -> x isa Symbol, x.args) && join(x.args, ".") in keys(s.symbols)
+            vl = s.symbols[join(x.args, ".")]
+            s.symbols[make_name(s.namespace, last(vl).v.id)] = vl
         end
     end
 end

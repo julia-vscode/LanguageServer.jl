@@ -4,7 +4,7 @@ function scope(doc::Document, offset::Int, server)
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
     
-    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
+    s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
     
 

@@ -45,7 +45,7 @@ function references(doc, offset, server)
 
             rootfile = last(findtopfile(doc._uri, server)[1])
 
-            s = TopLevelScope(ScopePosition(doc._uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), [])
+            s = TopLevelScope(ScopePosition(doc._uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
             toplevel(server.documents[rootfile].code.ast, s, server)
             s.current.offset = 0
             L = LintState([], [], [])

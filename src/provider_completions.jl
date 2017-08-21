@@ -45,8 +45,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         push!(entries, ("finally", 6, "finally"))
     end
 
+    
+    y, s = scope(doc, offset, server)
     prefix = word[1:searchlast(word, '.')]
-    if isempty(word) && isempty(prefix)
+    if isempty(word) && isempty(prefix) && !CSTParser.isstring(y)
     elseif isempty(prefix) # Single word
         if startswith(word, "\\") # Latex completion
             for (k, v) in Base.REPLCompletions.latex_symbols
@@ -56,38 +58,45 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            y, s = scope(doc, offset, server)
             ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-
-            for name in BaseCoreNames
-                if startswith(string(name), word) && (isdefined(Base, name) || isdefined(Core, name))
-                    x = getfield(Main, name)
-                    doc = string(Docs.doc(Docs.Binding(Main, name)))
-                    push!(entries, (string(name), CompletionItemKind(typeof(x)), doc))
+            info("ispath")
+            if CSTParser.isstring(y) && isabspath(y.val)
+                dloc = last(search(line, Regex(y.val))) - last(search(line, Regex(word)))
+                paths, loc, _ = Base.REPLCompletions.complete_path(y.val, length(y.val) - dloc)
+                info(paths)
+                for p in paths
+                    push!(entries, (p, 17, ""))
                 end
-            end
-            if haskey(s.imported_names, ns)
-                for name in s.imported_names[ns]
-                    if startswith(name, word) 
-                        x = get_cache_entry(name, server, s)
-                        # doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
-                        push!(entries, (name, CompletionItemKind(typeof(x)), ""))
+            else
+                for name in BaseCoreNames
+                    if startswith(string(name), word) && (isdefined(Base, name) || isdefined(Core, name))
+                        x = getfield(Main, name)
+                        doc = string(Docs.doc(Docs.Binding(Main, name)))
+                        push!(entries, (string(name), CompletionItemKind(typeof(x)), doc))
                     end
                 end
-            end
-            if y != nothing
-                Ey = Expr(y)
-                nsEy = make_name(s.namespace, Ey)
-                partial = ns == "toplevel" ? string(Ey) : nsEy
-                for (name, V) in s.symbols
-                    if startswith(string(name), partial) 
-                        push!(entries, (string(first(V).v.id), 6, ""))
+                if haskey(s.imported_names, ns)
+                    for name in s.imported_names[ns]
+                        if startswith(name, word) 
+                            x = get_cache_entry(name, server, s)
+                            # doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
+                            push!(entries, (name, CompletionItemKind(typeof(x)), ""))
+                        end
+                    end
+                end
+                if y != nothing
+                    Ey = Expr(y)
+                    nsEy = make_name(s.namespace, Ey)
+                    partial = ns == "toplevel" ? string(Ey) : nsEy
+                    for (name, V) in s.symbols
+                        if startswith(string(name), partial) 
+                            push!(entries, (string(first(V).v.id), 6, ""))
+                        end
                     end
                 end
             end
         end
     else
-        y, s = scope(doc, offset, server)
         topmodname = Symbol(first(split(prefix, '.')))
         modname = unpack_dot(parse(strip(prefix, '.'), raise = false))
         M = get_module(modname)
@@ -115,6 +124,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             label  = strip(documentation, '\\')
             documentation = newtext
             length(newtext) > 1 && (newtext = newtext[1:1])
+        elseif k == 17 # file completion
+            label = comp
+            documentation = ""
         else
             label  = last(split(newtext, "."))
             documentation = replace(documentation, r"(`|\*\*)", "")

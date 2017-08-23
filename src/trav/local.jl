@@ -3,10 +3,10 @@ function scope(doc::Document, offset::Int, server)
 
     # Find top file of include tree
     path, namespace = findtopfile(uri, server)
-    
+ 
     s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
     toplevel(server.documents[last(path)].code.ast, s, server)
-    
+ 
 
     s.current = ScopePosition(uri)
     s.namespace = namespace
@@ -147,7 +147,7 @@ function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [
     offset = s.current.offset
     if x.args[3] isa EXPR{CSTParser.KEYWORD{Tokens.CATCH}} && x.args[4].fullspan > 0
         s.current.offset += sum(x.args[i].fullspan for i = 1:3)
-        
+ 
         d = Variable(x.args[4].val, :Any, x.args[4])
         name = make_name(s.namespace, d.id)
         var_item = VariableLoc(d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
@@ -248,9 +248,9 @@ function get_scope(x::EXPR, s::TopLevelScope, server)
     if isincludable(x)
         file = Expr(x.args[3])
         file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
-        
+ 
         file in s.path && return
-        
+ 
         if file in keys(server.documents)
             oldpos = s.current
             s.current = ScopePosition(file, 0)

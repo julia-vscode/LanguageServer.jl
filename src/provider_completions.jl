@@ -32,7 +32,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     entries = Tuple{Symbol,Int,String}[]
-    
+
     if word == "end"
         push!(entries, ("end", 6, "end"))
     elseif word == "else"
@@ -45,7 +45,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         push!(entries, ("finally", 6, "finally"))
     end
 
-    
+
     y, s = scope(doc, offset, server)
     prefix = word[1:searchlast(word, '.')]
     if isempty(word) && isempty(prefix) && !CSTParser.isstring(y)

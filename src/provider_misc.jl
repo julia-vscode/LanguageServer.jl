@@ -151,6 +151,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
+        !(uri in keys(server.documents)) && continue
         if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))

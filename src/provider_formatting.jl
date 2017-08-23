@@ -6,7 +6,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     doc = server.documents[r.params.textDocument.uri]
     newcontent = DocumentFormat.format(doc._content)
     end_l, end_c = get_position_at(doc, sizeof(doc._content))
-    lsedits = TextEdit[TextEdit(Range(0, 0, end_l -1, end_c), newcontent)]
+    lsedits = TextEdit[TextEdit(Range(0, 0, end_l - 1, end_c), newcontent)]
 
     response = JSONRPC.Response(get(r.id), lsedits)
     send(response, server)

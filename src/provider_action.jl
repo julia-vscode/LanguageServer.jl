@@ -12,7 +12,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     action_type = Any
     tdeall = TextDocumentEdit(VersionedTextDocumentIdentifier(doc._uri, doc._version), [])
     for d in doc.diagnostics
-        if first(d.loc) <= first(range_loc) <= last(range_loc) <= last(d.loc) && typeof(d).parameters[1] isa CSTParser.Diagnostics.LintCodes && !isempty(d.actions) 
+        if first(d.loc) <= first(range_loc) <= last(range_loc) <= last(d.loc) && typeof(d).parameters[1] isa LintCodes && !isempty(d.actions) 
             action_type = typeof(d).parameters[1]
             for a in d.actions
                 start_l, start_c = get_position_at(doc, first(a.range))

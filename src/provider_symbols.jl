@@ -8,15 +8,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     syms = SymbolInformation[]
     s = toplevel(doc, server, false)
     for k in keys(s.symbols)
-        for (v, loc, uri1) in s.symbols[k]
-            if v.t == :Function
-                id = string(Expr(v.val isa EXPR{CSTParser.FunctionDef} ? v.val.args[2] : v.val.args[1]))
+        for vl in s.symbols[k]
+            if vl.v.t == :Function
+                id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
             else
-                id = string(v.id)
+                id = string(vl.v.id)
             end
-            ws_offset = trailing_ws_length(get_last_token(v.val))
-            loc1 = loc.start:loc.stop - ws_offset
-            push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc1))))
+            ws_offset = trailing_ws_length(get_last_token(vl.v.val))
+            loc1 = vl.loc.start:vl.loc.stop - ws_offset
+            push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, loc1))))
         end
     end
     
@@ -35,14 +35,14 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
     for (uri, doc) in server.documents
         s = toplevel(doc, server, false)
         for k in keys(s.symbols)
-            for (v, loc, uri1) in s.symbols[k]
-                if ismatch(Regex(query, "i"), string(v.id))
-                    if v.t == :Function
-                        id = string(Expr(v.val isa EXPR{CSTParser.FunctionDef} ? v.val.args[2] : v.val.args[1]))
+            for vl in s.symbols[k]
+                if ismatch(Regex(query, "i"), string(vl.v.id))
+                    if vl.v.t == :Function
+                        id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
                     else
-                        id = string(v.id)
+                        id = string(vl.v.id)
                     end
-                    push!(syms, SymbolInformation(id, SymbolKind(v.t), Location(uri, Range(doc, loc))))
+                    push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, vl.loc))))
                 end
             end
         end

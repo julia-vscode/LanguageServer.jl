@@ -5,70 +5,67 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
-    word = get_word(tdpp, server)
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
-    str = get_line(tdpp, server)
-    pos = pos0 = min(length(str), tdpp.position.character)
-    io = IOBuffer(str)
-    
-    line = Char[]
-    cnt = 0
-    while cnt < pos && !eof(io)
-        cnt += 1
-        push!(line, read(io, Char))
-    end
-    
-    arg = b = 0
-    word = "" 
-    while pos > 1
-        if line[pos] == '(' 
-            if b == 0
-                word = get_word(tdpp, server, pos - pos0 - 1)
-                break
-            elseif b > 0
-                b -= 1
-            end
-        elseif line[pos] == ',' && b == 0
-            arg += 1
-        elseif line[pos] == ')'
-            b += 1
-        end
-        pos -= 1
-    end
-
-    if isempty(word) || iserrorexpr(parse(word, raise = false))
-        response = JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id))))
+    y, s = scope(doc, offset, server)
+    if y isa EXPR{CSTParser.PUNCTUATION{Tokens.RPAREN}}
+        return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+    elseif length(s.stack) > 0 && last(s.stack) isa EXPR{Call}
+        fcall = s.stack[end]
+        fname = CSTParser._get_fname(last(s.stack))
+        x = get_cache_entry(fname, server, s)
+    elseif length(s.stack) > 1 && s.stack[end] isa EXPR{CSTParser.PUNCTUATION{Tokens.COMMA}} && s.stack[end-1] isa EXPR{Call}
+        fcall = s.stack[end-1]
+        fname = CSTParser._get_fname(fcall)
+        x = get_cache_entry(fname, server, s)
     else
-        y, s, modules, current_namespace = scope(doc, offset, server)
-        x = get_cache_entry(parse(word), server, s)
+        return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+    end
+    arg = sum(!(a isa EXPR{<:CSTParser.PUNCTUATION}) for a in fcall.args) - 1
 
-        sigs = SignatureHelp(SignatureInformation[], 0, 0)
+    sigs = SignatureHelp(SignatureInformation[], 0, 0)
 
-        for m in methods(x)
-            args = Base.arg_decl_parts(m)[2]
-            p_sigs = [join(string.(p), "::") for p in args[2:end]]
-            desc = string(m)
-            PI = map(ParameterInformation, p_sigs)
-            push!(sigs.signatures, SignatureInformation(desc, "", PI))
-        end
-        if y != nothing
-            Ey = Expr(y)
-            nsEy = join(vcat(current_namespace, Ey), ".")
-            if haskey(s.symbols, nsEy)
-                for (v, loc, uri) in s.symbols[nsEy]
-                    if v.t == :Function && (word == string(v.id) || (v.id isa Expr && v.id.head == :. && v.id.args[1] == current_namespace && word == string(v.id.args[2].value)))
-                        sig = CSTParser._get_fsig(v.val)
-                        push!(sigs.signatures, SignatureInformation(string(Expr(sig)), "", [ParameterInformation(string(p.id)) for p in sig.defs]))
+    for m in methods(x)
+        args = Base.arg_decl_parts(m)[2]
+        p_sigs = [join(string.(p), "::") for p in args[2:end]]
+        desc = string(m)
+        PI = map(ParameterInformation, p_sigs)
+        push!(sigs.signatures, SignatureInformation(desc, "", PI))
+    end
+    
+    
+    nsEy = join(vcat(s.namespace, fname.val), ".")
+    if haskey(s.symbols, nsEy)
+        for vl in s.symbols[nsEy]
+            if vl.v.t == :function
+                sig = CSTParser._get_fsig(vl.v.val)
+                Ps = ParameterInformation[]
+                for j = 2:length(sig.args)
+                    if sig.args[j] isa EXPR{CSTParser.Parameters}
+                        for parg in sig.args[j].args
+                            if !(sig.args[j] isa EXPR{P} where P <: CSTParser.PUNCTUATION)
+                                arg_id = CSTParser._arg_id(sig.args[j]).val
+                                arg_t = CSTParser.get_t(sig.args[j])
+                                push!(Ps, ParameterInformation(string(arg_id,"::",arg_t)))
+                            end
+                        end
+                    else
+                        if !(sig.args[j] isa EXPR{P} where P <: CSTParser.PUNCTUATION)
+                            arg_id = CSTParser._arg_id(sig.args[j]).val
+                            arg_t = CSTParser.get_t(sig.args[j])
+                            push!(Ps, ParameterInformation(string(arg_id,"::",arg_t)))
+                        end
                     end
                 end
+                push!(sigs.signatures, SignatureInformation(string(Expr(sig)), "", Ps))
             end
         end
-
-        
-        signatureHelper = SignatureHelp(filter(s -> length(s.parameters) > arg, sigs.signatures), 0, arg)
-        response = JSONRPC.Response(get(r.id), signatureHelper)
     end
+    
+
+    signatureHelper = SignatureHelp(filter(s -> length(s.parameters) > arg, sigs.signatures), 0, arg)
+    response = JSONRPC.Response(get(r.id), signatureHelper)
+    
     send(response, server)
 end
 

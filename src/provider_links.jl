@@ -31,7 +31,7 @@ end
 #         else
 #             file = filepath2uri(x.val)
 #         end
-#         push!(links, (file, offset + (1:x.span)))
+#         push!(links, (file, offset + (1:x.fullspan)))
 #     end
 # end
 
@@ -41,7 +41,7 @@ end
 #     end
 #     for a in x
 #         get_links(a, offset, uri, server, links)
-#         offset += a.span
+#         offset += a.fullspan
 #     end
 #     return links
 # end

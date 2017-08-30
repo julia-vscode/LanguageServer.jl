@@ -16,12 +16,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 ""
             else
                 rline = reverse(line[1:chr2ind(line, min(length(line), tdpp.position.character))])
-                for (i,c) in enumerate(rline)
+                for (i, c) in enumerate(rline)
                     if c == '\\' || c == '@'
                         write(io, c)
                         break
                     end
-                    if !(Base.is_id_char(c) || c == '.' || c == '_' || (c == '^' && i < length(rline) && rline[i+1] == '\\'))
+                    if !(Base.is_id_char(c) || c == '.' || c == '_' || (c == '^' && i < length(rline) && rline[i + 1] == '\\'))
                         break
                     end
                     write(io, c)
@@ -32,7 +32,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     entries = Tuple{Symbol,Int,String}[]
-    
+
     if word == "end"
         push!(entries, ("end", 6, "end"))
     elseif word == "else"
@@ -45,8 +45,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         push!(entries, ("finally", 6, "finally"))
     end
 
+
+    y, s = scope(doc, offset, server)
     prefix = word[1:searchlast(word, '.')]
-    if isempty(word) && isempty(prefix)
+    if isempty(word) && isempty(prefix) && !CSTParser.isstring(y)
     elseif isempty(prefix) # Single word
         if startswith(word, "\\") # Latex completion
             for (k, v) in Base.REPLCompletions.latex_symbols
@@ -56,51 +58,57 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         else
-            y, s, modules, current_namespace = scope(doc, offset, server)
-            for m in vcat([:Base, :Core], unique(modules))
-                if startswith(string(m), word)
-                    push!(entries, (string(m), 9, "Module: $m"))
-                    length(entries) > 200 && break
+            ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+            if CSTParser.isstring(y) && isabspath(y.val)
+                dloc = last(search(line, Regex(y.val))) - last(search(line, Regex(word)))
+                paths, loc, _ = Base.REPLCompletions.complete_path(y.val, length(y.val) - dloc)
+                for p in paths
+                    push!(entries, (p, 17, ""))
                 end
-                if isdefined(Main, m)
-                    M = getfield(Main, m)
-                    if M isa Module
-                        for n in names(M)
-                            if startswith(string(n), word) && isdefined(M, n)
-                                x = getfield(M, n)
-                                doc = string(Docs.doc(Docs.Binding(M, n)))
-                                push!(entries, (string(n), CompletionItemKind(typeof(x)), doc))
-                            end
+            else
+                for name in BaseCoreNames
+                    if startswith(string(name), word) && (isdefined(Base, name) || isdefined(Core, name))
+                        x = getfield(Main, name)
+                        doc = string(Docs.doc(Docs.Binding(Main, name)))
+                        push!(entries, (string(name), CompletionItemKind(typeof(x)), doc))
+                    end
+                end
+                if haskey(s.imported_names, ns)
+                    for name in s.imported_names[ns]
+                        if startswith(name, word) 
+                            x = get_cache_entry(name, server, s)
+                            # doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
+                            push!(entries, (name, CompletionItemKind(typeof(x)), ""))
                         end
                     end
                 end
-            end
-            if y != nothing
-                Ey = Expr(y)
-                nsEy = make_name(s.namespace, Ey)
-                partial = current_namespace == "toplevel" ? string(Ey) : nsEy
-                for (name, V) in s.symbols
-                    if startswith(string(name), partial) 
-                        push!(entries, (string(first(V)[1].id), 6, ""))
+                if y != nothing
+                    Ey = Expr(y)
+                    nsEy = make_name(s.namespace, Ey)
+                    partial = ns == "toplevel" ? string(Ey) : nsEy
+                    for (name, V) in s.symbols
+                        if startswith(string(name), partial) 
+                            push!(entries, (string(first(V).v.id), 6, ""))
+                        end
                     end
                 end
             end
         end
     else
-        y, s, modules, current_namespace = scope(doc, offset, server)
         topmodname = Symbol(first(split(prefix, '.')))
         modname = unpack_dot(parse(strip(prefix, '.'), raise = false))
-        vname = last(split(word, '.'))
-        if topmodname in vcat([:Base, :Core], unique(modules)) && isdefined(Main, topmodname) || (topmodname in BaseCoreNames && isdefined(Main, topmodname) && getfield(Main, topmodname) isa Module)
-            M = get_module(modname)
-            if M isa Module
-                for n in names(M, true, true)
-                    if !startswith(string(n), "#") && startswith(string(n), vname) && isdefined(M, n)
-                        x = getfield(M, n)
-                        doc = string(Docs.doc(Docs.Binding(M, n)))
-                        push!(entries, (n, CompletionItemKind(typeof(x)), doc))
-                        length(entries) > 200 && break
-                    end
+        M = get_module(modname)
+        if M != false && M isa Module
+            server.loaded_modules[strip(prefix, '.')] = load_mod_names(M)
+        end
+        partial = word[searchlast(word, '.') + 1:end]
+        if strip(prefix, '.') in keys(server.loaded_modules)
+            for name in server.loaded_modules[strip(prefix, '.')][2]
+                if startswith(name, partial) && isdefined(M, Symbol(name))
+                    x = getfield(M, Symbol(name))
+                    doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
+                    push!(entries, (name, CompletionItemKind(typeof(x)), doc))
+                    length(entries) > 200 && break
                 end
             end
         end
@@ -114,6 +122,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             label  = strip(documentation, '\\')
             documentation = newtext
             length(newtext) > 1 && (newtext = newtext[1:1])
+        elseif k == 17 # file completion
+            label = comp
+            documentation = ""
         else
             label  = last(split(newtext, "."))
             documentation = replace(documentation, r"(`|\*\*)", "")

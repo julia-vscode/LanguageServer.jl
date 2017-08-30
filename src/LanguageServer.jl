@@ -1,12 +1,29 @@
 module LanguageServer
-
 using JSON
 using URIParser
+import DocumentFormat
 import CSTParser
 import Tokenize.Tokens
 
+mutable struct Variable
+    id
+    t
+    val::CSTParser.EXPR
+end
+
+mutable struct LSDiagnostic{C}
+    loc::UnitRange{Int}
+    actions::Vector{DocumentFormat.TextEdit}
+    message::String
+end
+
 export LanguageServerInstance
-const VariableLoc = Tuple{CSTParser.Variable,UnitRange{Int},String}
+
+struct VariableLoc
+    v::Variable
+    loc::UnitRange{Int}
+    uri::String
+end
 
 include("protocol/protocol.jl")
 include("document.jl")

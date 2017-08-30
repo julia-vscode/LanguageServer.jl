@@ -10,7 +10,7 @@ end
 
 testtext = """
 module testmodule
-type testtype
+struct testtype
     a
     b::Float64
     c::Vector{Float64}
@@ -40,11 +40,11 @@ LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{
 
 res = getresult(server)
 
-@test res[1]["value"] == "mutable"
+@test res[1]["value"] == "struct"
 
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}"""), server)
 
 res = getresult(server)
 
-@test res[1]["value"] == "testfunction(a, b::Float64, c::testtype)"
+@test res[1]["value"] == "function"

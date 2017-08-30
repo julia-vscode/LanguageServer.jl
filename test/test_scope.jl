@@ -197,16 +197,16 @@ for f in [test_scope,test_undefvar]
             """, 29) # julia-vscode issue 241
 
             @test f("""
-            using Optim: minimizer
-            res = Optim.optimize(x->sum(x.^2), ones(2))
-            """, 33) # julia-vscode issue 222
+            using CSTParser: parse_operator
+            parse_operator
+            """, 34) # julia-vscode issue 222
 
             @test !f("""
             module A
-            using Optim: minimizer
-            res = Optim.optimize(x->sum(x.^2), ones(2))
+            using CSTParser: parse_operator
+            ParseState
             end
-            """, 41) # julia-vscode issue 222
+            """, 43) # julia-vscode issue 222
         end
     end
 end

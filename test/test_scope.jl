@@ -5,8 +5,12 @@ function test_scope(str, offset)
     LanguageServer.toplevel(x, s, server)
     s.current.offset = 0
     y = LanguageServer._scope(x, s, server)
+    if !isempty(s.stack) && last(s.stack) isa CSTParser.EXPR{CSTParser.MacroName}
+        y = last(s.stack)
+    end
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    y.val in keys(s.symbols) || y.val in s.imported_names[ns]
+    yname = string(Expr(y))
+    yname in keys(s.symbols) || yname in s.imported_names[ns]
 end
 
 function test_undefvar(str, offset = 0)

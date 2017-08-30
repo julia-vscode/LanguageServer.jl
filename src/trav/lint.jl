@@ -118,6 +118,10 @@ function lint(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, server, istop
     end
 end
 
+function lint(x::EXPR{CSTParser.MacroName}, s::TopLevelScope, L::LintState, server, istop)
+    x1 = EXPR{IDENTIFIER}(EXPR[], x.fullspan, x.span, string("@", x.args[2].val))
+    lint(x1, s, L, server, istop)
+end
 
 
 function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, istop)

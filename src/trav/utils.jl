@@ -43,7 +43,7 @@ function findtopfile(uri::String, server, path = String[], namespace = [])
 
     if isempty(follow)
         push!(path, uri)
-        return path, namespace
+        return path, reverse(namespace)
     else
         if length(follow) > 1
             for f in follow

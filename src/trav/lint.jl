@@ -230,7 +230,7 @@ function _lint_sig(sig1, s, L, fname, offset)
                 push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan - tws), [], "Use of duplicate argument names"))
             end
 
-            push!(argnames, arg_id)
+            arg_id != "" && push!(argnames, arg_id)
             if fname != "" && fname in argnames
                 tws = CSTParser.trailing_ws_length(CSTParser.get_last_token(sig))
                 push!(L.diagnostics, LSDiagnostic{DuplicateArgumentName}(offset + (0:sig.fullspan - tws), [], "Use of function name as argument name"))

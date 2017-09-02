@@ -7,43 +7,44 @@ function parse_jmd(ps, str)
             push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
         end
     end
-    top = CSTParser.EXPR{CSTParser.Block}([], 0, [], "")
+    top = CSTParser.EXPR{CSTParser.Block}([], "")
     if isempty(blocks)
         return top, ps
     end
 
     for (startbyte, b) in blocks
-        if b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.TRIPLE_CMD}} && (startswith(b.val, "```julia") || startswith(b.val, "```{julia"))
-            blockstr = b.val[4:end - 3]
+        if b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.TRIPLE_CMD}} && (startswith(b.val, "julia") || startswith(b.val, "{julia"))
+            blockstr = b.val
             ps = CSTParser.ParseState(blockstr)
+            # skip first line
             while ps.nt.startpos[1] == 1
                 next(ps)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
-            push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), [], ""))
+            push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), 1:sizeof(str[prec_str_size]) , ""))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
-            top.fullspan = sum(x.fullspan for x in top.args)
+            CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
-        elseif b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.CMD}} && startswith(b.val, "`j ")
-            blockstr = b.val[4:end - 1]
+        elseif b isa CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.CMD}} && startswith(b.val, "j ")
+            blockstr = b.val
             ps = CSTParser.ParseState(blockstr)
             next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), [], ""))
+            push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), 1:sizeof(str[prec_str_size]), ""))
 
             args, ps = parse(ps, true)
             append!(top.args, args.args)
-            top.fullspan = sum(x.fullspan for x in top.args)
+            CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
         end
     end
 
     prec_str_size = currentbyte:sizeof(str)
-    push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), [], ""))
-    top.fullspan = sum(x.fullspan for x in top.args)
+    push!(top.args, CSTParser.EXPR{CSTParser.LITERAL{CSTParser.Tokens.STRING}}([], sizeof(str[prec_str_size]), 1:sizeof(str[prec_str_size]), ""))
+    
 
     return top, ps
 end

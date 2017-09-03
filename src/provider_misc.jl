@@ -341,3 +341,33 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params)
     return
 end
+
+function toggle_file_lint(doc, server)
+    if doc._runlinter
+        doc._runlinter = false
+        empty!(doc.diagnostics)
+    else
+        doc._runlinter = true
+        L = lint(doc, server)
+        doc.diagnostics = L.diagnostics
+    end
+    publish_diagnostics(doc, server)
+end
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")},String}, server)
+    if isdir(uri2filepath(r.params))
+        for (uri,doc) in server.documents
+            if startswith(uri, r.params)
+                toggle_file_lint(doc, server)
+            end
+        end
+    else
+        if r.params in keys(server.documents)
+            doc = server.documents[r.params]
+            toggle_file_lint(doc, server)
+        end
+    end
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params)
+    return params
+end

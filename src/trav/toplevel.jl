@@ -1,7 +1,3 @@
-import CSTParser: IDENTIFIER, INSTANCE, Quotenode, LITERAL, EXPR, ERROR, KEYWORD, Tokens
-import CSTParser: TopLevel, Block, Call, NOTHING, FileH
-import CSTParser: contributes_scope
-
 mutable struct ScopePosition
     uri::String
     offset::Int
@@ -14,7 +10,7 @@ mutable struct TopLevelScope
     current::ScopePosition
     hittarget::Bool
     symbols::Dict{String,Vector{VariableLoc}}
-    stack::Vector{EXPR}
+    stack::Vector{Any}
     namespace::Vector{Symbol}
     followincludes::Bool
     intoplevel::Bool
@@ -30,8 +26,8 @@ function toplevel(doc, server, followincludes = true)
     return s
 end
 
-function toplevel(x::EXPR, s::TopLevelScope, server)
-    for a in x.args
+function toplevel(x, s::TopLevelScope, server)
+    for a in x
         offset = s.current.offset
         toplevel_symbols(a, s, server)
         if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
@@ -40,7 +36,7 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
         end
 
         if ismodule(a)
-            push!(s.namespace, a.args[2].val)
+            push!(s.namespace, str_value(a.args[2]))
             toplevel(a, s, server)
             pop!(s.namespace)
         elseif contributes_scope(a)
@@ -63,9 +59,9 @@ function toplevel(x::EXPR, s::TopLevelScope, server)
     return 
 end
 
-function toplevel_symbols(x, s::TopLevelScope, server) end
+function toplevel_symbols(x::LeafNodes, s::TopLevelScope, server) end
 
-function toplevel_symbols(x::EXPR, s::TopLevelScope, server)
+function toplevel_symbols(x, s::TopLevelScope, server)
     for v in get_defs(x)
         name = make_name(s.namespace, v.id)
         var_item = VariableLoc(v, s.current.offset + (0:x.fullspan), s.current.uri)
@@ -78,9 +74,9 @@ function toplevel_symbols(x::EXPR, s::TopLevelScope, server)
 end
 
 function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server)
-    if x.args[1].val == "@enum"
+    if x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) == "enum"
         offset = sum(x.args[i].fullspan for i = 1:3)
-        enum_name = Symbol(x.args[3].val)
+        enum_name = Symbol(str_value(x.args[3]))
         v = Variable(enum_name, :Enum, x)
         name = make_name(s.namespace, enum_name)
         var_item = VariableLoc(v, s.current.offset + x.span, s.current.uri)
@@ -91,9 +87,9 @@ function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server
         end
         for i = 4:length(x.args)
             a = x.args[i]
-            if !(a isa EXPR{T} where T <: CSTParser.PUNCTUATION) && a isa EXPR{CSTParser.IDENTIFIER}
-                v = Variable(a.val, enum_name, x)
-                name = make_name(s.namespace, a.val)
+            if a isa IDENTIFIER
+                v = Variable(str_value(a), enum_name, x)
+                name = make_name(s.namespace, str_value(a))
                 var_item = VariableLoc(v, offset + (1:a.fullspan), s.current.uri)
                 if haskey(s.symbols, name)
                     push!(s.symbols[name], var_item)
@@ -112,8 +108,8 @@ function toplevel_symbols(x::EXPR{CSTParser.Export}, s::TopLevelScope, server)
         s.exported_names[ns] = Set()
     end
     for a in x.args
-        if a isa EXPR{IDENTIFIER}
-            push!(s.exported_names[ns], a.val)
+        if a isa IDENTIFIER
+            push!(s.exported_names[ns], str_value(a))
         end
     end
 end
@@ -182,6 +178,8 @@ function load_mod_names(mod::Module)
     expt_names, int_names
 end
 
+function get_defs(x) return Variable[] end
+
 function get_defs(x::EXPR{CSTParser.Struct})
     [Variable(Expr(CSTParser.get_id(x.args[2])), :struct, x)]
 end
@@ -207,8 +205,6 @@ function get_defs(x::EXPR{T}) where T <: Union{CSTParser.Primitive,CSTParser.Bit
 end
 
 
-function get_defs(x) return Variable[] end
-
 function get_defs(x::EXPR{CSTParser.ModuleH})
     [Variable(Expr(CSTParser.get_id(x.args[2])), :module, x)]
 end
@@ -225,24 +221,24 @@ function get_defs(x::EXPR{CSTParser.Macro})
     [Variable(Symbol("@", Expr(CSTParser._get_fname(x.args[2]))), :macro, x)]
 end
 
-function get_defs(x::EXPR{CSTParser.BinarySyntaxOpCall})
-    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
-        if CSTParser.is_func_call(x.args[1])
-            return Variable[Variable(Expr(CSTParser._get_fname(x.args[1])), :function, x)]
-        elseif x.args[3] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[3].args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
+function get_defs(x::CSTParser.BinarySyntaxOpCall)
+    if x.op isa OPERATOR{Tokens.EQ,false}
+        if CSTParser.is_func_call(x.arg1)
+            return Variable[Variable(Expr(CSTParser._get_fname(x.arg1)), :function, x)]
+        elseif x.arg2 isa BinarySyntaxOpCall && x.arg2.op isa OPERATOR{Tokens.EQ,false}
             defs = Variable[]
-            val = x.args[3]
-            while val isa EXPR{CSTParser.BinarySyntaxOpCall} && val.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
-                val = val.args[3]
+            val = x.arg2
+            while val isa BinarySyntaxOpCall && val.op isa OPERATOR{Tokens.EQ,false}
+                val = val.arg2
             end
             decl = x
-            while decl isa EXPR{CSTParser.BinarySyntaxOpCall} && decl.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AssignmentOp,Tokens.EQ,false}}
-                _track_assignment(decl.args[1], val, defs)
-                decl = decl.args[3]
+            while decl isa BinarySyntaxOpCall && decl.op isa OPERATOR{Tokens.EQ,false}
+                _track_assignment(decl.arg1, val, defs)
+                decl = decl.arg2
             end
             return defs
         else
-            return _track_assignment(x.args[1], x.args[3])
+            return _track_assignment(x.arg1, x.arg2)
         end
     else
         return Variable[]
@@ -259,16 +255,16 @@ function _track_assignment(x, val, defs::Vector{Variable} = Variable[])
     return defs::Vector{Variable}
 end
 
-function _track_assignment(x::EXPR{CSTParser.IDENTIFIER}, val, defs::Vector{Variable} = Variable[])
+function _track_assignment(x::CSTParser.IDENTIFIER, val, defs::Vector{Variable} = Variable[])
     t = CSTParser.infer_t(val)
     push!(defs, Variable(Expr(x), t, val))
     return defs
 end
 
-function _track_assignment(x::EXPR{CSTParser.BinarySyntaxOpCall}, val, defs::Vector{Variable} = Variable[])
-    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DeclarationOp,Tokens.DECLARATION,false}}
-        t = Expr(x.args[3])
-        push!(defs, Variable(Expr(CSTParser.get_id(x.args[1])), t, val))
+function _track_assignment(x::BinarySyntaxOpCall, val, defs::Vector{Variable} = Variable[])
+    if x.op isa OPERATOR{Tokens.DECLARATION,false}
+        t = Expr(x.arg2)
+        push!(defs, Variable(Expr(CSTParser.get_id(x.arg1)), t, val))
     end
     return defs
 end

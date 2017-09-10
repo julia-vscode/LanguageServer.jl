@@ -59,9 +59,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             end
         else
             ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-            if CSTParser.isstring(y) && isabspath(y.val)
-                dloc = last(search(line, Regex(y.val))) - last(search(line, Regex(word)))
-                paths, loc, _ = Base.REPLCompletions.complete_path(y.val, length(y.val) - dloc)
+            if CSTParser.isstring(y) && isabspath(str_value(y))
+                dloc = last(search(line, Regex(str_value(y)))) - last(search(line, Regex(word)))
+                paths, loc, _ = Base.REPLCompletions.complete_path(str_value(y), length(str_value(y)) - dloc)
                 for p in paths
                     push!(entries, (p, 17, ""))
                 end

@@ -31,7 +31,14 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 
-function unpack_dot(id, args = Symbol[])
+unpack_dot(id, args = Symbol[]) = Symbol[]
+
+function unpack_dot(id::Symbol, args = Symbol[])
+    unshift!(args, id)
+    return args
+end
+
+function unpack_dot(id::Expr, args = Symbol[])
     if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
         if id.args[2].value isa Symbol && ((id.args[1] isa Expr && id.args[1].head == :.) || id.args[1] isa Symbol)
             unshift!(args, id.args[2].value)
@@ -39,27 +46,23 @@ function unpack_dot(id, args = Symbol[])
         else
             return Symbol[]
         end
-    elseif id isa Symbol
-        unshift!(args, id)
-    else
-        return Symbol[]
     end
     return args
 end
 
 _isdotexpr(x) = false
-_isdotexpr(x::EXPR{CSTParser.BinarySyntaxOpCall}) = x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
+_isdotexpr(x::BinarySyntaxOpCall) = x.op isa OPERATOR{Tokens.DOT,false}
 
-function unpack_dot(x::EXPR)
-    args = EXPR[]
+function unpack_dot(x::BinarySyntaxOpCall)
+    args = Any[]
     val = x
     while _isdotexpr(val)
-        if val.args[3] isa EXPR{Quotenode}
-            unshift!(args, val.args[3].args[1])
+        if val.arg2 isa EXPR{Quotenode}
+            unshift!(args, val.arg2.args[1])
         else
-            unshift!(args, val.args[3])
+            unshift!(args, val.arg2)
         end
-        val = val.args[1]
+        val = val.arg1
     end
     unshift!(args, val)
     return args
@@ -136,15 +139,15 @@ end
 
 function get_cache_entry(x, server, s::TopLevelScope) end
 
-get_cache_entry(x::EXPR{IDENTIFIER}, server, s::TopLevelScope) = get_cache_entry(x.val, server, s)
+get_cache_entry(x::IDENTIFIER, server, s::TopLevelScope) = get_cache_entry(x.val, server, s)
 
-get_cache_entry(x::EXPR{<:CSTParser.OPERATOR}, server, s::TopLevelScope) = get_cache_entry(string(Expr(x)), server, s)
+get_cache_entry(x::OPERATOR, server, s::TopLevelScope) = get_cache_entry(string(Expr(x)), server, s)
 
-function get_cache_entry(x::EXPR{CSTParser.BinarySyntaxOpCall}, server, s::TopLevelScope)
+function get_cache_entry(x::BinarySyntaxOpCall, server, s::TopLevelScope)
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.DotOp,Tokens.DOT,false}}
+    if x.op isa OPERATOR{Tokens.DOT,false}
         args = unpack_dot(x)
-        if first(args) isa EXPR{IDENTIFIER} && (Symbol(first(args).val) in BaseCoreNames || (haskey(s.imported_names, ns) && first(args).val in s.imported_names[ns]))
+        if first(args) isa IDENTIFIER && (Symbol(str_value(first(args))) in BaseCoreNames || (haskey(s.imported_names, ns) && str_value(first(args)) in s.imported_names[ns]))
             return _getfield(Expr.(args))
         end
     else
@@ -224,3 +227,7 @@ function updatecache(absentmodules::Vector{Symbol}, server)
         @eval try import $m end
     end
 end
+
+
+str_value(x) = ""
+str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val

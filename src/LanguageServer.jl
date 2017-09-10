@@ -1,14 +1,21 @@
+__precompile__()
 module LanguageServer
 using JSON
 using URIParser
 import DocumentFormat
 import CSTParser
-import Tokenize.Tokens
+import CSTParser: EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall
+import CSTParser: IDENTIFIER, KEYWORD, LITERAL, OPERATOR, PUNCTUATION, Quotenode, ERROR, Tokens
+import CSTParser: TopLevel, Block, Call, NOTHING, FileH
+import CSTParser: contributes_scope
+import Tokenize.Tokens, Tokenize.Tokens.untokenize
+
+const LeafNodes = Union{IDENTIFIER,KEYWORD,LITERAL,OPERATOR,PUNCTUATION}
 
 mutable struct Variable
     id
     t
-    val::CSTParser.EXPR
+    val
 end
 
 mutable struct LSDiagnostic{C}

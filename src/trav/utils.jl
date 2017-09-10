@@ -6,7 +6,7 @@ Checks whether `x` is an expression that includes a file.
 """
 isincludable(x) = false
 function isincludable(x::EXPR{Call})
-    x.args[1] isa EXPR{IDENTIFIER} && x.args[1].val == "include" && length(x.args) == 4 && (x.args[3] isa EXPR{LITERAL{Tokens.STRING}} || x.args[3] isa EXPR{LITERAL{Tokens.TRIPLE_STRING}})
+    x.args[1] isa IDENTIFIER && x.args[1].val == "include" && length(x.args) == 4 && (x.args[3] isa LITERAL{Tokens.STRING} || x.args[3] isa LITERAL{Tokens.TRIPLE_STRING})
 end
 
 """
@@ -88,44 +88,44 @@ iserrorexpr(x::Expr) = x.head == :error
 iserrorexpr(x) = false
 
 
-_get_fparams(x::EXPR, args = Symbol[]) = args
+Base.start(x::EXPR) = 1
+Base.next(x::EXPR, s) = x.args[s], s + 1
+Base.done(x::EXPR, s) = s > length(x.args)
 
-function _get_fparams(x::EXPR{Call}, args = Symbol[])
-    if x.args[1] isa EXPR{CSTParser.Curly}
-        _get_fparams(x.args[1], args)
+Base.start(x::UnaryOpCall) = 1
+Base.next(x::UnaryOpCall, s) = s == 1 ? x.op : x.arg , s + 1
+Base.done(x::UnaryOpCall, s) = s > 2
+
+Base.start(x::UnarySyntaxOpCall) = 1
+Base.next(x::UnarySyntaxOpCall, s) = s == 1 ? x.arg1 : x.arg2 , s + 1
+Base.done(x::UnarySyntaxOpCall, s) = s > 2
+
+Base.start(x::BinarySyntaxOpCall) = 1
+Base.next(x::BinarySyntaxOpCall, s) = getfield(x, s) , s + 1
+Base.done(x::BinarySyntaxOpCall, s) = s > 3
+
+Base.start(x::BinaryOpCall) = 1
+Base.next(x::BinaryOpCall, s) = getfield(x, s) , s + 1
+Base.done(x::BinaryOpCall, s) = s > 3
+
+Base.start(x::WhereOpCall) = 1
+function Base.next(x::WhereOpCall, s) 
+    if s == 1
+        return x.arg1, 2
+    elseif s == 2
+        return x.op, 3
+    else
+        return x.args[s - 2] , s + 1
     end
-    unique(args)
 end
+Base.done(x::WhereOpCall, s) = s > 2 + length(x.args)
 
-function _get_fparams(x::EXPR{CSTParser.Curly}, args = Symbol[])
-    for i = 3:length(x.args)
-        a = x.args[i]
-        if !(a isa EXPR{<:CSTParser.PUNCTUATION})
-            if a isa EXPR{IDENTIFIER}
-                push!(args, Expr(a))
-            elseif a isa EXPR{CSTParser.BinarySyntaxOpCall} && a.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.ISSUBTYPE,false}}
-                push!(args, Expr(a).args[1])
-            end
-        end
-    end
-    unique(args)
-end
+Base.start(x::ConditionalOpCall) = 1
+Base.next(x::ConditionalOpCall, s) = getfield(x, s) , s + 1
+Base.done(x::ConditionalOpCall, s) = s > 5
 
-function _get_fparams(x::EXPR{CSTParser.BinarySyntaxOpCall}, args = Symbol[])
-    if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}}
-        if x.args[1] isa EXPR{CSTParser.BinarySyntaxOpCall} && x.args[1].args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.WhereOp,Tokens.WHERE,false}}
-            _get_fparams(x.args[1], args)
-        end
-        for i = 3:length(x.args)
-            a = x.args[i]
-            if !(a isa EXPR{<:CSTParser.PUNCTUATION})
-                if a isa EXPR{IDENTIFIER}
-                    push!(args, Expr(a))
-                elseif a isa EXPR{CSTParser.BinarySyntaxOpCall} && a.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.ComparisonOp,Tokens.ISSUBTYPE,false}} && a.args[1] isa EXPR{IDENTIFIER}
-                    push!(args, Expr(a.args[1]))
-                end
-            end
-        end
-    end
-    return unique(args)
+for t in (CSTParser.IDENTIFIER, CSTParser.OPERATOR, CSTParser.LITERAL, CSTParser.PUNCTUATION, CSTParser.KEYWORD)
+    Base.start(x::t) = 1
+    Base.next(x::t, s) = x, s + 1
+    Base.done(x::t, s) = true
 end

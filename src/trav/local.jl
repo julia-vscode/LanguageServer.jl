@@ -39,7 +39,7 @@ function _scope(x, s::TopLevelScope, server)
         elseif x isa EXPR{CSTParser.Do} && i == 2
             _do_scope(x, s, server)
         elseif x isa CSTParser.BinarySyntaxOpCall
-            if x.op isa OPERATOR{Tokens.ANON_FUNC,false} && i == 1
+            if CSTParser.is_anon_func(x.op) && i == 1
                 _anon_func_scope(x, s, server)
             elseif i == 1 && CSTParser.declares_function(x)
                 _fsig_scope(a, s, server)
@@ -78,7 +78,7 @@ function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
         push!(loc, name)
     end
     sig = sig1
-    while sig isa CSTParser.WhereOpCall || (sig isa CSTParser.BinarySyntaxOpCall && sig.op isa OPERATOR{Tokens.DECLARATION,false})
+    while sig isa CSTParser.WhereOpCall || (sig isa CSTParser.BinarySyntaxOpCall && CSTParser.is_decl(sig.op))
         sig = sig.arg1
     end
     sig isa IDENTIFIER && return
@@ -112,7 +112,7 @@ end
 function _for_scope(range, s::TopLevelScope, server, locals = []) end
 
 function _for_scope(range::T, s::TopLevelScope, server, locals = []) where T <: Union{CSTParser.BinarySyntaxOpCall,CSTParser.BinaryOpCall}
-    if range.op isa OPERATOR{Tokens.EQ,false} || range.op isa OPERATOR{Tokens.IN,false} || range.op isa OPERATOR{Tokens.ELEMENT_OF,false}
+    if CSTParser.is_eq(range.op) || CSTParser.is_in(range.op) || CSTParser.is_elof(range.op)
         defs = _track_assignment(range.arg1, range.arg2)
         for d in defs
             name = make_name(s.namespace, d.id)

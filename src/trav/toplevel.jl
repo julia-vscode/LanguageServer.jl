@@ -222,17 +222,17 @@ function get_defs(x::EXPR{CSTParser.Macro})
 end
 
 function get_defs(x::CSTParser.BinarySyntaxOpCall)
-    if x.op isa OPERATOR{Tokens.EQ,false}
+    if CSTParser.is_eq(x.op)
         if CSTParser.is_func_call(x.arg1)
             return Variable[Variable(Expr(CSTParser._get_fname(x.arg1)), :function, x)]
-        elseif x.arg2 isa BinarySyntaxOpCall && x.arg2.op isa OPERATOR{Tokens.EQ,false}
+        elseif x.arg2 isa BinarySyntaxOpCall && CSTParser.is_eq(x.arg2.op)
             defs = Variable[]
             val = x.arg2
-            while val isa BinarySyntaxOpCall && val.op isa OPERATOR{Tokens.EQ,false}
+            while val isa BinarySyntaxOpCall && CSTParser.is_eq(val.op)
                 val = val.arg2
             end
             decl = x
-            while decl isa BinarySyntaxOpCall && decl.op isa OPERATOR{Tokens.EQ,false}
+            while decl isa BinarySyntaxOpCall && CSTParser.is_eq(decl.op)
                 _track_assignment(decl.arg1, val, defs)
                 decl = decl.arg2
             end
@@ -262,7 +262,7 @@ function _track_assignment(x::CSTParser.IDENTIFIER, val, defs::Vector{Variable} 
 end
 
 function _track_assignment(x::BinarySyntaxOpCall, val, defs::Vector{Variable} = Variable[])
-    if x.op isa OPERATOR{Tokens.DECLARATION,false}
+    if CSTParser.is_decl(x.op)
         t = Expr(x.arg2)
         push!(defs, Variable(Expr(CSTParser.get_id(x.arg1)), t, val))
     end

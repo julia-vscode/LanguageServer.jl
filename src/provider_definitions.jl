@@ -18,7 +18,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     locations = Location[]
     if y isa IDENTIFIER || y isa OPERATOR
         x = get_cache_entry(y, server, s)
-    elseif y isa EXPR{Quotenode} && last(s.stack) isa BinarySyntaxOpCall && last(s.stack).args[2] isa OPERATOR{Tokens.DOT,false}
+    elseif y isa EXPR{Quotenode} && last(s.stack) isa BinarySyntaxOpCall && CSTParser.is_dot(last(s.stack).args[2])
         x = get_cache_entry(last(s.stack), server, s)
     else
         x = nothing
@@ -33,7 +33,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     
     
     if y != nothing
-        if y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa BinarySyntaxOpCall && last(s.stack).args[2] isa OPERATOR{Tokens.DOT,false}
+        if y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa BinarySyntaxOpCall && CSTParser.is_dot(last(s.stack).args[2])
             Ey = Expr(last(s.stack))
         else
             Ey = Expr(y)

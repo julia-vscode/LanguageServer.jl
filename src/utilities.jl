@@ -51,7 +51,7 @@ function unpack_dot(id::Expr, args = Symbol[])
 end
 
 _isdotexpr(x) = false
-_isdotexpr(x::BinarySyntaxOpCall) = x.op isa OPERATOR{Tokens.DOT,false}
+_isdotexpr(x::BinarySyntaxOpCall) = CSTParser.is_dot(x.op)
 
 function unpack_dot(x::BinarySyntaxOpCall)
     args = Any[]
@@ -145,7 +145,7 @@ get_cache_entry(x::OPERATOR, server, s::TopLevelScope) = get_cache_entry(string(
 
 function get_cache_entry(x::BinarySyntaxOpCall, server, s::TopLevelScope)
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    if x.op isa OPERATOR{Tokens.DOT,false}
+    if CSTParser.is_dot(x.op)
         args = unpack_dot(x)
         if first(args) isa IDENTIFIER && (Symbol(str_value(first(args))) in BaseCoreNames || (haskey(s.imported_names, ns) && str_value(first(args)) in s.imported_names[ns]))
             return _getfield(Expr.(args))

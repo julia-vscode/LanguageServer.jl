@@ -80,7 +80,7 @@ function references(x, s::TopLevelScope, L::LintState, R::RefState, server, isto
         elseif x isa EXPR{CSTParser.Do} && i == 2
             _do_scope(x, s, server, last(L.locals))
         elseif x isa BinarySyntaxOpCall
-            if x.op isa OPERATOR{Tokens.ANON_FUNC,false} && i == 1
+            if CSTParser.is_anon_func(x.op) && i == 1
                 _anon_func_scope(x, s, server, last(L.locals))
             elseif i == 1 && CSTParser.declares_function(x)
                 _fsig_scope(a, s, server, last(L.locals))

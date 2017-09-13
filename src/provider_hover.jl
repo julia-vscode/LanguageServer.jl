@@ -10,7 +10,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     y, s = scope(doc, offset, server)
     
     if y isa IDENTIFIER || y isa OPERATOR
-        if length(s.stack) > 1 && s.stack[end] isa EXPR{Quotenode} && s.stack[end-1] isa BinarySyntaxOpCall && s.stack[end-1].op isa OPERATOR{Tokens.DOT,false}
+        if length(s.stack) > 1 && s.stack[end] isa EXPR{Quotenode} && s.stack[end-1] isa BinarySyntaxOpCall && CSTParser.is_dot(s.stack[end-1].op)
             x = get_cache_entry(s.stack[end-1], server, s)
             documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
             get_scope_entry_doc(s.stack[end-1], s, documentation)

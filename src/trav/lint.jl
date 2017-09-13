@@ -148,7 +148,7 @@ function lint(x::BinaryOpCall, s::TopLevelScope, L::LintState, server, istop)
 end
 
 function lint(x::BinarySyntaxOpCall, s::TopLevelScope, L::LintState, server, istop)
-    if x.op isa OPERATOR{Tokens.DOT,false}
+    if CSTParser.is_dot(x.op)
         # NEEDS FIX: check whether module or field of type
         lint(x.arg1, s, L, server, istop)
         return 
@@ -156,7 +156,7 @@ function lint(x::BinarySyntaxOpCall, s::TopLevelScope, L::LintState, server, ist
         fname = CSTParser._get_fname(x.arg1)
         _lint_sig(x.arg1, s, L, fname, s.current.offset)
         _fsig_scope(x.arg1, s, server, last(L.locals))
-    elseif x.op isa OPERATOR{Tokens.ANON_FUNC,false}
+    elseif CSTParser.is_anon_func(x.op)
         _anon_func_scope(x, s, server, last(L.locals))
     end
     offset = s.current.offset
@@ -290,10 +290,10 @@ end
 
 function _lint_sig(sig1, s, L, fname, offset)
     sig = sig1
-    while sig isa WhereOpCall || (sig isa BinarySyntaxOpCall && sig.op isa OPERATOR{Tokens.DECLARATION,false})
+    while sig isa WhereOpCall || (sig isa BinarySyntaxOpCall && CSTParser.is_decl(sig.op))
         sig = sig.arg1
     end
-    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa UnarySyntaxOpCall && sig.args[1].args[1].args[2].arg1 isa OPERATOR{Tokens.DECLARATION,false})
+    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(sig.args[1].args[1].args[2].arg1))
         push!(L.diagnostics, LSDiagnostic{parameterisedDeprecation}((offset + sig.args[1].args[1].fullspan):(offset + sig.args[1].fullspan), [], "Use of deprecated parameter syntax"))
         
         trailingws = last(sig.args) isa PUNCTUATION{Tokens.RPAREN} ? last(sig.args).fullspan - 1 : 0
@@ -417,7 +417,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         for a in x.args[3].args
             if CSTParser.declares_function(a)
                 fname = CSTParser._get_fname(CSTParser._get_fsig(a))
-                if str_value(fname) != str_value(name) && !(fname isa EXPR{CSTParser.InvisBrackets} && fname.args[2] isa UnarySyntaxOpCall && fname.args[2].arg1 isa OPERATOR{Tokens.DECLARATION,false})
+                if str_value(fname) != str_value(name) && !(fname isa EXPR{CSTParser.InvisBrackets} && fname.args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(fname.args[2].arg1))
                     push!(L.diagnostics, LSDiagnostic{MisnamedConstructor}(offset + (0:a.fullspan), [], "Constructor name does not match type name"))
                 end
             end
@@ -576,7 +576,7 @@ function lint(x::EXPR{CSTParser.Do}, s::TopLevelScope, L::LintState, server, ist
 end
 
 function _lint_range(x::BinaryOpCall, s::TopLevelScope, L::LintState)
-    if ((x.op isa OPERATOR{Tokens.IN,false} || x.op isa OPERATOR{Tokens.ELEMENT_OF,false}))
+    if ((CSTParser.is_in(x.op) || CSTParser.is_elof(x.op)))
         if x.arg2 isa LITERAL
             push!(L.diagnostics, LSDiagnostic{LoopOverSingle}(s.current.offset + (0:x.fullspan), [], "You are trying to loop over a single instance"))
         end
@@ -586,7 +586,7 @@ function _lint_range(x::BinaryOpCall, s::TopLevelScope, L::LintState)
 end
 
 function _lint_range(x::BinarySyntaxOpCall, s::TopLevelScope, L::LintState)
-    if x.op isa OPERATOR{Tokens.EQ,false}
+    if CSTParser.is_eq(x.op)
         if x.arg2 isa LITERAL
             push!(L.diagnostics, LSDiagnostic{LoopOverSingle}(s.current.offset + (0:x.fullspan), [], "You are trying to loop over a single instance"))
         end
@@ -611,7 +611,7 @@ function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, ist
         s.current.offset + cond_offset + (0:x.args[2].fullspan)
     end
     
-    if cond isa BinarySyntaxOpCall && cond.op isa OPERATOR{Tokens.EQ}
+    if cond isa BinarySyntaxOpCall && CSTParser.is_eq(cond.op)
         push!(L.diagnostics, LSDiagnostic{CondAssignment}(s.current.offset + cond_offset + (0:cond.fullspan), [], "An assignment rather than comparison operator has been used"))
     end
     if cond isa LITERAL{Tokens.TRUE}
@@ -626,7 +626,7 @@ end
 
 function lint(x::EXPR{CSTParser.While}, s::TopLevelScope, L::LintState, server, istop) 
     # Linting
-    if x.args[2] isa BinarySyntaxOpCall && x.args[2].op isa OPERATOR{Tokens.EQ}
+    if x.args[2] isa BinarySyntaxOpCall && CSTParser.is_eq(x.args[2].op)
         push!(L.diagnostics, LSDiagnostic{CondAssignment}(s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), [], "An assignment rather than comparison operator has been used"))
     elseif x.args[2] isa LITERAL{Tokens.FALSE}
         push!(L.diagnostics, LSDiagnostic{DeadCode}(s.current.offset + (0:x.fullspan), [], "This code is never reached"))

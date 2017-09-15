@@ -296,7 +296,7 @@ function _lint_sig(sig1, s, L, fname, offset)
     if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(sig.args[1].args[1].args[2].arg1))
         push!(L.diagnostics, LSDiagnostic{parameterisedDeprecation}((offset + sig.args[1].args[1].fullspan):(offset + sig.args[1].fullspan), [], "Use of deprecated parameter syntax"))
         
-        trailingws = last(sig.args) isa PUNCTUATION{Tokens.RPAREN} ? last(sig.args).fullspan - 1 : 0
+        trailingws = CSTParser.is_rparen(last(sig.args)) ? last(sig.args).fullspan - 1 : 0
         loc1 = offset + sig.fullspan - trailingws
 
         push!(last(L.diagnostics).actions, DocumentFormat.TextEdit(loc1:loc1, string(" where {", join((Expr(t) for t in sig.args[1].args[2:end] if !(t isa PUNCTUATION) ), ","), "}")))
@@ -499,7 +499,7 @@ function lint(x::EXPR{CSTParser.Bitstype}, s::TopLevelScope, L::LintState, serve
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
 
-    if x.args[2] isa LITERAL{Tokens.INTEGER} && mod(Expr(x.args[2]), 8) != 0
+    if x.args[2] isa LITERAL && x.args[2].kind == Tokens.INTEGER && mod(Expr(x.args[2]), 8) != 0
         loc = s.current.offset + x.args[1].fullspan + (0:sizeof(str_value(x.args[2])))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Invalid number of bits in primitive type $(str_value(name))"))
     end
@@ -513,7 +513,7 @@ function lint(x::EXPR{CSTParser.Primitive}, s::TopLevelScope, L::LintState, serv
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Cannot declare constant, it already has a value"))
     end
 
-    if x.args[4] isa LITERAL{Tokens.INTEGER} && mod(Expr(x.args[4]), 8) != 0
+    if x.args[4] isa LITERAL && x.args[4].kind == Tokens.INTEGER && mod(Expr(x.args[4]), 8) != 0
         loc = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + x.args[3].fullspan + (0:sizeof(str_value(x.args[4])))
         push!(L.diagnostics, LSDiagnostic{PossibleTypo}(loc, [], "Invalid number of bits in primitive type $(str_value(name))"))
     end
@@ -614,11 +614,11 @@ function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, ist
     if cond isa BinarySyntaxOpCall && CSTParser.is_eq(cond.op)
         push!(L.diagnostics, LSDiagnostic{CondAssignment}(s.current.offset + cond_offset + (0:cond.fullspan), [], "An assignment rather than comparison operator has been used"))
     end
-    if cond isa LITERAL{Tokens.TRUE}
+    if cond isa LITERAL && cond.kind == Tokens.TRUE
         if length(x.args) == 6
             push!(L.diagnostics, LSDiagnostic{DeadCode}(s.current.offset + cond_offset + cond.fullspan + x.args[3].fullspan + x.args[4].fullspan + (0:x.args[5].fullspan), [], "This code is never reached"))
         end
-    elseif cond isa LITERAL{Tokens.FALSE}
+    elseif cond isa LITERAL && cond.kind == Tokens.FALSE
         push!(L.diagnostics, LSDiagnostic{DeadCode}(deadcode_elseblock_range, [], "This code is never reached"))
     end
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
@@ -628,7 +628,7 @@ function lint(x::EXPR{CSTParser.While}, s::TopLevelScope, L::LintState, server, 
     # Linting
     if x.args[2] isa BinarySyntaxOpCall && CSTParser.is_eq(x.args[2].op)
         push!(L.diagnostics, LSDiagnostic{CondAssignment}(s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), [], "An assignment rather than comparison operator has been used"))
-    elseif x.args[2] isa LITERAL{Tokens.FALSE}
+    elseif x.args[2] isa LITERAL && x.args[2].kind == Tokens.FALSE
         push!(L.diagnostics, LSDiagnostic{DeadCode}(s.current.offset + (0:x.fullspan), [], "This code is never reached"))
     end
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)

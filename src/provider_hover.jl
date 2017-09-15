@@ -24,7 +24,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     elseif y isa KEYWORD{Tokens.END} && !isempty(s.stack)
         expr_type = Expr(last(s.stack).args[1])
         documentation = [MarkedString("Closes `$expr_type` expression")]
-    elseif y isa PUNCTUATION{Tokens.RPAREN} && !isempty(s.stack)
+    elseif CSTParser.is_rparen(y) && !isempty(s.stack)
         last_ex = last(s.stack)
         if last_ex isa EXPR{CSTParser.Call}
             documentation = [MarkedString("Closes `$(Expr(last_ex.args[1]))` call")]

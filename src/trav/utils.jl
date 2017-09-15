@@ -6,7 +6,7 @@ Checks whether `x` is an expression that includes a file.
 """
 isincludable(x) = false
 function isincludable(x::EXPR{Call})
-    x.args[1] isa IDENTIFIER && x.args[1].val == "include" && length(x.args) == 4 && (x.args[3] isa LITERAL{Tokens.STRING} || x.args[3] isa LITERAL{Tokens.TRIPLE_STRING})
+    x.args[1] isa IDENTIFIER && x.args[1].val == "include" && length(x.args) == 4 && CSTParser.isstring(x.args[3])
 end
 
 """

@@ -8,13 +8,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
     y, s = scope(doc, offset, server)
-    if y isa PUNCTUATION{Tokens.RPAREN}
+    if CSTParser.is_rparen(y)
         return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
     elseif length(s.stack) > 0 && last(s.stack) isa EXPR{Call}
         fcall = s.stack[end]
         fname = CSTParser._get_fname(last(s.stack))
         x = get_cache_entry(fname, server, s)
-    elseif length(s.stack) > 1 && s.stack[end] isa PUNCTUATION{Tokens.COMMA} && s.stack[end-1] isa EXPR{Call}
+    elseif length(s.stack) > 1 && CSTParser.is_comma(s.stack[end]) && s.stack[end-1] isa EXPR{Call}
         fcall = s.stack[end-1]
         fname = CSTParser._get_fname(fcall)
         x = get_cache_entry(fname, server, s)

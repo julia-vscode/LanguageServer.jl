@@ -231,3 +231,4 @@ end
 
 str_value(x) = ""
 str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val
+str_value(x::OPERATOR) = string(Expr(x))

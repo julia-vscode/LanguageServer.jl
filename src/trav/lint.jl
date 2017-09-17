@@ -201,7 +201,7 @@ function lint(x::EXPR{CSTParser.MacroName}, s::TopLevelScope, L::LintState, serv
 end
 
 function lint(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, L::LintState, server, istop)
-    if x.args[1] isa EXPR{CSTParser.MacroName} && (x.args[1].args[2].val == "goto" || x.args[1].args[2].val == "label")
+    if x.args[1] isa EXPR{CSTParser.MacroName} && (str_value(x.args[1].args[2]) == "goto" || str_value(x.args[1].args[2]) == "label")
         return
     else
         return invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)

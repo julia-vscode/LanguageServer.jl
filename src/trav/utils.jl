@@ -6,7 +6,7 @@ Checks whether `x` is an expression that includes a file.
 """
 isincludable(x) = false
 function isincludable(x::EXPR{Call})
-    x.args[1] isa IDENTIFIER && x.args[1].val == "include" && length(x.args) == 4 && CSTParser.isstring(x.args[3])
+    x.args[1] isa IDENTIFIER && x.args[1].val == "include" && length(x.args) == 4 && CSTParser.isstring(x.args[3]) && !(x.args[3] isa EXPR)
 end
 
 """
@@ -86,46 +86,3 @@ end
 
 iserrorexpr(x::Expr) = x.head == :error
 iserrorexpr(x) = false
-
-
-Base.start(x::EXPR) = 1
-Base.next(x::EXPR, s) = x.args[s], s + 1
-Base.done(x::EXPR, s) = s > length(x.args)
-
-Base.start(x::UnaryOpCall) = 1
-Base.next(x::UnaryOpCall, s) = s == 1 ? x.op : x.arg , s + 1
-Base.done(x::UnaryOpCall, s) = s > 2
-
-Base.start(x::UnarySyntaxOpCall) = 1
-Base.next(x::UnarySyntaxOpCall, s) = s == 1 ? x.arg1 : x.arg2 , s + 1
-Base.done(x::UnarySyntaxOpCall, s) = s > 2
-
-Base.start(x::BinarySyntaxOpCall) = 1
-Base.next(x::BinarySyntaxOpCall, s) = getfield(x, s) , s + 1
-Base.done(x::BinarySyntaxOpCall, s) = s > 3
-
-Base.start(x::BinaryOpCall) = 1
-Base.next(x::BinaryOpCall, s) = getfield(x, s) , s + 1
-Base.done(x::BinaryOpCall, s) = s > 3
-
-Base.start(x::WhereOpCall) = 1
-function Base.next(x::WhereOpCall, s) 
-    if s == 1
-        return x.arg1, 2
-    elseif s == 2
-        return x.op, 3
-    else
-        return x.args[s - 2] , s + 1
-    end
-end
-Base.done(x::WhereOpCall, s) = s > 2 + length(x.args)
-
-Base.start(x::ConditionalOpCall) = 1
-Base.next(x::ConditionalOpCall, s) = getfield(x, s) , s + 1
-Base.done(x::ConditionalOpCall, s) = s > 5
-
-for t in (CSTParser.IDENTIFIER, CSTParser.OPERATOR, CSTParser.LITERAL, CSTParser.PUNCTUATION, CSTParser.KEYWORD)
-    Base.start(x::t) = 1
-    Base.next(x::t, s) = x, s + 1
-    Base.done(x::t, s) = true
-end

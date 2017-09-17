@@ -202,7 +202,7 @@ function _anon_func_scope(x::CSTParser.BinarySyntaxOpCall, s::TopLevelScope, ser
             end
         end
     else
-        arg_id = CSTParser.get_id(x.arg1).val
+        arg_id = str_value(CSTParser.get_id(x.arg1))
         arg_t = CSTParser.get_t(x.arg1)
         name = make_name(s.namespace, arg_id)
         var_item = VariableLoc(Variable(arg_id, arg_t, x.arg1), s.current.offset + (0:x.arg1.fullspan), s.current.uri)
@@ -219,7 +219,7 @@ function _do_scope(x::EXPR{CSTParser.Do}, s::TopLevelScope, server, locals = [])
     for i = 1:length(x.args[3].args)
         a = x.args[3].args[i]
         if !(a isa PUNCTUATION)
-            arg_id = CSTParser.get_id(a).val
+            arg_id = str_value(CSTParser.get_id(a))
             arg_t = CSTParser.get_t(a)
             name = make_name(s.namespace, arg_id)
             var_item = VariableLoc(Variable(arg_id, arg_t, x.args[1]), s.current.offset + x.args[1].fullspan + x.args[2].fullspan + (0:x.args[3].fullspan), s.current.uri)

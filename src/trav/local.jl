@@ -146,7 +146,7 @@ end
 
 function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [])
     offset = s.current.offset
-    if x.args[3] isa KEYWORD{Tokens.CATCH} && x.args[4].fullspan > 0
+    if x.args[3] isa KEYWORD && x.args[3].kind == Tokens.CATCH && x.args[4].fullspan > 0
         s.current.offset += sum(x.args[i].fullspan for i = 1:3)
  
         d = Variable(x.args[4].val, :Any, x.args[4])

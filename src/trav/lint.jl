@@ -404,7 +404,7 @@ end
 
 # Types
 function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server, istop)
-    if x.args[1] isa KEYWORD{Tokens.TYPE}
+    if x.args[1] isa KEYWORD && x.args[1].kind == Tokens.TYPE
         push!(L.diagnostics, LSDiagnostic{typeDeprecation}(s.current.offset + (0:4), [DocumentFormat.TextEdit(s.current.offset + (0:x.args[1].fullspan), "mutable struct ")], "Use of deprecated `type` syntax"))
 
         name = CSTParser.get_id(x.args[2])
@@ -444,7 +444,7 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
 end
 
 function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server, istop)
-    if x.args[1] isa KEYWORD{Tokens.IMMUTABLE}
+    if x.args[1] isa KEYWORD && x.args[1].kind == Tokens.IMMUTABLE
         push!(L.diagnostics, LSDiagnostic{immutableDeprecation}(s.current.offset + (0:9), [DocumentFormat.TextEdit(s.current.offset + (0:x.args[1].fullspan), "struct ")], "Use of deprecated `immutable` syntax"))
     end
     name = CSTParser.get_id(x.args[2])
@@ -601,7 +601,7 @@ function _lint_range(x::PUNCTUATION, s::TopLevelScope, L::LintState)
 end
 
 function lint(x::EXPR{CSTParser.If}, s::TopLevelScope, L::LintState, server, istop) 
-    if x.args[1] isa KEYWORD{Tokens.IF}
+    if x.args[1] isa KEYWORD && x.args[1].kind == Tokens.IF
         cond = x.args[2]
         cond_offset = x.args[1].fullspan
         deadcode_elseblock_range = s.current.offset + cond_offset + (0:x.args[2].fullspan + x.args[3].fullspan)

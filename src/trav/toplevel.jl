@@ -129,7 +129,7 @@ function import_modules(x::Expr, server)
         for a in x.args
             import_modules(a, server)
         end
-    else
+    elseif length(x.args) > 0
         if x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
             topmodname = x.args[1]
             if !isdefined(Main, topmodname)

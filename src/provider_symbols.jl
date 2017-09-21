@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
             else
                 id = string(vl.v.id)
             end
-            ws_offset = trailing_ws_length(get_last_token(vl.v.val))
+            ws_offset = CSTParser.trailing_ws_length(vl.v.val)
             loc1 = vl.loc.start:vl.loc.stop - ws_offset
             push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, loc1))))
         end

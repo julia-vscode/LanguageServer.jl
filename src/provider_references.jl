@@ -27,8 +27,8 @@ function references(doc, offset, server)
     y, s = scope(doc, offset, server)
     
     locations = Location[]
-    if y isa EXPR{CSTParser.IDENTIFIER}
-        id_length = length(y.val)
+    if y isa IDENTIFIER
+        id_length = length(str_value(y))
         id = string(Expr(y))
         ns_name = make_name(s.namespace, Expr(y))
         if haskey(s.symbols, ns_name)
@@ -62,8 +62,10 @@ function references(doc, offset, server)
     return locations
 end
 
-function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server, istop) 
-    for (i, a) in enumerate(x.args)
+function references(x::LeafNodes, s::TopLevelScope, L::LintState, R::RefState, server, istop) end
+
+function references(x, s::TopLevelScope, L::LintState, R::RefState, server, istop) 
+    for (i, a) in enumerate(x)
         offset = s.current.offset
         if istop
         else
@@ -77,8 +79,8 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
             _let_scope(x, s, server, last(L.locals))
         elseif x isa EXPR{CSTParser.Do} && i == 2
             _do_scope(x, s, server, last(L.locals))
-        elseif x isa EXPR{CSTParser.BinarySyntaxOpCall} 
-            if x.args[2] isa EXPR{CSTParser.OPERATOR{CSTParser.AnonFuncOp,Tokens.ANON_FUNC,false}} && i == 1
+        elseif x isa BinarySyntaxOpCall
+            if CSTParser.is_anon_func(x.op) && i == 1
                 _anon_func_scope(x, s, server, last(L.locals))
             elseif i == 1 && CSTParser.declares_function(x)
                 _fsig_scope(a, s, server, last(L.locals))
@@ -93,16 +95,16 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
             references(a, s, L, R, server, istop)
         else
             if ismodule(a)
-                push!(s.namespace, a.args[2].val)
+                push!(s.namespace, str_value(a.args[2]))
             end
             # Add new local scope
-            if !(a isa EXPR{IDENTIFIER})
+            if !(a isa IDENTIFIER)
                 push!(L.locals, Set{String}())
             end
             references(a, s, L, R, server, false)
             
             # Delete local scope
-            if !(a isa EXPR{IDENTIFIER})
+            if !(a isa IDENTIFIER)
                 for k in pop!(L.locals)
                     remove_symbol(s.symbols, k)
                 end
@@ -111,13 +113,14 @@ function references(x::EXPR, s::TopLevelScope, L::LintState, R::RefState, server
                 pop!(s.namespace)
             end
         end
+        
         s.current.offset = offset + a.fullspan
     end
     return
 end
 
-function references(x::EXPR{IDENTIFIER}, s::TopLevelScope, L::LintState, R::RefState, server, istop)
-    Ex = Symbol(x.val)
+function references(x::IDENTIFIER, s::TopLevelScope, L::LintState, R::RefState, server, istop)
+    Ex = Symbol(str_value(x))
     ns = isempty(L.ns) ? "toplevel" : join(L.ns, ".")
     nsEx = make_name(s.namespace, Ex)
 

@@ -68,13 +68,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
                 end
             end
         end
-        for (uri, doc) in server.documents
-            doc.diagnostics = lint(doc, server).diagnostics
-            publish_diagnostics(doc, server)
-        end
     end
     server.debug_mode && info("Startup time: $(toq())")
-    server.isrunning = true
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
@@ -203,6 +198,13 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
         end
     else
         server.runlinter = true
+        if !server.isrunning
+            for (uri, doc) in server.documents
+                doc.diagnostics = lint(doc, server).diagnostics
+                publish_diagnostics(doc, server)
+            end
+            server.isrunning = true
+        end
     end
 end
 

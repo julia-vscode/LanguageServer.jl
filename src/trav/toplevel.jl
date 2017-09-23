@@ -283,6 +283,7 @@ function _track_assignment(x::EXPR{CSTParser.TupleH}, val, defs::Vector{Variable
 end
 
 function get_imported_names(x::Expr, s, server)
+    isempty(x.args) && return
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
     if x.head == :toplevel
         for a in x.args

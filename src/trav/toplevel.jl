@@ -133,8 +133,6 @@ function import_modules(x::Expr, server)
         if x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
             topmodname = x.args[1]
             if !isdefined(Main, topmodname)
-                oSTDERR = STDERR
-                redirect_stderr()
                 try 
                     @eval import $topmodname
                     server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
@@ -147,7 +145,6 @@ function import_modules(x::Expr, server)
                         end
                     end
                 end
-                redirect_stderr(oSTDERR)
             elseif !(string(topmodname) in keys(server.loaded_modules))
                 server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
             end

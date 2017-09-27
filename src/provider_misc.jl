@@ -373,3 +373,12 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params)
     return params
 end
+
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Void}, server)
+    server.debug_mode = !server.debug_mode
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
+    return
+end

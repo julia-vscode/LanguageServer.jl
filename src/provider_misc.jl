@@ -91,6 +91,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
+    server.isrunning = true
     uri = r.params.textDocument.uri
     server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[uri]
@@ -203,7 +204,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
                 doc.diagnostics = lint(doc, server).diagnostics
                 publish_diagnostics(doc, server)
             end
-            server.isrunning = true
         end
     end
 end
@@ -372,4 +372,13 @@ end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params)
     return params
+end
+
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Void}, server)
+    server.debug_mode = !server.debug_mode
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
+    return
 end

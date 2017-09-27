@@ -75,26 +75,24 @@ end
 
 function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server)
     if x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) == "enum"
-        offset = sum(x.args[i].fullspan for i = 1:3)
-        enum_name = Symbol(str_value(x.args[3]))
-        v = Variable(enum_name, :Enum, x)
-        name = make_name(s.namespace, enum_name)
-        var_item = VariableLoc(v, s.current.offset + x.span, s.current.uri)
-        if haskey(s.symbols, name)
-            push!(s.symbols[name], var_item)
-        else
-            s.symbols[name] = VariableLoc[var_item]
-        end
-        for i = 4:length(x.args)
+        length(x.args) == 1 && return
+        T = :Enum
+        arg = false
+        offset = s.current.offset + x.args[1].fullspan
+        for i = 2:length(x.args)
             a = x.args[i]
             if a isa IDENTIFIER
-                v = Variable(str_value(a), enum_name, x)
+                v = Variable(str_value(a), T, x)
                 name = make_name(s.namespace, str_value(a))
                 var_item = VariableLoc(v, offset + (1:a.fullspan), s.current.uri)
                 if haskey(s.symbols, name)
                     push!(s.symbols[name], var_item)
                 else
                     s.symbols[name] = VariableLoc[var_item]
+                end
+                if !arg
+                    arg = true
+                    T = v.id
                 end
             end
             offset += a.fullspan

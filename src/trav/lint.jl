@@ -540,7 +540,7 @@ end
 
 function lint(x::EXPR{CSTParser.Const}, s::TopLevelScope, L::LintState, server, istop)
     # NEEDS FIX: skip if declaring parameterised type alias
-    if x.args[2] isa CSTParser.BinarySyntaxOpCall && x.args[2].arg1 isa EXPR{CSTParser.Curly} && x.args[2].arg2 isa EXPR{CSTParser.Curly}
+    if x.args[2] isa CSTParser.BinarySyntaxOpCall && x.args[2].arg1 isa EXPR{CSTParser.Curly} && (x.args[2].arg2 isa EXPR{CSTParser.Curly} || x.args[2].arg2 isa WhereOpCall)
     else
         invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
     end

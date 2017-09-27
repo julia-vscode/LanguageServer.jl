@@ -7,13 +7,14 @@ function parse_all(doc, server)
         doc.code.ast, ps = CSTParser.parse(ps, true)
     end
     update_includes(doc, server)
+    empty!(doc.diagnostics)
     if ps.errored
         parse_errored(doc, ps)
     end
     if server.runlinter
         if doc._runlinter
             L = lint(doc, server)
-            doc.diagnostics = L.diagnostics
+            append!(doc.diagnostics, L.diagnostics)
         end
         
         publish_diagnostics(doc, server)

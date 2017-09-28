@@ -118,17 +118,35 @@ function toplevel_symbols(x::EXPR{T}, s::TopLevelScope, server) where T <: Union
         s.imported_names[ns] = Set()
     end
     expr = Expr(x)
-    import_modules(expr, server)
+    import_modules(expr, s, server)
     get_imported_names(expr, s, server)
 end
 
-function import_modules(x::Expr, server)
+function import_modules(x::Expr, s, server)
     if x.head == :toplevel
         for a in x.args
-            import_modules(a, server)
+            import_modules(a, s, server)
         end
     elseif length(x.args) > 0
-        if x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
+        if x.args[1] == :. && length(x.args) == 2 && x.args[2] isa Symbol
+            ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
+            mname = string(ns, ".", x.args[2])
+            if mname in keys(s.symbols)
+                m = last(s.symbols[mname]).v
+                if m.t == :module
+                    for a in m.val.args[3].args
+                        if a isa EXPR{CSTParser.Export}
+                            for ex in a.args
+                                if ex isa IDENTIFIER && string(mname, ".", str_value(ex)) in keys(s.symbols)
+                                    s.symbols[string(ns, ".", str_value(ex))] = s.symbols[string(mname, ".", str_value(ex))]
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+        elseif x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
             topmodname = x.args[1]
             if !isdefined(Main, topmodname)
                 try 

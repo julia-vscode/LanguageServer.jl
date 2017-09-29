@@ -82,13 +82,14 @@ function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
         sig = sig.arg1
     end
     sig isa IDENTIFIER && return
-    for j = 2:length(sig.args)
-        if sig.args[j] isa EXPR{CSTParser.Parameters}
-            for parg in sig.args[j].args
+    for (j, arg) = enumerate(sig)
+        j == 1 && continue
+        if arg isa EXPR{CSTParser.Parameters}
+            for parg in arg.args
                 _add_sigarg(parg, sig, s, loc)
             end
         else
-            _add_sigarg(sig.args[j], sig, s, loc)
+            _add_sigarg(arg, sig, s, loc)
         end
     end
 end

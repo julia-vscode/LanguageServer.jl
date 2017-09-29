@@ -306,7 +306,8 @@ function _lint_sig(sig1, s, L, fname, offset)
     firstkw = 0
     argnames = []
     sig isa IDENTIFIER && return
-    for i = 2:length(sig.args)
+    for (i, arg) = enumerate(sig)
+        i == 1 && continue
         arg = sig.args[i]
         if !(arg isa PUNCTUATION)
             arg_id = str_value(CSTParser._arg_id(arg))

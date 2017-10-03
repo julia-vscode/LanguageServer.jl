@@ -190,7 +190,7 @@ function _anon_func_scope(x::CSTParser.BinarySyntaxOpCall, s::TopLevelScope, ser
     if x.arg1 isa EXPR{CSTParser.TupleH}
         for a in x.arg1.args
             if !(a isa PUNCTUATION)
-                arg_id = str_value(a)
+                arg_id = str_value(CSTParser.get_id(a))
                 arg_t = CSTParser.get_t(x)
                 name = make_name(s.namespace, arg_id)
                 var_item = VariableLoc(Variable(arg_id, arg_t, x.arg1), s.current.offset + (0:x.arg1.fullspan), s.current.uri)

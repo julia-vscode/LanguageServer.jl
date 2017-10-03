@@ -635,14 +635,6 @@ function lint(x::EXPR{CSTParser.While}, s::TopLevelScope, L::LintState, server, 
     invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end
 
-
-
-function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Local,CSTParser.Global}
-    if length(x.args) > 2
-        invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
-    end
-end
-
 function lint(x::EXPR{T}, s::TopLevelScope, L::LintState, server, istop) where T <: Union{CSTParser.Using,CSTParser.Import,CSTParser.ImportAll}
     #  NEEDS FIX: 
 end

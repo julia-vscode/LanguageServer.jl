@@ -355,16 +355,20 @@ function toggle_file_lint(doc, server)
     end
     publish_diagnostics(doc, server)
 end
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")},String}, server)
-    if isdir(uri2filepath(r.params))
-        for (uri,doc) in server.documents
-            if startswith(uri, r.params)
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server)
+    path = r.params["path"]
+    uri = r.params["external"]
+    if isdir(uri2filepath(path))
+        for (uri2, doc) in server.documents
+            server.debug_mode && info("LINT: ignoring $path")
+            if startswith(uri2, uri)
                 toggle_file_lint(doc, server)
             end
         end
     else
-        if r.params in keys(server.documents)
-            doc = server.documents[r.params]
+        if uri in keys(server.documents)
+            server.debug_mode && info("LINT: ignoring $path")
+            doc = server.documents[uri]
             toggle_file_lint(doc, server)
         end
     end

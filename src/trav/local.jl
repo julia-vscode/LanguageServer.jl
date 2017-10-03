@@ -23,7 +23,7 @@ end
 function _scope(x, s::TopLevelScope, server)
     if ismodule(x)
         toplevel_symbols(x, s, server)
-        push!(s.namespace, x.args[2].val)
+        push!(s.namespace, str_value(x.args[2]))
     end
     if s.current.offset + x.fullspan < s.target.offset
         return NOTHING
@@ -150,7 +150,7 @@ function _try_scope(x::EXPR{CSTParser.Try}, s::TopLevelScope, server, locals = [
     if x.args[3] isa KEYWORD && x.args[3].kind == Tokens.CATCH && x.args[4].fullspan > 0
         s.current.offset += sum(x.args[i].fullspan for i = 1:3)
  
-        d = Variable(x.args[4].val, :Any, x.args[4])
+        d = Variable(str_value(x.args[4]), :Any, x.args[4])
         name = make_name(s.namespace, d.id)
         var_item = VariableLoc(d, s.current.offset + x.args[1].fullspan + (0:x.args[2].fullspan), s.current.uri)
         if haskey(s.symbols, name)
@@ -190,7 +190,7 @@ function _anon_func_scope(x::CSTParser.BinarySyntaxOpCall, s::TopLevelScope, ser
     if x.arg1 isa EXPR{CSTParser.TupleH}
         for a in x.arg1.args
             if !(a isa PUNCTUATION)
-                arg_id = CSTParser.get_id(a).val
+                arg_id = str_value(a)
                 arg_t = CSTParser.get_t(x)
                 name = make_name(s.namespace, arg_id)
                 var_item = VariableLoc(Variable(arg_id, arg_t, x.arg1), s.current.offset + (0:x.arg1.fullspan), s.current.uri)

@@ -162,7 +162,10 @@ function import_modules(x::Expr, s, server)
                     end
                 end
             elseif !(string(topmodname) in keys(server.loaded_modules))
-                server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
+                m = getfield(Main, Symbol(topmodname))
+                if m isa Module
+                    server.loaded_modules[string(topmodname)] = load_mod_names(m)
+                end
             end
         end
     end

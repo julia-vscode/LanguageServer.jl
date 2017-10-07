@@ -649,7 +649,7 @@ function lint(x::EXPR{CSTParser.Export}, s::TopLevelScope, L::LintState, server,
     exported_names = Set{String}()
     for a in x.args
         if a isa IDENTIFIER
-            loc = s.current.offset + x.span - 1
+            loc = s.current.offset + a.span - 1
             if str_value(a) in exported_names
                 push!(L.diagnostics, LSDiagnostic{DuplicateArgument}(loc, [], "Variable $(str_value(a)) is already exported"))
             else

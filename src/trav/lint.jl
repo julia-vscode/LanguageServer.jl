@@ -563,6 +563,13 @@ function lint(x::EXPR{CSTParser.For}, s::TopLevelScope, L::LintState, server, is
     lint(x.args[3], s, L, server, istop)
 end
 
+function lint(x::EXPR{CSTParser.Local}, s::TopLevelScope, L::LintState, server, istop)
+    if length(x.args) == 2 && !(x.args[2] isa CSTParser.BinarySyntaxOpCall && x.args[2].op.kind == Tokens.EQ) 
+        return 
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.Do}, s::TopLevelScope, L::LintState, server, istop)
     offset = s.current.offset
     lint(x.args[1], s, L, server, istop)
@@ -641,7 +648,7 @@ function lint(x::EXPR{CSTParser.Export}, s::TopLevelScope, L::LintState, server,
     exported_names = Set{String}()
     for a in x.args
         if a isa IDENTIFIER
-            loc = s.current.offset + x.span - 1
+            loc = s.current.offset + a.span - 1
             if str_value(a) in exported_names
                 push!(L.diagnostics, LSDiagnostic{DuplicateArgument}(loc, [], "Variable $(str_value(a)) is already exported"))
             else

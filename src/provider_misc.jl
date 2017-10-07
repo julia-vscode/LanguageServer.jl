@@ -386,3 +386,26 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
     return
 end
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, server)
+    if !haskey(server.documents, r.params.textDocument.uri)
+        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        return
+    end 
+    tdpp = r.params
+    doc = server.documents[tdpp.textDocument.uri]
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
+    y, s = scope(doc, offset, server)
+    text = ""
+    if !isempty(s.stack)
+        if length(s.stack) >= 2
+            text = string(Expr(s.stack[2]))
+        end
+    end
+    response = JSONRPC.Response(get(r.id), text)
+    send(response, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockText")}}, params)
+    return TextDocumentPositionParams(params)
+end

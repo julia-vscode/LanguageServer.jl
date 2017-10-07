@@ -564,6 +564,13 @@ function lint(x::EXPR{CSTParser.For}, s::TopLevelScope, L::LintState, server, is
     lint(x.args[3], s, L, server, istop)
 end
 
+function lint(x::EXPR{CSTParser.Local}, s::TopLevelScope, L::LintState, server, istop)
+    if length(x.args) == 2 && !(x.args[2] isa CSTParser.BinarySyntaxOpCall && x.args[2].op.kind == Tokens.EQ) 
+        return 
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
+end
+
 function lint(x::EXPR{CSTParser.Do}, s::TopLevelScope, L::LintState, server, istop)
     offset = s.current.offset
     lint(x.args[1], s, L, server, istop)

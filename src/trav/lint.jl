@@ -201,11 +201,10 @@ function lint(x::EXPR{CSTParser.MacroName}, s::TopLevelScope, L::LintState, serv
 end
 
 function lint(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, L::LintState, server, istop)
-    if x.args[1] isa EXPR{CSTParser.MacroName} && (str_value(x.args[1].args[2]) == "goto" || str_value(x.args[1].args[2]) == "label")
+    if x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) in keys(MacroList) && !MacroList[str_value(x.args[1].args[2])].lint
         return
-    else
-        return invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
-    end 
+    end
+    return invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end
 
 
@@ -557,11 +556,16 @@ function lint(x::EXPR{CSTParser.For}, s::TopLevelScope, L::LintState, server, is
     else
         _lint_range(x.args[2], s, L)
         get_symbols(x.args[2], s, L)
+        s.current.offset += x.args[2].fullspan
     end
-    offset = s.current.offset
-    lint(x.args[2], s, L, server, istop)
-    s.current.offset = offset + x.args[2].fullspan
     lint(x.args[3], s, L, server, istop)
+end
+
+function lint(x::EXPR{CSTParser.Local}, s::TopLevelScope, L::LintState, server, istop)
+    if length(x.args) == 2 && !(x.args[2] isa CSTParser.BinarySyntaxOpCall && x.args[2].op.kind == Tokens.EQ) 
+        return 
+    end
+    invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end
 
 function lint(x::EXPR{CSTParser.Do}, s::TopLevelScope, L::LintState, server, istop)
@@ -642,7 +646,7 @@ function lint(x::EXPR{CSTParser.Export}, s::TopLevelScope, L::LintState, server,
     exported_names = Set{String}()
     for a in x.args
         if a isa IDENTIFIER
-            loc = s.current.offset + x.span - 1
+            loc = s.current.offset + a.span - 1
             if str_value(a) in exported_names
                 push!(L.diagnostics, LSDiagnostic{DuplicateArgument}(loc, [], "Variable $(str_value(a)) is already exported"))
             else

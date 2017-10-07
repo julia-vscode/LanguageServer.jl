@@ -74,7 +74,21 @@ function toplevel_symbols(x, s::TopLevelScope, server)
 end
 
 function toplevel_symbols(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, server)
-    if x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) == "enum"
+    if x.args[1] isa EXPR{CSTParser.MacroName} && 
+        length(x.args[1].args) > 1 && str_value(x.args[1].args[2]) in keys(MacroList)
+        md = MacroList[str_value(x.args[1].args[2])]
+        vars = Variable[Variable(v, :Any, x) for v in md.contrib_top(x)]
+        for v in vars
+            name = make_name(s.namespace, v.id)
+            var_item = VariableLoc(v, s.current.offset + (1:x.fullspan), s.current.uri)
+            if haskey(s.symbols, name)
+                push!(s.symbols[name], var_item)
+            else
+                s.symbols[name] = VariableLoc[var_item]
+            end
+        end
+    
+    elseif x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) == "enum"
         length(x.args) == 1 && return
         T = :Enum
         arg = false

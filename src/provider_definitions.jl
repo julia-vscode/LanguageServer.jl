@@ -17,7 +17,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     locations = Location[]
     if y isa IDENTIFIER || y isa OPERATOR
-        x = get_cache_entry(y, server, s)
+        if length(s.stack) > 1 && s.stack[end] isa EXPR{Quotenode} && s.stack[end-1] isa BinarySyntaxOpCall && CSTParser.is_dot(s.stack[end-1].op)
+            x = get_cache_entry(s.stack[end-1], server, s)
+        else
+            x = get_cache_entry(y, server, s)
+        end
     elseif y isa EXPR{Quotenode} && last(s.stack) isa BinarySyntaxOpCall && CSTParser.is_dot(last(s.stack).args[2])
         x = get_cache_entry(last(s.stack), server, s)
     else

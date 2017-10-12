@@ -40,7 +40,7 @@ function isjuliabasedir(path)
     if "base" in fs && isdir(joinpath(path, "base"))
         return isjuliabasedir(joinpath(path, "base"))
     end
-    all(f -> f in fs, ["base.jl", "coreimg.jl", "coreio.jl", "inference.jl"])
+    all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 function load_rootpath(path)
     !(path == "" || 

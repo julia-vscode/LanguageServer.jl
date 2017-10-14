@@ -220,14 +220,6 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
                         t == :Module ? 2 :
                         t == :Bool ? 17 : 13  
 
-updatecache(absentmodule::Symbol, server) = updatecache([absentmodule], server)
-
-function updatecache(absentmodules::Vector{Symbol}, server)
-    for m in absentmodules
-        @eval try import $m end
-    end
-end
-
 
 str_value(x) = ""
 str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val

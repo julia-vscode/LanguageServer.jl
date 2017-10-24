@@ -203,6 +203,15 @@ end
 function lint(x::EXPR{CSTParser.MacroCall}, s::TopLevelScope, L::LintState, server, istop)
     if x.args[1] isa EXPR{CSTParser.MacroName} && str_value(x.args[1].args[2]) in keys(MacroList) && !MacroList[str_value(x.args[1].args[2])].lint
         return
+        
+    elseif x.args[1] isa BinarySyntaxOpCall && x.args[1].op.kind == Tokens.DOT && !(x.args[1].arg2 isa EXPR{Quotenode} && x.args[1].arg2.args[1] isa EXPR{CSTParser.MacroName})
+        # NEEDS FIX: skipping macrocall name lint
+        offset = s.current.offset + x.args[1].fullspan
+        for i = 2:length(x.args)
+            lint(x.args[i], s, L, server, istop)
+            offset += x.args[i].fullspan
+        end
+        return
     end
     return invoke(lint, Tuple{EXPR,TopLevelScope,LintState,LanguageServerInstance,Bool}, x, s, L, server, istop)
 end

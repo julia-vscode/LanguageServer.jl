@@ -40,7 +40,7 @@ function isjuliabasedir(path)
     if "base" in fs && isdir(joinpath(path, "base"))
         return isjuliabasedir(joinpath(path, "base"))
     end
-    all(f -> f in fs, ["base.jl", "coreimg.jl", "coreio.jl", "inference.jl"])
+    all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 function load_rootpath(path)
     !(path == "" || 
@@ -395,13 +395,21 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, s
     tdpp = r.params
     doc = server.documents[tdpp.textDocument.uri]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    y, s = scope(doc, offset, server)
+    i = 0
     text = ""
-    if !isempty(s.stack)
-        if length(s.stack) >= 2
-            text = string(Expr(s.stack[2]))
+    for x in doc.code.ast.args
+        if i < offset <= i + x.fullspan
+            text = doc._content[i + (1:x.fullspan)]
         end
+        i += x.fullspan
     end
+    # y, s = scope(doc, offset, server)
+    # text = ""
+    # if !isempty(s.stack)
+    #     if length(s.stack) >= 2
+    #         text = string(Expr(s.stack[2]))
+    #     end
+    # end
     response = JSONRPC.Response(get(r.id), text)
     send(response, server)
 end

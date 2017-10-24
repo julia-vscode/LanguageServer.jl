@@ -162,7 +162,7 @@ function import_modules(x::Expr, s, server)
 
         elseif x.args[1] isa Symbol && x.args[1] != :. # julia issue 23173
             topmodname = x.args[1]
-            if !isdefined(Main, topmodname)
+            if !(isdefined(Main, topmodname) || string(topmodname) in keys(server.loaded_modules)) 
                 try 
                     @eval import $topmodname
                     server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
@@ -174,6 +174,9 @@ function import_modules(x::Expr, s, server)
                             reload(string(topmodname))
                         end
                     end
+                catch er
+                    # loading package failed, fill with dummy
+                    server.loaded_modules[string(topmodname)] = (Set{String}(),Set{String}())
                 end
             elseif !(string(topmodname) in keys(server.loaded_modules))
                 m = getfield(Main, Symbol(topmodname))

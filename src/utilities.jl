@@ -179,8 +179,6 @@ function uri2filepath(uri::AbstractString)
         if uri_path[1] == '\\' || uri_path[1] == '/'
             uri_path = uri_path[2:end]
         end
-
-        uri_path = lowercase(uri_path)
     end
     return uri_path
 end
@@ -194,10 +192,6 @@ function should_file_be_linted(uri, server)
 
     uri_path = uri2filepath(uri)
     workspace_path = server.rootPath
-
-    if is_windows()
-        workspace_path = lowercase(workspace_path)
-    end
 
     if isempty(server.rootPath)
         return false

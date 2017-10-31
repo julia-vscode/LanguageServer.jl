@@ -296,12 +296,18 @@ function lint(x::EXPR{CSTParser.ModuleH}, s::TopLevelScope, L::LintState, server
     lint(x.args[3], s, L, server, istop)
 end
 
+# check whether the first binding for a call is a struct or mutable struct
+function allow_braced_call(sig, s)
+    fn = str_value(CSTParser._get_fname(sig))
+    haskey(s.symbols, fn) && s.symbols[fn][1].v.t in [:struct, :mutable]
+end
+
 function _lint_sig(sig1, s, L, fname, offset)
     sig = sig1
     while sig isa WhereOpCall || (sig isa BinarySyntaxOpCall && CSTParser.is_decl(sig.op))
         sig = sig.arg1
     end
-    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(sig.args[1].args[1].args[2].arg1))
+    if sig isa EXPR{Call} && sig.args[1] isa EXPR{CSTParser.Curly} && !(sig.args[1].args[1] isa EXPR{CSTParser.InvisBrackets} && sig.args[1].args[1].args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(sig.args[1].args[1].args[2].arg1)) && !allow_braced_call(sig, s)
         push!(L.diagnostics, LSDiagnostic{parameterisedDeprecation}((offset + sig.args[1].args[1].fullspan):(offset + sig.args[1].fullspan), [], "Use of deprecated parameter syntax"))
         
         trailingws = CSTParser.is_rparen(last(sig.args)) ? last(sig.args).fullspan - 1 : 0

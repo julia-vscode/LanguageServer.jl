@@ -39,8 +39,7 @@ end
 
 function update_includes(doc::Document, server::LanguageServerInstance)
     doc.code.includes = map(_get_includes(doc.code.ast)) do incl
-        (isabspath(incl[1]) ? filepath2uri(incl[1]) : joinpath(dirname(doc._uri), incl[1]), incl[2])
-        
+        (isabspath(incl[1]) ? filepath2uri(incl[1]) : joinuriwithpath(dirname(doc._uri), incl[1]), incl[2])
     end
 end
 

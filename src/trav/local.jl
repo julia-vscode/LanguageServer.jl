@@ -248,7 +248,7 @@ function get_scope(x, s::TopLevelScope, server)
 
     if isincludable(x)
         file = Expr(x.args[3])
-        file = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+        file = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
  
         file in s.path && return
  

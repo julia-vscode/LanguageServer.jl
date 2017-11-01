@@ -32,7 +32,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         if (file, m.line) == DefaultTypeConstructorLoc
             continue
         end
-        push!(locations, Location(is_windows() ? "file:///$(URIParser.escape(replace(file, '\\', '/')))" : "file:$(file)", Range(m.line - 1, 0, m.line, 0)))
+        push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
     end
     
     

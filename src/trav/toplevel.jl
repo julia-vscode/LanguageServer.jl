@@ -43,7 +43,7 @@ function toplevel(x, s::TopLevelScope, server)
             toplevel(a, s, server)
         elseif s.followincludes && isincludable(a)
             file = Expr(a.args[3])
-            uri = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+            uri = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
 
             uri in s.path && return
             if uri in keys(server.documents)

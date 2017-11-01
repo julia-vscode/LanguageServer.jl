@@ -280,7 +280,7 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
             push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.args[1].fullspan), [DocumentFormat.TextEdit(s.current.offset + (0:x.args[1].fullspan), "broadcast")], "Use of deprecated function"))
         elseif str_value(x.args[1]) == "include"
             file = str_value(x.args[3])
-            uri = isabspath(file) ? filepath2uri(file) : joinpath(dirname(s.current.uri), normpath(file))
+            uri = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
             if !(isincludable(x) && uri in keys(server.documents))
                 tws = CSTParser.trailing_ws_length(x)
                 push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.fullspan - tws), [], "Could not include $file"))

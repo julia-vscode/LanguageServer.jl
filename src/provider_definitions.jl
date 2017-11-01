@@ -4,12 +4,12 @@ const DefaultTypeConstructorLoc= let def = first(methods(Int))
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, filepath_from_uri(r.params.textDocument.uri))
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     tdpp = r.params
-    doc = server.documents[filepath_from_uri(tdpp.textDocument.uri)]
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
     y, s = scope(doc, offset, server)
     ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
@@ -46,7 +46,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         if haskey(s.symbols, nsEy)
             for vl in s.symbols[nsEy]
                 if Ey == vl.v.id || (vl.v.id isa Expr && vl.v.id.head == :. && vl.v.id.args[1] == ns && Ey == vl.v.id.args[2].value)
-                    doc1 = server.documents[filepath_from_uri(vl.uri)]
+                    doc1 = server.documents[URI2(vl.uri)]
                     ws_offset = CSTParser.trailing_ws_length(vl.v.val)
                     loc1 = vl.loc.start:vl.loc.stop - ws_offset
                     push!(locations, Location(vl.uri, Range(doc1, loc1)))

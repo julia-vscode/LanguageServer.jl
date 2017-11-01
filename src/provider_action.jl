@@ -1,9 +1,9 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    if !haskey(server.documents, filepath_from_uri(r.params.textDocument.uri))
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
-    doc = server.documents[filepath_from_uri(r.params.textDocument.uri)]
+    doc = server.documents[URI2(r.params.textDocument.uri)]
     commands = Command[]
     range = r.params.range
     range_loc = get_offset(doc, range.start.line + 1, range.start.character):get_offset(doc, range.stop.line + 1, range.stop.character)

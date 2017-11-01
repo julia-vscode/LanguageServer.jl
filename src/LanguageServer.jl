@@ -1,7 +1,7 @@
 __precompile__()
 module LanguageServer
 using JSON
-using URIParser
+import URIParser
 import DocumentFormat
 import CSTParser
 import CSTParser: EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall
@@ -32,7 +32,7 @@ struct VariableLoc
     uri::String
 end
 
-include("filepath.jl")
+include("uri2.jl")
 include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")

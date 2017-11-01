@@ -5,7 +5,7 @@ function scope(doc::Document, offset::Int, server)
     path, namespace = findtopfile(uri, server)
  
     s = TopLevelScope(ScopePosition(uri, offset), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
-    toplevel(server.documents[filepath_from_uri(last(path))].code.ast, s, server)
+    toplevel(server.documents[URI2(last(path))].code.ast, s, server)
  
 
     s.current = ScopePosition(uri)
@@ -252,10 +252,10 @@ function get_scope(x, s::TopLevelScope, server)
  
         file in s.path && return
  
-        if haskey(server.documents, filepath_from_uri(file))
+        if haskey(server.documents, URI2(file))
             oldpos = s.current
             s.current = ScopePosition(file, 0)
-            incl_syms = toplevel(server.documents[filepath_from_uri(file)].code.ast, s, server)
+            incl_syms = toplevel(server.documents[URI2(file)].code.ast, s, server)
             s.current = oldpos
         end
     end

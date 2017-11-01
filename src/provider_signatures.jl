@@ -1,10 +1,10 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, filepath_from_uri(r.params.textDocument.uri))
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     tdpp = r.params
-    doc = server.documents[filepath_from_uri(tdpp.textDocument.uri)]
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
     y, s = scope(doc, offset, server)

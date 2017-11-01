@@ -311,9 +311,8 @@ end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
-    # TODO Isn't this always false? I think this is meant to toggle things
-    # i.e. use assignment rather than a comparison here, right?
-    server.documents[filepath_from_uri(r.uri)]._runlinter != server.documents[filepath_from_uri(r.uri)]._runlinter
+    doc = server.documents[filepath_from_uri(r.uri)]
+    doc._runlinter = !doc._runlinter
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params)

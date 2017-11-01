@@ -17,7 +17,7 @@ mutable struct LanguageServerInstance
         loaded_modules["Base"] = load_mod_names(Base)
         loaded_modules["Core"] = load_mod_names(Core)
 
-        new(pipe_in, pipe_out, "", Dict{String,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, "", Dict{FilePath,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
     end
 end
 

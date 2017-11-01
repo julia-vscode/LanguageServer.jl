@@ -184,7 +184,15 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
-    string("file://", normpath(file))
+    if is_windows()
+        file = normpath(file)
+        file = replace(file, "\\", "/")
+        file = escape(file)
+        file = replace(file, "%2F", "/")
+        return string("file:///", file)
+    else
+        return string("file://", normpath(file))
+    end
 end
 
 function should_file_be_linted(uri, server)

@@ -25,7 +25,7 @@ function Base.hash(a::URI2, h::UInt)
         if startswith(a._uri, "file://")
             return hash(lowercase(a._uri), h)
         else
-            return hash(a_uri)
+            return hash(a._uri)
         end
     else
         return hash(a._uri)

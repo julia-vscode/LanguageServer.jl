@@ -195,6 +195,12 @@ function filepath2uri(file::String)
     end
 end
 
+function joinuriwithpath(uri::AbstractString, path::AbstractString)
+    left_file_path = uri2filepath(uri)
+    combined_path = joinpath(left_file_path, path)
+    return filepath2uri(combined_path)
+end
+
 function should_file_be_linted(uri, server)
     !server.runlinter && return false
 

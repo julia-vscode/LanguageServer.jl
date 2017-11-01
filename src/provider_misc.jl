@@ -58,7 +58,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
                     filepath = joinpath(root, file)
                     !isfile(filepath) && continue
                     info("parsed $filepath")
-                    uri = string("file://", is_windows() ? string("/", replace(replace(filepath, '\\', '/'), ":", "%3A")) : filepath)
+                    uri = filepath2uri(filepath)
                     content = readstring(filepath)
                     server.documents[uri] = Document(uri, content, true)
                     doc = server.documents[uri]
@@ -95,7 +95,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     server.documents[uri] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[uri]
-    if startswith(uri, string("file://", server.rootPath))
+    if startswith(uri, filepath2uri(server.rootPath))
         doc._workspace_file = true
     end
     set_open_in_editor(doc, true)

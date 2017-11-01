@@ -1,5 +1,5 @@
 function get_line(uri::AbstractString, line::Integer, server::LanguageServerInstance)
-    doc = server.documents[uri]
+    doc = server.documents[filepath_from_uri(uri)]
     return get_line(doc, line)
 end
 

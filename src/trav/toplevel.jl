@@ -46,11 +46,11 @@ function toplevel(x, s::TopLevelScope, server)
             uri = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
 
             uri in s.path && return
-            if uri in keys(server.documents)
+            if haskey(server.documents, filepath_from_uri(uri))
                 push!(s.path, uri)
                 oldpos = s.current
                 s.current = ScopePosition(uri, 0)
-                incl_syms = toplevel(server.documents[uri].code.ast, s, server)
+                incl_syms = toplevel(server.documents[filepath_from_uri(uri)].code.ast, s, server)
                 s.current = oldpos
             end
         end

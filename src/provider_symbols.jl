@@ -1,10 +1,10 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, filepath_from_uri(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     uri = r.params.textDocument.uri 
-    doc = server.documents[uri]
+    doc = server.documents[filepath_from_uri(uri)]
     syms = SymbolInformation[]
     s = toplevel(doc, server, false)
     for k in keys(s.symbols)
@@ -32,7 +32,8 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     query = r.params.query
-    for (uri, doc) in server.documents
+    for doc in values(server.documents)
+        uri = doc._uri
         s = toplevel(doc, server, false)
         for k in keys(s.symbols)
             for vl in s.symbols[k]

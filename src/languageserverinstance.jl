@@ -3,7 +3,7 @@ mutable struct LanguageServerInstance
     pipe_out
 
     rootPath::String 
-    documents::Dict{String,Document}
+    documents::Dict{FilePath,Document}
 
     loaded_modules::Dict{String,Tuple{Set{String},Set{String}}}
     debug_mode::Bool

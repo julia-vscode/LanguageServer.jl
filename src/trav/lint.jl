@@ -38,7 +38,7 @@ function lint(doc::Document, server)
     path, namespace = findtopfile(uri, server)
 
     s = TopLevelScope(ScopePosition(uri, typemax(Int)), ScopePosition(last(path), 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
-    toplevel(server.documents[last(path)].code.ast, s, server)
+    toplevel(server.documents[filepath_from_uri(last(path))].code.ast, s, server)
 
     s.current = ScopePosition(uri)
     s.namespace = namespace
@@ -281,7 +281,7 @@ function lint(x::EXPR{CSTParser.Call}, s::TopLevelScope, L::LintState, server, i
         elseif str_value(x.args[1]) == "include"
             file = str_value(x.args[3])
             uri = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
-            if !(isincludable(x) && uri in keys(server.documents))
+            if !(isincludable(x) && haskey(server.documents, filepath_from_uri(uri)))
                 tws = CSTParser.trailing_ws_length(x)
                 push!(L.diagnostics, LSDiagnostic{PossibleTypo}(s.current.offset + (0:x.fullspan - tws), [], "Could not include $file"))
             end

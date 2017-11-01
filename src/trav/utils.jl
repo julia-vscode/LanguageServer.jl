@@ -32,7 +32,8 @@ tree returning the sequence of files - `path` - and any namespaces introduced -
 """
 function findtopfile(uri::String, server, path = String[], namespace = [])
     follow = []
-    for (uri1, doc1) in server.documents
+    for doc1 in values(server.documents)
+        uri1 = doc1._uri
         for (incl, ns) in doc1.code.includes
             if uri == incl
                 append!(namespace, ns)

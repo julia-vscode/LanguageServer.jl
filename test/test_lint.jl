@@ -9,7 +9,7 @@ end
 
 
 @testset "undeclared variable" begin 
-    server.documents["none"] = doc = LanguageServer.Document("none","variable",true)
+    server.documents[FilePath("none")] = doc = LanguageServer.Document("none","variable",true)
     LanguageServer.parse_all(doc, server)
 
     d = doc.diagnostics[1]
@@ -76,7 +76,7 @@ end
 
 @testset "deprecated type syntaxes" begin 
     @testset "abstract" begin
-        server.documents["none"] = doc = LanguageServer.Document("none","""
+        server.documents[FilePath("none")] = doc = LanguageServer.Document("none","""
         abstract T
         """,true)
         LanguageServer.parse_all(doc, server)
@@ -87,7 +87,7 @@ end
     end
 
     @testset "type" begin
-        server.documents["none"] = doc = LanguageServer.Document("none","""
+        server.documents[FilePath("none")] = doc = LanguageServer.Document("none","""
         type T end
         """,true)
         LanguageServer.parse_all(doc, server)
@@ -98,7 +98,7 @@ end
     end
 
     @testset "immutable" begin
-        server.documents["none"] = doc = LanguageServer.Document("none","""
+        server.documents[FilePath("none")] = doc = LanguageServer.Document("none","""
         immutable T end
         """,true)
         LanguageServer.parse_all(doc, server)
@@ -109,7 +109,7 @@ end
     end
 
     @testset "typealias" begin
-        server.documents["none"] = doc = LanguageServer.Document("none","""
+        server.documents[FilePath("none")] = doc = LanguageServer.Document("none","""
         immutable T end
         """,true)
         LanguageServer.parse_all(doc, server)
@@ -120,7 +120,7 @@ end
     end
 
     @testset "bitstype" begin
-        server.documents["none"] = doc = LanguageServer.Document("none","""
+        server.documents[FilePath("none")] = doc = LanguageServer.Document("none","""
         bitstype a b
         """,true)
         LanguageServer.parse_all(doc, server)

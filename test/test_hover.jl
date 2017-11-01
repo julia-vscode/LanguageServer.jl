@@ -23,8 +23,8 @@ end
 testmodule
 """
 
-server.documents[FilePath("testdoc")] = Document("testdoc", testtext, true)
-doc = server.documents[FilePath("testdoc")]
+server.documents[LanguageServer.FilePath("testdoc")] = Document("testdoc", testtext, true)
+doc = server.documents[LanguageServer.FilePath("testdoc")]
 LanguageServer.parse_all(doc, server)
 
 # clear init output

@@ -32,6 +32,7 @@ struct VariableLoc
     uri::String
 end
 
+include("filepath.jl")
 include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")

@@ -60,8 +60,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
                     info("parsed $filepath")
                     uri = filepath2uri(filepath)
                     content = readstring(filepath)
-                    server.documents[uri] = Document(uri, content, true)
-                    doc = server.documents[uri]
+                    server.documents[URI2(uri)] = Document(uri, content, true)
+                    doc = server.documents[URI2(uri)]
                     doc._runlinter = false
                     parse_all(doc, server)
                     doc._runlinter = true
@@ -93,8 +93,8 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     server.isrunning = true
     uri = r.params.textDocument.uri
-    server.documents[uri] = Document(uri, r.params.textDocument.text, false)
-    doc = server.documents[uri]
+    server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false)
+    doc = server.documents[URI2(uri)]
     if startswith(uri, filepath2uri(server.rootPath))
         doc._workspace_file = true
     end
@@ -108,12 +108,12 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    !(uri in keys(server.documents)) && return
-    doc = server.documents[uri]
+    !haskey(server.documents, URI2(uri)) && return
+    doc = server.documents[URI2(uri)]
     empty!(doc.diagnostics)
     publish_diagnostics(doc, server)
     if !is_workspace_file(doc)
-        delete!(server.documents, uri)
+        delete!(server.documents, URI2(uri))
     else
         set_open_in_editor(doc, false)
     end
@@ -124,7 +124,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, para
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
-    doc = server.documents[r.params.textDocument.uri]
+    doc = server.documents[URI2(r.params.textDocument.uri)]
     doc._version = r.params.textDocument.version
     isempty(r.params.contentChanges) && return
     # dirty = get_offset(doc, last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1):get_offset(doc, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
@@ -147,15 +147,15 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        !(uri in keys(server.documents)) && continue
-        if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[uri]))
+        !haskey(server.documents, URI2(uri)) && continue
+        if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[URI2(uri)]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
-            server.documents[uri] = Document(uri, content, true)
-            parse_all(server.documents[uri], server)
+            server.documents[URI2(uri)] = Document(uri, content, true)
+            parse_all(server.documents[URI2(uri)], server)
 
-        elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[uri])
-            delete!(server.documents, uri)
+        elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[URI2(uri)])
+            delete!(server.documents, URI2(uri))
 
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
@@ -173,7 +173,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    doc = server.documents[uri]
+    doc = server.documents[URI2(uri)]
     parse_all(doc, server)
 end
 
@@ -193,14 +193,14 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
     if isempty(r.params["settings"])
         server.runlinter = false
-        for uri in keys(server.documents)
+        for uri in map(i->i._uri, values(server.documents))
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     else
         server.runlinter = true
         if !server.isrunning
-            for (uri, doc) in server.documents
+            for doc in values(server.documents)
                 doc.diagnostics = lint(doc, server).diagnostics
                 publish_diagnostics(doc, server)
             end
@@ -311,7 +311,8 @@ end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
-    server.documents[r.uri]._runlinter != server.documents[r.uri]._runlinter
+    doc = server.documents[URI2(r.uri)]
+    doc._runlinter = !doc._runlinter
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params)
@@ -359,16 +360,17 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server
     path = r.params["path"]
     uri = r.params["external"]
     if isdir(uri2filepath(path))
-        for (uri2, doc) in server.documents
+        for doc in values(server.documents)
+            uri2 = doc._uri
             server.debug_mode && info("LINT: ignoring $path")
             if startswith(uri2, uri)
                 toggle_file_lint(doc, server)
             end
         end
     else
-        if uri in keys(server.documents)
+        if uri in map(i->i._uri, values(server.documents))
             server.debug_mode && info("LINT: ignoring $path")
-            doc = server.documents[uri]
+            doc = server.documents[URI2(uri)]
             toggle_file_lint(doc, server)
         end
     end
@@ -388,12 +390,12 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, server)
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end 
     tdpp = r.params
-    doc = server.documents[tdpp.textDocument.uri]
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     i = 0
     text = ""

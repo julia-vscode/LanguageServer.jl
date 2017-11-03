@@ -5,13 +5,13 @@ mutable struct RefState
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     tdpp = r.params
     uri = tdpp.textDocument.uri
-    doc = server.documents[tdpp.textDocument.uri]
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     
     locations = references(doc, offset, server)
@@ -46,13 +46,13 @@ function references(doc, offset, server)
             rootfile = last(findtopfile(doc._uri, server)[1])
 
             s = TopLevelScope(ScopePosition(doc._uri, typemax(Int)), ScopePosition(rootfile, 0), false, Dict(), EXPR[], Symbol[], true, true, Dict{String,Set{String}}("toplevel" => Set{String}()), Dict{String,Set{String}}("toplevel" => Set{String}()), [])
-            toplevel(server.documents[rootfile].code.ast, s, server)
+            toplevel(server.documents[URI2(rootfile)].code.ast, s, server)
             s.current.offset = 0
             L = LintState([], [], [])
             R = RefState(ns_name, var_def, [])
-            references(server.documents[rootfile].code.ast, s, L, R, server, true)
+            references(server.documents[URI2(rootfile)].code.ast, s, L, R, server, true)
             for (loc, uri1) in R.refs
-                doc1 = server.documents[uri1]
+                doc1 = server.documents[URI2(uri1)]
                 
                 loc1 = loc + (0:id_length)
                 push!(locations, Location(uri1, Range(doc1, loc1)))
@@ -148,10 +148,10 @@ function references(x::EXPR{Call}, s::TopLevelScope, L::LintState, R::RefState, 
     if isincludable(x)
         file = Expr(x.args[3])
         file = isabspath(file) ? filepath2uri(file) : joinuriwithpath(dirname(s.current.uri), file)
-        if file in keys(server.documents)
+        if haskey(server.documents, URI2(file))
             oldpos = s.current
             s.current = ScopePosition(file, 0)
-            incl_syms = references(server.documents[file].code.ast, s, L, R, server, istop)
+            incl_syms = references(server.documents[URI2(file)].code.ast, s, L, R, server, istop)
             s.current = oldpos
         end
     else

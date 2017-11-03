@@ -23,14 +23,16 @@ r = parse(Request, """{"jsonrpc":"2.0","id":59,"method":"workspace/symbol","para
 process(r, server);
 
 # Document Symbols
-for (uri, doc) in server.documents
+for doc in values(server.documents)
+    uri = doc._uri
     r = parse(Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$(uri)"}}}""")
     process(r, server)
 end
 
 # Hovers
 
-for (uri, doc) in server.documents
+for doc in values(server.documents)
+    uri = doc._uri
     print("Hovers: $uri ")
     for loc in 1:sizeof(doc._content)-1
         line, character = LanguageServer.get_position_at(doc, loc)
@@ -44,7 +46,8 @@ for (uri, doc) in server.documents
 end
 
 # Completions
-for (uri, doc) in server.documents
+for doc in values(server.documents)
+    uri = doc._uri
     print("Completions: $uri ")
     for loc in 1:sizeof(doc._content)-1
         line, character = LanguageServer.get_position_at(doc, loc)
@@ -58,7 +61,8 @@ for (uri, doc) in server.documents
 end
 
 # Definitions
-for (uri, doc) in server.documents
+for doc in values(server.documents)
+    uri = doc._uri
     print("Definitions: $uri ")
     for loc in 1:sizeof(doc._content)-1
         line, character = LanguageServer.get_position_at(doc, loc)
@@ -72,7 +76,8 @@ for (uri, doc) in server.documents
 end
 
 # Signatures
-for (uri, doc) in server.documents
+for doc in values(server.documents)
+    uri = doc._uri
     print("Signatures: $uri ")
     for loc in 1:sizeof(doc._content)-1
         line, character = LanguageServer.get_position_at(doc, loc)

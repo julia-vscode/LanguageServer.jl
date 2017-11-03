@@ -1,11 +1,11 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     rp = r.params
     uri = rp.textDocument.uri
-    doc = server.documents[uri]
+    doc = server.documents[URI2(uri)]
     offset = get_offset(doc, rp.position.line + 1, rp.position.character)
     
     locations = references(doc, offset, server)
@@ -15,7 +15,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, rp.newName))
         else
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, server.documents[loc.uri]._version), [TextEdit(loc.range, rp.newName)])
+            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, server.documents[URI2(loc.uri)]._version), [TextEdit(loc.range, rp.newName)])
         end
     end
 

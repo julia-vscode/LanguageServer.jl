@@ -1,10 +1,10 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     tdpp = r.params
-    doc = server.documents[tdpp.textDocument.uri]
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     line = get_line(tdpp, server)
 

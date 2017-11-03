@@ -1,10 +1,10 @@
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
-    if !haskey(server.documents, r.params.textDocument.uri)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
     uri = r.params.textDocument.uri 
-    doc = server.documents[uri]
+    doc = server.documents[URI2(uri)]
     links = Tuple{String,UnitRange{Int}}[]
     # get_links(doc.code.ast, 0, uri, server, links)
     doclinks = DocumentLink[]

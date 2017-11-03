@@ -1,5 +1,5 @@
 function get_line(uri::AbstractString, line::Integer, server::LanguageServerInstance)
-    doc = server.documents[uri]
+    doc = server.documents[URI2(uri)]
     return get_line(doc, line)
 end
 
@@ -173,7 +173,7 @@ function get_cache_entry(x::String, server, s::TopLevelScope)
 end
 
 function uri2filepath(uri::AbstractString)
-    uri_path = normpath(unescape(URI(uri).path))
+    uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
 
     if is_windows()
         if uri_path[1] == '\\' || uri_path[1] == '/'
@@ -187,7 +187,7 @@ function filepath2uri(file::String)
     if is_windows()
         file = normpath(file)
         file = replace(file, "\\", "/")
-        file = escape(file)
+        file = URIParser.escape(file)
         file = replace(file, "%2F", "/")
         return string("file:///", file)
     else

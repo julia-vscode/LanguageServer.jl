@@ -389,7 +389,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
     return
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
@@ -398,10 +398,11 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, s
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     i = 0
-    text = ""
+    p1 = p2 = 0
     for x in doc.code.ast.args
         if i < offset <= i + x.fullspan
-            text = doc._content[i + (1:x.fullspan)]
+            p1, p2 = i, i + x.fullspan
+            break
         end
         i += x.fullspan
     end
@@ -412,10 +413,11 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockText")}}, s
     #         text = string(Expr(s.stack[2]))
     #     end
     # end
-    response = JSONRPC.Response(get(r.id), text)
+    response = JSONRPC.Response(get(r.id), (p1,p2))
+    
     send(response, server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockText")}}, params)
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params)
     return TextDocumentPositionParams(params)
 end

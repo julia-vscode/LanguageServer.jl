@@ -407,7 +407,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         i += x.fullspan
     end
     y, s = scope(doc, offset, server);
-    if length(s.stack) > 1 && s.stack[2] isa EXPR{CSTParser.ModuleH}
+    if length(s.stack) > 2 && s.stack[2] isa EXPR{CSTParser.ModuleH}
         i += s.stack[2].args[1].fullspan + s.stack[2].args[2].fullspan
         for x in s.stack[3].args 
             i += x.fullspan
@@ -417,7 +417,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
             end
         end
     end
-    response = JSONRPC.Response(get(r.id), (p1,p2))
+    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, p1), ind2chr(doc._content, p2)))
     
     send(response, server)
 end

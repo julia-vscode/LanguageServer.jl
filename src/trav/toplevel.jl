@@ -164,16 +164,16 @@ function import_modules(x::Expr, s, server)
             topmodname = x.args[1]
             if !(isdefined(Main, topmodname) || string(topmodname) in keys(server.loaded_modules)) 
                 try 
-                    @eval import $topmodname
-                    server.loaded_modules[string(topmodname)] = load_mod_names(string(topmodname))
+                    mod_names = sendmsg2symbolserver(server, :import, topmodname)
+                    server.loaded_modules[string(topmodname)] = mod_names
     
-                    if isfile(Pkg.dir(string(topmodname)))
-                        @async begin
-                            watch_file(Pkg.dir(string(topmodname)))
-                            info("reloading: $topmodname")
-                            reload(string(topmodname))
-                        end
-                    end
+                    # if isfile(Pkg.dir(string(topmodname)))
+                    #     @async begin
+                    #         watch_file(Pkg.dir(string(topmodname)))
+                    #         info("reloading: $topmodname")
+                    #         reload(string(topmodname))
+                    #     end
+                    # end
                 catch er
                     # loading package failed, fill with dummy
                     server.loaded_modules[string(topmodname)] = (Set{String}(),Set{String}())

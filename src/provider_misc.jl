@@ -423,5 +423,6 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params)
+    info(params)
     return TextDocumentPositionParams(params)
 end

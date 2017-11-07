@@ -299,7 +299,8 @@ end
 # check whether the first binding for a call is a struct or mutable struct
 function allow_braced_call(sig, s)
     fn = str_value(CSTParser._get_fname(sig))
-    haskey(s.symbols, fn) && s.symbols[fn][1].v.t in [:struct, :mutable]
+    nsEx = make_name(s.namespace, str_value(CSTParser._get_fname(sig)))
+    haskey(s.symbols, nsEx) && s.symbols[nsEx][1].v.t in [:struct, :mutable]
 end
 
 function _lint_sig(sig1, s, L, fname, offset)

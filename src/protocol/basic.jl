@@ -62,3 +62,9 @@ mutable struct TextEdit
     range::Range
     newText::String
 end
+
+mutable struct WorkspaceFolder
+    uri::String
+    name::String
+end
+WorkspaceFolder(d::Dict) = WorkspaceFolder(d["uri"], d["name"])

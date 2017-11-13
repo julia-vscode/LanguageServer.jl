@@ -22,6 +22,7 @@ mutable struct WorkspaceClientCapabilities
     didChangeWatchedFiles::Capabilities
     symbol::Capabilities
     executeCommand::Capabilities
+    workspaceFolders::Nullable{Bool}
 end
 
 function WorkspaceClientCapabilities(d::Dict)
@@ -31,7 +32,9 @@ function WorkspaceClientCapabilities(d::Dict)
     didChangeWatchedFiles = haskeynotnull(d, "didChangeWatchedFiles") ? Capabilities(d["didChangeWatchedFiles"]) : Capabilities()
     symbol = haskeynotnull(d, "symbol") ? Capabilities(d["symbol"]) : Capabilities()
     executeCommand = haskeynotnull(d, "executeCommand") ? Capabilities(d["executeCommand"]) : Capabilities()
-    return WorkspaceClientCapabilities(applyEdit, workspaceEdit, didChangeConfiguration, didChangeWatchedFiles, symbol, executeCommand)
+    workspaceFolders = haskeynotnull(d, "workspaceFolders") ? Nullable{Bool}(d["workspaceFolders"]) : Nullable{Bool}()
+    return WorkspaceClientCapabilities(applyEdit, workspaceEdit, didChangeConfiguration, didChangeWatchedFiles, symbol, executeCommand,
+    workspaceFolders)
 end
 WorkspaceClientCapabilities() = WorkspaceClientCapabilities(Dict())
 
@@ -137,6 +140,7 @@ mutable struct InitializeParams
     initializationOptions::Nullable{Any}
     capabilities::ClientCapabilities
     trace::Nullable{String}
+    workspaceFolders::Vector{WorkspaceFolder}
 end
 
 function InitializeParams(d::Dict)
@@ -145,7 +149,9 @@ function InitializeParams(d::Dict)
                             haskeynotnull(d, "rootUri") ? d["rootUri"] : Nullable{DocumentUri}(),
                             haskeynotnull(d, "initializationOptions") ? d["initializationOptions"] : Nullable{Any}(),
                             ClientCapabilities(d["capabilities"]),
-                            haskeynotnull(d, "trace") ? d["trace"] : Nullable{String}())
+                            haskeynotnull(d, "trace") ? d["trace"] : Nullable{String}(),
+                            haskeynotnull(d, "workspaceFolders") ? WorkspaceFolder.(d["workspaceFolders"]) : WorkspaceFolder[]
+                            )
 end
 
 
@@ -211,6 +217,7 @@ mutable struct ServerCapabilities
     documentLinkProvider::DocumentLinkOptions
     executeCommandProvider::ExecuteCommandOptions
     experimental
+    workspaceFolders::Bool
 end
 
 mutable struct InitializeResult

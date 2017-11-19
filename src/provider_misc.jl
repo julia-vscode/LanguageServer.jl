@@ -461,17 +461,41 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRang
     return TextDocumentPositionParams(params)
 end
 
-
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
-    for wksp in r.params
-        load_folder(wksp, server)
+function remove_workspace_files(root, server)
+    for (uri, doc) in server.documents
+        fpath = uri2filepath(uri._uri)
+        doc._open_in_editor && continue
+        if startswith(fpath, fpath)
+            for folder in server.workspaceFolders
+                if startswith(fpath, folder)
+                    continue
+                end
+                delete!(server.documents, uri)
+            end
+        end
     end
 end
+
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
+    for wksp in r.params[1]
+        push!(server.workspaceFolders, wksp)
+        load_folder(wksp, server)
+    end
+    for wksp in r.params[2]
+        delete!(server.workspaceFolders, wksp)
+        remove_workspace_files(wksp, server)
+    end
+end
+
 function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params)
     added = String[]
-    for wksp in params
+    removed = String[]
+    for wksp in params["added"]
         push!(added, wksp["uri"]["fsPath"])
     end
-    return added
+    for wksp in params["removed"]
+        push!(removed, wksp["uri"]["fsPath"])
+    end
+    return added, removed
 end
 

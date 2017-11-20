@@ -39,6 +39,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         for vl in s.symbols[nsEy]
             if vl.v.t == :function
                 sig = CSTParser._get_fsig(vl.v.val)
+                if sig isa CSTParser.BinarySyntaxOpCall && CSTParser.is_decl(sig.op)
+                    sig = sig.arg1
+                end
                 Ps = ParameterInformation[]
                 for j = 2:length(sig.args)
                     if sig.args[j] isa EXPR{CSTParser.Parameters}

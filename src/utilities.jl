@@ -191,7 +191,10 @@ function filepath2uri(file::String)
         file = replace(file, "%2F", "/")
         return string("file:///", file)
     else
-        return string("file://", normpath(file))
+        file = normpath(file)
+        file = URIParser.escape(file)
+        file = replace(file, "%2F", "/")
+        return string("file://", file)
     end
 end
 

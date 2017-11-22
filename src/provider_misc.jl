@@ -106,6 +106,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
         load_folder(wkspc, server)
     end
     server.debug_mode && info("Startup time: $(toq())")
+
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))), server.debug_mode)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
@@ -478,25 +480,17 @@ function remove_workspace_files(root, server)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
-    for wksp in r.params[1]
-        push!(server.workspaceFolders, wksp)
+    for wksp in r.params.event.added
+        push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
     end
-    for wksp in r.params[2]
-        delete!(server.workspaceFolders, wksp)
+    for wksp in r.params.event.removed
+        delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
     end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params)
-    added = String[]
-    removed = String[]
-    for wksp in params["added"]
-        push!(added, wksp["uri"]["fsPath"])
-    end
-    for wksp in params["removed"]
-        push!(removed, wksp["uri"]["fsPath"])
-    end
-    return added, removed
+    return didChangeWorkspaceFoldersParams(params)
 end
 

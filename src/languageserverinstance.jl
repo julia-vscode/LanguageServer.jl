@@ -2,7 +2,6 @@ mutable struct LanguageServerInstance
     pipe_in
     pipe_out
 
-    rootPath::String 
     workspaceFolders::Set{String}
     documents::Dict{URI2,Document}
 
@@ -18,7 +17,7 @@ mutable struct LanguageServerInstance
         loaded_modules["Base"] = load_mod_names(Base)
         loaded_modules["Core"] = load_mod_names(Core)
 
-        new(pipe_in, pipe_out, "", Set{String}(), Dict{URI2,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
     end
 end
 

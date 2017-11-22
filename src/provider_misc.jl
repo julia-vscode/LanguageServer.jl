@@ -20,15 +20,17 @@ const serverCapabilities = ServerCapabilities(
                         WorkspaceOptions(WorkspaceFoldersOptions(true, true)))
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
-    if !isnull(r.params.rootUri)
-        server.rootPath = uri2filepath(r.params.rootUri.value)
-    elseif !isnull(r.params.rootPath)
-        server.rootPath = r.params.rootPath.value
+    # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
+    if isnull(r.params.capabilities.workspace.workspaceFolders) || get(r.params.capabilities.workspace.workspaceFolders)==false
+        if !isnull(r.params.rootUri)
+            push!(server.workspaceFolders, uri2filepath(r.params.rootUri.value))
+        elseif !isnull(r.params.rootPath)
+            push!(server.workspaceFolders,  r.params.rootPath.value)
+        end
     else
-        server.rootPath = ""
-    end
-    for wksp in r.params.workspaceFolders
-        push!(server.workspaceFolders, uri2filepath(wksp.uri))
+        for wksp in r.params.workspaceFolders
+            push!(server.workspaceFolders, uri2filepath(wksp.uri))
+        end
     end
     
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
@@ -99,7 +101,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     #         end
     #     end
     # end
-    load_folder(server.rootPath, server)
     info(server.workspaceFolders)
     for wkspc in server.workspaceFolders
         load_folder(wkspc, server)
@@ -130,7 +131,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[URI2(uri)]
-    if startswith(uri, filepath2uri(server.rootPath))
+    if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
         doc._workspace_file = true
     end
     set_open_in_editor(doc, true)
@@ -329,20 +330,20 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
 end
 
 
-function get_REQUIRE(server)
-    str = readlines(joinpath(server.rootPath, "REQUIRE"))
-    req = Tuple{Symbol,VersionNumber}[]
+# function get_REQUIRE(server)
+#     str = readlines(joinpath(server.rootPath, "REQUIRE"))
+#     req = Tuple{Symbol,VersionNumber}[]
     
-    for line in str
-        m = (split(line, " "))
-        if length(m) == 2
-            push!(req, (Symbol(m[1]), VersionNumber(m[2])))
-        else
-            push!(req, (Symbol(m[1]), VersionNumber(0)))
-        end
-    end
-    return req
-end
+#     for line in str
+#         m = (split(line, " "))
+#         if length(m) == 2
+#             push!(req, (Symbol(m[1]), VersionNumber(m[2])))
+#         else
+#             push!(req, (Symbol(m[1]), VersionNumber(0)))
+#         end
+#     end
+#     return req
+# end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)

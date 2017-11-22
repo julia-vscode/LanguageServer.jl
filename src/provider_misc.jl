@@ -17,7 +17,7 @@ const serverCapabilities = ServerCapabilities(
                         DocumentLinkOptions(false),
                         ExecuteCommandOptions(),
                         nothing,
-                        true)
+                        WorkspaceOptions(WorkspaceFoldersOptions(true, true)))
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
     if !isnull(r.params.rootUri)

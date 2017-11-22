@@ -198,6 +198,15 @@ mutable struct TextDocumentSyncOptions
     save::SaveOptions
 end
 
+mutable struct WorkspaceFoldersOptions
+    supported::Bool
+    changeNotifications::Union{Bool,String}
+end
+
+mutable struct WorkspaceOptions
+    workspaceFolders::WorkspaceFoldersOptions
+end
+
 mutable struct ServerCapabilities
     textDocumentSync::Int
     hoverProvider::Bool
@@ -217,7 +226,7 @@ mutable struct ServerCapabilities
     documentLinkProvider::DocumentLinkOptions
     executeCommandProvider::ExecuteCommandOptions
     experimental
-    workspaceFolders::Bool
+    workspace::WorkspaceOptions
 end
 
 mutable struct InitializeResult

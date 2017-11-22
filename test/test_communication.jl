@@ -33,7 +33,12 @@ init_response_json = JSON.parse("""
                         "documentLinkProvider":{"resolveProvider":false},
                         "executeCommandProvider":{"commands":[]},
                         "experimental":null,
-                        "workspaceFolders":true
+                        "workspace":{
+                            "workspaceFolders": {
+                                "supported":true,
+                                "changeNotifications":true
+                            }
+                        }
                     }
             }
 }

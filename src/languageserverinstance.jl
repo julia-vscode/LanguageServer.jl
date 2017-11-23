@@ -8,6 +8,7 @@ mutable struct LanguageServerInstance
     loaded_modules::Dict{String,Tuple{Set{String},Set{String}}}
     debug_mode::Bool
     runlinter::Bool
+    ignorelist::Set{String}
     isrunning::Bool
 
     user_pkg_dir::String
@@ -17,7 +18,7 @@ mutable struct LanguageServerInstance
         loaded_modules["Base"] = load_mod_names(Base)
         loaded_modules["Core"] = load_mod_names(Core)
 
-        new(pipe_in, pipe_out, "", Dict{URI2,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, "", Dict{URI2,Document}(), loaded_modules, debug_mode, false, Set{String}(), false, user_pkg_dir)
     end
 end
 

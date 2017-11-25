@@ -1,4 +1,4 @@
-julia 0.6.0-rc1
+julia 0.6.0
 JSON 0.8.1
 URIParser 0.1.8
 CSTParser 0.3.1

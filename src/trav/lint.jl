@@ -152,8 +152,8 @@ function lint(x::BinarySyntaxOpCall, s::TopLevelScope, L::LintState, server, ist
         # NEEDS FIX: check whether module or field of type
         lint(x.arg1, s, L, server, istop)
         return 
-    elseif CSTParser.declares_function(x)
-        fname = CSTParser._get_fname(x.arg1)
+    elseif CSTParser.defines_function(x)
+        fname = CSTParser.get_name(x.arg1)
         _lint_sig(x.arg1, s, L, fname, s.current.offset)
         _fsig_scope(x.arg1, s, server, last(L.locals))
     elseif CSTParser.is_anon_func(x.op)
@@ -167,7 +167,7 @@ end
 
 function lint(x::WhereOpCall, s::TopLevelScope, L::LintState, server, istop)
     offset = s.current.offset
-    params = CSTParser._get_fparams(x)
+    params = CSTParser.get_where_params(x)
     for p in params
         name = make_name(isempty(s.namespace) ? "toplevel" : s.namespace, p)
         v = Variable(p, :DataType, x.args)
@@ -180,9 +180,6 @@ function lint(x::WhereOpCall, s::TopLevelScope, L::LintState, server, istop)
     end
     offset = s.current.offset
     lint(x.arg1, s, L, server, istop)
-    # s.current.offset = offset + x.arg1.fullspan + x.op.fullspan
-
-    # lint(x.arg2, s, L, server, istop)
 end
 
 function lint(x::ConditionalOpCall, s::TopLevelScope, L::LintState, server, istop)  
@@ -298,8 +295,8 @@ end
 
 # check whether the first binding for a call is a struct or mutable struct
 function allow_braced_call(sig, s)
-    fn = str_value(CSTParser._get_fname(sig))
-    nsEx = make_name(s.namespace, str_value(CSTParser._get_fname(sig)))
+    fn = str_value(CSTParser.get_name(sig))
+    nsEx = make_name(s.namespace, str_value(CSTParser.get_name(sig)))
     haskey(s.symbols, nsEx) && s.symbols[nsEx][1].v.t in [:struct, :mutable]
 end
 
@@ -345,7 +342,7 @@ end
 
 function lint(x::EXPR{CSTParser.FunctionDef}, s::TopLevelScope, L::LintState, server, istop)
     offset = s.current.offset
-    fname = str_value(CSTParser._get_fname(x))
+    fname = str_value(CSTParser.get_name(x))
     s.current.offset += x.args[1].fullspan
     _fsig_scope(x.args[2], s, server, last(L.locals))
     _lint_sig(x.args[2], s, L, fname, s.current.offset)
@@ -357,7 +354,7 @@ end
 function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
     # NEEDS FIX
     offset = s.current.offset
-    fname = string("@", str_value(CSTParser._get_fname(x.args[2])))
+    fname = string("@", str_value(CSTParser.get_name(x.args[2])))
     s.current.offset += x.args[1].fullspan
     _fsig_scope(x.args[2], s, server, last(L.locals))
     # _lint_sig(x.args[2], s, L, fname, s.current.offset + x.args[1].fullspan)
@@ -430,8 +427,8 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         end
         offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan
         for a in x.args[3].args
-            if CSTParser.declares_function(a)
-                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+            if CSTParser.defines_function(a)
+                fname = CSTParser.get_name(CSTParser.get_sig(a))
                 if str_value(fname) != str_value(name) && !(fname isa EXPR{CSTParser.InvisBrackets} && fname.args[2] isa UnarySyntaxOpCall && CSTParser.is_decl(fname.args[2].arg1))
                     push!(L.diagnostics, LSDiagnostic{MisnamedConstructor}(offset + (0:a.fullspan), [], "Constructor name does not match type name"))
                 end
@@ -447,8 +444,8 @@ function lint(x::EXPR{CSTParser.Mutable}, s::TopLevelScope, L::LintState, server
         end
         offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan + x.args[3].fullspan
         for a in x.args[4].args
-            if CSTParser.declares_function(a)
-                fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+            if CSTParser.defines_function(a)
+                fname = CSTParser.get_name(CSTParser.get_sig(a))
                 if str_value(fname) != str_value(name)
                     push!(L.diagnostics, LSDiagnostic{MisnamedConstructor}(offset + (0:a.fullspan), [], "Constructor name does not match type name"))
                 end
@@ -470,8 +467,8 @@ function lint(x::EXPR{CSTParser.Struct}, s::TopLevelScope, L::LintState, server,
     end
     offset = s.current.offset + x.args[1].fullspan + x.args[2].fullspan
     for a in x.args[3].args
-        if CSTParser.declares_function(a)
-            fname = CSTParser._get_fname(CSTParser._get_fsig(a))
+        if CSTParser.defines_function(a)
+            fname = CSTParser.get_name(CSTParser.get_sig(a))
             if str_value(fname) != str_value(name)
                 push!(L.diagnostics, LSDiagnostic{MisnamedConstructor}(offset + (0:a.fullspan), [], "Constructor name does not match type name"))
             end
@@ -542,7 +539,7 @@ end
 
 # function lint(x::EXPR{CSTParser.Macro}, s::TopLevelScope, L::LintState, server, istop)
 #     s.current.offset += x.args[1].fullspan + x.args[2].fullspan
-#     mname = CSTParser._get_fname(x).val
+#     mname = CSTParser.get_name(x).val
 #     _lint_sig(x.args[2], s, L, mname, s.current.offset)
 #     lint(x.args[3], s, L, server, istop)
 # end

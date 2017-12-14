@@ -28,6 +28,8 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    io = open("/home/zac/jls.log", "a")
+    redirect_stderr(io)
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
         message_dict = JSON.parse(message)

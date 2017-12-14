@@ -15,6 +15,12 @@ function scope(doc::Document, offset::Int, server)
     return y, s
 end
 
+function scope(tdpp, server)
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
+    y, s = scope(doc, offset, server)
+end
+
 
 function _scope(x::T, s::TopLevelScope, server) where T <: Union{IDENTIFIER,Quotenode,LITERAL,KEYWORD,PUNCTUATION,OPERATOR}
     return x
@@ -41,7 +47,7 @@ function _scope(x, s::TopLevelScope, server)
         elseif x isa CSTParser.BinarySyntaxOpCall
             if CSTParser.is_anon_func(x.op) && i == 1
                 _anon_func_scope(x, s, server)
-            elseif i == 1 && CSTParser.declares_function(x)
+            elseif i == 1 && CSTParser.defines_function(x)
                 _fsig_scope(a, s, server)
             end
         elseif x isa EXPR{CSTParser.Generator}
@@ -66,7 +72,7 @@ end
 
 # Add parameters and function arguments to the local scope
 function _fsig_scope(sig1, s::TopLevelScope, server, loc = [])
-    params = CSTParser._get_fparams(sig1)
+    params = CSTParser.get_sig_params(sig1)
     for p in params
         name = make_name(s.namespace, p)
         var_item = VariableLoc(Variable(p, :DataType, sig1), s.current.offset + (0:sig1.fullspan), s.current.uri)

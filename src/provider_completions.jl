@@ -4,8 +4,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         return
     end
     tdpp = r.params
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
+    y, s = scope(tdpp, server)
     line = get_line(tdpp, server)
 
     if isempty(line) || line == "\n" || tdpp.position.character == 0
@@ -45,8 +44,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         push!(entries, ("finally", 6, "finally"))
     end
 
-
-    y, s = scope(doc, offset, server)
     prefix = word[1:searchlast(word, '.')]
     if isempty(word) && isempty(prefix) && !CSTParser.isstring(y)
     elseif isempty(prefix) # Single word

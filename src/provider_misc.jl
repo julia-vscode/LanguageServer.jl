@@ -436,10 +436,10 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     i = 0
-    p1 = p2 = 0
+    p1 = p2 = p3 = 0
     for x in doc.code.ast.args
         if i < offset <= i + x.fullspan
-            p1, p2 = i, i + x.fullspan
+            p1, p2, p3 = i, i + length(x.span), i + x.fullspan
             break
         end
         i += x.fullspan
@@ -450,12 +450,12 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         for x in s.stack[3].args 
             i += x.fullspan
             if x == s.stack[4] 
-                p1, p2 = i - x.fullspan , i 
+                p1, p2, p3 = i - x.fullspan, i - x.fullspan + length(x.span), i 
                 break
             end
         end
     end
-    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, max(1, p1)), ind2chr(doc._content, p2)))
+    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, max(1, p1)), ind2chr(doc._content, p2), ind2chr(doc._content, p3)))
     
     send(response, server)
 end

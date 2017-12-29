@@ -62,3 +62,25 @@ mutable struct TextEdit
     range::Range
     newText::String
 end
+
+mutable struct WorkspaceFolder
+    uri::String
+    name::String
+end
+WorkspaceFolder(d::Dict) = WorkspaceFolder(d["uri"], d["name"])
+
+mutable struct WorkspaceFoldersChangeEvent
+    added::Vector{WorkspaceFolder}
+    removed::Vector{WorkspaceFolder}
+end
+
+mutable struct didChangeWorkspaceFoldersParams
+    event::WorkspaceFoldersChangeEvent
+end
+
+function didChangeWorkspaceFoldersParams(d::Dict)
+    added = WorkspaceFolder[WorkspaceFolder(i) for i in d["event"]["added"]]
+    removed = WorkspaceFolder[WorkspaceFolder(i) for i in d["event"]["removed"]]
+
+    return didChangeWorkspaceFoldersParams(WorkspaceFoldersChangeEvent(added, removed))
+end

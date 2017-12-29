@@ -1,6 +1,6 @@
 import LanguageServer: LanguageServerInstance, Document
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, init_request), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse(init_request)), server)
 
 
 function getresult(server)
@@ -30,20 +30,20 @@ LanguageServer.parse_all(doc, server)
 # clear init output
 take!(server.pipe_out)
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":11,"character":5}}}"""), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":11,"character":5}}}""")), server)
 
 res = getresult(server)
 
 @test res[1]["value"] == "module"
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":1,"character":9}}}"""), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":1,"character":9}}}""")), server)
 
 res = getresult(server)
 
 @test res[1]["value"] == "struct"
 
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}"""), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}""")), server)
 
 res = getresult(server)
 

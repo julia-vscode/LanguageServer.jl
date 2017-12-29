@@ -2,7 +2,7 @@ mutable struct LanguageServerInstance
     pipe_in
     pipe_out
 
-    rootPath::String 
+    workspaceFolders::Set{String}
     documents::Dict{URI2,Document}
 
     loaded_modules::Dict{String,Tuple{Set{String},Set{String}}}
@@ -17,7 +17,7 @@ mutable struct LanguageServerInstance
         loaded_modules["Base"] = load_mod_names(Base)
         loaded_modules["Core"] = load_mod_names(Core)
 
-        new(pipe_in, pipe_out, "", Dict{URI2,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), loaded_modules, debug_mode, false, false, user_pkg_dir)
     end
 end
 
@@ -30,10 +30,14 @@ end
 function Base.run(server::LanguageServerInstance)
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
-        request = parse(JSONRPC.Request, message)
-        server.isrunning && serverbusy(server)
-        process(request, server)
-        server.isrunning && serverready(server)
+        message_dict = JSON.parse(message)
+        # For now just ignore response messages
+        if haskey(message_dict, "method")
+            request = parse(JSONRPC.Request, message_dict)
+            server.isrunning && serverbusy(server)
+            process(request, server)
+            server.isrunning && serverready(server)
+        end
     end
 end
 

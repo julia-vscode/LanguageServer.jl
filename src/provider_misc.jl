@@ -16,15 +16,21 @@ const serverCapabilities = ServerCapabilities(
                         true, # renameProvider
                         DocumentLinkOptions(false),
                         ExecuteCommandOptions(),
-                        nothing)
+                        nothing,
+                        WorkspaceOptions(WorkspaceFoldersOptions(true, true)))
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
-    if !isnull(r.params.rootUri)
-        server.rootPath = uri2filepath(r.params.rootUri.value)
-    elseif !isnull(r.params.rootPath)
-        server.rootPath = r.params.rootPath.value
+    # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
+    if isnull(r.params.capabilities.workspace.workspaceFolders) || get(r.params.capabilities.workspace.workspaceFolders)==false
+        if !isnull(r.params.rootUri)
+            push!(server.workspaceFolders, uri2filepath(r.params.rootUri.value))
+        elseif !isnull(r.params.rootPath)
+            push!(server.workspaceFolders,  r.params.rootPath.value)
+        end
     else
-        server.rootPath = ""
+        for wksp in r.params.workspaceFolders
+            push!(server.workspaceFolders, uri2filepath(wksp.uri))
+        end
     end
     
     response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
@@ -49,10 +55,14 @@ function load_rootpath(path)
     isdir(path)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
-    server.debug_mode && tic()
-    if load_rootpath(server.rootPath)
-        for (root, dirs, files) in walkdir(server.rootPath)
+function load_folder(wf::WorkspaceFolder, server)
+    path = uri2filepath(wf.uri)
+    load_folder(path, server)
+end
+
+function load_folder(path::String, server)
+    if load_rootpath(path)
+        for (root, dirs, files) in walkdir(path)
             for file in files
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
@@ -69,7 +79,35 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             end
         end
     end
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
+    server.debug_mode && tic()
+    # if load_rootpath(server.rootPath)
+    #     for (root, dirs, files) in walkdir(server.rootPath)
+    #         for file in files
+    #             if endswith(file, ".jl")
+    #                 filepath = joinpath(root, file)
+    #                 !isfile(filepath) && continue
+    #                 info("parsed $filepath")
+    #                 uri = filepath2uri(filepath)
+    #                 content = readstring(filepath)
+    #                 server.documents[URI2(uri)] = Document(uri, content, true)
+    #                 doc = server.documents[URI2(uri)]
+    #                 doc._runlinter = false
+    #                 parse_all(doc, server)
+    #                 doc._runlinter = true
+    #             end
+    #         end
+    #     end
+    # end
+    info(server.workspaceFolders)
+    for wkspc in server.workspaceFolders
+        load_folder(wkspc, server)
+    end
     server.debug_mode && info("Startup time: $(toq())")
+
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))), server.debug_mode)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
@@ -95,7 +133,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false)
     doc = server.documents[URI2(uri)]
-    if startswith(uri, filepath2uri(server.rootPath))
+    if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
         doc._workspace_file = true
     end
     set_open_in_editor(doc, true)
@@ -294,20 +332,20 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
 end
 
 
-function get_REQUIRE(server)
-    str = readlines(joinpath(server.rootPath, "REQUIRE"))
-    req = Tuple{Symbol,VersionNumber}[]
+# function get_REQUIRE(server)
+#     str = readlines(joinpath(server.rootPath, "REQUIRE"))
+#     req = Tuple{Symbol,VersionNumber}[]
     
-    for line in str
-        m = (split(line, " "))
-        if length(m) == 2
-            push!(req, (Symbol(m[1]), VersionNumber(m[2])))
-        else
-            push!(req, (Symbol(m[1]), VersionNumber(0)))
-        end
-    end
-    return req
-end
+#     for line in str
+#         m = (split(line, " "))
+#         if length(m) == 2
+#             push!(req, (Symbol(m[1]), VersionNumber(m[2])))
+#         else
+#             push!(req, (Symbol(m[1]), VersionNumber(0)))
+#         end
+#     end
+#     return req
+# end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
@@ -425,3 +463,34 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params)
     return TextDocumentPositionParams(params)
 end
+
+function remove_workspace_files(root, server)
+    for (uri, doc) in server.documents
+        fpath = uri2filepath(uri._uri)
+        doc._open_in_editor && continue
+        if startswith(fpath, fpath)
+            for folder in server.workspaceFolders
+                if startswith(fpath, folder)
+                    continue
+                end
+                delete!(server.documents, uri)
+            end
+        end
+    end
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
+    for wksp in r.params.event.added
+        push!(server.workspaceFolders, uri2filepath(wksp.uri))
+        load_folder(wksp, server)
+    end
+    for wksp in r.params.event.removed
+        delete!(server.workspaceFolders, uri2filepath(wksp.uri))
+        remove_workspace_files(wksp, server)
+    end
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params)
+    return didChangeWorkspaceFoldersParams(params)
+end
+

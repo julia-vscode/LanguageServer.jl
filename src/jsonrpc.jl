@@ -27,8 +27,7 @@ end
 
 function parse_params end
 
-function parse(::Type{Request}, message::AbstractString)
-    message_dict = JSON.parse(message)
+function parse(::Type{Request}, message_dict::Dict)
     if message_dict["jsonrpc"] != "2.0"
         error("Invalid JSON-RPC version")
     end

@@ -208,12 +208,11 @@ function should_file_be_linted(uri, server)
     !server.runlinter && return false
 
     uri_path = uri2filepath(uri)
-    workspace_path = server.rootPath
 
-    if isempty(server.rootPath)
+    if length(server.workspaceFolders)==0
         return false
     else
-        return startswith(uri_path, workspace_path)
+        return any(i->startswith(uri_path, i), server.workspaceFolders)
     end
 end
 

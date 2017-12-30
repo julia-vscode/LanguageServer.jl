@@ -41,7 +41,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return InitializeParams(params)
 end
 
-hasreadperm(p::String) = div(uperm(p), 0x04) > 0x00
+hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
 function isjuliabasedir(path)
     fs = readdir(path)

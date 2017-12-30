@@ -41,6 +41,8 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return InitializeParams(params)
 end
 
+hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
+
 function isjuliabasedir(path)
     fs = readdir(path)
     if "base" in fs && isdir(joinpath(path, "base"))
@@ -52,7 +54,8 @@ function load_rootpath(path)
     !(path == "" || 
     path == homedir() ||
     isjuliabasedir(path)) &&
-    isdir(path)
+    isdir(path) &&
+    hasreadperm(path)
 end
 
 function load_folder(wf::WorkspaceFolder, server)
@@ -62,11 +65,11 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path)
+        for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
-                    !isfile(filepath) && continue
+                    (!isfile(filepath) || !hasreadperm(filepath)) && continue
                     info("parsed $filepath")
                     uri = filepath2uri(filepath)
                     content = readstring(filepath)

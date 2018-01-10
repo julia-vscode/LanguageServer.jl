@@ -551,3 +551,19 @@ function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFol
     return didChangeWorkspaceFoldersParams(params)
 end
 
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSave")},WillSaveTextDocumentParams}, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSave")}}, params)
+    return WillSaveTextDocumentParams(params)
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSaveWaitUntil")},WillSaveTextDocumentParams}, server)
+    response = JSONRPC.Response(get(r.id), TextEdit[])
+    send(response, server)
+end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil")}}, params)
+    return WillSaveTextDocumentParams(params)
+end
+

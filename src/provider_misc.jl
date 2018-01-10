@@ -41,6 +41,8 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return InitializeParams(params)
 end
 
+hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
+
 function isjuliabasedir(path)
     fs = readdir(path)
     if "base" in fs && isdir(joinpath(path, "base"))
@@ -52,7 +54,8 @@ function load_rootpath(path)
     !(path == "" || 
     path == homedir() ||
     isjuliabasedir(path)) &&
-    isdir(path)
+    isdir(path) &&
+    hasreadperm(path)
 end
 
 function load_folder(wf::WorkspaceFolder, server)
@@ -62,11 +65,11 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path)
+        for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
-                    !isfile(filepath) && continue
+                    (!isfile(filepath) || !hasreadperm(filepath)) && continue
                     info("parsed $filepath")
                     uri = filepath2uri(filepath)
                     content = readstring(filepath)
@@ -137,6 +140,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc._workspace_file = true
     end
     set_open_in_editor(doc, true)
+    if is_ignored(uri, server)
+        doc._runlinter = false
+    end
     parse_all(doc, server)
 end
 
@@ -228,20 +234,71 @@ function JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, pa
     return Any(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
-    if isempty(r.params["settings"])
-        server.runlinter = false
-        for uri in map(i->i._uri, values(server.documents))
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
-            send(response, server)
-        end
-    else
-        server.runlinter = true
-        if !server.isrunning
-            for doc in values(server.documents)
-                doc.diagnostics = lint(doc, server).diagnostics
-                publish_diagnostics(doc, server)
+
+function clear_diagnostics(uri::URI2, server)
+    doc = server.documents[uri]
+    empty!(doc.diagnostics)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+    send(response, server)
+
+end
+
+function clear_diagnostics(server)
+    for (uri, doc) in server.documents
+        clear_diagnostics(uri, server)
+    end
+end
+
+
+function is_ignored(uri, server)
+    fpath = uri2filepath(uri)
+    fpath in server.ignorelist && return true
+    for ig in server.ignorelist
+        if !endswith(ig, ".jl")        
+            if startswith(fpath, ig)
+                return true
             end
+        end
+    end
+    return false
+end
+
+is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
+    
+
+
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
+    if haskey(r.params["settings"], "julia")
+        jsettings = r.params["settings"]["julia"]
+        if haskey(jsettings, "runlinter") && jsettings["runlinter"] != server.runlinter
+            server.runlinter = !server.runlinter
+            if server.runlinter
+                if !server.isrunning
+                    for doc in values(server.documents)
+                        doc.diagnostics = lint(doc, server).diagnostics
+                        publish_diagnostics(doc, server)
+                    end
+                end
+            else
+                clear_diagnostics(server)
+            end
+        end
+        if haskey(jsettings, "lintIgnoreList")
+            server.ignorelist = Set(jsettings["lintIgnoreList"])
+            for (uri,doc) in server.documents
+                if is_ignored(uri, server)
+                    doc._runlinter = false
+                    clear_diagnostics(uri, server)
+                else
+                    if !doc._runlinter
+                        doc._runlinter = true
+                        L = lint(doc, server)
+                        append!(doc.diagnostics, L.diagnostics)
+                        publish_diagnostics(doc, server)
+                    end
+                end
+            end
+
         end
     end
 end
@@ -436,10 +493,10 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     i = 0
-    p1 = p2 = 0
+    p1 = p2 = p3 = 0
     for x in doc.code.ast.args
         if i < offset <= i + x.fullspan
-            p1, p2 = i, i + x.fullspan
+            p1, p2, p3 = i, i + length(x.span), i + x.fullspan
             break
         end
         i += x.fullspan
@@ -450,12 +507,12 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         for x in s.stack[3].args 
             i += x.fullspan
             if x == s.stack[4] 
-                p1, p2 = i - x.fullspan , i 
+                p1, p2, p3 = i - x.fullspan, i - x.fullspan + length(x.span), i 
                 break
             end
         end
     end
-    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, max(1, p1)), ind2chr(doc._content, p2)))
+    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, max(1, p1)), ind2chr(doc._content, p2), ind2chr(doc._content, p3)))
     
     send(response, server)
 end

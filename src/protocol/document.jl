@@ -128,3 +128,13 @@ end
 function DidChangeWatchedFilesParams(d::Dict)
     DidChangeWatchedFilesParams(FileEvent.(d["changes"]))
 end
+
+const TextDocumentReason = Dict("Manual" => 1,
+                                "AfterDelay" => 2,
+                                "FocusOut" => 3)
+
+mutable struct WillSaveTextDocumentParams
+    textDocument::TextDocumentIdentifier
+    reason::Int
+end
+WillSaveTextDocumentParams(d::Dict) = WillSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]), d["reason"])

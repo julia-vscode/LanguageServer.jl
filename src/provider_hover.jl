@@ -3,11 +3,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
-    # tdpp = r.params
-    # doc = server.documents[URI2(tdpp.textDocument.uri)]
-    # offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-
-    # y, s = scope(doc, offset, server)
     y, s = scope(r.params, server)
     
     if y isa IDENTIFIER || y isa OPERATOR

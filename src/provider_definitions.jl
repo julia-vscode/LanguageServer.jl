@@ -9,9 +9,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         return
     end
     tdpp = r.params
-    # doc = server.documents[URI2(tdpp.textDocument.uri)]
-    # offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
-    # y, s = scope(doc, offset, server)
     y, s = scope(tdpp, server)
 
     locations = Location[]

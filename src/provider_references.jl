@@ -82,7 +82,7 @@ function references(x, s::TopLevelScope, L::LintState, R::RefState, server, isto
         elseif x isa BinarySyntaxOpCall
             if CSTParser.is_anon_func(x.op) && i == 1
                 _anon_func_scope(x, s, server, last(L.locals))
-            elseif i == 1 && CSTParser.declares_function(x)
+            elseif i == 1 && CSTParser.defines_function(x)
                 _fsig_scope(a, s, server, last(L.locals))
             end
         elseif x isa EXPR{CSTParser.Generator}

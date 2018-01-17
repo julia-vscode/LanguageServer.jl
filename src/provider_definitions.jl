@@ -9,11 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         return
     end
     tdpp = r.params
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
-    y, s = scope(doc, offset, server)
-    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-
+    y, s = scope(tdpp, server)
 
     locations = Location[]
     if y isa IDENTIFIER || y isa OPERATOR

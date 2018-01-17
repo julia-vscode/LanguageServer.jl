@@ -3,20 +3,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
-    tdpp = r.params
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    
-    y, s = scope(doc, offset, server)
+    y,s = scope(r.params, server)
     if CSTParser.is_rparen(y)
         return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
     elseif length(s.stack) > 0 && last(s.stack) isa EXPR{Call}
         fcall = s.stack[end]
-        fname = CSTParser._get_fname(last(s.stack))
+        fname = CSTParser.get_name(last(s.stack))
         x = get_cache_entry(fname, server, s)
     elseif length(s.stack) > 1 && CSTParser.is_comma(s.stack[end]) && s.stack[end-1] isa EXPR{Call}
         fcall = s.stack[end-1]
-        fname = CSTParser._get_fname(fcall)
+        fname = CSTParser.get_name(fcall)
         x = get_cache_entry(fname, server, s)
     else
         return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
@@ -38,7 +34,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     if haskey(s.symbols, nsEy)
         for vl in s.symbols[nsEy]
             if vl.v.t == :function
-                sig = CSTParser._get_fsig(vl.v.val)
+                sig = CSTParser.get_sig(vl.v.val)
                 if sig isa CSTParser.BinarySyntaxOpCall && CSTParser.is_decl(sig.op)
                     sig = sig.arg1
                 end

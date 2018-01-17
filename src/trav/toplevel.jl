@@ -30,7 +30,7 @@ function toplevel(x, s::TopLevelScope, server)
     for a in x
         offset = s.current.offset
         toplevel_symbols(a, s, server)
-        if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.declares_function(a)))
+        if s.hittarget || ((s.current.uri == s.target.uri && s.current.offset <= s.target.offset <= (s.current.offset + a.fullspan)) && !(CSTParser.contributes_scope(a) || ismodule(a) || CSTParser.defines_function(a)))
             s.hittarget = true 
             return
         end
@@ -247,17 +247,17 @@ function get_defs(x::EXPR{CSTParser.BareModule})
 end
 
 function get_defs(x::EXPR{CSTParser.FunctionDef})
-    [Variable(Expr(CSTParser._get_fname(x.args[2])), :function, x)]
+    [Variable(Expr(CSTParser.get_name(x.args[2])), :function, x)]
 end
 
 function get_defs(x::EXPR{CSTParser.Macro})
-    [Variable(Symbol("@", Expr(CSTParser._get_fname(x.args[2]))), :macro, x)]
+    [Variable(Symbol("@", Expr(CSTParser.get_name(x.args[2]))), :macro, x)]
 end
 
 function get_defs(x::CSTParser.BinarySyntaxOpCall)
     if CSTParser.is_eq(x.op)
         if CSTParser.is_func_call(x.arg1)
-            return Variable[Variable(Expr(CSTParser._get_fname(x.arg1)), :function, x)]
+            return Variable[Variable(Expr(CSTParser.get_name(x.arg1)), :function, x)]
         elseif x.arg2 isa BinarySyntaxOpCall && CSTParser.is_eq(x.arg2.op)
             defs = Variable[]
             val = x.arg2

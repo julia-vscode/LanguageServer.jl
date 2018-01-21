@@ -25,7 +25,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     end
     for m in methods(x)
         file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-        if (file, m.line) == DefaultTypeConstructorLoc
+        if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
             continue
         end
         push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))

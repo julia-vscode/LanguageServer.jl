@@ -11,7 +11,7 @@ import CSTParser: contributes_scope
 import Tokenize.Tokens, Tokenize.Tokens.untokenize
 
 # TODO: remove pending fix in Base
-Base.convert(AssertionError, x::String) = AssertionError(x)
+# Base.convert(AssertionError, x::String) = AssertionError(x)
 
 const LeafNodes = Union{IDENTIFIER,KEYWORD,LITERAL,OPERATOR,PUNCTUATION}
 

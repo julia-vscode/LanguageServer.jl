@@ -16,5 +16,5 @@ make use of the Julia Language Server for various code editing features:
 
 - [VS Code](https://marketplace.visualstudio.com/items?itemName=julialang.language-julia)
 - [Atom](https://github.com/pfitzseb/atom-julia-lsp-client)
-- [Neovim](../../wiki/Neovim)
+- [Vim and Neovim](../../wiki/Vim-and-Neovim)
 - [Emacs](../../wiki/Emacs)

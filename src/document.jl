@@ -1,3 +1,9 @@
+mutable struct LSDiagnostic{C}
+    loc::UnitRange{Int}
+    actions::Vector{DocumentFormat.TextEdit}
+    message::String
+end
+
 mutable struct Document
     _uri::String
     _content::String

@@ -32,7 +32,7 @@ function _scope(x, s::TopLevelScope, server)
         push!(s.namespace, str_value(x.args[2]))
     end
     if s.current.offset + x.fullspan < s.target.offset
-        return NOTHING
+        return CSTParser.NOTHING
     end
     push!(s.stack, x)
     for (i, a) in enumerate(x)

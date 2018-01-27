@@ -4,6 +4,17 @@ mutable struct ScopePosition
     ScopePosition(uri = "",  offset = 0) = new(uri, offset)
 end
 
+mutable struct Variable
+    id
+    t
+    val
+end
+
+struct VariableLoc
+    v::Variable
+    loc::UnitRange{Int}
+    uri::String
+end
 
 mutable struct TopLevelScope
     target::ScopePosition
@@ -59,7 +70,7 @@ function toplevel(x, s::TopLevelScope, server)
     return 
 end
 
-function toplevel_symbols(x::LeafNodes, s::TopLevelScope, server) end
+function toplevel_symbols(x::CSTParser.LeafNode, s::TopLevelScope, server) end
 
 function toplevel_symbols(x, s::TopLevelScope, server)
     for v in get_defs(x)

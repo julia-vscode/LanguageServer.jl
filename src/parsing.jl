@@ -21,8 +21,6 @@ function parse_all(doc, server)
     end
 end
 
-
-
 function convert_diagnostic(h::LSDiagnostic{T}, doc::Document) where {T}
     rng = Range(doc, h.loc)
     code =  T isa CSTParser.Diagnostics.ErrorCodes ? 1 :
@@ -55,5 +53,19 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
             loc = 0:err_loc
         end
         push!(doc.diagnostics, LSDiagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
+    end
+end
+
+function clear_diagnostics(uri::URI2, server)
+    doc = server.documents[uri]
+    empty!(doc.diagnostics)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+    send(response, server)
+
+end
+
+function clear_diagnostics(server)
+    for (uri, doc) in server.documents
+        clear_diagnostics(uri, server)
     end
 end

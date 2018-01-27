@@ -4,25 +4,6 @@ mutable struct RefState
     refs::Vector{Tuple{Int,String}}
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
-        return
-    end
-    tdpp = r.params
-    uri = tdpp.textDocument.uri
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    
-    locations = references(doc, offset, server)
-    response = JSONRPC.Response(get(r.id), locations)
-    send(response, server)
-end
-
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params)
-    return ReferenceParams(params)
-end
-
 function references(doc, offset, server)
     y, s = scope(doc, offset, server)
     
@@ -62,7 +43,7 @@ function references(doc, offset, server)
     return locations
 end
 
-function references(x::LeafNodes, s::TopLevelScope, L::LintState, R::RefState, server, istop) end
+function references(x::CSTParser.LeafNode, s::TopLevelScope, L::LintState, R::RefState, server, istop) end
 
 function references(x, s::TopLevelScope, L::LintState, R::RefState, server, istop) 
     for (i, a) in enumerate(x)

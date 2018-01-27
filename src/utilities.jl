@@ -1,10 +1,6 @@
-function get_line(uri::AbstractString, line::Integer, server::LanguageServerInstance)
-    doc = server.documents[URI2(uri)]
-    return get_line(doc, line)
-end
-
 function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    return get_line(tdpp.textDocument.uri, tdpp.position.line + 1, server)
+    doc = server.documents[URI2(tdpp.textDocument.uri)]
+    return get_line(doc, tdpp.position.line + 1)
 end
 
 function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset = 0)
@@ -31,6 +27,9 @@ function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstan
 end
 
 
+_isdotexpr(x) = false
+_isdotexpr(x::BinarySyntaxOpCall) = CSTParser.is_dot(x.op)
+
 unpack_dot(id, args = Symbol[]) = Symbol[]
 
 function unpack_dot(id::Symbol, args = Symbol[])
@@ -50,9 +49,6 @@ function unpack_dot(id::Expr, args = Symbol[])
     return args
 end
 
-_isdotexpr(x) = false
-_isdotexpr(x::BinarySyntaxOpCall) = CSTParser.is_dot(x.op)
-
 function unpack_dot(x::BinarySyntaxOpCall)
     args = Any[]
     val = x
@@ -66,28 +62,6 @@ function unpack_dot(x::BinarySyntaxOpCall)
     end
     unshift!(args, val)
     return args
-end
-
-
-repack_dot(args::Symbol) = args
-function repack_dot(args::Vector)
-    if length(args) == 1
-        return first(args)
-    else
-        return repack_dot([Expr(:., first(args), QuoteNode(args[2])); args[3:end]])
-    end
-end
-
-function repack_dot(args::Vector{Symbol})
-    if length(args) == 1
-        return first(args)
-    else
-        out = Expr(:., args[1], QuoteNode(args[2]))
-        for i = 3:length(args)
-            out = Expr(:., out, QuoteNode(args[i]))
-        end
-        return out
-    end
 end
 
 function make_name(ns, id)
@@ -216,9 +190,6 @@ function should_file_be_linted(uri, server)
     end
 end
 
-
-sprintrange(range::Range) = "($(range.start.line + 1),$(range.start.character)):($(range.stop.line + 1),$(range.stop.character + 1))" 
-
 CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 : 
                                 t == :Function ? 3 : 
                                 t == :DataType ? 7 :  
@@ -234,3 +205,81 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
 str_value(x) = ""
 str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val
 str_value(x::OPERATOR) = string(Expr(x))
+
+function searchlast(str, c)
+    i0 = search(str, c, 1)
+    if i0 == 0 
+        return 0
+    else
+        while true
+            i1 = search(str, c, i0 + 1)
+            if i1 == 0
+                return i0
+            end
+            i0 = i1
+        end
+    end
+end
+
+function get_scope_entry_doc(y, s::TopLevelScope, documentation)
+    Ey = Expr(y)
+    nsEy = join(vcat(s.namespace, Ey), ".")
+    if haskey(s.symbols, nsEy)
+        for vl in s.symbols[nsEy]
+            if vl.v.t == :Any
+                push!(documentation, MarkedString("julia", string(Expr(vl.v.val))))
+            elseif vl.v.t == :Function
+                push!(documentation, MarkedString("julia", string(Expr(CSTParser.get_sig(vl.v.val)))))
+            else
+                push!(documentation, MarkedString(string(vl.v.t)))
+            end
+        end
+    end
+end
+
+# Find location of default datatype constructor
+const DefaultTypeConstructorLoc= let def = first(methods(Int))
+    Base.find_source_file(string(def.file)), def.line
+end
+
+function is_ignored(uri, server)
+    fpath = uri2filepath(uri)
+    fpath in server.ignorelist && return true
+    for ig in server.ignorelist
+        if !endswith(ig, ".jl")        
+            if startswith(fpath, ig)
+                return true
+            end
+        end
+    end
+    return false
+end
+
+is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
+
+function toggle_file_lint(doc, server)
+    if doc._runlinter
+        doc._runlinter = false
+        empty!(doc.diagnostics)
+    else
+        doc._runlinter = true
+        L = lint(doc, server)
+        doc.diagnostics = L.diagnostics
+    end
+    publish_diagnostics(doc, server)
+end
+
+function remove_workspace_files(root, server)
+    for (uri, doc) in server.documents
+        fpath = uri2filepath(uri._uri)
+        doc._open_in_editor && continue
+        if startswith(fpath, fpath)
+            for folder in server.workspaceFolders
+                if startswith(fpath, folder)
+                    continue
+                end
+                delete!(server.documents, uri)
+            end
+        end
+    end
+end

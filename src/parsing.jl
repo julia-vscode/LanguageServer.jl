@@ -52,7 +52,7 @@ function parse_errored(doc::Document, ps::CSTParser.ParseState)
             loc = 0:sizeof(doc._content)
             loc = 0:err_loc
         end
-        push!(doc.diagnostics, LSDiagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], "Parsing failure"))
+        push!(doc.diagnostics, LSDiagnostic{CSTParser.Diagnostics.ParseFailure}(loc, [], string(ps.error_code)))
     end
 end
 

@@ -157,6 +157,8 @@ function uri2filepath(uri::AbstractString)
     return uri_path
 end
 
+uri2filepath(uri::URI2) = uri2filepath(uri._uri)
+
 function filepath2uri(file::String)
     if is_windows()
         file = normpath(file)

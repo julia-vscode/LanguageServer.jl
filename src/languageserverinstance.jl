@@ -34,10 +34,12 @@ function Base.run(server::LanguageServerInstance)
         message_dict = JSON.parse(message)
         # For now just ignore response messages
         if haskey(message_dict, "method")
+            server.debug_mode && tic()
             request = parse(JSONRPC.Request, message_dict)
             server.isrunning && serverbusy(server)
             process(request, server)
             server.isrunning && serverready(server)
+            server.debug_mode && info(toq())
         end
     end
 end

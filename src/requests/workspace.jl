@@ -87,18 +87,12 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     query = r.params.query
-    for doc in values(server.documents)
-        uri = doc._uri
-        s = toplevel(doc, server, false)
-        for k in keys(s.symbols)
-            for vl in s.symbols[k]
-                if ismatch(Regex(query, "i"), string(vl.v.id))
-                    if vl.v.t == :Function
-                        id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
-                    else
-                        id = string(vl.v.id)
-                    end
-                    push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, vl.loc))))
+    for (uri, doc) in server.documents
+        S = StaticLint.trav(doc, server, StaticLint.Location(uri2filepath(uri), -1))
+        for (name, bindings) in S.current_scope.names
+            if ismatch(Regex(query, "i"), name)
+                for binding in bindings
+                    push!(syms, SymbolInformation(name, SymbolKind(binding.t), Location(uri._uri, Range(doc, binding.loc.offset))))
                 end
             end
         end

@@ -295,47 +295,32 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         return
     end
     tdpp = r.params
-    y, s = scope(tdpp, server)
-
+    doc = server.documents[URI2(r.params.textDocument.uri)]
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
+    td = server.documents[URI2(last(findtopfile(tdpp.textDocument.uri, server)[1]))]
+    
+    S = StaticLint.trav(td, server, StaticLint.Location(uri2filepath(tdpp.textDocument.uri), offset))
+    stack = get_stack(doc.code.ast, offset)
+    
     locations = Location[]
-    if y isa IDENTIFIER || y isa OPERATOR
-        if length(s.stack) > 1 && s.stack[end] isa EXPR{Quotenode} && s.stack[end-1] isa BinarySyntaxOpCall && CSTParser.is_dot(s.stack[end-1].op)
-            x = get_cache_entry(s.stack[end-1], server, s)
-        else
-            x = get_cache_entry(y, server, s)
+
+    path = uri2filepath(tdpp.textDocument.uri)
+    ref = find_ref(S, path, offset)
+    if ref isa StaticLint.Reference && ref.b isa StaticLint.Binding && ref.b.t != "BaseCore"
+        b = ref.b
+        uri2 = filepath2uri(b.loc.path)
+        doc2 = server.documents[URI2(uri2)]
+        push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
+        info(b.t)
+        info(b.overwrites)
+        while b.t == :Function && b.overwrites isa StaticLint.Binding && b.overwrites.t == :Function
+            b = b.overwrites
+            uri2 = filepath2uri(b.loc.path)
+            doc2 = server.documents[URI2(uri2)]
+            push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
         end
-    elseif y isa EXPR{Quotenode} && last(s.stack) isa BinarySyntaxOpCall && CSTParser.is_dot(last(s.stack).args[2])
-        x = get_cache_entry(last(s.stack), server, s)
-    else
-        x = nothing
-    end
-    for m in methods(x)
-        file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-        if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
-            continue
-        end
-        push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
     end
     
-    if y != nothing
-        if y isa EXPR{CSTParser.Quotenode} && last(s.stack) isa BinarySyntaxOpCall && CSTParser.is_dot(last(s.stack).args[2])
-            Ey = Expr(last(s.stack))
-        else
-            Ey = Expr(y)
-        end
-        nsEy = join(vcat(s.namespace, Ey), ".")
-        if haskey(s.symbols, nsEy)
-            for vl in s.symbols[nsEy]
-                if Ey == vl.v.id || (vl.v.id isa Expr && vl.v.id.head == :. && vl.v.id.args[1] == ns && Ey == vl.v.id.args[2].value)
-                    doc1 = server.documents[URI2(vl.uri)]
-                    ws_offset = CSTParser.trailing_ws_length(vl.v.val)
-                    loc1 = vl.loc.start:vl.loc.stop - ws_offset
-                    push!(locations, Location(vl.uri, Range(doc1, loc1)))
-                end
-            end
-        end
-    end
-
     response = JSONRPC.Response(get(r.id), locations)
     send(response, server)
 end
@@ -369,37 +354,52 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
         return
     end
-    y, s = scope(r.params, server)
     
-    if y isa IDENTIFIER || y isa OPERATOR
-        if length(s.stack) > 1 && s.stack[end] isa EXPR{Quotenode} && s.stack[end-1] isa BinarySyntaxOpCall && CSTParser.is_dot(s.stack[end-1].op)
-            x = get_cache_entry(s.stack[end-1], server, s)
-            documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))]
-            get_scope_entry_doc(s.stack[end-1], s, documentation)
-        else
-            x = get_cache_entry(y, server, s)
-            documentation = x == nothing ? Any[] : Any[string(Docs.doc(x))] 
-            get_scope_entry_doc(y, s, documentation)
+    tdpp = r.params
+    uri = tdpp.textDocument.uri
+    doc = server.documents[URI2(uri)]
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
+    td = server.documents[URI2(last(findtopfile(uri, server)[1]))]
+
+    S = StaticLint.trav(td, server, StaticLint.Location(uri2filepath(r.params.textDocument.uri), offset))
+
+    stack = get_stack(doc.code.ast, offset)
+    cs = get_scope(S.current_scope, offset)
+    documentation = Any[]
+    if isempty(stack)
+    elseif last(stack) isa IDENTIFIER
+        ref = find_ref(S, uri2filepath(uri), offset)
+        if ref isa StaticLint.Reference && !(ref.b isa StaticLint.MissingBinding)
+            push!(documentation, string(ref.b.t))
         end
-    elseif y isa LITERAL
-        documentation = [MarkedString(string(Expr(y), "::", CSTParser.infer_t(y)))]
-    elseif y isa KEYWORD && y.kind == Tokens.END && !isempty(s.stack)
-        expr_type = Expr(last(s.stack).args[1])
-        documentation = [MarkedString("Closes `$expr_type` expression")]
-    elseif CSTParser.is_rparen(y) && !isempty(s.stack)
-        last_ex = last(s.stack)
-        if last_ex isa EXPR{CSTParser.Call}
-            documentation = [MarkedString("Closes `$(Expr(last_ex.args[1]))` call")]
+    elseif last(stack) isa LITERAL
+        push!(documentation, MarkedString(string(Expr(last(stack)), "::", CSTParser.infer_t(last(stack)))))
+    elseif last(stack) isa KEYWORD
+        if last(stack).kind == Tokens.END && length(stack) > 1
+            expr_type = Expr(stack[end-1].args[1])
+            push!(documentation, MarkedString("Closes `$expr_type` expression"))
+        else
+            push!(documentation, MarkedString(string(Docs.docm(Expr(last(stack))))))
+        end
+    elseif CSTParser.is_rparen(last(stack)) && length(stack) > 1
+        last_ex = stack[end-1]
+        if last_ex isa EXPR{Call}
+            push!(documentation, MarkedString("Closes `$(Expr(last_ex.args[1]))` call"))
         elseif last_ex isa EXPR{CSTParser.TupleH}
-            documentation = [MarkedString("Closes a tuple")]
-        else
-            documentation = [""]
+            push!(documentation, MarkedString("Closes a tuple"))
         end
-    elseif y != nothing && !(y isa PUNCTUATION)
-        documentation = [string(Expr(y))]
-    else
-        documentation = [""]
+    elseif !(last(stack) isa PUNCTUATION)
+        push!(documentation, string(Expr(last(stack))))
     end
+    if server.debug_mode
+        push!(documentation, string(keys(cs.names)))
+        while cs.parent !=nothing
+            cs = cs.parent
+            push!(documentation, string(keys(cs.names)))
+        end
+    end
+   
+
     response = JSONRPC.Response(get(r.id), Hover(unique(documentation)))
     send(response, server)
 end
@@ -442,8 +442,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     uri = tdpp.textDocument.uri
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    
-    locations = references(doc, offset, server)
+    td = server.documents[URI2(last(findtopfile(uri, server)[1]))]
+    S = StaticLint.trav(td, server)
+
+    locations = similar_refs(uri2filepath(uri), offset, S, server)
+
     response = JSONRPC.Response(get(r.id), locations)
     send(response, server)
 end
@@ -463,7 +466,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
     doc = server.documents[URI2(uri)]
     offset = get_offset(doc, rp.position.line + 1, rp.position.character)
     
-    locations = references(doc, offset, server)
+    td = server.documents[URI2(last(findtopfile(uri, server)[1]))]
+    S = StaticLint.trav(td, server)
+
+    locations = similar_refs(uri2filepath(uri), offset, S, server)
 
     tdes = Dict{String,TextDocumentEdit}()
     for loc in locations
@@ -566,21 +572,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     end
     uri = r.params.textDocument.uri 
     doc = server.documents[URI2(uri)]
+    S = StaticLint.trav(doc, server, StaticLint.Location(uri2filepath(uri), -1))
     syms = SymbolInformation[]
-    s = toplevel(doc, server, false)
-    for k in keys(s.symbols)
-        for vl in s.symbols[k]
-            if vl.v.t == :Function
-                id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
-            else
-                id = string(vl.v.id)
-            end
-            ws_offset = CSTParser.trailing_ws_length(vl.v.val)
-            loc1 = vl.loc.start:vl.loc.stop - ws_offset
-            push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, loc1))))
+    
+    for (name, bindings) in S.current_scope.names
+        for binding in bindings
+            push!(syms, SymbolInformation(name, SymbolKind(binding.t), Location(uri, Range(doc, binding.loc.offset))))
         end
     end
     
     response = JSONRPC.Response(get(r.id), syms) 
     send(response, server) 
 end
+

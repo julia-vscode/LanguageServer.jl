@@ -306,18 +306,28 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     path = uri2filepath(tdpp.textDocument.uri)
     ref = find_ref(S, path, offset)
-    if ref isa StaticLint.Reference && ref.b isa StaticLint.Binding && ref.b.t != "BaseCore"
-        b = ref.b
-        uri2 = filepath2uri(b.loc.path)
-        doc2 = server.documents[URI2(uri2)]
-        push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
-        info(b.t)
-        info(b.overwrites)
-        while b.t == :Function && b.overwrites isa StaticLint.Binding && b.overwrites.t == :Function
-            b = b.overwrites
+    if ref isa StaticLint.Reference && ref.b isa StaticLint.Binding
+        if ref.b.val isa CSTParser.AbstractEXPR # get definitions for user defined code
+            b = ref.b
             uri2 = filepath2uri(b.loc.path)
             doc2 = server.documents[URI2(uri2)]
             push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
+            info(b.t)
+            info(b.overwrites)
+            while b.t == :Function && b.overwrites isa StaticLint.Binding && b.overwrites.t == :Function
+                b = b.overwrites
+                uri2 = filepath2uri(b.loc.path)
+                doc2 = server.documents[URI2(uri2)]
+                push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
+            end
+        else # definitions for imported methods
+            for m in methods(ref.b.val)
+                file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
+                if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
+                    continue
+                end
+                push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
+            end
         end
     end
     
@@ -369,8 +379,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     if isempty(stack)
     elseif last(stack) isa IDENTIFIER
         ref = find_ref(S, uri2filepath(uri), offset)
-        if ref isa StaticLint.Reference && !(ref.b isa StaticLint.MissingBinding)
-            push!(documentation, string(ref.b.t))
+        if ref isa StaticLint.Reference && !(ref.b isa StaticLint.MissingBinding) # found solid reference
+            if ref.b.val isa CSTParser.AbstractEXPR
+                push!(documentation, string(ref.b.t))
+            else
+                push!(documentation, string(Docs.doc(ref.b.val)))
+            end
         end
     elseif last(stack) isa LITERAL
         push!(documentation, MarkedString(string(Expr(last(stack)), "::", CSTParser.infer_t(last(stack)))))

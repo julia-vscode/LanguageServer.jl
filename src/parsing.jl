@@ -12,12 +12,6 @@ function parse_all(doc, server)
         parse_errored(doc, ps)
     end
     if server.runlinter
-        # if doc._runlinter
-        #     L = lint(doc, server)
-        #     append!(doc.diagnostics, L.diagnostics)
-        # end
-        
-        # publish_diagnostics(doc, server)
         td = server.documents[URI2(last(findtopfile(doc._uri, server)[1]))]
         S = StaticLint.trav(td, server, StaticLint.Location(uri2filepath(doc._uri), -1))
 

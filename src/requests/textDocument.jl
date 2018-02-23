@@ -136,6 +136,56 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     send(response, server)
 end
 
+function get_partial(str, l, c)
+    ts = CSTParser.tokenize(str)
+    lt = CSTParser.Tokenize.Tokens.Token()
+    t = CSTParser.Tokenize.Lexers.next_token(ts)
+    while !(l ≤ t.endpos[1]  && c ≤ t.endpos[2]) && t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
+        lt = t
+        t = CSTParser.Tokenize.Lexers.next_token(ts)
+    end
+    if t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER || CSTParser.Tokenize.Tokens.iskeyword(t.kind)
+        val = CSTParser.Tokenize.Tokens.untokenize(t)
+        pos = t.endpos[2] - c
+        return val[1:end - pos], t.kind == CSTParser.Tokenize.Tokens.BACKSLASH
+    else
+        return "", false
+    end
+end
+
+# function get_partial(str, offset)
+#     ts = CSTParser.tokenize(str)
+#     t = CSTParser.Tokenize.Lexers.next_token(ts)
+#     while offset >= t.endbyte + 1 && t.kind != Tokens.ENDMARKER
+#         t = CSTParser.Tokenize.Lexers.next_token(ts)
+#     end
+#     info("tok", t.kind, "  ", t.endbyte, "  ", offset)
+#     if t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER || CSTParser.Tokenize.Tokens.iskeyword(t.kind)
+#         val = CSTParser.Tokenize.Tokens.untokenize(t)
+#         pos = offset - t.startbyte
+#         return val[1:pos], pos
+#     else
+#         return "", 0
+#     end
+# end
+
+# function get_offset1(str, l, c)
+#     offset, l1, c1 = 0, 0, 0
+#     io = IOBuffer(str)
+#     while !(l1 == l && c1 == c)
+#         ch = read(io, Char)
+#         offset+=1
+#         if ch == '\n'
+#             l1 += 1
+#             c1 = 0
+#         else
+#             c1 += 1
+#         end
+#     end
+    
+#     return offset, position(io)
+# end
+
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
@@ -147,140 +197,73 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         return
     end
     tdpp = r.params
-    y, s = scope(tdpp, server)
-    line = get_line(tdpp, server)
+    doc = server.documents[URI2(r.params.textDocument.uri)]
+    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character + 1)
+    td = server.documents[URI2(last(findtopfile(tdpp.textDocument.uri, server)[1]))]
+    S = StaticLint.trav(td, server, StaticLint.Location(uri2filepath(tdpp.textDocument.uri), offset))
 
-    if isempty(line) || line == "\n" || tdpp.position.character == 0
-        word = ""
-    else
-        word = let io = IOBuffer()
-            if isempty(line)
-                ""
-            else
-                rline = reverse(line[1:chr2ind(line, min(length(line), tdpp.position.character))])
-                for (i, c) in enumerate(rline)
-                    if c == '\\' || c == '@'
-                        write(io, c)
-                        break
-                    end
-                    if !(Base.is_id_char(c) || c == '.' || c == '_' || (c == '^' && i < length(rline) && rline[i + 1] == '\\'))
-                        break
-                    end
-                    write(io, c)
-                end
-                reverse(String(take!(io)))
-            end
-        end
-    end
-
-    entries = Tuple{Symbol,Int,String}[]
-
-    if word == "end"
-        push!(entries, ("end", 6, "end"))
-    elseif word == "else"
-        push!(entries, ("else", 6, "else"))
-    elseif word == "elseif"
-        push!(entries, ("elseif", 6, "elseif"))
-    elseif word == "catch"
-        push!(entries, ("catch", 6, "catch"))
-    elseif word == "finally"
-        push!(entries, ("finally", 6, "finally"))
-    end
-
-    prefix = word[1:searchlast(word, '.')]
-    if isempty(word) && isempty(prefix) && !CSTParser.isstring(y)
-    elseif isempty(prefix) # Single word
-        if startswith(word, "\\") # Latex completion
-            for (k, v) in Base.REPLCompletions.latex_symbols
-                if startswith(string(k), word)
-                    push!(entries, (Base.REPLCompletions.latex_symbols[k], 1, k))
-                    length(entries) > 200 && break
-                end
-            end
-        else
-            ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-            if CSTParser.isstring(y) && isabspath(str_value(y))
-                dloc = last(search(line, Regex(str_value(y)))) - last(search(line, Regex(word)))
-                paths, loc, _ = Base.REPLCompletions.complete_path(str_value(y), length(str_value(y)) - dloc)
-                for p in paths
-                    push!(entries, (p, 17, ""))
-                end
-            else
-                for name in BaseCoreNames
-                    if startswith(string(name), word) && (isdefined(Base, name) || isdefined(Core, name))
-                        x = getfield(Main, name)
-                        doc = string(Docs.doc(Docs.Binding(Main, name)))
-                        push!(entries, (string(name), CompletionItemKind(typeof(x)), doc))
-                    end
-                end
-                if haskey(s.imported_names, ns)
-                    for name in s.imported_names[ns]
-                        if startswith(name, word) 
-                            x = get_cache_entry(name, server, s)
-                            # doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
-                            push!(entries, (name, CompletionItemKind(typeof(x)), ""))
-                        end
-                    end
-                end
-                if y != nothing
-                    Ey = Expr(y)
-                    nsEy = make_name(s.namespace, Ey)
-                    partial = ns == "toplevel" ? string(Ey) : nsEy
-                    for (name, V) in s.symbols
-                        if startswith(string(name), partial) 
-                            push!(entries, (string(first(V).v.id), 6, ""))
-                        end
-                    end
-                end
-            end
-        end
-    else
-        topmodname = Symbol(first(split(prefix, '.')))
-        modname = unpack_dot(parse(strip(prefix, '.'), raise = false))
-        M = get_module(modname)
-        if M != false && M isa Module
-            server.loaded_modules[strip(prefix, '.')] = load_mod_names(M)
-        end
-        partial = word[searchlast(word, '.') + 1:end]
-        if strip(prefix, '.') in keys(server.loaded_modules)
-            for name in server.loaded_modules[strip(prefix, '.')][2]
-                if startswith(name, partial) && isdefined(M, Symbol(name))
-                    x = getfield(M, Symbol(name))
-                    doc = string(Docs.doc(Docs.Binding(M, Symbol(name))))
-                    push!(entries, (name, CompletionItemKind(typeof(x)), doc))
-                    length(entries) > 200 && break
-                end
-            end
-        end
-    end
-
+    stack = get_stack(doc.code.ast, offset)
+    cs = get_scope(S.current_scope, offset)
+    
     l, c = tdpp.position.line, tdpp.position.character
+    partial, islatex = get_partial(doc._content, l, c)
+    
+    entries = Tuple{Symbol,Int,String}[]
     CIs = CompletionItem[]
-    for (comp, k, documentation) in entries
-        newtext = string(comp)
-        if startswith(documentation, "\\")
-            label  = strip(documentation, '\\')
-            documentation = newtext
-            length(newtext) > 1 && (newtext = newtext[1:1])
-        elseif k == 17 # file completion
-            label = comp
-            documentation = ""
-        else
-            label  = last(split(newtext, "."))
-            documentation = replace(documentation, r"(`|\*\*)", "")
-            documentation = replace(documentation, "\n\n", "\n")
+    
+    if islatex
+        # push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(partial) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(partial), l, c - endof(partial) + endof(newtext)), newtext)]))
+    else
+        # keywords
+        if partial in ("end", "else", "elseif", "catch", "finally")
+            push!(entries, (partial, 6, partial))
         end
 
-        if k == 1
-            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(word) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(word), l, c - endof(word) + endof(newtext)), newtext)]))
-        else
-            push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[endof(word) - endof(prefix) + 1:end]), []))
+        # declared/imported names
+        for b in get_names(cs)
+            if b != "using" && startswith(b, partial)
+                push!(CIs, CompletionItem(b, 6, b, TextEdit(Range(tdpp.position, tdpp.position), b[length(partial) + 1:end]), []))
+            end
+        end
+        # using'ed names
+        tops = cs
+        while tops.parent !=nothing && !haskey(tops.names, "using")
+            tops = tops.parent
+        end
+        if haskey(tops.names, "using")
+            for n in tops.names["using"]
+                for b in StaticLint.SymbolServer.server[n].exported
+                    if startswith(string(b), partial)
+                        push!(CIs, CompletionItem(b, 6, b, TextEdit(Range(tdpp.position, tdpp.position), b[length(partial) + 1:end]), []))
+                    end
+                end
+            end
         end
     end
+        
+    # for (comp, k, documentation) in entries
+    #     newtext = string(comp)
+    #     if startswith(documentation, "\\")
+    #         label  = strip(documentation, '\\')
+    #         documentation = newtext
+    #         length(newtext) > 1 && (newtext = newtext[1:1])
+    #     elseif k == 17 # file completion
+    #         label = comp
+    #         documentation = ""
+    #     else
+    #         label  = last(split(newtext, "."))
+    #         documentation = replace(documentation, r"(`|\*\*)", "")
+    #         documentation = replace(documentation, "\n\n", "\n")
+    #     end
 
-    completion_list = CompletionList(true, unique(CIs))
+    #     if k == 1
+    #         push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(l, c - endof(partial) + endof(newtext), l, c), ""), [TextEdit(Range(l, c - endof(partial), l, c - endof(partial) + endof(newtext)), newtext)]))
+    #     else
+    #         push!(CIs, CompletionItem(label, k, documentation, TextEdit(Range(tdpp.position, tdpp.position), newtext[length(partial) + 1:end]), []))
+    #     end
+    # end
 
-    response =  JSONRPC.Response(get(r.id), completion_list)
+    response =  JSONRPC.Response(get(r.id), CompletionList(true, unique(CIs)))
     send(response, server)
 end
 
@@ -312,8 +295,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             uri2 = filepath2uri(b.loc.path)
             doc2 = server.documents[URI2(uri2)]
             push!(locations, Location(uri2, Range(doc2, first(b.loc.offset) - 1:last(b.loc.offset))))
-            info(b.t)
-            info(b.overwrites)
             while b.t == :Function && b.overwrites isa StaticLint.Binding && b.overwrites.t == :Function
                 b = b.overwrites
                 uri2 = filepath2uri(b.loc.path)

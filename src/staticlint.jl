@@ -102,6 +102,15 @@ function get_scope(x, offset)
     return x
 end
 
+function get_names(cs, names = String[])
+    append!(names, keys(cs.names))
+    if cs.parent != nothing
+        return get_names(cs.parent, names)
+    else
+        return names
+    end
+end
+
 function find_ref(S, path, offset)
     for r in S.refs
         if r.loc.path == path && offset in r.loc.offset

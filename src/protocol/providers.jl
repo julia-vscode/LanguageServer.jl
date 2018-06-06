@@ -23,10 +23,17 @@ end
 #                                 "File" => 17,
 #                                 "Reference" => 18)
 
+mutable struct MarkedString
+    language::String
+    value::AbstractString
+end
+MarkedString(x) = MarkedString("julia", string(x))
+Base.hash(x::MarkedString) = hash(x.value) # for unique
+
 mutable struct CompletionItem
     label::String
     kind::Int
-    documentation::String
+    documentation::Union{String,MarkedString}
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
 end
@@ -40,13 +47,6 @@ mutable struct CompletionList
 end
 
 
-mutable struct MarkedString
-    language::String
-    value::AbstractString
-end
-MarkedString(x) = MarkedString("julia", string(x))
-Base.hash(x::MarkedString) = hash(x.value) # for unique
-
 mutable struct Hover
     contents::Vector{Union{AbstractString,MarkedString}}
 end
@@ -59,7 +59,7 @@ end
 
 mutable struct SignatureInformation
     label::String
-    documentation::String
+    documentation::Union{String,MarkedString}
     parameters::Vector{ParameterInformation}
 end
 

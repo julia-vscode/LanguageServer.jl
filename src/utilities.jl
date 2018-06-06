@@ -111,41 +111,6 @@ function _getfield(names::Vector{Symbol})
 end
 
 
-function get_cache_entry(x, server, s::TopLevelScope) end
-
-get_cache_entry(x::IDENTIFIER, server, s::TopLevelScope) = get_cache_entry(x.val, server, s)
-
-get_cache_entry(x::OPERATOR, server, s::TopLevelScope) = get_cache_entry(string(Expr(x)), server, s)
-
-function get_cache_entry(x::BinarySyntaxOpCall, server, s::TopLevelScope)
-    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    if CSTParser.is_dot(x.op)
-        args = unpack_dot(x)
-        if first(args) isa IDENTIFIER && (Symbol(str_value(first(args))) in BaseCoreNames || (haskey(s.imported_names, ns) && str_value(first(args)) in s.imported_names[ns]))
-            return _getfield(Expr.(args))
-        end
-    else
-        return
-    end
-end
-
-function get_cache_entry(x::String, server, s::TopLevelScope)
-    ns = isempty(s.namespace) ? "toplevel" : join(s.namespace, ".")
-    if Symbol(x) in BaseCoreNames && isdefined(Main, Symbol(x))
-        return getfield(Main, Symbol(x))
-    elseif haskey(s.imported_names, ns) && x in s.imported_names[ns]
-        for (M, (exported, internal)) in server.loaded_modules
-            splitmod = split(M, ".")
-            if x == last(splitmod)
-                return _getfield(Symbol.(splitmod))
-            elseif x in internal
-                return _getfield(vcat(Symbol.(splitmod), Symbol(x)))
-            end
-        end
-    end
-    return nothing
-end
-
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
 
@@ -221,21 +186,6 @@ function searchlast(str, c)
     end
 end
 
-function get_scope_entry_doc(y, s::TopLevelScope, documentation)
-    Ey = Expr(y)
-    nsEy = join(vcat(s.namespace, Ey), ".")
-    if haskey(s.symbols, nsEy)
-        for vl in s.symbols[nsEy]
-            if vl.v.t == :Any
-                push!(documentation, MarkedString("julia", string(Expr(vl.v.val))))
-            elseif vl.v.t == :Function
-                push!(documentation, MarkedString("julia", string(Expr(CSTParser.get_sig(vl.v.val)))))
-            else
-                push!(documentation, MarkedString(string(vl.v.t)))
-            end
-        end
-    end
-end
 
 # Find location of default datatype constructor
 const DefaultTypeConstructorLoc= let def = first(methods(Int))
@@ -263,8 +213,8 @@ function toggle_file_lint(doc, server)
         empty!(doc.diagnostics)
     else
         doc._runlinter = true
-        L = lint(doc, server)
-        doc.diagnostics = L.diagnostics
+        # L = lint(doc, server)
+        # doc.diagnostics = L.diagnostics
     end
     publish_diagnostics(doc, server)
 end
@@ -282,4 +232,30 @@ function remove_workspace_files(root, server)
             end
         end
     end
+end
+
+function find_root(doc::Document, server)
+    for (uri1,f) in server.documents
+        for incl in f.code.state.includes
+            if doc._uri == filepath2uri(incl.file)
+                if doc.code.index != incl.index
+                    doc.code.index = incl.index
+                    doc.code.nb = incl.pos
+                end
+
+                return find_root(f, server)
+            end
+        end
+    end
+    return doc
+end
+
+
+
+function Base.getindex(server::LanguageServerInstance, r::Regex)
+    out = []
+    for (uri,doc) in server.documents
+        ismatch(r, uri._uri) && push!(out, doc)
+    end
+    return out
 end

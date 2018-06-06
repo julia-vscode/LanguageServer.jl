@@ -10,15 +10,29 @@ mutable struct Document
     _line_offsets::Nullable{Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
-    code::CSTParser.File
+    code::StaticLint.File
     diagnostics::Vector{LSDiagnostic}
     _version::Int
     _runlinter::Bool
-
-    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [], 0, true)
-    end
 end
+function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing, index = (), nb = 0, parent = "")
+    path = uri2filepath(uri)
+    cst = CSTParser.parse(text, true)
+    state = StaticLint.State(StaticLint.Location(path, 0), Dict(), StaticLint.Reference[], [], server)
+    state.bindings["using"] = []
+    if isempty(parent)
+        push!(state.bindings["using"], StaticLint.Binding(StaticLint.Location("", 0), index, 0, StaticLint.SymbolServer.server["Base"], nothing))
+        push!(state.bindings["using"], StaticLint.Binding(StaticLint.Location("", 0), index, 0, StaticLint.SymbolServer.server["Core"], nothing))
+    end
+    state.bindings["module"] = StaticLint.Binding[]
+    s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
+    scope = StaticLint.pass(cst, state, s, index, false, false)
+    file = StaticLint.File(cst, state, scope, index, nb, "", [], [])
+    return Document(uri, text, Nullable{Vector{Int}}(), false, workspace_file, file, [], 0, true)
+end
+
+StaticLint.CST(doc::Document) = doc.code
+
 
 function get_text(doc::Document)
     return doc._content

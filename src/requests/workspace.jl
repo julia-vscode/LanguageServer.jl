@@ -9,7 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[URI2(uri)]))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
-            server.documents[URI2(uri)] = Document(uri, content, true)
+            server.documents[URI2(uri)] = Document(uri, content, true, server)
             parse_all(server.documents[URI2(uri)], server)
 
         elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[URI2(uri)])
@@ -35,7 +35,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
             if server.runlinter
                 if !server.isrunning
                     for doc in values(server.documents)
-                        doc.diagnostics = lint(doc, server).diagnostics
+                        # doc.diagnostics = lint(doc, server).diagnostics
                         publish_diagnostics(doc, server)
                     end
                 end
@@ -52,7 +52,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
                 else
                     if !doc._runlinter
                         doc._runlinter = true
-                        L = lint(doc, server)
+                        # L = lint(doc, server)
                         append!(doc.diagnostics, L.diagnostics)
                         publish_diagnostics(doc, server)
                     end
@@ -86,19 +86,13 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
-    query = r.params.query
-    for doc in values(server.documents)
-        uri = doc._uri
-        s = toplevel(doc, server, false)
-        for k in keys(s.symbols)
-            for vl in s.symbols[k]
-                if ismatch(Regex(query, "i"), string(vl.v.id))
-                    if vl.v.t == :Function
-                        id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
-                    else
-                        id = string(vl.v.id)
+    for (uri,doc) in server.documents
+        for (name, bs) in doc.code.state.bindings
+            if ismatch(Regex(r.params.query, "i"), name) 
+                for b in bs
+                    if b.index == doc.code.index && b.val isa CSTParser.AbstractEXPR
+                        push!(syms, SymbolInformation(name, 1, Location(doc._uri, Range(doc, b.loc.offset + b.val.span))))
                     end
-                    push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, vl.loc))))
                 end
             end
         end

@@ -19,6 +19,9 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, server)
+    for (uri, f) in server.documents
+        info(basename(uri._uri), " ", f.code.index)
+    end
 end
 
 
@@ -104,7 +107,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
     i = p1 = p2 = p3 = 0
-    for x in doc.code.ast.args
+    for x in doc.code.args
         if i < offset <= i + x.fullspan
             p1, p2, p3 = i, i + length(x.span), i + x.fullspan
             break

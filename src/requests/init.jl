@@ -51,8 +51,9 @@ function load_folder(path::String, server)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
                     info("parsed $filepath")
                     uri = filepath2uri(filepath)
+                    URI2(uri) in keys(server.documents) && continue
                     content = readstring(filepath)
-                    server.documents[URI2(uri)] = Document(uri, content, true)
+                    server.documents[URI2(uri)] = Document(uri, content, true, server)
                     doc = server.documents[URI2(uri)]
                     doc._runlinter = false
                     parse_all(doc, server)

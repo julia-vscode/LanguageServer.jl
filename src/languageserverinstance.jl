@@ -25,12 +25,12 @@ end
 function send(message, server)
     message_json = JSON.json(message)
 
-    write_transport_layer(server.pipe_out, message_json, server.debug_mode)
+    write_transport_layer(server.pipe_out, message_json)
 end
 
 function Base.run(server::LanguageServerInstance)
     while true
-        message = read_transport_layer(server.pipe_in, server.debug_mode)
+        message = read_transport_layer(server.pipe_in)
         message_dict = JSON.parse(message)
         # For now just ignore response messages
         if haskey(message_dict, "method")
@@ -43,14 +43,14 @@ function Base.run(server::LanguageServerInstance)
 end
 
 function serverbusy(server)
-    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusBusy")), server.debug_mode)
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusBusy")))
 end
 
 function serverready(server)
-    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusReady")), server.debug_mode)
+    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusReady")))
 end
 
-function read_transport_layer(stream, debug_mode = false)
+function read_transport_layer(stream)
     header = String[]
     line = chomp(readline(stream))
     while length(line) > 0
@@ -66,16 +66,12 @@ function read_transport_layer(stream, debug_mode = false)
 
     message = read(stream, message_length)
     message_str = String(message)
-    debug_mode && info("RECEIVED: $message_str")
-    debug_mode && info()
     return message_str    
 end
 
-function write_transport_layer(stream, response, debug_mode = false)
+function write_transport_layer(stream, response)
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")
     write(stream, response_utf8)
-    debug_mode && info("SENT: $response")
-    debug_mode && info()
 end

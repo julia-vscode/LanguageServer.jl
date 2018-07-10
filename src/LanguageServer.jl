@@ -1,12 +1,13 @@
-__precompile__()
 module LanguageServer
 using JSON
 import URIParser
 import DocumentFormat
 import CSTParser
-using CSTParser: TopLevel, Block, Call, FileH, EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall, IDENTIFIER, KEYWORD, LITERAL, OPERATOR, PUNCTUATION, Quotenode, ERROR, Tokens, contributes_scope
+using CSTParser: TopLevel, Block, Call, FileH, EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall, IDENTIFIER, KEYWORD, LITERAL, OPERATOR, PUNCTUATION, Quotenode, contributes_scope
+import CSTParser.Tokenize.Tokens
 
 import StaticLint
+
 export LanguageServerInstance
 
 include("uri2.jl")

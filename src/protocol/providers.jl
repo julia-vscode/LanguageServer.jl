@@ -3,32 +3,10 @@ mutable struct PublishDiagnosticsParams
     diagnostics::Vector{Diagnostic}
 end
 
-
-# const CompletionItemKind = Dict("Text" => 1,
-#                                 "Method" => 2,
-#                                 "Function" => 3,
-#                                 "Constructor" => 4,
-#                                 "Field" => 5,
-#                                 "Variable" => 6,
-#                                 "Class" => 7,
-#                                 "Interface" => 8,
-#                                 "Module" => 9,
-#                                 "Property" => 10,
-#                                 "Unit" => 11,
-#                                 "Value" => 12,
-#                                 "Enum" => 13,
-#                                 "Keyword" => 14,
-#                                 "Snippet" => 15,
-#                                 "Color" => 16,
-#                                 "File" => 17,
-#                                 "Reference" => 18)
-
 mutable struct MarkedString
     language::String
     value::AbstractString
 end
-MarkedString(x) = MarkedString("julia", string(x))
-Base.hash(x::MarkedString) = hash(x.value) # for unique
 
 mutable struct CompletionItem
     label::String
@@ -37,9 +15,6 @@ mutable struct CompletionItem
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
 end
-# Make more specific if we extend completions (i.e. brackets for functions w/ arg placements)
-import Base.==  
-==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 
 mutable struct CompletionList
     isIncomplete::Bool
@@ -76,18 +51,11 @@ mutable struct ReferenceContext
     includeDeclaration::Bool
 end
 
-ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
-
 mutable struct ReferenceParams
     textDocument::TextDocumentIdentifier
     position::Position
     context::ReferenceContext
 end
-
-ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), ReferenceContext(d["context"]))
-
-
-const DocumentHighlightKind = Dict("Text" => 1, "Read" => 2, "Write" => 3)
 
 mutable struct DocumentHighlight
     range::Range
@@ -98,6 +66,44 @@ end
 mutable struct DocumentSymbolParams 
     textDocument::TextDocumentIdentifier 
 end 
+
+# const CompletionItemKind = Dict("Text" => 1,
+#                                 "Method" => 2,
+#                                 "Function" => 3,
+#                                 "Constructor" => 4,
+#                                 "Field" => 5,
+#                                 "Variable" => 6,
+#                                 "Class" => 7,
+#                                 "Interface" => 8,
+#                                 "Module" => 9,
+#                                 "Property" => 10,
+#                                 "Unit" => 11,
+#                                 "Value" => 12,
+#                                 "Enum" => 13,
+#                                 "Keyword" => 14,
+#                                 "Snippet" => 15,
+#                                 "Color" => 16,
+#                                 "File" => 17,
+#                                 "Reference" => 18)
+
+
+MarkedString(x) = MarkedString("julia", string(x))
+Base.hash(x::MarkedString) = hash(x.value) # for unique
+
+
+# Make more specific if we extend completions (i.e. brackets for functions w/ arg placements)
+import Base.==  
+==(x::CompletionItem, y::CompletionItem) = x.label == y.label
+
+
+
+ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
+
+
+ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), ReferenceContext(d["context"]))
+
+
+const DocumentHighlightKind = Dict("Text" => 1, "Read" => 2, "Write" => 3)
 
 DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
 
@@ -239,6 +245,7 @@ end
 # WorkspaceEdit
 
 mutable struct ApplyWorkspaceEditParams
+    label::Union{Nothing,String}
     edit::WorkspaceEdit
 end
 

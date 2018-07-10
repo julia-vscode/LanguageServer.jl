@@ -22,7 +22,7 @@ function parse_all(doc, server)
                 Diagnostic(Range(doc, r.loc.offset + rng), 1, "missing variable", "missing variable", "missing variable")
             end
             
-            send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(doc._uri, ls_diags)), server)
+            send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
         end
         # publish_diagnostics(doc, server)
     end
@@ -55,7 +55,7 @@ end
 function publish_diagnostics(doc::Document, server)
     ls_diags = convert_diagnostic.(doc.diagnostics, doc)
     publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, ls_diags)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), publishDiagnosticsParams)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
     send(response, server)
 end
 
@@ -67,7 +67,7 @@ end
 
 function parse_errored(doc::Document, ps::CSTParser.ParseState)
     cst = doc.code.cst
-    if last(cst.args) isa EXPR{CSTParser.ERROR}
+    if false #!isempty(ps.errored)
         err_loc = ps.nt.startbyte
         if length(cst.args) > 1
             start_loc = sum(cst.args[i].fullspan for i = 1:length(cst.args) - 1)
@@ -83,7 +83,7 @@ end
 function clear_diagnostics(uri::URI2, server)
     doc = server.documents[uri]
     empty!(doc.diagnostics)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
     send(response, server)
 
 end

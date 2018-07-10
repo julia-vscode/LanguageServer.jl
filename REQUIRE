@@ -4,3 +4,4 @@ URIParser 0.1.8
 CSTParser 0.3.5 0.4.0
 Tokenize 0.4.0
 DocumentFormat
+StaticLint

@@ -54,7 +54,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     #     update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
     # end
     doc._content = last(r.params.contentChanges).text
-    doc._line_offsets = Nullable{Vector{Int}}()
+    doc._line_offsets = nothing
     parse_all(doc, server)
 end
 
@@ -292,7 +292,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     
     if length(stack)>1 && stack[end-1] isa CSTParser.EXPR{CSTParser.Call}
         x = get_ref(doc, offsets[end-1])
-        x isa Void && send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+        x isa Nothing && send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
         sigs = get_signatures(x, bindings, sigs)
         isempty(sigs) && send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
         if CSTParser.is_lparen(last(stack))

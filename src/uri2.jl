@@ -9,7 +9,7 @@ end
 
 import Base.==
 function ==(a::URI2, b::URI2)
-    @static if is_windows()
+    @static if Sys.iswindows()
         if startswith(a._uri, "file://")
             return lowercase(a._uri) == lowercase(b._uri)
         else
@@ -21,7 +21,7 @@ function ==(a::URI2, b::URI2)
 end
 
 function Base.hash(a::URI2, h::UInt)
-    @static if is_windows()
+    @static if Sys.iswindows()
         if startswith(a._uri, "file://")
             return hash(lowercase(a._uri), h)
         else

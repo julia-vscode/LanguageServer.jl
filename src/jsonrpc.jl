@@ -6,7 +6,7 @@ import Base.parse
 export Request, Response, parse_params
 
 mutable struct Request{method,Tparams}
-    id::Nullable{Union{String,Int64}}
+    id::Union{Nothing,Union{String,Int64}}
     params::Tparams
 end
 
@@ -15,14 +15,14 @@ end
 
 mutable struct Response{Tresult}
     id::Union{String,Int64}
-    result::Nullable{Tresult}
-    error::Nullable{Error}
+    result::Union{Nothing,Tresult}
+    error::Union{Nothing,Error}
 end
 
-Response(id, result) = Response(id, Nullable(result), Nullable{Error}())
+Response(id, result) = Response(id, result, nothing)
 
 mutable struct Notification{method,Tparams}
-    params::Nullable{Tparams}
+    params::Union{Nothing,Tparams}
 end
 
 function parse_params end
@@ -31,7 +31,7 @@ function parse(::Type{Request}, message_dict::Dict)
     if message_dict["jsonrpc"] != "2.0"
         error("Invalid JSON-RPC version")
     end
-    id = haskey(message_dict, "id") ? Nullable(message_dict["id"]) : Nullable{Union{String,Int64}}()
+    id = haskey(message_dict, "id") ? message_dict["id"] : nothing
     method = Val{Symbol(message_dict["method"])}
     params = message_dict["params"]
 

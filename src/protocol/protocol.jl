@@ -1,5 +1,40 @@
 haskeynotnull(d::Dict, k) = haskey(d, k) && d[k] != nothing
 
+macro json_read(arg)
+    ex = quote
+        $((arg))
+
+        function $((arg.args[2]))(d::Dict)
+        end
+    end
+    fex = :($((arg.args[2]))())
+    for a in arg.args[3].args
+        if !(a isa LineNumberNode)
+            fn = string(a.args[1])            
+            if a.args[2] isa Expr && length(a.args[2].args) > 1 && a.args[2].head == :curly && a.args[2].args[1] == :Union
+                isnullable = true
+                t = a.args[2].args[3]
+            else
+                isnullable = false
+                t = a.args[2]
+            end
+            if t isa Expr && t.head == :curly && t.args[2] != :Any
+                f = :($(t.args[2]).(d[$fn]))
+            elseif t != :Any
+                f = :($(t)(d[$fn]))
+            else
+                f = :(d[$fn])
+            end
+            if isnullable
+                f = :(haskeynotnull(d,$fn) ? $f : nothing)
+            end
+            push!(fex.args, f)
+        end
+    end
+    push!(ex.args[end].args[2].args, fex)
+    return esc(ex)
+end
+
 include("basic.jl")
 include("configuration.jl")
 include("document.jl")
@@ -26,7 +61,7 @@ end
 mutable struct ShowMessageRequestParams
     typ::Integer
     message::String
-    actions::Nullable{Vector{MessageActionItem}}
+    actions::Union{Nothing,Vector{MessageActionItem}}
 end
 
 function JSON.lower(a::ShowMessageRequestParams)

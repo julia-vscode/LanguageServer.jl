@@ -15,7 +15,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[URI2(uri)])
             delete!(server.documents, URI2(uri))
 
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     end

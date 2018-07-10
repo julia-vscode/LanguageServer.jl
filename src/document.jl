@@ -7,7 +7,7 @@ end
 mutable struct Document
     _uri::String
     _content::String
-    _line_offsets::Nullable{Vector{Int}}
+    _line_offsets::Union{Nothing,Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
     code::StaticLint.File
@@ -28,7 +28,7 @@ function Document(uri::AbstractString, text::AbstractString, workspace_file::Boo
     s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
     scope = StaticLint.pass(cst, state, s, index, false, false)
     file = StaticLint.File(cst, state, scope, index, nb, "", [], [])
-    return Document(uri, text, Nullable{Vector{Int}}(), false, workspace_file, file, [], 0, true)
+    return Document(uri, text, nothing, false, workspace_file, file, [], 0, true)
 end
 
 StaticLint.CST(doc::Document) = doc.code
@@ -84,7 +84,7 @@ function update(doc::Document, start_line::Integer, start_character::Integer, le
     end
 
     doc._content = string(doc._content[1:start_offset - 1], new_text, doc._content[end_offset:end])
-    doc._line_offsets = Nullable{Vector{Int}}()
+    doc._line_offsets = nothing
 end
 
 function get_line_offsets(doc::Document)
@@ -110,7 +110,7 @@ function get_line_offsets(doc::Document)
             push!(line_offsets, endof(text) + 1)
         end
 
-        doc._line_offsets = Nullable(line_offsets)
+        doc._line_offsets = line_offsets
     end
 
     return get(doc._line_offsets)

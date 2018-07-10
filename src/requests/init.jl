@@ -1,23 +1,26 @@
-const serverCapabilities = ServerCapabilities(
-                        TextDocumentSyncKind["Full"],
-                        true, #hoverProvider
-                        CompletionOptions(false, ["."]),
-                        SignatureHelpOptions(["("]),
-                        true, #definitionProvider
-                        true, # referencesProvider
-                        false, # documentHighlightProvider
-                        true, # documentSymbolProvider 
-                        true, # workspaceSymbolProvider
-                        true, # codeActionProvider
-                        # CodeLensOptions(), 
-                        true, # documentFormattingProvider
-                        false, # documentRangeFormattingProvider
-                        # DocumentOnTypeFormattingOptions(), 
-                        true, # renameProvider
-                        DocumentLinkOptions(false),
-                        ExecuteCommandOptions(),
-                        nothing,
-                        WorkspaceOptions(WorkspaceFoldersOptions(true, true)))
+const serverCapbilities = ServerCapabilities(TextDocumentSyncKind["Full"],
+    true, #hoverProvider
+    CompletionOptions(false, ["."]),
+    SignatureHelpOptions(["("]),
+    true, #definitionProvider::Bool
+    false, #typeDefinitionProvider::Bool
+    false, #implementationProvider::Bool
+    true, #referencesProvider::Bool
+    false, #documentHighlightProvider::Bool
+    true, #documentSymbolProvider::Bool
+    true, #workspaceSymbolProvider::Bool
+    true, #codeActionProvider::Bool
+    # codeLensProvider::CodeLensOptions
+    true, #documentFormattingProvider::Bool
+    false, #documentRangeFormattingProvider::Bool
+    # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
+    true, #renameProvider::Bool
+    DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
+    false, #colorProvider::Bool
+    ExecuteCommandOptions(), #executeCommandProvider::ExecuteCommandOptions
+    WorkspaceOptions(WorkspaceFoldersOptions(true, true)), #workspace::WorkspaceOptions
+    nothing)
+
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 

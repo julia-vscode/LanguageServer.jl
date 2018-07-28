@@ -19,10 +19,10 @@ function Document(uri::AbstractString, text::AbstractString, workspace_file::Boo
     path = uri2filepath(uri)
     cst = CSTParser.parse(text, true)
     state = StaticLint.State(StaticLint.Location(path, 0), Dict(), StaticLint.Reference[], [], server)
-    state.bindings["using"] = []
+    state.bindings[".used modules"] = Dict()
     if isempty(parent)
-        push!(state.bindings["using"], StaticLint.Binding(StaticLint.Location("", 0), index, 0, StaticLint.SymbolServer.server["Base"], nothing))
-        push!(state.bindings["using"], StaticLint.Binding(StaticLint.Location("", 0), index, 0, StaticLint.SymbolServer.server["Core"], nothing))
+        state.bindings[".used modules"]["Base"] = StaticLint.ModuleBinding(StaticLint.Location(state), StaticLint.SIndex(index, nb), StaticLint.store["Base"])
+        state.bindings[".used modules"]["Core"] = StaticLint.ModuleBinding(StaticLint.Location(state), StaticLint.SIndex(index, nb), StaticLint.store["Core"])
     end
     state.bindings["module"] = StaticLint.Binding[]
     s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
@@ -58,7 +58,7 @@ function get_line(doc::Document, line::Int)
         if length(line_offsets) > line
             end_offset = line_offsets[line + 1] - 1
         else
-            end_offset = endof(doc._content)
+            end_offset = lastindex(doc._content)
         end
         return doc._content[start_offset:end_offset]
     else
@@ -88,32 +88,32 @@ function update(doc::Document, start_line::Integer, start_character::Integer, le
 end
 
 function get_line_offsets(doc::Document)
-    if isnull(doc._line_offsets)
-        line_offsets = Array{Int}(0)
+    if doc._line_offsets isa Nothing
+        line_offsets = Array{Int}(undef, 0)
         text = doc._content
         is_line_start = true
         i = 1
-        while i <= endof(text)
+        while i <= lastindex(text)
             if is_line_start
                 push!(line_offsets, i)
                 is_line_start = false
             end
             ch = text[i]
             is_line_start = ch == '\r' || ch == '\n'
-            if ch == '\r' && i + 1 <= endof(text) && text[i + 1] == '\n'
+            if ch == '\r' && i + 1 <= lastindex(text) && text[i + 1] == '\n'
                 i += 1
             end
             i = nextind(text, i)
         end
 
         if is_line_start && length(text) > 0
-            push!(line_offsets, endof(text) + 1)
+            push!(line_offsets, lastindex(text) + 1)
         end
 
         doc._line_offsets = line_offsets
     end
 
-    return get(doc._line_offsets)
+    return doc._line_offsets
 end
 
 function get_position_at(doc::Document, offset::Integer)

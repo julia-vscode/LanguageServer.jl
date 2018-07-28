@@ -88,16 +88,17 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
         for (name, bs) in doc.code.state.bindings
+            name in (".used modules", "module") && continue
             if ismatch(Regex(r.params.query, "i"), name) 
                 for b in bs
-                    if b.index == doc.code.index && b.val isa CSTParser.AbstractEXPR
-                        push!(syms, SymbolInformation(name, 1, Location(doc._uri, Range(doc, b.loc.offset + b.val.span))))
+                    if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
+                        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset + b.val.span)), nothing))
                     end
                 end
             end
         end
     end
 
-    response = JSONRPC.Response(get(r.id), syms) 
+    response = JSONRPC.Response(r.id, syms) 
     send(response, server) 
 end

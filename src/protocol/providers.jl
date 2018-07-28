@@ -47,11 +47,11 @@ end
 mutable struct SignatureHelpRegistrationOptions end
 
 
-mutable struct ReferenceContext
+@json_read mutable struct ReferenceContext
     includeDeclaration::Bool
 end
 
-mutable struct ReferenceParams
+@json_read mutable struct ReferenceParams
     textDocument::TextDocumentIdentifier
     position::Position
     context::ReferenceContext
@@ -63,8 +63,20 @@ mutable struct DocumentHighlight
 end
 
 # Document Symbols Provider
-mutable struct DocumentSymbolParams 
+@json_read mutable struct DocumentSymbolParams 
     textDocument::TextDocumentIdentifier 
+end 
+
+mutable struct SymbolInformation 
+    name::String 
+    kind::Int 
+    deprecated::Union{Nothing,Bool}
+    location::Location 
+    containername::Union{Nothing,String}
+end 
+
+@json_read mutable struct WorkspaceSymbolParams 
+    query::String 
 end 
 
 # const CompletionItemKind = Dict("Text" => 1,
@@ -97,15 +109,9 @@ import Base.==
 
 
 
-ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
-
-
-ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), ReferenceContext(d["context"]))
-
-
-const DocumentHighlightKind = Dict("Text" => 1, "Read" => 2, "Write" => 3)
-
-DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
+# ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")
+# ReferenceParams(d::Dict) = ReferenceParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), ReferenceContext(d["context"]))
+# DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["textDocument"])) 
 
 # const SymbolKind = Dict("File" => 1,
 #                         "Module" => 2,
@@ -126,39 +132,21 @@ DocumentSymbolParams(d::Dict) = DocumentSymbolParams(TextDocumentIdentifier(d["t
 #                         "Boolean" => 17,
 #                         "Array" => 18)
 
-mutable struct SymbolInformation 
-    name::String 
-    kind::Int 
-    location::Location 
-    containername::String
-end 
-SymbolInformation(name::String, kind::Int, location::Location) = SymbolInformation(name, kind, location, "")
 
-mutable struct WorkspaceSymbolParams 
-    query::String 
-end 
-WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
-
-
-# CodeAction
-
-mutable struct CodeActionContext
+@json_read mutable struct CodeActionContext
     diagnostics::Vector{Diagnostic}
 end
-CodeActionContext(d::Dict) = CodeActionContext(Diagnostic.(d["diagnostics"]))
 
-mutable struct CodeActionParams
+@json_read mutable struct CodeActionParams
     textDocument::TextDocumentIdentifier
     range::Range
     context::CodeActionContext
 end
-CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
 
 # Code Lens
-mutable struct CodeLensParams
+@json_read mutable struct CodeLensParams
     textDocument::TextDocumentIdentifier
 end
-CodeLensParams(d::Dict) = CodeLensParams(TextDocumentIdentifier(d["textDocument"]))
 
 mutable struct CodeLens
     range::Range
@@ -166,90 +154,84 @@ mutable struct CodeLens
     data::Any
 end
 
-mutable struct CodeLensRegistrationOptions
+@json_read mutable struct CodeLensRegistrationOptions
     resolveProvider::Bool
 end
 
 
 # Document Link Provider
 
-mutable struct DocumentLinkParams
+@json_read mutable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
 end
 
-DocumentLinkParams(d::Dict) = DocumentLinkParams(TextDocumentIdentifier(d["textDocument"]))
+
 
 mutable struct DocumentLink
     range::Range
     target::String
 end
 
-
-
-# Document Formatting
-
-mutable struct FormattingOptions
+@json_read mutable struct FormattingOptions
     tabSize::Integer
     insertSpaces::Bool
 end
-FormattingOptions(d::Dict) = FormattingOptions(d["tabSize"], d["insertSpaces"])
 
-mutable struct DocumentFormattingParams
+@json_read mutable struct DocumentFormattingParams
     textDocument::TextDocumentIdentifier
     options::FormattingOptions
 end
-DocumentFormattingParams(d::Dict) = DocumentFormattingParams(TextDocumentIdentifier(d["textDocument"]), FormattingOptions(d["options"]))
 
-mutable struct DocumentRangeFormattingParams
+
+@json_read mutable struct DocumentRangeFormattingParams
     textDocument::TextDocumentIdentifier
     range::Range
     options::FormattingOptions
 end
 
-mutable struct DocumentOnTypeFormattingParams
+@json_read mutable struct DocumentOnTypeFormattingParams
     textDocument::TextDocumentIdentifier
     position::Position
     ch::String
     options::FormattingOptions
 end
 
-mutable struct DocumentOnTypeFormattingRegistrationOptions
+@json_read mutable struct DocumentOnTypeFormattingRegistrationOptions
     documentSelector::DocumentSelector
     firstTriggerCharacter::String
     moreTriggerCharacer::Vector{String}
 end
 
-
-# Rename
-
-mutable struct RenameParams
+@json_read mutable struct RenameParams
     textDocument::TextDocumentIdentifier
     position::Position
     newName::String
 end
-RenameParams(d::Dict) = RenameParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), d["newName"])
 
-
-# Execute Command
-
-mutable struct ExecuteCommandParams
+@json_read mutable struct ExecuteCommandParams
     command::String
     arguments::Vector{Any}
 end
 
-mutable struct ExecuteCommandRegistrationOptions
+@json_read mutable struct ExecuteCommandRegistrationOptions
     commands::Vector{String}
 end
 
-
-# WorkspaceEdit
-
-mutable struct ApplyWorkspaceEditParams
+@json_read mutable struct ApplyWorkspaceEditParams
     label::Union{Nothing,String}
     edit::WorkspaceEdit
 end
 
-mutable struct ApplyWorkspaceEditResponse
+@json_read mutable struct ApplyWorkspaceEditResponse
     applied::Bool
 end
-ApplyWorkspaceEditResponse(d::Dict) = ApplyWorkspaceEditResponse(d["applied"])
+
+# WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
+# CodeActionContext(d::Dict) = CodeActionContext(Diagnostic.(d["diagnostics"]))
+# CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
+# CodeLensParams(d::Dict) = CodeLensParams(TextDocumentIdentifier(d["textDocument"]))
+# DocumentLinkParams(d::Dict) = DocumentLinkParams(TextDocumentIdentifier(d["textDocument"]))
+# FormattingOptions(d::Dict) = FormattingOptions(d["tabSize"], d["insertSpaces"])
+# DocumentFormattingParams(d::Dict) = DocumentFormattingParams(TextDocumentIdentifier(d["textDocument"]), FormattingOptions(d["options"]))
+# RenameParams(d::Dict) = RenameParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), d["newName"])
+# ApplyWorkspaceEditResponse(d::Dict) = ApplyWorkspaceEditResponse(d["applied"])

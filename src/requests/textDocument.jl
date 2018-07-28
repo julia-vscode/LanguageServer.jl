@@ -83,7 +83,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil"
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSaveWaitUntil")},WillSaveTextDocumentParams}, server)
-    response = JSONRPC.Response(get(r.id), TextEdit[])
+    response = JSONRPC.Response(r.id, TextEdit[])
     send(response, server)
 end
 
@@ -94,7 +94,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
@@ -137,7 +137,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     if !isempty(tdeall.edits)
         push!(commands, Command("Fix all similar deprecations in file", "language-julia.applytextedit", [WorkspaceEdit(nothing, [tdeall])]))
     end
-    response = JSONRPC.Response(get(r.id), commands)
+    response = JSONRPC.Response(r.id, commands)
     send(response, server)
 end
 
@@ -148,7 +148,8 @@ function get_toks(doc, offset)
     if offset >= length(doc._content)
         boffset = sizeof(doc._content) - 1 
     else
-        boffset = chr2ind(doc._content, offset) - 1
+        # boffset = chr2ind(doc._content, offset) - 1
+        boffset = nextind(doc._content, 0, offset) - 1
     end
 
     while true
@@ -169,7 +170,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     
@@ -216,26 +217,26 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 if startswith(n, spartial)
                     for i = length(B):-1:1
                         b = B[i]
-                        if StaticLint.inscope(partial.index, partial.pos, b.index, b.pos)
+                        if StaticLint.inscope(partial.si, b.si)
                             push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
                             break
                         end
                     end
                 end
             end
-            for m in bindings["using"]
-                for sym in m.val.exported
+            for (n,m) in bindings[".used modules"]
+                for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
                         comp = string(sym)
-                        x = m.val.loaded[comp].val
-                        push!(CIs, CompletionItem(comp, 6, MarkedString(string(Docs.doc(x))), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
+                        x = m.val[comp]
+                        push!(CIs, CompletionItem(comp, 6, MarkedString(get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
                 end
             end
         end        
     end
 
-    send(JSONRPC.Response(get(r.id), CompletionList(true, unique(CIs))), server)
+    send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 
 function get_signatures(x::StaticLint.ResolvedRef, bindings, sigs = SignatureInformation[])
@@ -261,7 +262,7 @@ end
 
 
 
-function get_ref(doc, offset)
+function find_ref(doc, offset)
     for rref in doc.code.rref
         if rref.r.loc.offset == offset
             return rref 
@@ -279,7 +280,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     doc = server.documents[URI2(r.params.textDocument.uri)] 
@@ -291,23 +292,23 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
     
     if length(stack)>1 && stack[end-1] isa CSTParser.EXPR{CSTParser.Call}
-        x = get_ref(doc, offsets[end-1])
-        x isa Nothing && send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+        x = find_ref(doc, offsets[end-1])
+        x isa Nothing && send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
         sigs = get_signatures(x, bindings, sigs)
-        isempty(sigs) && send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+        isempty(sigs) && send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
         if CSTParser.is_lparen(last(stack))
             arg = 0
         elseif CSTParser.is_rparen(last(stack))
-            return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+            return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
         else
             arg = sum(!(a isa PUNCTUATION) for a in stack[end-1].args) - 1
         end
     else
-        return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+        return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
     end
     # y,s = scope(r.params, server)
     # if CSTParser.is_rparen(y)
-    #     return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+    #     return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
     # elseif length(s.stack) > 0 && last(s.stack) isa EXPR{Call}
     #     fcall = s.stack[end]
     #     fname = CSTParser.get_name(last(s.stack))
@@ -317,7 +318,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     #     fname = CSTParser.get_name(fcall)
     #     x = get_cache_entry(fname, server, s)
     # else
-    #     return send(JSONRPC.Response(get(r.id), CancelParams(Dict("id" => get(r.id)))), server)
+    #     return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
     # end
     # arg = sum(!(a isa PUNCTUATION) for a in fcall.args) - 1
 
@@ -364,11 +365,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     # end
     
     SH = SignatureHelp(sigs, 0, 0)
-    send(JSONRPC.Response(get(r.id), SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)), server)
+    send(JSONRPC.Response(r.id, SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)), server)
 end
 
 function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
-    if rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
+    if rref.b isa StaticLint.ImportBinding
+        for l in get(rref.b.val, ".methods", [])
+            push!(locations, Location(get(l, "file", ""), get(l, "line", 0)))
+        end
+    elseif rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
         for b in StaticLint.get_methods(rref, bindings)
             get_locations(b, bindings, locations, server)
         end
@@ -381,7 +386,7 @@ function get_locations(b::StaticLint.Binding, bindings, locations, server)
     if b.val isa CSTParser.AbstractEXPR
         uri2 = filepath2uri(b.loc.file)
         doc2 = server.documents[URI2(uri2)]
-        push!(locations, Location(uri2, Range(doc2, b.loc.offset + b.val.span)))
+        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ b.val.span)))
     elseif b.val isa Function
         for m in methods(b.val)
             file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
@@ -399,7 +404,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     locations = Location[]
@@ -415,7 +420,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         end
     end
     
-    send(JSONRPC.Response(get(r.id), locations), server)
+    send(JSONRPC.Response(r.id, locations), server)
 end
 
 
@@ -425,7 +430,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
@@ -433,7 +438,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     end_l, end_c = get_position_at(doc, sizeof(doc._content))
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l - 1, end_c), newcontent)]
 
-    send(JSONRPC.Response(get(r.id), lsedits), server)
+    send(JSONRPC.Response(r.id, lsedits), server)
 end
 
 
@@ -443,7 +448,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     documentation = Any[]
@@ -482,13 +487,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                         push!(documentation, MarkedString(string(Expr(rref.b.val))))
                     end
                 else
-                    push!(documentation, MarkedString(string(Docs.doc(rref.b.val))))
+                    push!(documentation, MarkedString(string(get(rref.b.val, ".doc", ""))))
                 end
             end
         end
     end
     
-    send(JSONRPC.Response(get(r.id), Hover(unique(documentation))), server)
+    send(JSONRPC.Response(r.id, Hover(unique(documentation))), server)
 end
 
 
@@ -498,7 +503,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     links = Tuple{String,UnitRange{Int}}[]
@@ -511,7 +516,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},Doc
     #     push!(doclinks, DocumentLink(rng, uri2))
     # end
 
-    send(JSONRPC.Response(get(r.id), links), server) 
+    send(JSONRPC.Response(r.id, links), server) 
 end
 
 
@@ -550,11 +555,11 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     locations = find_references(r.params.textDocument, r.params.position, server)
-    send(JSONRPC.Response(get(r.id), locations), server)
+    send(JSONRPC.Response(r.id, locations), server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params)
@@ -563,7 +568,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     tdes = Dict{String,TextDocumentEdit}()
@@ -577,7 +582,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
         end
     end
     
-    send(JSONRPC.Response(get(r.id), WorkspaceEdit(nothing, collect(values(tdes)))), server)
+    send(JSONRPC.Response(r.id, WorkspaceEdit(nothing, collect(values(tdes)))), server)
 end
 
 
@@ -590,7 +595,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     syms = SymbolInformation[]
@@ -598,12 +603,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     doc = server.documents[URI2(uri)]
 
     for (name, bs) in doc.code.state.bindings
+        name ∈ (".used modules", "module") && continue
         for b in bs
-            if b.index == doc.code.index && b.val isa CSTParser.AbstractEXPR
-                push!(syms, SymbolInformation(name, 1, Location(doc._uri, Range(doc, b.loc.offset + b.val.span))))
+            if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
+                push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
             end
         end
     end
     
-    send(JSONRPC.Response(get(r.id), syms), server)
+    send(JSONRPC.Response(r.id, syms), server)
 end

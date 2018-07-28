@@ -1,3 +1,20 @@
+const DiagnosticSeverity = Dict("Error" => 1, "Warning" => 2, "Information" => 3, "Hint" => 4)
+const TextDocumentSyncKind = Dict("None" => 0, "Full" => 1, "Incremental" => 2)
+const WatchKind = Dict("Create" => 1,
+                       "Change" => 2,
+                       "Delete" => 3)
+
+const TextDocumentReason = Dict("Manual" => 1,
+                                "AfterDelay" => 2,
+                                "FocusOut" => 3)
+
+const FileChangeType = Dict("Created" => 1, "Changed" => 2, "Deleted" => 3)
+const FileChangeType_Created = 1
+const FileChangeType_Changed = 2
+const FileChangeType_Deleted = 3
+const DocumentHighlightKind = Dict("Text" => 1, "Read" => 2, "Write" => 3)
+
+
 haskeynotnull(d::Dict, k) = haskey(d, k) && d[k] != nothing
 
 macro json_read(arg)
@@ -66,7 +83,7 @@ end
 
 function JSON.lower(a::ShowMessageRequestParams)
     d = Dict("type" => a.typ, "message" => a.message)
-    if isnull(a.actions)
+    if a.actions isa Nothing
         d["actions"] = JSON.lower(a.actions)
     end
     return d

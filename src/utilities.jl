@@ -114,7 +114,7 @@ end
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
 
-    if is_windows()
+    if Sys.iswindows()
         if uri_path[1] == '\\' || uri_path[1] == '/'
             uri_path = uri_path[2:end]
         end
@@ -123,16 +123,16 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
-    if is_windows()
+    if Sys.iswindows()
         file = normpath(file)
-        file = replace(file, "\\", "/")
+        file = replace(file, "\\" => "/")
         file = URIParser.escape(file)
-        file = replace(file, "%2F", "/")
+        file = replace(file, "%2F" => "/")
         return string("file:///", file)
     else
         file = normpath(file)
         file = URIParser.escape(file)
-        file = replace(file, "%2F", "/")
+        file = replace(file, "%2F" => "/")
         return string("file://", file)
     end
 end
@@ -258,4 +258,8 @@ function Base.getindex(server::LanguageServerInstance, r::Regex)
         ismatch(r, uri._uri) && push!(out, doc)
     end
     return out
+end
+
+function _offset_unitrange(r::UnitRange{Int}, first = true)
+    return r.start-1:r.stop
 end

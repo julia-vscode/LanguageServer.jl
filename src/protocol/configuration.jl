@@ -62,7 +62,7 @@ end
 end
 
 @json_read mutable struct CodeActionKindCapabilities
-    valueSet::Vector{Int}
+    valueSet::Vector{String}
 end
 
 @json_read mutable struct CodeActionLiteralCapabilities

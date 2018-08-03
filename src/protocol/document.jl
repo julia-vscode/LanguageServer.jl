@@ -71,10 +71,11 @@ end
     textDocument::TextDocumentIdentifier
 end
 
-@json_read mutable struct FileEvent
+mutable struct FileEvent
     uri::String
     _type::Int
 end
+FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
 
 @json_read mutable struct DidChangeWatchedFilesParams
     changes::Vector{FileEvent}
@@ -133,7 +134,7 @@ end
 # DidCloseTextDocumentParams(d::Dict) = DidCloseTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
 
 
-# FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
+
 
 # function DidChangeWatchedFilesParams(d::Dict)
 #     DidChangeWatchedFilesParams(FileEvent.(d["changes"]))

@@ -240,13 +240,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
 end
 
 function get_signatures(x::StaticLint.ResolvedRef, bindings, sigs = SignatureInformation[])
-    if x.b.val isa Union{Function,DataType}
-        for m in methods(x.b.val)
-            args = Base.arg_decl_parts(m)[2]
-            p_sigs = [join(string.(p), "::") for p in args[2:end]]
-            desc = string(m)
-            PI = map(ParameterInformation, p_sigs)
-            push!(sigs, SignatureInformation(desc, "", PI))
+    if x.b.val isa Dict && haskey(x.b.val, ".methods")
+        for m in x.b.val[".methods"]
+            # args = Base.arg_decl_parts(m)[2]
+            # p_sigs = [join(string.(p), "::") for p in args[2:end]]
+            # desc = string(m)
+            # PI = map(ParameterInformation, p_sigs)
+            # push!(sigs, SignatureInformation(desc, "", PI))
         end
     elseif CSTParser.defines_function(x.b.val)
         for m in StaticLint.get_methods(x, bindings)

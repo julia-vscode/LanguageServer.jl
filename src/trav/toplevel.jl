@@ -212,7 +212,7 @@ function load_mod_names(mod::Module)
         end
     end
     int_names = Set{String}()
-    for name in names(mod, true, true)
+    for name in names(mod, all=true, imported=true)
         sname = string(name)
         if !startswith(sname, "#")
             push!(int_names, sname)

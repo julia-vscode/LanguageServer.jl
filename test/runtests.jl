@@ -1,6 +1,6 @@
 using LanguageServer
 using CSTParser
-using Base.Test
+using Test
 Range = LanguageServer.Range
 
 @testset "LanguageServer" begin

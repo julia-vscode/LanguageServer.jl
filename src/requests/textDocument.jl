@@ -46,13 +46,13 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, par
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
+        server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true)
+    end
     doc = server.documents[URI2(r.params.textDocument.uri)]
     doc._version = r.params.textDocument.version
     isempty(r.params.contentChanges) && return
-    # dirty = get_offset(doc, last(r.params.contentChanges).range.start.line + 1, last(r.params.contentChanges).range.start.character + 1):get_offset(doc, first(r.params.contentChanges).range.stop.line + 1, first(r.params.contentChanges).range.stop.character + 1)
-    # for c in r.params.contentChanges
-    #     update(doc, c.range.start.line + 1, c.range.start.character + 1, c.rangeLength, c.text)
-    # end
+    
     doc._content = last(r.params.contentChanges).text
     doc._line_offsets = nothing
     parse_all(doc, server)
@@ -62,7 +62,7 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params)
     return DidSaveTextDocumentParams(params)
 end
-
+ 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[URI2(uri)]
@@ -141,27 +141,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     send(response, server)
 end
 
-function get_toks(doc, offset)
-    ts = CSTParser.Tokenize.tokenize(doc._content)
-    lt = nothing
-    t = CSTParser.Tokenize.Lexers.next_token(ts)
-    if offset >= length(doc._content)
-        boffset = sizeof(doc._content) - 1 
-    else
-        # boffset = chr2ind(doc._content, offset) - 1
-        boffset = nextind(doc._content, 0, offset) - 1
-    end
 
-    while true
-        if t.startbyte <= boffset <= t.endbyte
-            break
-        end
-        lt = t
-        t = CSTParser.Tokenize.Lexers.next_token(ts)
-        t.startbyte:t.endbyte
-    end
-    return lt, t
-end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
@@ -177,11 +157,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     CIs = CompletionItem[]
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    bindings = StaticLint.cat_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
-    lt, t = get_toks(doc, offset)
+    ppt, pt, t = get_toks(doc, offset)
 
-    if lt isa CSTParser.Tokens.Token && lt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         partial = string("\\", CSTParser.Tokens.untokenize(t))
         for (k, v) in Base.REPLCompletions.latex_symbols
             if startswith(string(k), partial)
@@ -208,12 +188,38 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         end
         
         if partial == nothing
-            if lt isa CSTParser.Tokens.Token && lt.kind == CSTParser.Tokens.DOT
+            if t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT
                 stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
+                n = length(stack)
+                if n > 2 && (stack[end] isa CSTParser.OPERATOR && stack[end].kind == CSTParser.Tokens.DOT) && stack[end-1] isa CSTParser.BinarySyntaxOpCall
+                    offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
+                    ref = find_ref(doc, offset1)
+                    if ref != nothing && ref.b.val isa Dict
+                        for (n,v) in ref.b.val
+                            startswith(n, ".") && continue 
+                            push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
+                        end
+                    end
+                end
+            elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT
+                stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
+                n = length(stack)
+                if n > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
+                    offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte) - (1 + ppt.endbyte - ppt.startbyte) # get offset 2 tokens back
+                    ref = find_ref(doc, offset1) 
+                    if ref != nothing && ref.b.val isa Dict # check we've got a Module
+                        for (n,v) in ref.b.val
+                            startswith(n, ".") && continue
+                            if startswith(n, t.val)
+                                push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
+                            end
+                        end
+                    end
+                end
             end
         else
             spartial = CSTParser.str_value(partial.val)
-            for (n,B) in bindings
+            for (n,B) in state.bindings
                 if startswith(n, spartial)
                     for i = length(B):-1:1
                         b = B[i]
@@ -224,7 +230,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             end
-            for (n,m) in bindings[".used modules"]
+            for (n,m) in state.used_modules
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
                         comp = string(sym)
@@ -239,7 +245,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 
-function get_signatures(x::StaticLint.ResolvedRef, bindings, sigs = SignatureInformation[])
+function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInformation[])
     if x.b.val isa Dict && haskey(x.b.val, ".methods")
         for m in x.b.val[".methods"]
             # args = Base.arg_decl_parts(m)[2]
@@ -249,7 +255,7 @@ function get_signatures(x::StaticLint.ResolvedRef, bindings, sigs = SignatureInf
             # push!(sigs, SignatureInformation(desc, "", PI))
         end
     elseif CSTParser.defines_function(x.b.val)
-        for m in StaticLint.get_methods(x, bindings)
+        for m in StaticLint.get_methods(x, state)
             sig = CSTParser.get_sig(m.val)
             args = StaticLint.get_fcall_args(sig, false)
             PI = map(p->ParameterInformation(string(CSTParser.str_value(p[1]))), args)
@@ -260,18 +266,6 @@ function get_signatures(x::StaticLint.ResolvedRef, bindings, sigs = SignatureInf
 end
 
 
-
-
-function find_ref(doc, offset)
-    for rref in doc.code.rref
-        if rref.r.loc.offset == offset
-            return rref 
-        elseif rref.r.loc.offset > offset
-            break
-        end
-    end
-    return nothing
-end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params)
     return TextDocumentPositionParams(params)
@@ -285,7 +279,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    bindings = StaticLint.cat_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     sigs = SignatureInformation[]
     arg = 0
@@ -293,9 +287,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     
     if length(stack)>1 && stack[end-1] isa CSTParser.EXPR{CSTParser.Call}
         x = find_ref(doc, offsets[end-1])
-        x isa Nothing && send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-        sigs = get_signatures(x, bindings, sigs)
-        isempty(sigs) && send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
+        if x isa Nothing 
+            send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
+            return
+        end
+        sigs = get_signatures(x, state, sigs)
+        if isempty(sigs)
+            send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
+            return
+        end
         if CSTParser.is_lparen(last(stack))
             arg = 0
         elseif CSTParser.is_rparen(last(stack))
@@ -368,35 +368,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     send(JSONRPC.Response(r.id, SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)), server)
 end
 
-function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
-    if rref.b isa StaticLint.ImportBinding
-        for l in get(rref.b.val, ".methods", [])
-            push!(locations, Location(get(l, "file", ""), get(l, "line", 0)))
-        end
-    elseif rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
-        for b in StaticLint.get_methods(rref, bindings)
-            get_locations(b, bindings, locations, server)
-        end
-    else
-        get_locations(rref.b, bindings, locations, server)
-    end
-end
-
-function get_locations(b::StaticLint.Binding, bindings, locations, server)
-    if b.val isa CSTParser.AbstractEXPR
-        uri2 = filepath2uri(b.loc.file)
-        doc2 = server.documents[URI2(uri2)]
-        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ b.val.span)))
-    elseif b.val isa Function
-        for m in methods(b.val)
-            file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-            if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
-                continue
-            end
-            push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
-        end
-    end
-end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params)
     return TextDocumentPositionParams(params)
@@ -411,11 +382,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    bindings = StaticLint.cat_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
-            get_locations(rref, bindings, locations, server)
+            get_locations(rref, state, locations, server)
             break
         end
     end
@@ -454,7 +425,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     documentation = Any[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    bindings = StaticLint.cat_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
@@ -471,7 +442,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
             if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
                 if rref.b.val isa CSTParser.AbstractEXPR
                     if rref.b.t == CSTParser.FunctionDef
-                        ms = StaticLint.get_methods(rref, bindings)
+                        ms = StaticLint.get_methods(rref, state)
                         for m in ms
                             if m.t in (CSTParser.Mutable, CSTParser.Struct)
                                 push!(documentation, MarkedString(string(Expr(m.val))))
@@ -524,14 +495,14 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     locations = Location[]
     doc = server.documents[URI2(textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    bindings = StaticLint.cat_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(server, rootdoc.code)
     refs = StaticLint.cat_references(server, rootdoc.code)
-    rrefs, urefs = StaticLint.resolve_refs(refs, bindings, [], [])
+    rrefs, urefs = StaticLint.resolve_refs(refs, state, [], [])
     offset = get_offset(doc, position.line + 1, position.character)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
             if rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
-                bs = StaticLint.get_methods(rref, bindings)
+                bs = StaticLint.get_methods(rref, state)
             else
                 bs = StaticLint.Binding[rref.b]
             end
@@ -539,7 +510,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
                 if rref1.b in bs
                     uri2 = filepath2uri(rref1.r.loc.file)
                     doc2 = server.documents[URI2(uri2)]
-                    rng = rref1.r.loc.offset + (0:last(rref1.r.val.span))
+                    rng = rref1.r.loc.offset .+ (0:last(rref1.r.val.span))
                     push!(locations, Location(uri2, Range(doc2, rng)))
                 end
             end
@@ -603,7 +574,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     doc = server.documents[URI2(uri)]
 
     for (name, bs) in doc.code.state.bindings
-        name ∈ (".used modules", "module") && continue
         for b in bs
             if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
                 push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))

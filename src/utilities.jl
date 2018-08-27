@@ -1,116 +1,3 @@
-function get_line(tdpp::TextDocumentPositionParams, server::LanguageServerInstance)
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
-    return get_line(doc, tdpp.position.line + 1)
-end
-
-function get_word(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, offset = 0)
-    io = IOBuffer(get_line(tdpp, server))
-    word = Char[]
-    e = 0
-    while !eof(io)
-        c = read(io, Char)
-        e += 1
-        if (Base.is_id_start_char(c) || c == '@') || (c == '.' && e < (tdpp.position.character + offset))
-            if isempty(word) && !(Base.is_id_start_char(c) || c == '@')
-                continue
-            end
-            push!(word, c)
-        else
-            if e <= tdpp.position.character + offset
-                empty!(word)
-            else
-                break
-            end
-        end
-    end
-    return String(word)
-end
-
-
-_isdotexpr(x) = false
-_isdotexpr(x::BinarySyntaxOpCall) = CSTParser.is_dot(x.op)
-
-unpack_dot(id, args = Symbol[]) = Symbol[]
-
-function unpack_dot(id::Symbol, args = Symbol[])
-    unshift!(args, id)
-    return args
-end
-
-function unpack_dot(id::Expr, args = Symbol[])
-    if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
-        if id.args[2].value isa Symbol && ((id.args[1] isa Expr && id.args[1].head == :.) || id.args[1] isa Symbol)
-            unshift!(args, id.args[2].value)
-            args = unpack_dot(id.args[1], args)
-        else
-            return Symbol[]
-        end
-    end
-    return args
-end
-
-function unpack_dot(x::BinarySyntaxOpCall)
-    args = Any[]
-    val = x
-    while _isdotexpr(val)
-        if val.arg2 isa EXPR{Quotenode}
-            unshift!(args, val.arg2.args[1])
-        else
-            unshift!(args, val.arg2)
-        end
-        val = val.arg1
-    end
-    unshift!(args, val)
-    return args
-end
-
-function make_name(ns, id)
-    io = IOBuffer()
-    for x in ns
-        print(io, x)
-        print(io, ".")
-    end
-    print(io, id)
-    String(take!(io))
-end
-
-function get_module(ids::Vector{Symbol}, M = Main)
-    if isempty(ids)
-        return M
-    elseif isdefined(M, first(ids))
-        M = getfield(M, shift!(ids))
-        return get_module(ids, M)
-    else
-        return false
-    end
-end
-
-function _isdefined(x::Expr)
-    ids = unpack_dot(x)
-    return isempty(ids) ? false : _isdefined(ids)
-end
-
-function _isdefined(ids::Vector{Symbol}, M = Main)
-    if isempty(ids)
-        return true
-    elseif isdefined(M, first(ids))
-        M = getfield(M, shift!(ids))
-        return _isdefined(ids, M)
-    else
-        return false
-    end
-end
-
-function _getfield(names::Vector{Symbol})
-    val = Main
-    for i = 1:length(names)
-        !isdefined(val, names[i]) && return
-        val = getfield(val, names[i])
-    end
-    return val
-end
-
-
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
 
@@ -170,21 +57,6 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
 str_value(x) = ""
 str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val
 str_value(x::OPERATOR) = string(Expr(x))
-
-function searchlast(str, c)
-    i0 = search(str, c, 1)
-    if i0 == 0 
-        return 0
-    else
-        while true
-            i1 = search(str, c, i0 + 1)
-            if i1 == 0
-                return i0
-            end
-            i0 = i1
-        end
-    end
-end
 
 
 # Find location of default datatype constructor
@@ -262,4 +134,82 @@ end
 
 function _offset_unitrange(r::UnitRange{Int}, first = true)
     return r.start-1:r.stop
+end
+
+
+
+
+
+function get_toks(doc, offset)
+    ts = CSTParser.Tokenize.tokenize(doc._content)
+    CSTParser.Tokens.EMPTY_TOKEN(CSTParser.Tokens.RawToken)
+    CSTParser.Tokens.RawToken()
+    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false)
+    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false)
+    t = CSTParser.Tokenize.Lexers.next_token(ts)
+    if offset >= length(doc._content)
+        boffset = sizeof(doc._content) - 1 
+    else
+        boffset = nextind(doc._content, 0, offset) - 1
+    end
+
+    while true
+        if t.startbyte <= boffset <= t.endbyte
+            break
+        end
+        ppt = pt
+        pt = t
+        t = CSTParser.Tokenize.Lexers.next_token(ts)
+        t.startbyte:t.endbyte
+    end
+    return ppt, pt, t
+end
+
+function find_ref(doc, offset)
+    for rref in doc.code.rref
+        if rref.r.loc.offset == offset
+            return rref 
+        elseif rref.r.loc.offset > offset
+            break
+        end
+    end
+    return nothing
+end
+
+function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
+    if rref.b isa StaticLint.ImportBinding
+        for l in get(rref.b.val, ".methods", [])
+            push!(locations, Location(filepath2uri(get(l, "file", "")), get(l, "line", 0)))
+        end
+    elseif rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
+        for b in StaticLint.get_methods(rref, bindings)
+            get_locations(b, bindings, locations, server)
+        end
+    else
+        get_locations(rref.b, bindings, locations, server)
+    end
+end
+
+function get_locations(b::StaticLint.Binding, bindings, locations, server)
+    if b.val isa CSTParser.AbstractEXPR
+        uri2 = filepath2uri(b.loc.file)
+        if !(URI2(uri2) in keys(server.documents))
+            uri3 = string("untitled:",b.loc.file)
+            if URI2(uri3) in keys(server.documents)
+                uri2 = uri3
+            else 
+                return
+            end
+        end
+        doc2 = server.documents[URI2(uri2)]
+        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ b.val.span)))
+    elseif b.val isa Function
+        for m in methods(b.val)
+            file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
+            if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
+                continue
+            end
+            push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
+        end
+    end
 end

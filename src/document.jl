@@ -18,13 +18,7 @@ end
 function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing, index = (), nb = 0, parent = "")
     path = uri2filepath(uri)
     cst = CSTParser.parse(text, true)
-    state = StaticLint.State(StaticLint.Location(path, 0), Dict(), StaticLint.Reference[], [], server)
-    state.bindings[".used modules"] = Dict()
-    if isempty(parent)
-        state.bindings[".used modules"]["Base"] = StaticLint.ModuleBinding(StaticLint.Location(state), StaticLint.SIndex(index, nb), StaticLint.store["Base"])
-        state.bindings[".used modules"]["Core"] = StaticLint.ModuleBinding(StaticLint.Location(state), StaticLint.SIndex(index, nb), StaticLint.store["Core"])
-    end
-    state.bindings["module"] = StaticLint.Binding[]
+    state = StaticLint.State(path, server)
     s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
     scope = StaticLint.pass(cst, state, s, index, false, false)
     file = StaticLint.File(cst, state, scope, index, nb, "", [], [])
@@ -48,22 +42,6 @@ end
 
 function is_workspace_file(doc::Document)
     return doc._workspace_file
-end
-
-function get_line(doc::Document, line::Int)
-    line_offsets = get_line_offsets(doc)
-
-    if length(line_offsets) > 0
-        start_offset = line_offsets[line]
-        if length(line_offsets) > line
-            end_offset = line_offsets[line + 1] - 1
-        else
-            end_offset = lastindex(doc._content)
-        end
-        return doc._content[start_offset:end_offset]
-    else
-        return ""
-    end
 end
 
 function get_offset(doc::Document, line::Integer, character::Integer)
@@ -116,20 +94,39 @@ function get_line_offsets(doc::Document)
     return doc._line_offsets
 end
 
-function get_position_at(doc::Document, offset::Integer)
-    offset == 0 && return 1, 0
-    line_offsets = get_line_offsets(doc)
-    line = 0
+function iter_lines(doc, line_offsets, offset)
     for (line, line_offset) in enumerate(line_offsets)
         if offset < line_offset
             if offset == line_offset - 1
                 return line, 0
             else
                 line -= 1
-                break
+                return line, 1
             end
         end
     end
+    return length(line_offsets), 1
+end
+
+function get_position_at(doc::Document, offset::Integer)
+    offset == 0 && return 1, 0
+    line_offsets = get_line_offsets(doc)
+    # line = 0
+    # for (line, line_offset) in enumerate(line_offsets)
+    #     if offset < line_offset
+    #         if offset == line_offset - 1
+    #             return line, 0
+    #         else
+    #             line -= 1
+    #             break
+    #         end
+    #     end
+    # end
+    line, ch = iter_lines(doc, line_offsets, offset)
+    if ch == 0 
+        return line, ch
+    end
+    
     ni = nextind(doc._content, line_offsets[line])
     ch = 1
     while offset >= ni

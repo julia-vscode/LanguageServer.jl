@@ -1,3 +1,5 @@
+T = 0.0
+
 mutable struct LanguageServerInstance
     pipe_in
     pipe_out
@@ -25,15 +27,17 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
         message_dict = JSON.parse(message)
         # For now just ignore response messages
         if haskey(message_dict, "method")
+            server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
-            server.isrunning && serverbusy(server)
+            # server.isrunning && serverbusy(server)
             process(request, server)
-            server.isrunning && serverready(server)
+            # server.isrunning && serverready(server)
         end
     end
 end
@@ -68,10 +72,11 @@ function read_transport_layer(stream, debug_mode = false)
 end
 
 function write_transport_layer(stream, response, debug_mode = false)
+    global T
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")
     write(stream, response_utf8)
     debug_mode && @info "SENT: $response"
-    debug_mode && @info ""
+    debug_mode && @info string("TIME:", round(time()-T, sigdigits = 2))
 end

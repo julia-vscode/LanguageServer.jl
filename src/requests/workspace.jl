@@ -7,8 +7,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         uri = change.uri
         !haskey(server.documents, URI2(uri)) && continue
         if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[URI2(uri)]))
+            doc = server.documents[URI2(uri)]
             filepath = uri2filepath(uri)
             content = String(read(filepath))
+            content == doc._content && return
             server.documents[URI2(uri)] = Document(uri, content, true, server)
             parse_all(server.documents[URI2(uri)], server)
 
@@ -23,7 +25,7 @@ end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params)
-    return Any(params)
+    return params
 end
 
 
@@ -88,11 +90,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
         for (name, bs) in doc.code.state.bindings
-            name in (".used modules", "module") && continue
-            if ismatch(Regex(r.params.query, "i"), name) 
+            name in (".used modules", ".modules") && continue
+            if occursin(Regex(r.params.query, "i"), name) 
                 for b in bs
                     if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
-                        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset + b.val.span)), nothing))
+                        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
                     end
                 end
             end

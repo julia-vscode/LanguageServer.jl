@@ -163,7 +163,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         partial = string("\\", CSTParser.Tokens.untokenize(t))
-        for (k, v) in Base.REPLCompletions.latex_symbols
+        for (k, v) in REPL.REPLCompletions.latex_symbols
             if startswith(string(k), partial)
                 t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
                 t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)

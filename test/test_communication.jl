@@ -44,9 +44,9 @@ init_response_json = JSON.parse("""
 }
 """)
 
-if is_windows()
+if Sys.iswindows()
     global_socket_name = "\\\\.\\pipe\\julia-language-server-testrun"
-elseif is_unix() 
+elseif Sys.isunix() 
     global_socket_name = joinpath(tempdir(), "julia-language-server-testrun")
 else
     error("Unknown operating system.")

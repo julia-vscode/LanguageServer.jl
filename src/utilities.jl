@@ -33,14 +33,14 @@ _isdotexpr(x::BinarySyntaxOpCall) = CSTParser.is_dot(x.op)
 unpack_dot(id, args = Symbol[]) = Symbol[]
 
 function unpack_dot(id::Symbol, args = Symbol[])
-    unshift!(args, id)
+    pushfirst!(args, id)
     return args
 end
 
 function unpack_dot(id::Expr, args = Symbol[])
     if id isa Expr && id.head == :. && id.args[2] isa QuoteNode
         if id.args[2].value isa Symbol && ((id.args[1] isa Expr && id.args[1].head == :.) || id.args[1] isa Symbol)
-            unshift!(args, id.args[2].value)
+            pushfirst!(args, id.args[2].value)
             args = unpack_dot(id.args[1], args)
         else
             return Symbol[]
@@ -54,13 +54,13 @@ function unpack_dot(x::BinarySyntaxOpCall)
     val = x
     while _isdotexpr(val)
         if val.arg2 isa EXPR{Quotenode}
-            unshift!(args, val.arg2.args[1])
+            pushfirst!(args, val.arg2.args[1])
         else
-            unshift!(args, val.arg2)
+            pushfirst!(args, val.arg2)
         end
         val = val.arg1
     end
-    unshift!(args, val)
+    pushfirst!(args, val)
     return args
 end
 
@@ -78,7 +78,7 @@ function get_module(ids::Vector{Symbol}, M = Main)
     if isempty(ids)
         return M
     elseif isdefined(M, first(ids))
-        M = getfield(M, shift!(ids))
+        M = getfield(M, popfirst!(ids))
         return get_module(ids, M)
     else
         return false
@@ -94,7 +94,7 @@ function _isdefined(ids::Vector{Symbol}, M = Main)
     if isempty(ids)
         return true
     elseif isdefined(M, first(ids))
-        M = getfield(M, shift!(ids))
+        M = getfield(M, popfirst!(ids))
         return _isdefined(ids, M)
     else
         return false
@@ -149,7 +149,7 @@ end
 function uri2filepath(uri::AbstractString)
     uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
 
-    if is_windows()
+    if Sys.iswindows()
         if uri_path[1] == '\\' || uri_path[1] == '/'
             uri_path = uri_path[2:end]
         end
@@ -158,7 +158,7 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
-    if is_windows()
+    if Sys.iswindows()
         file = normpath(file)
         file = replace(file, "\\", "/")
         file = URIParser.escape(file)

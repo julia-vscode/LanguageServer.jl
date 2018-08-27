@@ -1,4 +1,3 @@
-__precompile__()
 module LanguageServer
 using JSON
 import URIParser

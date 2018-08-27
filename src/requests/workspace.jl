@@ -92,7 +92,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
         s = toplevel(doc, server, false)
         for k in keys(s.symbols)
             for vl in s.symbols[k]
-                if ismatch(Regex(query, "i"), string(vl.v.id))
+                if occursin(Regex(query, "i"), string(vl.v.id))
                     if vl.v.t == :Function
                         id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
                     else

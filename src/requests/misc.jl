@@ -18,7 +18,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
     return 
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server)
 end
 
 
@@ -35,7 +35,7 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server)
     reloaded = String[]
     failedtoreload = String[]
     for m in names(Main)
@@ -86,7 +86,7 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, server)
     server.debug_mode = !server.debug_mode
 end
 

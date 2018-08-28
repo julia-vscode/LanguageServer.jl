@@ -160,6 +160,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     ppt, pt, t = get_toks(doc, offset)
+    stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         partial = string("\\", CSTParser.Tokens.untokenize(t))
@@ -189,7 +190,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         
         if partial == nothing
             if t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT
-                stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
                 n = length(stack)
                 if n > 2 && (stack[end] isa CSTParser.OPERATOR && stack[end].kind == CSTParser.Tokens.DOT) && stack[end-1] isa CSTParser.BinarySyntaxOpCall
                     offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)

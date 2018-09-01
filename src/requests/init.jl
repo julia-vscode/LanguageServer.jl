@@ -1,23 +1,26 @@
-const serverCapabilities = ServerCapabilities(
-                        TextDocumentSyncKind["Full"],
-                        true, #hoverProvider
-                        CompletionOptions(false, ["."]),
-                        SignatureHelpOptions(["("]),
-                        true, #definitionProvider
-                        true, # referencesProvider
-                        false, # documentHighlightProvider
-                        true, # documentSymbolProvider 
-                        true, # workspaceSymbolProvider
-                        true, # codeActionProvider
-                        # CodeLensOptions(), 
-                        true, # documentFormattingProvider
-                        false, # documentRangeFormattingProvider
-                        # DocumentOnTypeFormattingOptions(), 
-                        true, # renameProvider
-                        DocumentLinkOptions(false),
-                        ExecuteCommandOptions(),
-                        nothing,
-                        WorkspaceOptions(WorkspaceFoldersOptions(true, true)))
+const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Full"],
+    true, #hoverProvider
+    CompletionOptions(false, ["."]),
+    SignatureHelpOptions(["("]),
+    true, #definitionProvider::Bool
+    false, #typeDefinitionProvider::Bool
+    false, #implementationProvider::Bool
+    true, #referencesProvider::Bool
+    false, #documentHighlightProvider::Bool
+    true, #documentSymbolProvider::Bool
+    true, #workspaceSymbolProvider::Bool
+    true, #codeActionProvider::Bool
+    # codeLensProvider::CodeLensOptions
+    true, #documentFormattingProvider::Bool
+    false, #documentRangeFormattingProvider::Bool
+    # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
+    true, #renameProvider::Bool
+    DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
+    false, #colorProvider::Bool
+    ExecuteCommandOptions([]), #executeCommandProvider::ExecuteCommandOptions
+    WorkspaceOptions(WorkspaceFoldersOptions(true, true)), #workspace::WorkspaceOptions
+    nothing)
+
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
@@ -49,10 +52,11 @@ function load_folder(path::String, server)
                 if endswith(file, ".jl")
                     filepath = joinpath(root, file)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
-                    info("parsed $filepath")
+                    @info "parsed $filepath" 
                     uri = filepath2uri(filepath)
-                    content = readstring(filepath)
-                    server.documents[URI2(uri)] = Document(uri, content, true)
+                    URI2(uri) in keys(server.documents) && continue
+                    content = read(filepath, String)
+                    server.documents[URI2(uri)] = Document(uri, content, true, server)
                     doc = server.documents[URI2(uri)]
                     doc._runlinter = false
                     parse_all(doc, server)
@@ -70,19 +74,20 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if isnull(r.params.capabilities.workspace.workspaceFolders) || get(r.params.capabilities.workspace.workspaceFolders)==false
-        if !isnull(r.params.rootUri)
+    if r.params.capabilities.workspace.workspaceFolders == nothing || r.params.capabilities.workspace.workspaceFolders == false
+        if !(r.params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(r.params.rootUri.value))
-        elseif !isnull(r.params.rootPath)
+        elseif !(r.params.rootPath isa Nothing)
             push!(server.workspaceFolders,  r.params.rootPath.value)
         end
-    else
+    elseif r.params.workspaceFolders != nothing
         for wksp in r.params.workspaceFolders
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
+        
     end
     
-    response = JSONRPC.Response(get(r.id), InitializeResult(serverCapabilities))
+    response = JSONRPC.Response(r.id, InitializeResult(serverCapabilities))
     send(response, server)
 end
 
@@ -92,12 +97,11 @@ function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
-    server.debug_mode && tic()
-    info(server.workspaceFolders)
-    for wkspc in server.workspaceFolders
-        load_folder(wkspc, server)
+    if server.workspaceFolders != nothing
+        for wkspc in server.workspaceFolders
+            load_folder(wkspc, server)
+        end
     end
-    server.debug_mode && info("Startup time: $(toq())")
 
     write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))), server.debug_mode)
 end

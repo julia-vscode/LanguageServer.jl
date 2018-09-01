@@ -7,18 +7,26 @@ end
 mutable struct Document
     _uri::String
     _content::String
-    _line_offsets::Nullable{Vector{Int}}
+    _line_offsets::Union{Nothing,Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
-    code::CSTParser.File
+    code::StaticLint.File
     diagnostics::Vector{LSDiagnostic}
     _version::Int
     _runlinter::Bool
-
-    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool)
-        return new(uri, text, Nullable{Vector{Int}}(), false, workspace_file, CSTParser.File(uri), [], 0, true)
-    end
 end
+function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing, index = (), nb = 0, parent = "")
+    path = uri2filepath(uri)
+    cst = CSTParser.parse(text, true)
+    state = StaticLint.State(path, server)
+    s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
+    scope = StaticLint.pass(cst, state, s, index, false, false)
+    file = StaticLint.File(cst, state, scope, index, nb, "", [], [])
+    return Document(uri, text, nothing, false, workspace_file, file, [], 0, true)
+end
+
+StaticLint.CST(doc::Document) = doc.code
+
 
 function get_text(doc::Document)
     return doc._content
@@ -34,22 +42,6 @@ end
 
 function is_workspace_file(doc::Document)
     return doc._workspace_file
-end
-
-function get_line(doc::Document, line::Int)
-    line_offsets = get_line_offsets(doc)
-
-    if length(line_offsets) > 0
-        start_offset = line_offsets[line]
-        if length(line_offsets) > line
-            end_offset = line_offsets[line + 1] - 1
-        else
-            end_offset = endof(doc._content)
-        end
-        return doc._content[start_offset:end_offset]
-    else
-        return ""
-    end
 end
 
 function get_offset(doc::Document, line::Integer, character::Integer)
@@ -70,52 +62,71 @@ function update(doc::Document, start_line::Integer, start_character::Integer, le
     end
 
     doc._content = string(doc._content[1:start_offset - 1], new_text, doc._content[end_offset:end])
-    doc._line_offsets = Nullable{Vector{Int}}()
+    doc._line_offsets = nothing
 end
 
 function get_line_offsets(doc::Document)
-    if isnull(doc._line_offsets)
-        line_offsets = Array{Int}(0)
+    if doc._line_offsets isa Nothing
+        line_offsets = Array{Int}(undef, 0)
         text = doc._content
         is_line_start = true
         i = 1
-        while i <= endof(text)
+        while i <= lastindex(text)
             if is_line_start
                 push!(line_offsets, i)
                 is_line_start = false
             end
             ch = text[i]
             is_line_start = ch == '\r' || ch == '\n'
-            if ch == '\r' && i + 1 <= endof(text) && text[i + 1] == '\n'
+            if ch == '\r' && i + 1 <= lastindex(text) && text[i + 1] == '\n'
                 i += 1
             end
             i = nextind(text, i)
         end
 
         if is_line_start && length(text) > 0
-            push!(line_offsets, endof(text) + 1)
+            push!(line_offsets, lastindex(text) + 1)
         end
 
-        doc._line_offsets = Nullable(line_offsets)
+        doc._line_offsets = line_offsets
     end
 
-    return get(doc._line_offsets)
+    return doc._line_offsets
 end
 
-function get_position_at(doc::Document, offset::Integer)
-    offset == 0 && return 1, 0
-    line_offsets = get_line_offsets(doc)
-    line = 0
+function iter_lines(doc, line_offsets, offset)
     for (line, line_offset) in enumerate(line_offsets)
         if offset < line_offset
             if offset == line_offset - 1
                 return line, 0
             else
                 line -= 1
-                break
+                return line, 1
             end
         end
     end
+    return length(line_offsets), 1
+end
+
+function get_position_at(doc::Document, offset::Integer)
+    offset == 0 && return 1, 0
+    line_offsets = get_line_offsets(doc)
+    # line = 0
+    # for (line, line_offset) in enumerate(line_offsets)
+    #     if offset < line_offset
+    #         if offset == line_offset - 1
+    #             return line, 0
+    #         else
+    #             line -= 1
+    #             break
+    #         end
+    #     end
+    # end
+    line, ch = iter_lines(doc, line_offsets, offset)
+    if ch == 0 
+        return line, ch
+    end
+    
     ni = nextind(doc._content, line_offsets[line])
     ch = 1
     while offset >= ni

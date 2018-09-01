@@ -1,47 +1,28 @@
-mutable struct TextDocumentIdentifier
+@json_read mutable struct TextDocumentIdentifier
     uri::DocumentUri
 end
 
-TextDocumentIdentifier(d::Dict) = TextDocumentIdentifier(d["uri"])
-
-
-mutable struct TextDocumentItem
+@json_read mutable struct TextDocumentItem
     uri::DocumentUri
     languageId::String
     version::Int
     text::String
 end
 
-TextDocumentItem(d::Dict) = TextDocumentItem(d["uri"], d["languageId"], d["version"], d["text"])
-
-
-mutable struct VersionedTextDocumentIdentifier
+@json_read mutable struct VersionedTextDocumentIdentifier
     uri::DocumentUri
     version::Int
 end
 
-VersionedTextDocumentIdentifier(d::Dict) = VersionedTextDocumentIdentifier(d["uri"], d["version"])
-
-
-mutable struct TextDocumentPositionParams
+@json_read mutable struct TextDocumentPositionParams
     textDocument::TextDocumentIdentifier
     position::Position
 end
 
-TextDocumentPositionParams(d::Dict) = TextDocumentPositionParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]))
-
-
-mutable struct DocumentFilter
-    language::Nullable{String}
-    scheme::Nullable{String}
-    pattern::Nullable{String}
-end
-
-function DocumentFilter(d::Dict)
-    language = haskeynotnull(d, "language") ? d["language"] : Nullable{String}()
-    scheme = haskeynotnull(d, "scheme") ? d["scheme"] : Nullable{String}()
-    pattern = haskeynotnull(d, "pattern") ? d["pattern"] : Nullable{String}()
-    return DocumentFilter(language, scheme, pattern)
+@json_read mutable struct DocumentFilter
+    language::Union{Nothing,String}
+    scheme::Union{Nothing,String}
+    pattern::Union{Nothing,String}
 end
 
 const DocumentSelector = Vector{DocumentFilter}
@@ -50,70 +31,45 @@ mutable struct TextDocumentRegistrationOptions
     documentSelector::DocumentSelector
 end
 
+
+mutable struct TextDocumentChangeRegistrationOptions
+    documentSelector::DocumentSelector
+    syncKind::Int    
+end
+
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
     edits::Vector{TextEdit}
 end
 
-
 mutable struct WorkspaceEdit
     changes
-    documentChanges::Vector{TextDocumentEdit}
+    documentChanges::Union{Nothing,Vector{TextDocumentEdit}}
 end
 
-
-mutable struct DidOpenTextDocumentParams
+@json_read mutable struct DidOpenTextDocumentParams
     textDocument::TextDocumentItem
 end
 
-DidOpenTextDocumentParams(d::Dict) = DidOpenTextDocumentParams(TextDocumentItem(d["textDocument"]))
-
-
-mutable struct TextDocumentContentChangeEvent 
-    range::Range
-    rangeLength::Int
+@json_read mutable struct TextDocumentContentChangeEvent 
+    range::Union{Nothing,Range}
+    rangeLength::Union{Nothing,Int}
     text::String
 end
 
-function TextDocumentContentChangeEvent(d::Dict)
-      if length(d) == 1
-          text = d["text"]
-          rangeLength = length(text)
-          lines = split(text, "\n")
-          TextDocumentContentChangeEvent(Range(0, 0, length(lines) - 1, length(lines[end]) - 1), rangeLength, text)
-      else
-          TextDocumentContentChangeEvent(Range(d["range"]), d["rangeLength"], d["text"])
-      end
-  end
-
-
-mutable struct DidChangeTextDocumentParams
+@json_read mutable struct DidChangeTextDocumentParams
     textDocument::VersionedTextDocumentIdentifier
     contentChanges::Vector{TextDocumentContentChangeEvent}
 end
 
-DidChangeTextDocumentParams(d::Dict) = DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(d["textDocument"]), TextDocumentContentChangeEvent.(d["contentChanges"]))
-
-
-mutable struct DidSaveTextDocumentParams
+@json_read mutable struct DidSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
+    text::Union{Nothing,String}
 end
 
-DidSaveTextDocumentParams(d::Dict) = DidSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
-
-
-
-mutable struct DidCloseTextDocumentParams
+@json_read mutable struct DidCloseTextDocumentParams
     textDocument::TextDocumentIdentifier
 end
-
-DidCloseTextDocumentParams(d::Dict) = DidCloseTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
-
-
-const FileChangeType = Dict("Created" => 1, "Changed" => 2, "Deleted" => 3)
-const FileChangeType_Created = 1
-const FileChangeType_Changed = 2
-const FileChangeType_Deleted = 3
 
 mutable struct FileEvent
     uri::String
@@ -121,20 +77,68 @@ mutable struct FileEvent
 end
 FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
 
-mutable struct DidChangeWatchedFilesParams
+@json_read mutable struct DidChangeWatchedFilesParams
     changes::Vector{FileEvent}
 end
 
-function DidChangeWatchedFilesParams(d::Dict)
-    DidChangeWatchedFilesParams(FileEvent.(d["changes"]))
+mutable struct FileSystemWatcher
+    globPattern::String
+    kind::Union{Nothing,Int}
 end
 
-const TextDocumentReason = Dict("Manual" => 1,
-                                "AfterDelay" => 2,
-                                "FocusOut" => 3)
+mutable struct DidChangeWatchedFilesRegistrationOptions
+    watchers::Vector{FileSystemWatcher}
+end
 
 mutable struct WillSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
     reason::Int
 end
-WillSaveTextDocumentParams(d::Dict) = WillSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]), d["reason"])
+
+
+
+
+
+# TextDocumentIdentifier(d::Dict) = TextDocumentIdentifier(d["uri"])
+
+# TextDocumentItem(d::Dict) = TextDocumentItem(d["uri"], d["languageId"], d["version"], d["text"])
+
+# VersionedTextDocumentIdentifier(d::Dict) = VersionedTextDocumentIdentifier(d["uri"], d["version"])
+
+# TextDocumentPositionParams(d::Dict) = TextDocumentPositionParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]))
+
+# function DocumentFilter(d::Dict)
+#     language = haskeynotnull(d, "language") ? d["language"] : nothing
+#     scheme = haskeynotnull(d, "scheme") ? d["scheme"] : nothing
+#     pattern = haskeynotnull(d, "pattern") ? d["pattern"] : nothing
+#     return DocumentFilter(language, scheme, pattern)
+# end
+
+# DidOpenTextDocumentParams(d::Dict) = DidOpenTextDocumentParams(TextDocumentItem(d["textDocument"]))
+
+# function TextDocumentContentChangeEvent(d::Dict)
+#       if length(d) == 1
+#           text = d["text"]
+#           rangeLength = length(text)
+#           lines = split(text, "\n")
+#           TextDocumentContentChangeEvent(Range(0, 0, length(lines) - 1, length(lines[end]) - 1), rangeLength, text)
+#       else
+#           TextDocumentContentChangeEvent(Range(d["range"]), d["rangeLength"], d["text"])
+#       end
+#   end
+
+# DidChangeTextDocumentParams(d::Dict) = DidChangeTextDocumentParams(VersionedTextDocumentIdentifier(d["textDocument"]), TextDocumentContentChangeEvent.(d["contentChanges"]))
+
+# DidSaveTextDocumentParams(d::Dict) = DidSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]), get(d, "text", nothing))
+
+# DidCloseTextDocumentParams(d::Dict) = DidCloseTextDocumentParams(TextDocumentIdentifier(d["textDocument"]))
+
+
+
+
+# function DidChangeWatchedFilesParams(d::Dict)
+#     DidChangeWatchedFilesParams(FileEvent.(d["changes"]))
+# end
+
+
+# WillSaveTextDocumentParams(d::Dict) = WillSaveTextDocumentParams(TextDocumentIdentifier(d["textDocument"]), d["reason"])

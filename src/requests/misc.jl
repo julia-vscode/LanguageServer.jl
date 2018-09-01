@@ -18,7 +18,10 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
     return 
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server)
+    for (uri, f) in server.documents
+        @info basename(uri._uri), " ", f.code.index
+    end
 end
 
 
@@ -35,7 +38,7 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server)
     reloaded = String[]
     failedtoreload = String[]
     for m in names(Main)
@@ -67,14 +70,14 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server
     if isdir(uri2filepath(path))
         for doc in values(server.documents)
             uri2 = doc._uri
-            server.debug_mode && info("LINT: ignoring $path")
+            server.debug_mode && @info "LINT: ignoring $path"
             if startswith(uri2, uri)
                 toggle_file_lint(doc, server)
             end
         end
     else
         if uri in map(i->i._uri, values(server.documents))
-            server.debug_mode && info("LINT: ignoring $path")
+            server.debug_mode && @info "LINT: ignoring $path"
             doc = server.documents[URI2(uri)]
             toggle_file_lint(doc, server)
         end
@@ -86,7 +89,7 @@ end
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Void}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, server)
     server.debug_mode = !server.debug_mode
 end
 
@@ -97,32 +100,22 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(get(r.id), CancelParams(get(r.id))), server)
+        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end 
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
-    i = p1 = p2 = p3 = 0
-    for x in doc.code.ast.args
-        if i < offset <= i + x.fullspan
-            p1, p2, p3 = i, i + length(x.span), i + x.fullspan
-            break
-        end
-        i += x.fullspan
-    end
-    y, s = scope(doc, offset, server);
-    if length(s.stack) > 2 && s.stack[2] isa EXPR{CSTParser.ModuleH}
-        i += s.stack[2].args[1].fullspan + s.stack[2].args[2].fullspan
-        for x in s.stack[3].args 
-            i += x.fullspan
-            if x == s.stack[4] 
-                p1, p2, p3 = i - x.fullspan, i - x.fullspan + length(x.span), i 
-                break
-            end
+    stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
+    if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
+        if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
+            p1, p2, p3 = (offsets[4] + 1, offsets[4] + last(stack[4].span), offsets[4] + stack[4].fullspan)
+        else
+            p1, p2, p3 = (offsets[2] + 1, offsets[2] + last(stack[2].span), offsets[2] + stack[2].fullspan)
         end
     end
-    response = JSONRPC.Response(get(r.id), (ind2chr(doc._content, max(1, p1)), ind2chr(doc._content, p2), ind2chr(doc._content, p3)))
+    
+    response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
     
     send(response, server)
 end

@@ -7,15 +7,17 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         uri = change.uri
         !haskey(server.documents, URI2(uri)) && continue
         if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[URI2(uri)]))
+            doc = server.documents[URI2(uri)]
             filepath = uri2filepath(uri)
             content = String(read(filepath))
-            server.documents[URI2(uri)] = Document(uri, content, true)
+            content == doc._content && return
+            server.documents[URI2(uri)] = Document(uri, content, true, server)
             parse_all(server.documents[URI2(uri)], server)
 
         elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[URI2(uri)])
             delete!(server.documents, URI2(uri))
 
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(Nullable{Union{String,Int64}}(), PublishDiagnosticsParams(uri, Diagnostic[]))
+            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(uri, Diagnostic[]))
             send(response, server)
         end
     end
@@ -23,7 +25,7 @@ end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params)
-    return Any(params)
+    return params
 end
 
 
@@ -35,7 +37,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
             if server.runlinter
                 if !server.isrunning
                     for doc in values(server.documents)
-                        doc.diagnostics = lint(doc, server).diagnostics
+                        # doc.diagnostics = lint(doc, server).diagnostics
                         publish_diagnostics(doc, server)
                     end
                 end
@@ -52,7 +54,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
                 else
                     if !doc._runlinter
                         doc._runlinter = true
-                        L = lint(doc, server)
+                        # L = lint(doc, server)
                         append!(doc.diagnostics, L.diagnostics)
                         publish_diagnostics(doc, server)
                     end
@@ -86,24 +88,19 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
-    query = r.params.query
-    for doc in values(server.documents)
-        uri = doc._uri
-        s = toplevel(doc, server, false)
-        for k in keys(s.symbols)
-            for vl in s.symbols[k]
-                if ismatch(Regex(query, "i"), string(vl.v.id))
-                    if vl.v.t == :Function
-                        id = string(Expr(vl.v.val isa EXPR{CSTParser.FunctionDef} ? vl.v.val.args[2] : vl.v.val.args[1]))
-                    else
-                        id = string(vl.v.id)
+    for (uri,doc) in server.documents
+        for (name, bs) in doc.code.state.bindings
+            name in (".used modules", ".modules") && continue
+            if occursin(Regex(r.params.query, "i"), name) 
+                for b in bs
+                    if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
+                        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
                     end
-                    push!(syms, SymbolInformation(id, SymbolKind(vl.v.t), Location(vl.uri, Range(doc, vl.loc))))
                 end
             end
         end
     end
 
-    response = JSONRPC.Response(get(r.id), syms) 
+    response = JSONRPC.Response(r.id, syms) 
     send(response, server) 
 end

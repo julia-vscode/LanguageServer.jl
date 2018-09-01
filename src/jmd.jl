@@ -2,7 +2,7 @@ function parse_jmd(ps, str)
     currentbyte = 1
     blocks = []
     while ps.nt.kind != Tokens.ENDMARKER
-        next(ps)
+        CSTParser.next(ps)
         if ps.t.kind == Tokens.CMD || ps.t.kind == Tokens.TRIPLE_CMD
             push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
         end
@@ -18,7 +18,7 @@ function parse_jmd(ps, str)
             ps = CSTParser.ParseState(blockstr)
             # skip first line
             while ps.nt.startpos[1] == 1
-                next(ps)
+                CSTParser.next(ps)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
@@ -31,7 +31,7 @@ function parse_jmd(ps, str)
         elseif b isa LITERAL && b.kind == CSTParser.Tokens.CMD && startswith(b.val, "j ")
             blockstr = b.val
             ps = CSTParser.ParseState(blockstr)
-            next(ps)
+            CSTParser.next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
             push!(top.args, LITERAL(sizeof(str[prec_str_size]), 1:sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
 

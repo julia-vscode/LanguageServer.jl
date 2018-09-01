@@ -1,6 +1,5 @@
 environment:
   matrix:
-  - julia_version: 0.7
   - julia_version: 1
   - julia_version: nightly
 
@@ -18,6 +17,7 @@ branches:
   only:
     - master
     - /release-.*/
+    - /v(\d+)\.(\d+)\.(\d+)/
 
 notifications:
   - provider: Email

@@ -76,17 +76,16 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
     if r.params.capabilities.workspace.workspaceFolders == nothing || r.params.capabilities.workspace.workspaceFolders == false
         if !(r.params.rootUri isa Nothing)
-            push!(server.workspaceFolders, uri2filepath(r.params.rootUri.value))
+            push!(server.workspaceFolders, uri2filepath(r.params.rootUri))
         elseif !(r.params.rootPath isa Nothing)
-            push!(server.workspaceFolders,  r.params.rootPath.value)
+            push!(server.workspaceFolders,  r.params.rootPath)
         end
     elseif r.params.workspaceFolders != nothing
         for wksp in r.params.workspaceFolders
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
-        
     end
-    
+
     response = JSONRPC.Response(r.id, InitializeResult(serverCapabilities))
     send(response, server)
 end

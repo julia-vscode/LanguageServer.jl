@@ -26,4 +26,8 @@ include("utilities.jl")
 include("jmd.jl")
 include("display.jl")
 
+function __init__()
+    StaticLint.loadpkgs()
+end
+
 end

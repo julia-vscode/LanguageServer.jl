@@ -90,12 +90,12 @@ end
 end
 
 @json_read mutable struct TextDocumentClientCapabilities
-    synchronization::SynchronizationCapabilities
-    completion::CompletionCapabilities
-    hover::HoverCapabilities
-    signatureHelp::SignatureCapabilities
-    references::Capabilities
-    documentHighlight::Capabilities
+    synchronization::Union{Nothing,SynchronizationCapabilities}
+    completion::Union{Nothing,CompletionCapabilities}
+    hover::Union{Nothing,HoverCapabilities}
+    signatureHelp::Union{Nothing,SignatureCapabilities}
+    references::Union{Nothing,Capabilities}
+    documentHighlight::Union{Nothing,Capabilities}
     documentSymbol::Union{Nothing,DocumentSymbolCapabilities}
     formatting::Union{Nothing,Capabilities}
     rangeFormatting::Union{Nothing,Capabilities}
@@ -103,7 +103,7 @@ end
     definition::Union{Nothing,Capabilities}
     typeDefinition::Union{Nothing,Capabilities}
     implementation::Union{Nothing,Capabilities}
-    codeAction::CodeActionCapabilities
+    codeAction::Union{Nothing,CodeActionCapabilities}
     CodeLens::Union{Nothing,Capabilities}
     documentLink::Union{Nothing,Capabilities}
     colorProvider::Union{Nothing,Capabilities}

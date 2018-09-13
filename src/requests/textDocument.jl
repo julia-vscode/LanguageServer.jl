@@ -206,7 +206,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
             fs = readdir(path)
             for f in fs
                 if startswith(f, partial)
-                    push!(CIs, CompletionItem(f, 17, f, TextEdit(Range(doc, offset:offset), f), TextEdit[]))
+                    push!(CIs, CompletionItem(f, 6, f, TextEdit(Range(doc, offset:offset), f[length(partial) + 1:end]), TextEdit[]))
                 end
             end
         end
@@ -279,8 +279,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         end
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER
         #token completion
-        if is_at_end
-            #partial
+        if is_at_end && partial != nothing
             spartial = t.val
             for (n,B) in state.bindings #iterate over bindings
                 if startswith(n, spartial)

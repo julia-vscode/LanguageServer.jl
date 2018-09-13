@@ -7,7 +7,7 @@ end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params)
-    return Any(params)
+    return params
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server)

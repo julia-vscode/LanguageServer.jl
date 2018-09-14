@@ -141,8 +141,38 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     send(response, server)
 end
 
+function get_partial_completion(doc, offset)
+    ppt, pt, t = toks = get_toks(doc, offset)
+    is_at_end = offset == t.endbyte + 1
+    partial = nothing
+    for ref in doc.code.uref
+        if offset == ref.loc.offset + last(ref.val.span)
+            partial = ref
+            break
+        end
+    end
+    if partial == nothing
+        for rref in doc.code.rref
+            if offset == rref.r.loc.offset + last(rref.r.val.span)
+                partial = rref.r
+                break
+            end
+        end
+    end
+    return partial, ppt, pt, t, is_at_end
+end
 
-
+function latex_completions(doc, offset, toks, CIs)
+    ppt, pt, t = toks
+    partial = string("\\", CSTParser.Tokens.untokenize(t))
+        for (k, v) in REPL.REPLCompletions.latex_symbols
+            if startswith(string(k), partial)
+                t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
+                t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
+                push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
+            end
+        end
+end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
     return TextDocumentPositionParams(params)
@@ -155,92 +185,127 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
     
     CIs = CompletionItem[]
-    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    doc = server.documents[URI2(r.params.textDocument.uri)]        
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(server, rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
-    ppt, pt, t = get_toks(doc, offset)
+    partial, ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
+    toks = ppt, pt, t 
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
-        partial = string("\\", CSTParser.Tokens.untokenize(t))
-        for (k, v) in REPL.REPLCompletions.latex_symbols
-            if startswith(string(k), partial)
-                t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
-                t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
-                push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
-            end
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
+        #latex completion
+        latex_completions(doc, offset, toks, CIs)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING  #last(stack) isa CSTParser.LITERAL && last(stack).kind == CSTParser.Tokens.STRING
+        #path completion
+        path, partial = splitdir(t.val[2:end-1])
+        if !startswith(path, "/")
+            path = joinpath(dirname(uri2filepath(doc._uri)), path)  
         end
-    else      
-        partial = nothing
-        for ref in doc.code.uref
-            if offset == ref.loc.offset + last(ref.val.span)
-                partial = ref
-                break
-            end
-        end
-        if partial == nothing
-            for rref in doc.code.rref
-                if offset == rref.r.loc.offset + last(rref.r.val.span)
-                    partial = rref.r
-                    break
+        if ispath(path)
+            fs = readdir(path)
+            for f in fs
+                if startswith(f, partial)
+                    push!(CIs, CompletionItem(f, 6, f, TextEdit(Range(doc, offset:offset), f[length(partial) + 1:end]), TextEdit[]))
                 end
             end
         end
-        
-        if partial == nothing
-            if t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT
-                n = length(stack)
-                if n > 2 && (stack[end] isa CSTParser.OPERATOR && stack[end].kind == CSTParser.Tokens.DOT) && stack[end-1] isa CSTParser.BinarySyntaxOpCall
-                    offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
-                    ref = find_ref(doc, offset1)
-                    if ref != nothing && ref.b.val isa Dict
-                        for (n,v) in ref.b.val
-                            startswith(n, ".") && continue 
-                            push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
+    elseif length(stack) > 1 && (stack[end-1] isa CSTParser.EXPR{CSTParser.Using} || 
+        stack[end-1] isa CSTParser.EXPR{CSTParser.Import} || stack[end-1] isa CSTParser.EXPR{CSTParser.ImportAll})
+        #import completion
+        import_statement = stack[end-1]
+        if (t.kind == Tokens.WHITESPACE && pt.kind ∈ (Tokens.USING,Tokens.IMPORT,Tokens.IMPORTALL,Tokens.COMMA)) || 
+            (t.kind == Tokens.COMMA)
+            #no partial, no dot
+            for (n,m) in StaticLint.store
+                startswith(n, ".") && continue
+                push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
+            end
+        elseif t.kind == Tokens.DOT && pt.kind == Tokens.IDENTIFIER
+            #no partial, dot
+            if haskey(StaticLint.store, pt.val)
+                rootmod = StaticLint.store[pt.val]
+                for (n,m) in rootmod
+                    startswith(n, ".") && continue
+                    push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
+                end
+            end
+        elseif t.kind == Tokens.IDENTIFIER && is_at_end 
+            #partial
+            if pt.kind == Tokens.DOT && ppt.kind == Tokens.IDENTIFIER
+                if haskey(StaticLint.store, ppt.val)
+                    rootmod = StaticLint.store[ppt.val]
+                    for (n,m) in rootmod
+                        if startswith(n, t.val)
+                            push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
                         end
                     end
                 end
-            elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT
-                stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-                n = length(stack)
-                if n > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
-                    offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte) - (1 + ppt.endbyte - ppt.startbyte) # get offset 2 tokens back
-                    ref = find_ref(doc, offset1) 
-                    if ref != nothing && ref.b.val isa Dict # check we've got a Module
-                        for (n,v) in ref.b.val
-                            startswith(n, ".") && continue
-                            if startswith(n, t.val)
-                                push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
-                            end
-                        end
+            else
+                for (n,m) in StaticLint.store
+                    if startswith(n, t.val)
+                        push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
                     end
                 end
             end
-        else
-            spartial = CSTParser.str_value(partial.val)
-            for (n,B) in state.bindings
+        end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && length(stack) > 1 && stack[end-1] isa CSTParser.BinarySyntaxOpCall
+        #getfield completion, no partial
+        n = length(stack)
+        if n > 2 && (stack[end] isa CSTParser.OPERATOR && stack[end].kind == CSTParser.Tokens.DOT) && stack[end-1] isa CSTParser.BinarySyntaxOpCall
+            offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
+            ref = find_ref(doc, offset1)
+            if ref != nothing && ref.b.val isa Dict
+                for (n,v) in ref.b.val
+                    startswith(n, ".") && continue 
+                    push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
+                end
+            end
+        end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT &&
+        length(stack) > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
+        #getfield completion, partial
+        n = length(stack)
+        if n > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
+            offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte) - (1 + ppt.endbyte - ppt.startbyte) # get offset 2 tokens back
+            ref = find_ref(doc, offset1) 
+            if ref != nothing && ref.b.val isa Dict # check we've got a Module
+                for (n,v) in ref.b.val
+                    if startswith(n, t.val)
+                        push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
+                    end
+                end
+            end
+        end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER
+        #token completion
+        if is_at_end && partial != nothing
+            spartial = t.val
+            for (n,B) in state.bindings #iterate over bindings
                 if startswith(n, spartial)
                     for i = length(B):-1:1
                         b = B[i]
-                        if StaticLint.inscope(partial.si, b.si)
+                        if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
                             push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
                             break
                         end
                     end
                 end
             end
-            for (n,m) in state.used_modules
+            for (n,m) in state.used_modules #iterate over imported modules
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
                         comp = string(sym)
+                        !haskey(m.val, comp) && continue
                         x = m.val[comp]
                         push!(CIs, CompletionItem(comp, 6, MarkedString(get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
                 end
             end
-        end        
+        end
     end
+
+    
 
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end

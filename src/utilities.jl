@@ -107,9 +107,10 @@ function remove_workspace_files(root, server)
 end
 
 function find_root(doc::Document, server)
+    path = uri2filepath(doc._uri)
     for (uri1,f) in server.documents
         for incl in f.code.state.includes
-            if doc._uri == filepath2uri(incl.file)
+            if path == incl.file
                 if doc.code.index != incl.index
                     doc.code.index = incl.index
                     doc.code.nb = incl.pos
@@ -127,7 +128,7 @@ end
 function Base.getindex(server::LanguageServerInstance, r::Regex)
     out = []
     for (uri,doc) in server.documents
-        ismatch(r, uri._uri) && push!(out, doc)
+        occursin(r, uri._uri) && push!(out, doc)
     end
     return out
 end

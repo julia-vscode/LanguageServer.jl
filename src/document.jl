@@ -1,6 +1,6 @@
 mutable struct LSDiagnostic{C}
     loc::UnitRange{Int}
-    actions::Vector{DocumentFormat.TextEdit}
+    actions::Vector{Any}
     message::String
 end
 

@@ -10,8 +10,20 @@ function parse_all(doc, server)
     ls_diags = []
     
     for err in ps.errors
-        rng = max(0, first(err.loc)-1):last(err.loc)
-        push!(ls_diags, Diagnostic(Range(doc, rng), 1, "ERROR", "ERROR", err.description, nothing))
+        if err.description == "Expected end."
+            rng2 = max(0, first(err.loc)-1):last(err.loc)
+            stack, offsets = StaticLint.get_stack(doc.code.cst, first(rng2))
+            for i = length(stack):-1:1
+                if stack[i] isa CSTParser.EXPR{T} where T <: Union{CSTParser.Begin,CSTParser.Quote,CSTParser.ModuleH,CSTParser.Function,CSTParser.Macro,CSTParser.For,CSTParser.While,CSTParser.If} && last(stack[i].args) isa CSTParser.EXPR{CSTParser.ErrorToken} && stack[i].args[end].args[1] isa CSTParser.KEYWORD
+                    rng1 = offsets[i] .+ stack[i].args[1].span
+                    push!(ls_diags, Diagnostic(Range(doc, rng1), 1, "ERROR", "ERROR", "Closing end is missing.", nothing))        
+                end
+            end
+            push!(ls_diags, Diagnostic(Range(doc, rng2), 1, "ERROR", "ERROR", err.description, nothing))
+        else
+            rng = max(0, first(err.loc)-1):last(err.loc)
+            push!(ls_diags, Diagnostic(Range(doc, rng), 1, "ERROR", "ERROR", err.description, nothing))
+        end
     end
     
     if server.runlinter

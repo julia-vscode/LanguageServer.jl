@@ -296,6 +296,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
                         comp = string(sym)
+                        !haskey(m.val, comp) && continue
                         x = m.val[comp]
                         push!(CIs, CompletionItem(comp, 6, MarkedString(get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
@@ -468,13 +469,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
-    # doc = server.documents[URI2(r.params.textDocument.uri)]
-    # newcontent = DocumentFormat.format(doc._content)
-    # end_l, end_c = get_position_at(doc, sizeof(doc._content))
-    # lsedits = TextEdit[TextEdit(Range(0, 0, end_l - 1, end_c), newcontent)]
+    doc = server.documents[URI2(r.params.textDocument.uri)]
+    newcontent = DocumentFormat.format(doc._content)
+    end_l, end_c = get_position_at(doc, sizeof(doc._content))
+    lsedits = TextEdit[TextEdit(Range(0, 0, end_l - 1, end_c), newcontent)]
 
-    # send(JSONRPC.Response(r.id, lsedits), server)
-    send(JSONRPC.Response(r.id, TextEdit[]), server)
+    send(JSONRPC.Response(r.id, lsedits), server)
 end
 
 

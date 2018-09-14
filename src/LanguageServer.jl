@@ -6,6 +6,7 @@ import DocumentFormat
 import CSTParser
 using CSTParser: TopLevel, Block, Call, FileH, EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall, IDENTIFIER, KEYWORD, LITERAL, OPERATOR, PUNCTUATION, Quotenode, contributes_scope
 import CSTParser.Tokenize.Tokens
+using SymbolServer
 
 import StaticLint
 
@@ -25,9 +26,5 @@ include("parsing.jl")
 include("utilities.jl")
 include("jmd.jl")
 include("display.jl")
-
-function __init__()
-    StaticLint.loadpkgs()
-end
 
 end

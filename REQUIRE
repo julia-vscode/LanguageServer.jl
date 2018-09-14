@@ -5,3 +5,4 @@ CSTParser 0.4.0
 Tokenize 0.5.2
 DocumentFormat
 StaticLint
+SymbolServer

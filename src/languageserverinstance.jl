@@ -15,8 +15,10 @@ mutable struct LanguageServerInstance
 
     user_pkg_dir::String
 
+    symbol_server::Union{Nothing,SymbolServerProcess}
+
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir, nothing)
     end
 end
 
@@ -27,6 +29,14 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    server.symbol_server = SymbolServerProcess()
+    @info "Started symbol server"
+
+    StaticLint.load_base_into_store(server.symbol_server)
+    @info "Base loaded from symbol server"
+    StaticLint.load_pkgs_into_store(server.symbol_server)
+    @info "Packages loaded from symbol server"
+    
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)

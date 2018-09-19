@@ -578,13 +578,22 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     uri = r.params.textDocument.uri 
     doc = server.documents[URI2(uri)]
 
+    collect_bindings(doc, doc.code.index, syms)
+    
+    send(JSONRPC.Response(r.id, syms), server)
+end
+
+function collect_bindings(doc, index, syms)
     for (name, bs) in doc.code.state.bindings
-        for b in bs
-            if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
-                push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
+        for (i, b) in enumerate(bs)
+            if b.si.i == index && b.val isa CSTParser.AbstractEXPR
+                if b.val isa CSTParser.EXPR{CSTParser.ModuleH} && !(i > 1 && bs[i - 1].val == b.val)
+                    target_index = StaticLint.add_to_tuple(b.si.i, b.si.n + 1)
+                    collect_bindings(doc, target_index, syms)
+                else
+                    push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
+                end
             end
         end
     end
-    
-    send(JSONRPC.Response(r.id, syms), server)
 end

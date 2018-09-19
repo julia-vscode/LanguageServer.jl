@@ -113,6 +113,8 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         else
             p1, p2, p3 = (offsets[2] + 1, offsets[2] + last(stack[2].span), offsets[2] + stack[2].fullspan)
         end
+    else 
+        p1 = p2 = p3 = length(doc._content)
     end
     
     response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))

@@ -165,13 +165,13 @@ end
 function latex_completions(doc, offset, toks, CIs)
     ppt, pt, t = toks
     partial = string("\\", CSTParser.Tokens.untokenize(t))
-        for (k, v) in REPL.REPLCompletions.latex_symbols
-            if startswith(string(k), partial)
-                t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
-                t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
-                push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
-            end
+    for (k, v) in REPL.REPLCompletions.latex_symbols
+        if startswith(string(k), partial)
+            t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
+            t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
+            push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
         end
+    end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
@@ -306,7 +306,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     
-
+    
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 

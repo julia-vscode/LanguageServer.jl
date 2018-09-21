@@ -39,24 +39,6 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server)
-    reloaded = String[]
-    failedtoreload = String[]
-    for m in names(Main)
-        if isdefined(Main, m) && getfield(Main, m) isa Module
-            M = getfield(Main, m)
-            if !(m in [:Base, :Core, :Main])
-                try
-                    reload(string(m))
-                    push!(reloaded, string(m))
-                catch e
-                    push!(failedtoreload, string(m))
-                end
-            end
-        end
-    end
-    
-    response = JSONRPC.Notification{Val{Symbol("window/showMessage")},ShowMessageParams}(ShowMessageParams(3, "Julia: Reloaded modules."))
-    send(response, server)
 end
 
 

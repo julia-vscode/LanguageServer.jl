@@ -506,6 +506,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     offset = get_offset(doc, position.line + 1, position.character)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
+            rref.b isa StaticLint.ImportBinding && continue
             if rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
                 bs = StaticLint.get_methods(rref, state)
             else

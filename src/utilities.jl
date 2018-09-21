@@ -154,7 +154,7 @@ function get_toks(doc, offset)
         boffset = nextind(doc._content, 0, offset) - 1
     end
 
-    while true
+    while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
         if t.startbyte <= boffset <= t.endbyte
             break
         end

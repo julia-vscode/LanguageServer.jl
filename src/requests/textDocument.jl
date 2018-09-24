@@ -281,17 +281,34 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         #token completion
         if is_at_end && partial != nothing
             spartial = t.val
-            for (n,B) in state.bindings #iterate over bindings
-                if startswith(n, spartial)
-                    for i = length(B):-1:1
-                        b = B[i]
-                        if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
+            lbsi = StaticLint.get_lbsi(partial, state).i
+            si = partial.si.i
+            
+            while length(si) >= length(lbsi)
+                if haskey(state.bindings, si)
+                    for (n,B) in state.bindings[si]
+                        if startswith(n, spartial)
                             push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
-                            break
                         end
                     end
                 end
+                if length(si) == 0
+                    break
+                else
+                    si = StaticLint.shrink_tuple(si)
+                end
             end
+            # for (n,B) in state.bindings #iterate over bindings
+            #     if startswith(n, spartial)
+            #         for i = length(B):-1:1
+            #             b = B[i]
+            #             if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
+            #                 push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
+            #                 break
+            #             end
+            #         end
+            #     end
+            # end
             for (n,m) in state.used_modules #iterate over imported modules
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
@@ -579,22 +596,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     uri = r.params.textDocument.uri 
     doc = server.documents[URI2(uri)]
 
-    collect_bindings(doc, doc.code.index, syms)
+    for (name,b) in StaticLint.collect_bindings(doc.code)
+        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
+    end
     
     send(JSONRPC.Response(r.id, syms), server)
-end
-
-function collect_bindings(doc, index, syms)
-    for (name, bs) in doc.code.state.bindings
-        for (i, b) in enumerate(bs)
-            if b.si.i == index && b.val isa CSTParser.AbstractEXPR
-                if b.val isa CSTParser.EXPR{CSTParser.ModuleH} && !(i > 1 && bs[i - 1].val == b.val)
-                    target_index = StaticLint.add_to_tuple(b.si.i, b.si.n + 1)
-                    collect_bindings(doc, target_index, syms)
-                else
-                    push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
-                end
-            end
-        end
-    end
 end

@@ -37,7 +37,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
             if server.runlinter
                 if !server.isrunning
                     for doc in values(server.documents)
-                        # doc.diagnostics = lint(doc, server).diagnostics
                         publish_diagnostics(doc, server)
                     end
                 end
@@ -54,7 +53,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
                 else
                     if !doc._runlinter
                         doc._runlinter = true
-                        # L = lint(doc, server)
                         append!(doc.diagnostics, L.diagnostics)
                         publish_diagnostics(doc, server)
                     end
@@ -89,7 +87,9 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
-        collect_bindings(doc, doc.code.index, syms)
+        for (name,b) in StaticLint.collect_bindings(doc.code)
+            push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
+        end
     end
 
     response = JSONRPC.Response(r.id, syms) 

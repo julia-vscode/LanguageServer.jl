@@ -165,13 +165,13 @@ end
 function latex_completions(doc, offset, toks, CIs)
     ppt, pt, t = toks
     partial = string("\\", CSTParser.Tokens.untokenize(t))
-        for (k, v) in REPL.REPLCompletions.latex_symbols
-            if startswith(string(k), partial)
-                t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
-                t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
-                push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
-            end
+    for (k, v) in REPL.REPLCompletions.latex_symbols
+        if startswith(string(k), partial)
+            t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
+            t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
+            push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2]))
         end
+    end
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
@@ -281,17 +281,34 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         #token completion
         if is_at_end && partial != nothing
             spartial = t.val
-            for (n,B) in state.bindings #iterate over bindings
-                if startswith(n, spartial)
-                    for i = length(B):-1:1
-                        b = B[i]
-                        if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
+            lbsi = StaticLint.get_lbsi(partial, state).i
+            si = partial.si.i
+            
+            while length(si) >= length(lbsi)
+                if haskey(state.bindings, si)
+                    for (n,B) in state.bindings[si]
+                        if startswith(n, spartial)
                             push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
-                            break
                         end
                     end
                 end
+                if length(si) == 0
+                    break
+                else
+                    si = StaticLint.shrink_tuple(si)
+                end
             end
+            # for (n,B) in state.bindings #iterate over bindings
+            #     if startswith(n, spartial)
+            #         for i = length(B):-1:1
+            #             b = B[i]
+            #             if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
+            #                 push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
+            #                 break
+            #             end
+            #         end
+            #     end
+            # end
             for (n,m) in state.used_modules #iterate over imported modules
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
@@ -306,18 +323,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     end
 
     
-
+    
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 
 function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInformation[])
     if x.b.val isa Dict && haskey(x.b.val, ".methods")
         for m in x.b.val[".methods"]
-            # args = Base.arg_decl_parts(m)[2]
-            # p_sigs = [join(string.(p), "::") for p in args[2:end]]
-            # desc = string(m)
-            # PI = map(ParameterInformation, p_sigs)
-            # push!(sigs, SignatureInformation(desc, "", PI))
+            p_sigs = [join(string.(p), "::") for p in m["args"]]
+            PI = map(ParameterInformation, p_sigs)
+            push!(sigs, SignatureInformation("$(CSTParser.str_value(x.r.val))($(join(p_sigs, ",")))", "", PI))
         end
     elseif CSTParser.defines_function(x.b.val)
         for m in StaticLint.get_methods(x, state)
@@ -371,65 +386,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     else
         return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
     end
-    # y,s = scope(r.params, server)
-    # if CSTParser.is_rparen(y)
-    #     return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    # elseif length(s.stack) > 0 && last(s.stack) isa EXPR{Call}
-    #     fcall = s.stack[end]
-    #     fname = CSTParser.get_name(last(s.stack))
-    #     x = get_cache_entry(fname, server, s)
-    # elseif length(s.stack) > 1 && CSTParser.is_comma(s.stack[end]) && s.stack[end-1] isa EXPR{Call}
-    #     fcall = s.stack[end-1]
-    #     fname = CSTParser.get_name(fcall)
-    #     x = get_cache_entry(fname, server, s)
-    # else
-    #     return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    # end
-    # arg = sum(!(a isa PUNCTUATION) for a in fcall.args) - 1
-
     
-
-    # for m in methods(x)
-    #     args = Base.arg_decl_parts(m)[2]
-    #     p_sigs = [join(string.(p), "::") for p in args[2:end]]
-    #     desc = string(m)
-    #     PI = map(ParameterInformation, p_sigs)
-    #     push!(sigs.signatures, SignatureInformation(desc, "", PI))
-    # end
-    
-    
-    # nsEy = join(vcat(s.namespace, str_value(fname)), ".")
-    # if haskey(s.symbols, nsEy)
-    #     for vl in s.symbols[nsEy]
-    #         if vl.v.t == :function
-    #             sig = CSTParser.get_sig(vl.v.val)
-    #             if sig isa CSTParser.BinarySyntaxOpCall && CSTParser.is_decl(sig.op)
-    #                 sig = sig.arg1
-    #             end
-    #             Ps = ParameterInformation[]
-    #             for j = 2:length(sig.args)
-    #                 if sig.args[j] isa EXPR{CSTParser.Parameters}
-    #                     for parg in sig.args[j].args
-    #                         if !(sig.args[j] isa PUNCTUATION)
-    #                             arg_id = str_value(CSTParser._arg_id(sig.args[j]))
-    #                             arg_t = CSTParser.get_t(sig.args[j])
-    #                             push!(Ps, ParameterInformation(string(arg_id,"::",arg_t)))
-    #                         end
-    #                     end
-    #                 else
-    #                     if !(sig.args[j] isa PUNCTUATION)
-    #                         arg_id = str_value(CSTParser._arg_id(sig.args[j]))
-    #                         arg_t = CSTParser.get_t(sig.args[j])
-    #                         push!(Ps, ParameterInformation(string(arg_id,"::",arg_t)))
-    #                     end
-    #                 end
-    #             end
-    #             push!(sigs.signatures, SignatureInformation(string(Expr(sig)), "", Ps))
-    #         end
-    #     end
-    # end
-    
-    SH = SignatureHelp(sigs, 0, 0)
     send(JSONRPC.Response(r.id, SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)), server)
 end
 
@@ -566,6 +523,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     offset = get_offset(doc, position.line + 1, position.character)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
+            rref.b isa StaticLint.ImportBinding && continue
             if rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
                 bs = StaticLint.get_methods(rref, state)
             else
@@ -638,12 +596,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     uri = r.params.textDocument.uri 
     doc = server.documents[URI2(uri)]
 
-    for (name, bs) in doc.code.state.bindings
-        for b in bs
-            if b.si.i == doc.code.index && b.val isa CSTParser.AbstractEXPR
-                push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
-            end
-        end
+    for (name,b) in StaticLint.collect_bindings(doc.code)
+        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
     end
     
     send(JSONRPC.Response(r.id, syms), server)

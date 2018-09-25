@@ -80,3 +80,4 @@ function write_transport_layer(stream, response, debug_mode = false)
     debug_mode && @info "SENT: $response"
     debug_mode && @info string("TIME:", round(time()-T, sigdigits = 2))
 end
+

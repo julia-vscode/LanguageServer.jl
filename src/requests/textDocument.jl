@@ -466,7 +466,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                     if rref.b.t == CSTParser.FunctionDef
                         ms = StaticLint.get_methods(rref, state)
                         for m in ms
-                            if m.t in (CSTParser.Mutable, CSTParser.Struct)
+                            if m.val isa Dict && haskey(m.val, ".methods")
+                                fname = CSTParser.str_value(rref.r.val)
+                                for m1 in m.val[".methods"]
+                                    push!(documentation, MarkedString(string(fname, "(", join((a->string(a[1], "::", a[2])).(m1["args"]), ", "),")"))) 
+                                end
+                            elseif m.t in (CSTParser.Mutable, CSTParser.Struct)
                                 push!(documentation, MarkedString(string(Expr(m.val))))
                             else
                                 push!(documentation, MarkedString(string(Expr(CSTParser.get_sig(m.val)))))

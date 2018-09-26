@@ -106,7 +106,7 @@ Base.hash(x::MarkedString) = hash(x.value) # for unique
 # Make more specific if we extend completions (i.e. brackets for functions w/ arg placements)
 import Base.==  
 ==(x::CompletionItem, y::CompletionItem) = x.label == y.label
-
+==(m1::MarkedString, m2::MarkedString) = m1.language == m2.language && m1.value == m2.value
 
 
 # ReferenceContext(d::Dict) = ReferenceContext(d["includeDeclaration"] == "true")

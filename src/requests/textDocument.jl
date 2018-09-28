@@ -198,7 +198,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         latex_completions(doc, offset, toks, CIs)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING  #last(stack) isa CSTParser.LITERAL && last(stack).kind == CSTParser.Tokens.STRING
         #path completion
-        path, partial = splitdir(t.val[2:end-1])
+        path, partial = splitdir(t.val[2:prevind(t.val, length(t.val))])
         if !startswith(path, "/")
             path = joinpath(dirname(uri2filepath(doc._uri)), path)  
         end

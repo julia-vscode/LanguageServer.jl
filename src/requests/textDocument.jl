@@ -297,7 +297,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                         comp = string(sym)
                         !haskey(m.val, comp) && continue
                         x = m.val[comp]
-                        push!(CIs, CompletionItem(comp, 6, MarkedString(get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
+                        push!(CIs, CompletionItem(comp, 6, (get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
                 end
             end
@@ -358,10 +358,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
         if CSTParser.is_lparen(last(stack))
             arg = 0
-        elseif CSTParser.is_rparen(last(stack))
+        elseif CSTParser.is_rparen(last(stack)) && offset > last(offsets) 
             return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
         else
-            arg = sum(!(a isa PUNCTUATION) for a in stack[end-1].args) - 1
+            arg = sum(!(a isa PUNCTUATION) for a in stack[end-1].args) - 2
         end
     else
         return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)

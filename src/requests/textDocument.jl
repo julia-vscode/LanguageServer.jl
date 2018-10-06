@@ -196,7 +196,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
         #latex completion
         latex_completions(doc, offset, toks, CIs)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING  #last(stack) isa CSTParser.LITERAL && last(stack).kind == CSTParser.Tokens.STRING
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
         #path completion
         path, partial = splitdir(t.val[2:prevind(t.val, length(t.val))])
         if !startswith(path, "/")
@@ -249,35 +249,28 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                 end
             end
         end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && length(stack) > 1 && stack[end-1] isa CSTParser.BinarySyntaxOpCall
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
         #getfield completion, no partial
-        n = length(stack)
-        if n > 2 && (stack[end] isa CSTParser.OPERATOR && stack[end].kind == CSTParser.Tokens.DOT) && stack[end-1] isa CSTParser.BinarySyntaxOpCall
-            offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
-            ref = find_ref(doc, offset1)
-            if ref != nothing && ref.b.val isa Dict
-                for (n,v) in ref.b.val
-                    startswith(n, ".") && continue 
-                    push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
-                end
+        offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
+        ref = find_ref(doc, offset1)
+        if ref != nothing && ref.b.val isa Dict
+            for (n,v) in ref.b.val
+                startswith(n, ".") && continue 
+                push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
             end
         end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT &&
-        length(stack) > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
         #getfield completion, partial
-        n = length(stack)
-        if n > 2 && stack[end-1] isa CSTParser.EXPR{CSTParser.Quotenode} && stack[end-2] isa CSTParser.BinarySyntaxOpCall
-            offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte) - (1 + ppt.endbyte - ppt.startbyte) # get offset 2 tokens back
-            ref = find_ref(doc, offset1) 
-            if ref != nothing && ref.b.val isa Dict # check we've got a Module
-                for (n,v) in ref.b.val
-                    if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
-                    end
+        offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte) - (1 + ppt.endbyte - ppt.startbyte) # get offset 2 tokens back
+        ref = find_ref(doc, offset1) 
+        if ref != nothing && ref.b.val isa Dict # check we've got a Module
+            for (n,v) in ref.b.val
+                if startswith(n, t.val)
+                    push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
                 end
             end
         end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
         #token completion
         if is_at_end && partial != nothing
             spartial = t.val
@@ -298,32 +291,19 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     si = StaticLint.shrink_tuple(si)
                 end
             end
-            # for (n,B) in state.bindings #iterate over bindings
-            #     if startswith(n, spartial)
-            #         for i = length(B):-1:1
-            #             b = B[i]
-            #             if StaticLint.inscope(partial.si, b.si) #only allow bindings in the current scope
-            #                 push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[]))
-            #                 break
-            #             end
-            #         end
-            #     end
-            # end
             for (n,m) in state.used_modules #iterate over imported modules
                 for sym in m.val[".exported"]
                     if startswith(string(sym), spartial)
                         comp = string(sym)
                         !haskey(m.val, comp) && continue
                         x = m.val[comp]
-                        push!(CIs, CompletionItem(comp, 6, MarkedString(get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
+                        push!(CIs, CompletionItem(comp, 6, (get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
                 end
             end
         end
     end
 
-    
-    
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 
@@ -378,10 +358,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
         if CSTParser.is_lparen(last(stack))
             arg = 0
-        elseif CSTParser.is_rparen(last(stack))
+        elseif CSTParser.is_rparen(last(stack)) && offset > last(offsets) 
             return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
         else
-            arg = sum(!(a isa PUNCTUATION) for a in stack[end-1].args) - 1
+            arg = sum(!(a isa PUNCTUATION) for a in stack[end-1].args) - 2
         end
     else
         return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)

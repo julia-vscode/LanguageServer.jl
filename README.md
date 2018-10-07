@@ -18,3 +18,4 @@ make use of the Julia Language Server for various code editing features:
 - [Atom](https://github.com/pfitzseb/atom-julia-lsp-client)
 - [Vim and Neovim](../../wiki/Vim-and-Neovim)
 - [Emacs](../../wiki/Emacs)
+- [Sublime Text](https://github.com/tomv564/LSP)

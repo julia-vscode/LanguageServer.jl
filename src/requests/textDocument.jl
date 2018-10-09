@@ -307,6 +307,22 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
 
+# temp fix for user defined sigs
+function get_sig_args(sig)
+    while sig isa CSTParser.WhereOpCall
+        sig = sig.arg1
+    end
+    state, s = StaticLint.State(), StaticLint.Scope()
+    StaticLint.get_fcall_bindings(sig, state, s)
+    out = []
+    for (n,B) in state.bindings[()]
+        b = last(B)
+        push!(out, (b.si.n, n))
+    end
+    sort!(out, lt = (a,b)->a[1]<b[1])
+    return [o[2] for o in out]
+end
+
 function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInformation[])
     if x.b.val isa Dict && haskey(x.b.val, ".methods")
         for m in x.b.val[".methods"]
@@ -317,7 +333,7 @@ function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInform
     elseif CSTParser.defines_function(x.b.val)
         for m in StaticLint.get_methods(x, state)
             sig = CSTParser.get_sig(m.val)
-            args = StaticLint.get_fcall_args(sig, false)
+            args = get_sig_args(sig)
             PI = map(p->ParameterInformation(string(CSTParser.str_value(p[1]))), args)
             push!(sigs, SignatureInformation(string(Expr(sig)), "", PI))
         end

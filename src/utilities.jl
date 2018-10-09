@@ -179,7 +179,7 @@ function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server
         for l in get(rref.b.val, ".methods", [])
             push!(locations, Location(filepath2uri(get(l, "file", "")), get(l, "line", 0)))
         end
-    elseif rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
+    elseif rref.b.t in (StaticLint._Function, StaticLint._DataType)
         for b in StaticLint.get_methods(rref, bindings)
             get_locations(b, bindings, locations, server)
         end

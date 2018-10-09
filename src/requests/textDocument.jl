@@ -443,7 +443,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         for rref in doc.code.rref
             if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
                 if rref.b.val isa CSTParser.AbstractEXPR
-                    if rref.b.t == CSTParser.FunctionDef
+                    if rref.b.t == StaticLint._Function
                         ms = StaticLint.get_methods(rref, state)
                         for m in ms
                             if m.val isa Dict && haskey(m.val, ".methods")
@@ -451,21 +451,25 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                                 for m1 in m.val[".methods"]
                                     push!(documentation, MarkedString(string(fname, "(", join((a->string(a[1], "::", a[2])).(m1["args"]), ", "),")"))) 
                                 end
-                            elseif m.t in (CSTParser.Mutable, CSTParser.Struct)
+                            elseif m.t == StaticLint._DataType
                                 push!(documentation, MarkedString(string(Expr(m.val))))
                             else
                                 push!(documentation, MarkedString(string(Expr(CSTParser.get_sig(m.val)))))
                             end
                         end
-                    elseif rref.b.t in (CSTParser.Abstract,CSTParser.Primitive, CSTParser.Mutable,CSTParser.Struct)
+                    elseif rref.b.t == StaticLint._DataType
                         push!(documentation, MarkedString(string(Expr(rref.b.val))))
                     elseif rref.b.t != nothing
-                        push!(documentation, MarkedString(string(rref.b.t isa CSTParser.AbstractEXPR ? Expr(rref.b.t) : rref.b.t)))
+                        if rref.b.t isa CSTParser.AbstractEXPR
+                            push!(documentation, MarkedString(string(Expr(rref.b.t) )))
+                        elseif rref.b.t isa Dict 
+                            push!(documentation, MarkedString(replace(replace(string(get(rref.b.t, ".doc", "")), "```"=>""), "\n\n" => "\n")))
+                        end
                     else
                         push!(documentation, MarkedString(string(Expr(rref.b.val))))
                     end
-                else
-                    push!(documentation, MarkedString(string(get(rref.b.val, ".doc", ""))))
+                elseif rref.b.val isa Dict
+                    push!(documentation, MarkedString(replace(replace(string(get(rref.b.val, ".doc", "")), "```"=>""), "\n\n" => "\n")))
                 end
             end
         end
@@ -509,7 +513,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
             rref.b isa StaticLint.ImportBinding && continue
-            if rref.b.t in (CSTParser.FunctionDef, CSTParser.Struct, CSTParser.Mutable)
+            if rref.b.t in (StaticLint._Function, StaticLint._DataType)
                 bs = StaticLint.get_methods(rref, state)
             else
                 bs = StaticLint.Binding[rref.b]

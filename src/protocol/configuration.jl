@@ -118,7 +118,7 @@ end
 end
 
 @json_read mutable struct InitializeParams
-    processId::Int
+    processId::Union{Nothing,Int}
     rootPath::Union{Nothing,DocumentUri}
     rootUri::Union{Nothing,DocumentUri}
     initializationOptions::Union{Nothing,Any}

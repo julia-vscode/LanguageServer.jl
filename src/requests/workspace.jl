@@ -32,7 +32,7 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
     if haskey(r.params["settings"], "julia")
         jsettings = r.params["settings"]["julia"]
-        if haskey(jsettings, "runlinter") && jsettings["runlinter"] != server.runlinter
+        if haskey(jsettings, "runLinter") && jsettings["runLinter"] != server.runlinter
             server.runlinter = !server.runlinter
             if server.runlinter
                 if !server.isrunning

@@ -13,10 +13,13 @@ mutable struct LanguageServerInstance
     ignorelist::Set{String}
     isrunning::Bool
 
-    user_pkg_dir::String
+    env_path::String
+    depot_path::String
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir)
+    symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, env_path::AbstractString, depot_path::AbstractString)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, env_path, depot_path, nothing)
     end
 end
 
@@ -27,6 +30,12 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    server.symbol_server = SymbolServer.SymbolServerProcess(depot=server.depot_path)
+    @info "Started symbol server"
+    StaticLint.setstore(SymbolServer.getstore(server.symbol_server))
+    @info "StaticLint store set"
+    kill(server.symbol_server)
+
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)

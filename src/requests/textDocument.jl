@@ -315,9 +315,11 @@ function get_sig_args(sig)
     state, s = StaticLint.State(), StaticLint.Scope()
     StaticLint.get_fcall_bindings(sig, state, s)
     out = []
-    for (n,B) in state.bindings[()]
-        b = last(B)
-        push!(out, (b.si.n, n))
+    if haskey(state.bindings, ())
+        for (n,B) in state.bindings[()]
+            b = last(B)
+            push!(out, (b.si.n, n))
+        end
     end
     sort!(out, lt = (a,b)->a[1]<b[1])
     return [o[2] for o in out]

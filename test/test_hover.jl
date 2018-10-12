@@ -1,11 +1,12 @@
 import LanguageServer: LanguageServerInstance, Document
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
+server.runlinter = true
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse(init_request)), server)
 
 
 function getresult(server)
     str = String(take!(server.pipe_out))
-    JSON.parse(str[search(str, '{'):end])["result"]["contents"]
+    JSON.parse(str[findfirst("{", str)[1]:end])["result"]["contents"]
 end
 
 testtext = """
@@ -30,21 +31,15 @@ LanguageServer.parse_all(doc, server)
 # clear init output
 take!(server.pipe_out)
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":11,"character":5}}}""")), server)
-
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":11}}}""")), server)
 res = getresult(server)
+@test startswith(res[1]["value"], "\nFloat64")
 
-@test res[1]["value"] == "module"
-
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":1,"character":9}}}""")), server)
-
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":8,"character":12}}}""")), server)
 res = getresult(server)
+@test res[1]["value"] == "testtype"
 
-@test res[1]["value"] == "struct"
 
-
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":19}}}""")), server)
-
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":10,"character":1}}}""")), server)
 res = getresult(server)
-
-@test res[1]["value"] == "function"
+@test res[1]["value"] == "Closes `module` expression"

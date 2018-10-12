@@ -1,4 +1,4 @@
-using JSON
+using JSON, Sockets
 
 init_request = """
 {
@@ -15,32 +15,50 @@ init_request = """
 
 init_response_json = JSON.parse("""
 {
-    "id":0,"jsonrpc":"2.0",
-    "result":{
-        "capabilities":{"textDocumentSync":1,
-                        "hoverProvider":true,
-                        "completionProvider":{"resolveProvider":false,"triggerCharacters":["."]},
-                        "signatureHelpProvider":{"triggerCharacters":["("]},
-                        "definitionProvider":true,
-                        "referencesProvider":true,
-                        "documentHighlightProvider":false,
-                        "documentSymbolProvider":true,
-                        "workspaceSymbolProvider":true,
-                        "codeActionProvider":true,
-                        "documentFormattingProvider":true,
-                        "documentRangeFormattingProvider":false,
-                        "renameProvider":true,
-                        "documentLinkProvider":{"resolveProvider":false},
-                        "executeCommandProvider":{"commands":[]},
-                        "experimental":null,
-                        "workspace":{
-                            "workspaceFolders": {
-                                "supported":true,
-                                "changeNotifications":true
-                            }
-                        }
-                    }
-            }
+    "id": 0,
+    "jsonrpc": "2.0",
+    "result": {
+        "capabilities": {
+            "textDocumentSync": 1,
+            "hoverProvider": true,
+            "completionProvider": {
+                "resolveProvider": false,
+                "triggerCharacters": [
+                    "."
+                ]
+            },
+            "signatureHelpProvider": {
+                "triggerCharacters": [
+                    "("
+                ]
+            },
+            "definitionProvider": true,
+            "typeDefinitionProvider": false,
+            "implementationProvider": false,
+            "referencesProvider": true,
+            "documentHighlightProvider": false,
+            "documentSymbolProvider": true,
+            "workspaceSymbolProvider": true,
+            "codeActionProvider": true,
+            "documentFormattingProvider": true,
+            "documentRangeFormattingProvider": false,
+            "renameProvider": true,
+            "documentLinkProvider": {
+                "resolveProvider": false
+            },
+            "colorProvider": false,
+            "executeCommandProvider": {
+                "commands": []
+            },
+            "workspace": {
+                "workspaceFolders": {
+                    "supported": true,
+                    "changeNotifications": true
+                }
+            },
+            "experimental": null
+        }
+    }
 }
 """)
 

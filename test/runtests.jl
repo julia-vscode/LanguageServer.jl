@@ -1,6 +1,6 @@
 using LanguageServer
 using CSTParser
-using Base.Test
+using Test
 Range = LanguageServer.Range
 
 @testset "LanguageServer" begin
@@ -8,7 +8,6 @@ Range = LanguageServer.Range
 include("test_document.jl")
 include("test_communication.jl")
 include("test_hover.jl")
-include("test_lint.jl")
-include("test_scope.jl")
+
 
 end

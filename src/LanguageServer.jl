@@ -27,7 +27,8 @@ include("jmd.jl")
 include("display.jl")
 
 function __init__()
-    StaticLint.loadpkgs()
+    # StaticLint.loadpkgs()
+    # StaticLint.SymbolServer.load_depot(StaticLint.depot)
 end
 
 end

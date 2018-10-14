@@ -7,16 +7,16 @@ mutable struct LanguageServerInstance
     workspaceFolders::Set{String}
     documents::Dict{URI2,Document}
 
-    # loaded_modules::Dict{String,Tuple{Set{String},Set{String}}}
     debug_mode::Bool
     runlinter::Bool
     ignorelist::Set{String}
     isrunning::Bool
 
     user_pkg_dir::String
+    packages::Dict
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"))
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"); pkgstore = StaticLint.SymbolServer.corepackages)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir, pkgstore)
     end
 end
 

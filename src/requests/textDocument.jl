@@ -187,7 +187,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     CIs = CompletionItem[]
     doc = server.documents[URI2(r.params.textDocument.uri)]        
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     partial, ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     toks = ppt, pt, t 
@@ -217,14 +217,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         if (t.kind == Tokens.WHITESPACE && pt.kind ∈ (Tokens.USING,Tokens.IMPORT,Tokens.IMPORTALL,Tokens.COMMA)) || 
             (t.kind == Tokens.COMMA)
             #no partial, no dot
-            for (n,m) in StaticLint.store
+            for (n,m) in server.packages
                 startswith(n, ".") && continue
                 push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
             end
         elseif t.kind == Tokens.DOT && pt.kind == Tokens.IDENTIFIER
             #no partial, dot
-            if haskey(StaticLint.store, pt.val)
-                rootmod = StaticLint.store[pt.val]
+            if haskey(server.packages, pt.val)
+                rootmod = server.packages[pt.val]
                 for (n,m) in rootmod
                     startswith(n, ".") && continue
                     push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
@@ -233,8 +233,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         elseif t.kind == Tokens.IDENTIFIER && is_at_end 
             #partial
             if pt.kind == Tokens.DOT && ppt.kind == Tokens.IDENTIFIER
-                if haskey(StaticLint.store, ppt.val)
-                    rootmod = StaticLint.store[ppt.val]
+                if haskey(server.packages, ppt.val)
+                    rootmod = server.packages[ppt.val]
                     for (n,m) in rootmod
                         if startswith(n, t.val)
                             push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
@@ -242,7 +242,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                     end
                 end
             else
-                for (n,m) in StaticLint.store
+                for (n,m) in server.packages
                     if startswith(n, t.val)
                         push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[]))
                     end
@@ -253,7 +253,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
         #getfield completion, no partial
         offset1 = offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)
         ref = find_ref(doc, offset1)
-        if ref != nothing && ref.b.val isa Dict
+        if ref != nothing && ref.b.val isa Dict # check we've got a Module
             for (n,v) in ref.b.val
                 startswith(n, ".") && continue 
                 push!(CIs, CompletionItem(n, 6, n, TextEdit(Range(doc, offset:offset), n), TextEdit[]))
@@ -297,7 +297,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
                         comp = string(sym)
                         !haskey(m.val, comp) && continue
                         x = m.val[comp]
-                        push!(CIs, CompletionItem(comp, 6, (get(x, ".doc", "")), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
+                        push!(CIs, CompletionItem(comp, 6, x isa Dict ? get(x, ".doc", "") : x.doc, TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[]))
                     end
                 end
             end
@@ -326,9 +326,9 @@ function get_sig_args(sig)
 end
 
 function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInformation[])
-    if x.b.val isa Dict && haskey(x.b.val, ".methods")
-        for m in x.b.val[".methods"]
-            p_sigs = [join(string.(p), "::") for p in m["args"]]
+    if x.b.val isa StaticLint.SymbolServer.FunctionStore || x.b.val isa StaticLint.SymbolServer.structStore
+        for m in x.b.val.methods
+            p_sigs = [join(string.(p), "::") for p in m.args]
             PI = map(ParameterInformation, p_sigs)
             push!(sigs, SignatureInformation("$(CSTParser.str_value(x.r.val))($(join(p_sigs, ",")))", "", PI))
         end
@@ -357,7 +357,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     sigs = SignatureInformation[]
     arg = 0
@@ -402,7 +402,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
@@ -445,7 +445,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     documentation = Any[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(server, rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
@@ -464,10 +464,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                     if rref.b.t == StaticLint._Function
                         ms = StaticLint.get_methods(rref, state)
                         for m in ms
-                            if m.val isa Dict && haskey(m.val, ".methods")
+                            if m.val isa StaticLint.SymbolServer.FunctionStore || m.val isa StaticLint.SymbolServer.structStore
                                 fname = CSTParser.str_value(rref.r.val)
-                                for m1 in m.val[".methods"]
-                                    push!(documentation, MarkedString(string(fname, "(", join((a->string(a[1], "::", a[2])).(m1["args"]), ", "),")"))) 
+                                for m1 in m.val.methods
+                                    push!(documentation, MarkedString(string(fname, "(", join((a->string(a[1], "::", a[2])).(m1.args), ", "),")"))) 
                                 end
                             elseif m.t == StaticLint._DataType
                                 push!(documentation, MarkedString(string(Expr(m.val))))
@@ -480,14 +480,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                     elseif rref.b.t != nothing
                         if rref.b.t isa CSTParser.AbstractEXPR
                             push!(documentation, MarkedString(string(Expr(rref.b.t) )))
-                        elseif rref.b.t isa Dict 
-                            push!(documentation, MarkedString(replace(replace(string(get(rref.b.t, ".doc", "")), "```"=>""), "\n\n" => "\n")))
+                        elseif rref.b.t isa StaticLint.SymbolServer.SymStore
+                            push!(documentation, MarkedString(replace(replace(rref.b.t.doc, "```"=>""), "\n\n" => "\n")))
                         end
                     else
                         push!(documentation, MarkedString(string(Expr(rref.b.val))))
                     end
+                elseif rref.b.val isa StaticLint.SymbolServer.SymStore
+                    push!(documentation, MarkedString(replace(replace(rref.b.val.doc, "```"=>""), "\n\n" => "\n")))
                 elseif rref.b.val isa Dict
-                    push!(documentation, MarkedString(replace(replace(string(get(rref.b.val, ".doc", "")), "```"=>""), "\n\n" => "\n")))
+                    push!(documentation, MarkedString(replace(replace(get(rref.b.val, ".doc", ""), "```"=>""), "\n\n" => "\n"))) # isa module
                 end
             end
         end
@@ -524,8 +526,8 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     locations = Location[]
     doc = server.documents[URI2(textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(server, rootdoc.code)
-    refs = StaticLint.cat_references(server, rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code)
+    refs = StaticLint.cat_references(rootdoc.code)
     rrefs, urefs = StaticLint.resolve_refs(refs, state, [], [])
     offset = get_offset(doc, position.line + 1, position.character)
     for rref in doc.code.rref

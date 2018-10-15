@@ -13,10 +13,14 @@ mutable struct LanguageServerInstance
     isrunning::Bool
 
     user_pkg_dir::String
-    packages::Dict
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"); pkgstore = StaticLint.SymbolServer.corepackages)
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir, pkgstore)
+    packages::Dict
+    env_path::String
+    depot_path::String
+    symbol_server::Union{Nothing,StaticLint.SymbolServer.SymbolServerProcess}
+
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, user_pkg_dir::AbstractString = haskey(ENV, "JULIA_PKGDIR") ? ENV["JULIA_PKGDIR"] : joinpath(homedir(), ".julia"), packages = StaticLint.SymbolServer.corepackages, env_path::AbstractString = "~/.julia", depot_path::AbstractString = "~/.julia")
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, user_pkg_dir, packages, env_path, depot_path)
     end
 end
 
@@ -27,6 +31,9 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
+    server. symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path)
+    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
+    kill(server.symbol_server)
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)

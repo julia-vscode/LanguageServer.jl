@@ -176,8 +176,10 @@ end
 
 function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
     if rref.b isa StaticLint.ImportBinding
-        for l in get(rref.b.val, ".methods", [])
-            push!(locations, Location(filepath2uri(get(l, "file", "")), get(l, "line", 0)))
+        if rref.b.val isa StaticLint.SymbolServer.FunctionStore || rref.b.val isa StaticLint.SymbolServer.structStore
+            for l in rref.b.val.methods
+                push!(locations, Location(filepath2uri(l.file), l.line))
+            end
         end
     elseif rref.b.t in (StaticLint._Function, StaticLint._DataType)
         for b in StaticLint.get_methods(rref, bindings)

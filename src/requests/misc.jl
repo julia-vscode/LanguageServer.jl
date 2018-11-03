@@ -91,9 +91,9 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
     if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
         if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
-            p1, p2, p3 = (offsets[4] + 1, offsets[4] + last(stack[4].span), offsets[4] + stack[4].fullspan)
+            p1, p2, p3 = (offsets[4] + 1, offsets[4] + stack[4].span, offsets[4] + stack[4].fullspan)
         else
-            p1, p2, p3 = (offsets[2] + 1, offsets[2] + last(stack[2].span), offsets[2] + stack[2].fullspan)
+            p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
         end
     else 
         p1 = p2 = p3 = length(doc._content)

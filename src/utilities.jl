@@ -167,8 +167,8 @@ function find_ref(doc, offset)
     for rref in doc.code.rref
         if rref.r.loc.offset == offset
             return rref 
-        elseif rref.r.loc.offset > offset
-            break
+        # elseif rref.r.loc.offset > offset
+        #     break
         end
     end
     return nothing
@@ -202,7 +202,7 @@ function get_locations(b::StaticLint.Binding, bindings, locations, server)
             end
         end
         doc2 = server.documents[URI2(uri2)]
-        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ b.val.span)))
+        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ (0:b.val.span))))
     elseif b.val isa Function
         for m in methods(b.val)
             file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))

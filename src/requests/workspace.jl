@@ -88,7 +88,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
         for (name,b) in StaticLint.collect_bindings(doc.code)
-            push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ b.val.span)), nothing))
+            push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ (0:b.val.span))), nothing))
         end
     end
 

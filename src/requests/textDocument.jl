@@ -276,7 +276,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextD
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
         #token completion
         if is_at_end && partial != nothing
-            spartial = t.val
+            if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.AT_SIGN
+                spartial = string("@", t.val)
+            else
+                spartial = t.val
+            end
             lbsi = StaticLint.get_lbsi(partial, state).i
             si = partial.si.i
             

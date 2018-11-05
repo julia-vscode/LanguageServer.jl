@@ -422,10 +422,18 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(rootdoc.code)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
-    for rref in doc.code.rref
-        if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
-            get_locations(rref, state, locations, server)
-            break
+    stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
+    if length(stack)>2 && stack[end] isa CSTParser.LITERAL && stack[end].kind == CSTParser.Tokens.STRING && stack[end-1] isa CSTParser.EXPR{CSTParser.Call} && length(stack[end-1]) == 4 && stack[end-1].args[1] isa CSTParser.IDENTIFIER && stack[end-1].args[1].val == "include"
+        path = (joinpath(dirname(doc._uri), stack[end].val))
+        if haskey(server.documents, URI2(path))
+            push!(locations, Location(path, 1))
+        end
+    else
+        for rref in doc.code.rref
+            if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
+                get_locations(rref, state, locations, server)
+                break
+            end
         end
     end
     

@@ -175,10 +175,10 @@ function latex_completions(doc, offset, toks, CIs)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
-    return TextDocumentPositionParams(params)
+    return CompletionParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},TextDocumentPositionParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return

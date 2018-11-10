@@ -14,6 +14,7 @@ mutable struct CompletionItem
     documentation::Union{String,MarkedString}
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
+    insertTextFormat::Union{Nothing,Int}
 end
 
 mutable struct CompletionList

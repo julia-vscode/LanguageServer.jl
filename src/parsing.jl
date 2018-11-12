@@ -15,7 +15,7 @@ function parse_all(doc, server)
             stack, offsets = StaticLint.get_stack(doc.code.cst, first(rng2))
             for i = length(stack):-1:1
                 if stack[i] isa CSTParser.EXPR{T} where T <: Union{CSTParser.Begin,CSTParser.Quote,CSTParser.ModuleH,CSTParser.Function,CSTParser.Macro,CSTParser.For,CSTParser.While,CSTParser.If} && last(stack[i].args) isa CSTParser.EXPR{CSTParser.ErrorToken} && stack[i].args[end].args[1] isa CSTParser.KEYWORD
-                    rng1 = offsets[i] .+ stack[i].args[1].span
+                    rng1 = offsets[i] .+ (1:stack[i].args[1].span)
                     push!(ls_diags, Diagnostic(Range(doc, rng1), 1, "ERROR", "ERROR", "Closing end is missing.", nothing))        
                 end
             end
@@ -36,7 +36,7 @@ function parse_all(doc, server)
             
             for (i, r) in enumerate(doc.code.uref)
                 r isa StaticLint.Reference{CSTParser.BinarySyntaxOpCall} && continue
-                rng = 0:last(r.val.span)
+                rng = 0:r.val.span
                 push!(ls_diags ,Diagnostic(Range(doc, r.loc.offset .+ rng), 2, "missing variable", "missing variable", "$i missing variable: $(string(Expr(r.val))) at $(r.loc)", nothing))
             end
         end

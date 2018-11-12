@@ -14,6 +14,7 @@ mutable struct CompletionItem
     documentation::Union{String,MarkedString}
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
+    insertTextFormat::Union{Nothing,Int}
 end
 
 mutable struct CompletionList
@@ -21,6 +22,18 @@ mutable struct CompletionList
     items::Vector{CompletionItem}
 end
 
+@enum(CompletionTriggerKind, Invoked = 1, TriggerCharacter = 2, TriggerForIncompleteCompletion = 3)
+
+@json_read mutable struct CompletionContext
+    triggerKind::CompletionTriggerKind
+    triggerCharacter::Union{Nothing,String}
+end
+
+@json_read mutable struct CompletionParams
+    textDocument::TextDocumentIdentifier
+    position::Position
+    context::Union{Nothing,CompletionContext}
+end
 
 mutable struct Hover
     contents::Vector{Union{AbstractString,MarkedString}}

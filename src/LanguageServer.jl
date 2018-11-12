@@ -4,6 +4,7 @@ using REPL
 import URIParser
 import DocumentFormat
 import CSTParser
+import SymbolServer
 using CSTParser: TopLevel, Block, Call, FileH, EXPR, UnaryOpCall, UnarySyntaxOpCall, BinaryOpCall, BinarySyntaxOpCall, WhereOpCall, ConditionalOpCall, IDENTIFIER, KEYWORD, LITERAL, OPERATOR, PUNCTUATION, Quotenode, contributes_scope
 import CSTParser.Tokenize.Tokens
 
@@ -25,10 +26,5 @@ include("parsing.jl")
 include("utilities.jl")
 include("jmd.jl")
 include("display.jl")
-
-function __init__()
-    # StaticLint.loadpkgs()
-    # StaticLint.SymbolServer.load_depot(StaticLint.depot)
-end
 
 end

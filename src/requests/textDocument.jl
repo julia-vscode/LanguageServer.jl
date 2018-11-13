@@ -588,7 +588,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         for rref in doc.code.rref
             if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
                 if rref.b.val isa CSTParser.AbstractEXPR
-                    if rref.b.t == StaticLint._Function
+                    if rref.b.t == server.packages["Core"].vals["Function"]
                         ms = StaticLint.get_methods(rref, state)
                         for m in ms
                             if m.val isa StaticLint.SymbolServer.FunctionStore || m.val isa StaticLint.SymbolServer.structStore
@@ -596,13 +596,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
                                 for m1 in m.val.methods
                                     push!(documentation, MarkedString(string(fname, "(", join((a->string(a[1], "::", a[2])).(m1.args), ", "),")"))) 
                                 end
-                            elseif m.t == StaticLint._DataType
+                            elseif m.t == server.packages["Core"].vals["DataType"]
                                 push!(documentation, MarkedString(string(Expr(m.val))))
                             else
                                 push!(documentation, MarkedString(string(Expr(CSTParser.get_sig(m.val)))))
                             end
                         end
-                    elseif rref.b.t == StaticLint._DataType
+                    elseif rref.b.t == server.packages["Core"].vals["DataType"]
                         push!(documentation, MarkedString(string(Expr(rref.b.val))))
                     elseif rref.b.t != nothing
                         if rref.b.t isa CSTParser.AbstractEXPR
@@ -658,7 +658,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
             rref.b isa StaticLint.ImportBinding && continue
-            if rref.b.t in (StaticLint._Function, StaticLint._DataType)
+            if rref.b.t in (server.packages["Core"].vals["Function"], server.packages["Core"].vals["DataType"])
                 bs = StaticLint.get_methods(rref, state)
             else
                 bs = StaticLint.Binding[rref.b]

@@ -181,7 +181,7 @@ function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server
                 push!(locations, Location(filepath2uri(l.file), l.line))
             end
         end
-    elseif rref.b.t in (StaticLint._Function, StaticLint._DataType)
+    elseif rref.b.t in (server.packages["Core"].vals["Function"], server.packages["Core"].vals["DataType"])
         for b in StaticLint.get_methods(rref, bindings)
             get_locations(b, bindings, locations, server)
         end

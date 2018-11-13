@@ -287,7 +287,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     CIs = CompletionItem[]
     doc = server.documents[URI2(r.params.textDocument.uri)]        
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code, server)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     partial, ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     toks = ppt, pt, t 
@@ -466,7 +466,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code, server)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     sigs = SignatureInformation[]
     arg = 0
@@ -521,7 +521,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code, server)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
     if length(stack)>2 && stack[end] isa CSTParser.LITERAL && stack[end].kind == CSTParser.Tokens.STRING && stack[end-1] isa CSTParser.EXPR{CSTParser.Call} && length(stack[end-1]) == 4 && stack[end-1].args[1] isa CSTParser.IDENTIFIER && stack[end-1].args[1].val == "include"
@@ -572,7 +572,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     documentation = Any[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code, server)
     offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
@@ -651,7 +651,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     locations = Location[]
     doc = server.documents[URI2(textDocument.uri)] 
     rootdoc = find_root(doc, server)
-    state = StaticLint.build_bindings(rootdoc.code)
+    state = StaticLint.build_bindings(rootdoc.code, server)
     refs = StaticLint.cat_references(rootdoc.code)
     rrefs, urefs = StaticLint.resolve_refs(refs, state, [], [])
     offset = get_offset(doc, position.line + 1, position.character)

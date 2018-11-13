@@ -29,7 +29,7 @@ function parse_all(doc, server)
     if server.runlinter
         if doc._runlinter
             StaticLint.pass(doc.code)
-            bindings = StaticLint.build_bindings(find_root(doc, server).code);
+            bindings = StaticLint.build_bindings(find_root(doc, server).code, server);
             empty!(doc.code.rref)
             empty!(doc.code.uref)
             StaticLint.resolve_refs(doc.code.state.refs, bindings, doc.code.rref, doc.code.uref);

@@ -238,13 +238,3 @@ end
 @json_read mutable struct ApplyWorkspaceEditResponse
     applied::Bool
 end
-
-# WorkspaceSymbolParams(d::Dict) = WorkspaceSymbolParams(d["query"])
-# CodeActionContext(d::Dict) = CodeActionContext(Diagnostic.(d["diagnostics"]))
-# CodeActionParams(d::Dict) = CodeActionParams(TextDocumentIdentifier(d["textDocument"]), Range(d["range"]), CodeActionContext(d["context"]))
-# CodeLensParams(d::Dict) = CodeLensParams(TextDocumentIdentifier(d["textDocument"]))
-# DocumentLinkParams(d::Dict) = DocumentLinkParams(TextDocumentIdentifier(d["textDocument"]))
-# FormattingOptions(d::Dict) = FormattingOptions(d["tabSize"], d["insertSpaces"])
-# DocumentFormattingParams(d::Dict) = DocumentFormattingParams(TextDocumentIdentifier(d["textDocument"]), FormattingOptions(d["options"]))
-# RenameParams(d::Dict) = RenameParams(TextDocumentIdentifier(d["textDocument"]), Position(d["position"]), d["newName"])
-# ApplyWorkspaceEditResponse(d::Dict) = ApplyWorkspaceEditResponse(d["applied"])

@@ -69,25 +69,4 @@ function JSON.lower(a::Range)
     Dict("start" => a.start, "end" => a.stop)
 end
 
-# Location(d::Dict) = Location(d["uri"], Range(d["range"]))
 Location(f::String, line::Integer) = Location(f, Range(line))
-
-# function Diagnostic(d::Dict)
-#     Diagnostic(Range(d["range"]),
-#                      haskeynotnull(d, "severity") ? d["severity"] : 0,
-#                      haskeynotnull(d, "code") ? d["code"] : "",
-#                      haskeynotnull(d, "source") ? d["source"] : "",
-#                      d["message"])
-# end
-
-
-
-# WorkspaceFolder(d::Dict) = WorkspaceFolder(d["uri"], d["name"])
-
-
-# function didChangeWorkspaceFoldersParams(d::Dict)
-#     added = WorkspaceFolder[WorkspaceFolder(i) for i in d["event"]["added"]]
-#     removed = WorkspaceFolder[WorkspaceFolder(i) for i in d["event"]["removed"]]
-
-#     return didChangeWorkspaceFoldersParams(WorkspaceFoldersChangeEvent(added, removed))
-# end

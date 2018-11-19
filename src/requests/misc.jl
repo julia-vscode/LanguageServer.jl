@@ -47,8 +47,8 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server)
-    path = r.params["path"]
-    uri = r.params["external"]
+    path = get(r.params, "path", "")
+    uri = get(r.params, "external", "")
     if isdir(uri2filepath(path))
         for doc in values(server.documents)
             uri2 = doc._uri

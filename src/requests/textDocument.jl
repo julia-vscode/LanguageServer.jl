@@ -730,9 +730,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     uri = r.params.textDocument.uri 
     doc = server.documents[URI2(uri)]
 
-    for (name,b) in StaticLint.collect_bindings(doc.code)
-        push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ (0:b.val.span))), nothing))
+    for (s, S) in doc.code.state.bindings
+        for (name, B) in S
+            isempty(name) && continue
+            for b in B
+                push!(syms, SymbolInformation(name, 1, false, Location(doc._uri, Range(doc, b.loc.offset .+ (0:b.val.span))), nothing))
+            end
+        end
     end
-    
     send(JSONRPC.Response(r.id, syms), server)
 end

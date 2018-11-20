@@ -85,7 +85,7 @@ mutable struct SymbolInformation
     kind::Int 
     deprecated::Union{Nothing,Bool}
     location::Location 
-    containername::Union{Nothing,String}
+    containerName::Union{Nothing,String}
 end 
 
 @json_read mutable struct WorkspaceSymbolParams 

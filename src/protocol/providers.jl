@@ -8,10 +8,16 @@ mutable struct MarkedString
     value::AbstractString
 end
 
+mutable struct MarkupContent
+   kind::String
+   value::String
+end
+MarkupContent(value::String) = MarkupContent("markdown", value)
+
 mutable struct CompletionItem
     label::String
     kind::Int
-    documentation::Union{String,MarkedString}
+    documentation::Union{String,MarkupContent}
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
     insertTextFormat::Union{Nothing,Int}

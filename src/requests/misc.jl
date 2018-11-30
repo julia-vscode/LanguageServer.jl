@@ -103,3 +103,9 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     
     send(response, server)
 end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params)
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
+end

@@ -118,7 +118,7 @@ function get_position_at(doc::Document, offset::Integer)
     
     ni = nextind(doc._content, line_offsets[line])
     ch = 1
-    while offset >= ni && ni < sizeof(doc._content)
+    while offset >= ni && ni <= sizeof(doc._content)
         ch += 1
         ni = nextind(doc._content, ni)
     end

@@ -34,15 +34,20 @@ function parse_all(doc, server)
             empty!(doc.code.uref)
             StaticLint.resolve_refs(doc.code.state.refs, bindings, doc.code.rref, doc.code.uref);
             
-            for (i, r) in enumerate(doc.code.uref)
+            for r in doc.code.uref
                 r isa StaticLint.Reference{CSTParser.BinarySyntaxOpCall} && continue
-                rng = 0:r.val.span
-                push!(ls_diags ,Diagnostic(Range(doc, r.loc.offset .+ rng), 2, "Missing variable", "Julia language server", "Use of possibly undeclared variable: $(string(Expr(r.val)))", nothing))
+                push!(ls_diags ,Diagnostic(r, doc, server))
+            end
+            for err in doc.code.state.linterrors 
+                push!(ls_diags ,Diagnostic(err, doc, server))
             end
         end
     end
     send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
 end
+Diagnostic(r::StaticLint.Reference, doc, server) = Diagnostic(Range(doc, r.loc.offset .+ 0:r.val.span), 2, "Missing variable", "Julia language server", "Use of possibly undeclared variable: $(string(Expr(r.val)))", nothing)
+Diagnostic(err::StaticLint.LintError, doc, server) = Diagnostic(Range(doc, err.loc.offset .+ (0:err.val.span)), 2, "Lint error", "Julia language server", get(StaticLint.LintMessages, err.code, ""), nothing)
+
 
 StaticLint.getfile(server::LanguageServerInstance, path) = server.documents[URI2(filepath2uri(path))].code
 StaticLint.setfile(server::LanguageServerInstance, path, x) = server.documents[URI2(filepath2uri(path))] = x

@@ -29,24 +29,26 @@ function parse_all(doc, server)
     if server.runlinter
         if doc._runlinter
             StaticLint.pass(doc.code)
-            bindings = StaticLint.build_bindings(find_root(doc, server).code);
+            state = StaticLint.build_bindings(find_root(doc, server).code);
             empty!(doc.code.rref)
             empty!(doc.code.uref)
-            StaticLint.resolve_refs(doc.code.state.refs, bindings, doc.code.rref, doc.code.uref);
+            StaticLint.resolve_refs(doc.code.state.refs, state, doc.code.rref, doc.code.uref);
             
             for r in doc.code.uref
                 r isa StaticLint.Reference{CSTParser.BinarySyntaxOpCall} && continue
-                push!(ls_diags ,Diagnostic(r, doc, server))
+                push!(ls_diags ,Diagnostic(r, doc))
             end
             for err in doc.code.state.linterrors 
-                push!(ls_diags ,Diagnostic(err, doc, server))
+                push!(ls_diags ,Diagnostic(err, doc))
             end
         end
     end
     send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
 end
-Diagnostic(r::StaticLint.Reference, doc, server) = Diagnostic(Range(doc, r.loc.offset .+ 0:r.val.span), 2, "Missing variable", "Julia language server", "Use of possibly undeclared variable: $(string(Expr(r.val)))", nothing)
-Diagnostic(err::StaticLint.LintError, doc, server) = Diagnostic(Range(doc, err.loc.offset .+ (0:err.val.span)), 2, "Lint error", "Julia language server", get(StaticLint.LintMessages, err.code, ""), nothing)
+
+Diagnostic(b::StaticLint.Binding, doc) = Diagnostic(Range(doc, b.loc.offset .+ (0:b.val.span)), 2, "Unused variable", "Julia language server", "Variable declared but not used: $(string(Expr(b.val)))", nothing)
+Diagnostic(r::StaticLint.Reference, doc) = Diagnostic(Range(doc, r.loc.offset .+ (0:r.val.span)), 2, "Missing variable", "Julia language server", "Use of possibly undeclared variable: $(string(Expr(r.val)))", nothing)
+Diagnostic(err::StaticLint.LintError, doc) = Diagnostic(Range(doc, err.loc.offset .+ (0:err.val.span)), 2, "Lint error", "Julia language server", get(StaticLint.LintMessages, err.code, ""), nothing)
 
 
 StaticLint.getfile(server::LanguageServerInstance, path) = server.documents[URI2(filepath2uri(path))].code

@@ -330,7 +330,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                 rootmod = server.packages[pt.val]
                 for (n,m) in rootmod.vals
                     startswith(n, ".") && continue
-                    push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[], 1))
+                    push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(Range(doc, offset:offset), n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
                 end
             end
         elseif t.kind == Tokens.IDENTIFIER && is_at_end 
@@ -347,7 +347,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             else
                 for (n,m) in server.packages
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[], 1))
+                        push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(Range(doc, offset:offset), n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
                     end
                 end
             end
@@ -369,7 +369,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         if ref != nothing && ref.b.val isa StaticLint.SymbolServer.ModuleStore # check we've got a Module
             for (n,v) in ref.b.val.vals
                 if startswith(n, t.val)
-                    push!(CIs, CompletionItem(n, 6, MarkupContent(v isa SymbolServer.SymStore ? v.doc : n), TextEdit(Range(doc, offset:offset), n[length(t.val) + 1:end]), TextEdit[], 1))
+                    push!(CIs, CompletionItem(n, 6, MarkupContent(v isa SymbolServer.SymStore ? v.doc : n), TextEdit(Range(doc, offset:offset), n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
                 end
             end
         end
@@ -389,7 +389,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                 if haskey(state.bindings, si)
                     for (n,B) in state.bindings[si]
                         if startswith(n, spartial)
-                            push!(CIs, CompletionItem(n, 6, MarkupContent(n), TextEdit(Range(doc, offset:offset), n[length(spartial) + 1:end]), TextEdit[], 1))
+                            push!(CIs, CompletionItem(n, 6, MarkupContent(n), TextEdit(Range(doc, offset:offset), n[nextind(n,sizeof(spartial)):end]), TextEdit[], 1))
                         end
                     end
                 end
@@ -406,7 +406,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                         !haskey(m.val.vals, comp) && continue
                         x = m.val.vals[comp]
                         docs = x isa StaticLint.SymbolServer.SymStore ? x.doc : ""
-                        push!(CIs, CompletionItem(comp, 6, MarkupContent(docs), TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), TextEdit[], 1))
+                        push!(CIs, CompletionItem(comp, 6, MarkupContent(docs), TextEdit(Range(doc, offset:offset), comp[nextind(comp, sizeof(spartial)):end]), TextEdit[], 1))
                     end
                 end
             end

@@ -443,6 +443,7 @@ function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInform
         end
     elseif CSTParser.defines_function(x.b.val)
         for m in StaticLint.get_methods(x, state)
+            !(m.val isa CSTParser.AbstractEXPR) && continue 
             sig = CSTParser.get_sig(m.val)
             args = get_sig_args(sig)
             PI = map(p->ParameterInformation(string(CSTParser.str_value(p[1]))), args)

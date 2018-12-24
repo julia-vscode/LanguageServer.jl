@@ -47,7 +47,7 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true)
+        server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true, server)
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
     doc._version = r.params.textDocument.version

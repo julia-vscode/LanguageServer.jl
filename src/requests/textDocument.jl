@@ -423,14 +423,14 @@ function get_sig_args(sig)
     end
     state, s = StaticLint.State(), StaticLint.Scope()
     StaticLint.get_fcall_bindings(sig, state, s)
-    out = []
+    out = Tuple{Int,String}[]
     if haskey(state.bindings, ())
         for (n,B) in state.bindings[()]
             b = last(B)
             push!(out, (b.si.n, n))
         end
     end
-    sort!(out, lt = (a,b)->a[1]<b[1])
+    sort!(out, lt = (a,b)->a[1]<b[1])   
     return [o[2] for o in out]
 end
 
@@ -446,7 +446,7 @@ function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInform
             !(m.val isa CSTParser.AbstractEXPR) && continue 
             sig = CSTParser.get_sig(m.val)
             args = get_sig_args(sig)
-            PI = map(p->ParameterInformation(string(CSTParser.str_value(p[1]))), args)
+            PI = map(p->ParameterInformation(string(p)), args)
             push!(sigs, SignatureInformation(string(Expr(sig)), "", PI))
         end
     end

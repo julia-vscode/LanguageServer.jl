@@ -75,6 +75,55 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, se
     server.debug_mode = !server.debug_mode
 end
 
+"""
+    eval_descend_stack(stack, offsets, offset)
+
+Descends through the stack such that it always returns block arguments of 
+toplevel,function,macro,while,for and let expressions.
+"""
+function eval_descend_stack(stack, offsets, offset)
+    length(stack) == 1 && return first(stack), first(offsets)
+    if length(stack) > 1
+        if first(stack) isa CSTParser.EXPR{T} where T <: Union{CSTParser.TopLevel,CSTParser.FileH,CSTParser.Block}
+            popfirst!(stack)
+            popfirst!(offsets)
+            return eval_descend_stack(stack, offsets, offset)
+        elseif first(stack) isa CSTParser.EXPR{T} where T <: Union{CSTParser.FunctionDef,CSTParser.Macro,CSTParser.While,CSTParser.For,CSTParser.Let} 
+            s1 = first(stack)
+            o1 = first(offsets)
+            if o1 + s1.args[1].fullspan + s1.args[2].span <= offset <= o1 + s1.fullspan - s1.args[4].fullspan
+                popfirst!(stack)
+                popfirst!(offsets)
+                return eval_descend_stack(stack, offsets, offset)
+            end
+        elseif first(stack) isa CSTParser.EXPR{CSTParser.If}
+            s1 = first(stack)
+            o1 = first(offsets)
+            if length(s1) == 4 # if a end
+                if o1 + s1.args[1].fullspan + s1.args[2].span <= offset <= o1 + s1.fullspan - s1.args[4].fullspan
+                    popfirst!(stack)
+                    popfirst!(offsets)
+                    return eval_descend_stack(stack, offsets, offset)
+                end
+            elseif length(s1) == 6 # if a else end
+                if o1 + s1.args[1].fullspan + s1.args[2].span <= offset <= o1 + s1.args[1].fullspan + s1.args[2].fullspan + s1.args[3].fullspan || 
+                    o1 + s1.args[1].fullspan + s1.args[2].fullspan + s1.args[3].fullspan + s1.args[4].fullspan <= offset <= o1 + s1.fullspan - s1.args[6].fullspan
+                    popfirst!(stack)
+                    popfirst!(offsets)
+                    return eval_descend_stack(stack, offsets, offset)
+                end
+            elseif length(s1) == 2 # elseif b (inner branch, no trailing else)
+                if o1 + s1.args[1].span <= offset
+                    popfirst!(stack)
+                    popfirst!(offsets)
+                    return eval_descend_stack(stack, offsets, offset)
+                end
+            end
+        end
+    end
+    return first(stack), first(offsets)
+end
+
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params)
     return TextDocumentPositionParams(params)
@@ -87,18 +136,10 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     end 
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position.line + 1, tdpp.position.character)
+    offset = get_offset(doc, tdpp.position.line. tdpp.position.character)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-    if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
-        if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
-            p1, p2, p3 = (offsets[4] + 1, offsets[4] + stack[4].span, offsets[4] + stack[4].fullspan)
-        else
-            p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
-        end
-    else 
-        p1 = p2 = p3 = length(doc._content)
-    end
-    
+    s,o = eval_descend_stack(stack, offsets, offset)
+    p1, p2, p3 = (o + 1, o + s.fullspan, o + s.fullspan)
     response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
     
     send(response, server)

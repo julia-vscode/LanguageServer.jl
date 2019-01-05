@@ -15,12 +15,12 @@ ABCDEFG
 """
 d1 = Document("untitled", s1, false)
 @test get_text(d1) == s1
-@test get_offset(d1, 1, 4) == 4
-@test get_offset(d1, 2, 2) == 9
+@test get_offset(d1, 0, 4) == 4
+@test get_offset(d1, 1, 2) == 9
 @test get_line_offsets(d1) == [1, 8, 14, 21 + 1]
-@test get_position_at(d1, 1) == (1, 1)
-@test get_position_at(d1, 8) == (2, 1)
-@test get_position_at(d1, 15) == (3, 2)
+@test get_position_at(d1, 1) == (0, 1)
+@test get_position_at(d1, 8) == (1, 1)
+@test get_position_at(d1, 15) == (2, 2)
 @test get_open_in_editor(d1) == false
 set_open_in_editor(d1, true)
 @test get_open_in_editor(d1) == true
@@ -34,13 +34,13 @@ s2 = """
 abηde
 ABCDEFG"""
 d2 = Document("untitled", s2, true)
-@test get_offset(d2, 1, 4) == 5
-@test get_offset(d2, 2, 2) == 10
+@test get_offset(d2, 0, 4) == 5
+@test get_offset(d2, 1, 2) == 10
 @test get_line_offsets(d2) == [1, 9, 16]
 @test get_line_offsets(d2) == [nextind(d2._content,0,1), nextind(d2._content,0,8), nextind(d2._content,0,14)]
-@test get_position_at(d2, 1) == (1, 1)
-@test get_position_at(d2, 9) == (2, 1)
-@test get_position_at(d2, 17) == (3, 2)
+@test get_position_at(d2, 1) == (0, 1)
+@test get_position_at(d2, 9) == (1, 1)
+@test get_position_at(d2, 17) == (2, 2)
 @test is_workspace_file(d2) == true
 
 

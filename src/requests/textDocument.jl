@@ -41,6 +41,28 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
 end
 
 
+function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
+    if tdcce.range == tdcce.rangeLength == nothing
+        # No range given, replace all text
+        doc._content = tdcce.text
+    else
+        editrange = get_offset(doc, tdcce.range)
+        if first(editrange) == last(editrange) == 0
+            doc._content = string(tdcce.text, doc._content)
+        elseif first(editrange) == 0 && last(editrange) == sizeof(doc._content)
+            doc._content = tdcce.text
+        elseif first(editrange) == 0
+            doc._content = string(tdcce.text, doc._content[nextind(doc._content, last(editrange)):end])
+        elseif first(editrange) == last(editrange) == sizeof(doc._content)
+            doc._content = string(doc._content, tdcce.text)
+        elseif last(editrange) == sizeof(doc._content)
+            doc._content = string(doc._content[1:first(editrange)], tdcce.text)
+        else
+            doc._content = string(doc._content[1:first(editrange)], tdcce.text, doc._content[nextind(doc._content, last(editrange)):end])
+        end    
+    end
+end
+
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
     return DidChangeTextDocumentParams(params)
 end
@@ -50,10 +72,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true, server)
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
+    if r.params.textDocument.version < doc._version
+        error("TextDocumentContentChangeEvent is older than existing Document version.")
+    end
     doc._version = r.params.textDocument.version
-    isempty(r.params.contentChanges) && return
-    
-    doc._content = last(r.params.contentChanges).text
+    for tdcce in r.params.contentChanges
+        applytextdocumentchanges(doc, tdcce)
+    end
     doc._line_offsets = nothing
     parse_all(doc, server)
 end
@@ -288,7 +313,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     doc = server.documents[URI2(r.params.textDocument.uri)]        
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(rootdoc.code)
-    offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
+    offset = get_offset(doc, r.params.position)
     partial, ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     toks = ppt, pt, t 
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
@@ -468,7 +493,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(rootdoc.code)
-    offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
+    offset = get_offset(doc, r.params.position)
     sigs = SignatureInformation[]
     arg = 0
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
@@ -523,7 +548,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(rootdoc.code)
-    offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
+    offset = get_offset(doc, r.params.position)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
     if length(stack)>2 && stack[end] isa CSTParser.LITERAL && stack[end].kind == CSTParser.Tokens.STRING && stack[end-1] isa CSTParser.EXPR{CSTParser.Call} && length(stack[end-1]) == 4 && stack[end-1].args[1] isa CSTParser.IDENTIFIER && stack[end-1].args[1].val == "include"
         path = (joinpath(dirname(doc._uri), stack[end].val))
@@ -555,7 +580,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     doc = server.documents[URI2(r.params.textDocument.uri)]
     newcontent = DocumentFormat.format(doc._content)
     end_l, end_c = get_position_at(doc, sizeof(doc._content))
-    lsedits = TextEdit[TextEdit(Range(0, 0, end_l - 1, end_c), newcontent)]
+    lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     send(JSONRPC.Response(r.id, lsedits), server)
 end
@@ -574,7 +599,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[URI2(r.params.textDocument.uri)]
     rootdoc = find_root(doc, server)
     state = StaticLint.build_bindings(rootdoc.code)
-    offset = get_offset(doc, r.params.position.line + 1, r.params.position.character)
+    offset = get_offset(doc, r.params.position)
     stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
 
     if last(stack) isa CSTParser.KEYWORD && last(stack).kind == CSTParser.Tokens.END && length(stack) > 1
@@ -655,7 +680,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     state = StaticLint.build_bindings(rootdoc.code)
     refs = StaticLint.cat_references(rootdoc.code)
     rrefs, urefs = StaticLint.resolve_refs(refs, state, [], [])
-    offset = get_offset(doc, position.line + 1, position.character)
+    offset = get_offset(doc, position)
     for rref in doc.code.rref
         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
             rref.b isa StaticLint.ImportBinding && continue

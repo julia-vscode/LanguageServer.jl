@@ -1,4 +1,4 @@
-const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Full"],
+const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Incremental"],
     true, #hoverProvider
     CompletionOptions(false, ["."]),
     SignatureHelpOptions(["("]),

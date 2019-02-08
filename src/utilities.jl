@@ -213,3 +213,19 @@ function get_locations(b::StaticLint.Binding, bindings, locations, server)
         end
     end
 end
+
+function isvalidjlfile(path)
+    isfile(path) && 
+    endswith(path, ".jl") && 
+    validchars(path)
+end
+
+function validchars(path)
+    io = open(path)
+    while !eof(io)
+        c = read(io, Char)
+        Base.ismalformed(c) && return false
+    end
+    close(io)
+    return true
+end

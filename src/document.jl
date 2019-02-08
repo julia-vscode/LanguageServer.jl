@@ -44,89 +44,90 @@ function is_workspace_file(doc::Document)
     return doc._workspace_file
 end
 
+"""
+    get_offset(doc, line, char)
+
+Returns the byte offset position corresponding to a line/character position. 
+This takes 0 based line/char inputs. Corresponding functions are available for
+Position and Range arguments, the latter returning a UnitRange{Int}.
+"""
 function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
-    current_offset = isempty(line_offsets) ? 0 : line_offsets[line]
-    for i = 1:character - 1
-        current_offset = nextind(doc._content, current_offset)
+    offset = line_offsets[line + 1]
+    while character > 0
+        offset = nextind(doc._content, offset)
+        character -= 1
     end
-    return current_offset
+    return offset
 end
+get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
+get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
-function update(doc::Document, start_line::Integer, start_character::Integer, length::Integer, new_text::AbstractString)
-    text = doc._content
-    start_offset = start_line == 1 && start_character == 1 ? 1 : get_offset(doc, start_line, start_character)
-    end_offset = start_offset
-    for i = 1:length
-        end_offset = nextind(text, end_offset)
-    end
 
-    doc._content = string(doc._content[1:start_offset - 1], new_text, doc._content[end_offset:end])
-    doc._line_offsets = nothing
-end
-
+"""
+    get_line_offsets(doc::Document)
+    
+Updates the doc._line_offsets field, an n length Array each entry of which 
+gives the byte offset position of the start of each line. This always starts 
+with 0 for the first line (even if empty).
+"""
 function get_line_offsets(doc::Document)
-    if doc._line_offsets isa Nothing
-        line_offsets = Array{Int}(undef, 0)
-        text = doc._content
-        is_line_start = true
-        i = 1
-        while i <= lastindex(text)
-            if is_line_start
-                push!(line_offsets, i)
-                is_line_start = false
-            end
-            ch = text[i]
-            is_line_start = ch == '\r' || ch == '\n'
-            if ch == '\r' && i + 1 <= lastindex(text) && text[i + 1] == '\n'
-                i += 1
-            end
-            i = nextind(text, i)
+    doc._line_offsets = Int[0]
+    text = doc._content
+    ind = firstindex(text)
+    while ind <= lastindex(text)
+        c = text[ind]
+        nl = c == '\n' || c == '\r'
+        if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
+            ind += 1
         end
-
-        if is_line_start && length(text) > 0
-            push!(line_offsets, lastindex(text) + 1)
-        end
-
-        doc._line_offsets = line_offsets
+        nl && push!(doc._line_offsets, ind)
+        ind = nextind(text, ind)
     end
-
+    
     return doc._line_offsets
 end
 
-function iter_lines(doc, line_offsets, offset)
-    for (line, line_offset) in enumerate(line_offsets)
-        if offset < line_offset
-            if offset == line_offset - 1
-                return line, 0
-            else
-                line -= 1
-                return line, 1
+function get_line_of(line_offsets::Vector{Int}, offset::Integer)
+    nlines = length(line_offsets)
+    if offset > last(line_offsets)
+        line = nlines
+    else
+        line = 1
+        while line < nlines
+            if line_offsets[line] <= offset < line_offsets[line + 1]
+                break
             end
+            line += 1
         end
     end
-    return length(line_offsets), 1
+    return line, line_offsets[line]
 end
 
+"""
+    get_position_at(doc, offset)
+
+Returns the 0-based line and character position within a document of a given
+byte offset.
+"""
 function get_position_at(doc::Document, offset::Integer)
-    offset == 0 && return 1, 0
+    offset > sizeof(doc._content) && error("offset > sizeof(content)")
     line_offsets = get_line_offsets(doc)
-    line, ch = iter_lines(doc, line_offsets, offset)
-    if ch == 0 
-        return line, ch
+    line, ind = get_line_of(doc._line_offsets, offset)
+    char = 0
+    while offset > ind
+        ind = nextind(doc._content, ind)
+        char += 1
     end
-    
-    ni = nextind(doc._content, line_offsets[line])
-    ch = 1
-    while offset >= ni && ni <= sizeof(doc._content)
-        ch += 1
-        ni = nextind(doc._content, ni)
-    end
-    return line, ch
+    return line - 1, char
 end
 
+"""
+    Range(Doc, rng)
+Converts a byte offset range to a LSP Range.
+"""
 function Range(doc::Document, rng::UnitRange)
     start_l, start_c = get_position_at(doc, first(rng))
     end_l, end_c = get_position_at(doc, last(rng))
-    rng = Range(start_l - 1, start_c, end_l - 1, end_c)
+    rng = Range(start_l, start_c, end_l, end_c)
 end

@@ -78,10 +78,10 @@ function get_line_offsets(doc::Document)
     while ind <= lastindex(text)
         c = text[ind]
         nl = c == '\n' || c == '\r'
-        nl && push!(doc._line_offsets, ind)
         if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
             ind += 1
         end
+        nl && push!(doc._line_offsets, ind)
         ind = nextind(text, ind)
     end
     

@@ -49,8 +49,8 @@ function load_folder(path::String, server)
     if load_rootpath(path)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
-                if endswith(file, ".jl")
-                    filepath = joinpath(root, file)
+                filepath = joinpath(root, file)
+                if isvalidjlfile(file)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
                     @info "parsed $filepath" 
                     uri = filepath2uri(filepath)

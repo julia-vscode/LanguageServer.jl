@@ -90,7 +90,7 @@ mutable struct DidChangeWatchedFilesRegistrationOptions
     watchers::Vector{FileSystemWatcher}
 end
 
-mutable struct WillSaveTextDocumentParams
+@json_read mutable struct WillSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
     reason::Int
 end

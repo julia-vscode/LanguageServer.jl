@@ -87,17 +87,18 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     end 
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
-    offset = get_offset(doc, tdpp.position)
-    stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-    if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
-        if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
-            p1, p2, p3 = (offsets[4] + 1, offsets[4] + stack[4].span, offsets[4] + stack[4].fullspan)
-        else
-            p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
-        end
-    else 
-        p1 = p2 = p3 = length(doc._content)
-    end
+    # offset = get_offset(doc, tdpp.position)
+    # stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
+    # if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
+    #     if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
+    #         p1, p2, p3 = (offsets[4] + 1, offsets[4] + stack[4].span, offsets[4] + stack[4].fullspan)
+    #     else
+    #         p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
+    #     end
+    # else 
+    #     p1 = p2 = p3 = length(doc._content)
+    # end
+    p1 = p2 = p3 = 1
     
     response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
     

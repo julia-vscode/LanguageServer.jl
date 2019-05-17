@@ -54,9 +54,6 @@ SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
                         t == :Bool ? 17 : 13  
 
 
-str_value(x) = ""
-str_value(x::T) where T <: Union{IDENTIFIER,LITERAL} = x.val
-str_value(x::OPERATOR) = string(Expr(x))
 
 
 # Find location of default datatype constructor
@@ -143,12 +140,10 @@ end
 
 function get_toks(doc, offset)
     ts = CSTParser.Tokenize.tokenize(doc._content)
-    CSTParser.Tokens.EMPTY_TOKEN(CSTParser.Tokens.RawToken)
-    CSTParser.Tokens.RawToken()
     ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
-    if offset >= length(doc._content)
+    if offset > length(doc._content)
         offset = sizeof(doc._content) - 1 
     end
 
@@ -174,45 +169,45 @@ function find_ref(doc, offset)
     return nothing
 end
 
-function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
-    if rref.b isa StaticLint.ImportBinding
-        if rref.b.val isa StaticLint.SymbolServer.FunctionStore || rref.b.val isa StaticLint.SymbolServer.structStore
-            for l in rref.b.val.methods
-                push!(locations, Location(filepath2uri(l.file), l.line))
-            end
-        end
-    elseif rref.b.t in (server.packages["Core"].vals["Function"], server.packages["Core"].vals["DataType"])
-        for b in StaticLint.get_methods(rref, bindings)
-            get_locations(b, bindings, locations, server)
-        end
-    else
-        get_locations(rref.b, bindings, locations, server)
-    end
-end
+# function get_locations(rref::StaticLint.ResolvedRef, bindings, locations, server)
+#     if rref.b isa StaticLint.ImportBinding
+#         if rref.b.val isa StaticLint.SymbolServer.FunctionStore || rref.b.val isa StaticLint.SymbolServer.structStore
+#             for l in rref.b.val.methods
+#                 push!(locations, Location(filepath2uri(l.file), l.line))
+#             end
+#         end
+#     elseif rref.b.t in (server.packages["Core"].vals["Function"], server.packages["Core"].vals["DataType"])
+#         for b in StaticLint.get_methods(rref, bindings)
+#             get_locations(b, bindings, locations, server)
+#         end
+#     else
+#         get_locations(rref.b, bindings, locations, server)
+#     end
+# end
 
-function get_locations(b::StaticLint.Binding, bindings, locations, server)
-    if b.val isa CSTParser.AbstractEXPR
-        uri2 = filepath2uri(b.loc.file)
-        if !(URI2(uri2) in keys(server.documents))
-            uri3 = string("untitled:",b.loc.file)
-            if URI2(uri3) in keys(server.documents)
-                uri2 = uri3
-            else 
-                return
-            end
-        end
-        doc2 = server.documents[URI2(uri2)]
-        push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ (0:b.val.span))))
-    elseif b.val isa Function
-        for m in methods(b.val)
-            file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-            if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
-                continue
-            end
-            push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
-        end
-    end
-end
+# function get_locations(b::StaticLint.Binding, bindings, locations, server)
+#     if b.val isa CSTParser.AbstractEXPR
+#         uri2 = filepath2uri(b.loc.file)
+#         if !(URI2(uri2) in keys(server.documents))
+#             uri3 = string("untitled:",b.loc.file)
+#             if URI2(uri3) in keys(server.documents)
+#                 uri2 = uri3
+#             else 
+#                 return
+#             end
+#         end
+#         doc2 = server.documents[URI2(uri2)]
+#         push!(locations, Location(uri2, Range(doc2, b.loc.offset .+ (0:b.val.span))))
+#     elseif b.val isa Function
+#         for m in methods(b.val)
+#             file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
+#             if (file, m.line) == DefaultTypeConstructorLoc || file == nothing
+#                 continue
+#             end
+#             push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
+#         end
+#     end
+# end
 
 function isvalidjlfile(path)
     isfile(path) && 
@@ -229,3 +224,36 @@ function validchars(path)
     close(io)
     return true
 end
+
+function goto_loc(x::EXPR, offset::Int, pos = 0)
+    if x.args isa Vector{EXPR}
+        for a in x.args
+            if pos <= offset < pos + a.fullspan
+                return goto_loc(a, offset, pos)
+            else
+                pos += a.fullspan
+            end
+        end
+    end
+    if offset == x.fullspan && !(x.parent isa EXPR)
+        return last(x.args)
+    end
+    return x
+end
+
+function get_expr(x, offset, pos = 0)
+    if pos > offset
+        return nothing
+    end
+    if x.args !== nothing
+        for a in x.args
+            if pos < offset <= (pos + a.fullspan)
+                return get_expr(a, offset, pos)
+            end
+            pos += a.fullspan
+        end
+    elseif (pos < offset <= (pos + x.fullspan)) || pos == 0
+        return x
+    end
+end
+

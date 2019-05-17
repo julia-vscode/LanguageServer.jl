@@ -122,29 +122,29 @@ function edit_string(text, editrange, edit)
     end    
 end
 
-function _partial_parse(doc, tdcce)
-    tdcce.range == tdcce.rangeLength == nothing && return false
-    editrange = get_offset(doc, tdcce.range)
-    stack = _get_range_stack(doc.code.cst, editrange)
+# function _partial_parse(doc, tdcce)
+#     tdcce.range == tdcce.rangeLength == nothing && return false
+#     editrange = get_offset(doc, tdcce.range)
+#     stack = _get_range_stack(doc.code.cst, editrange)
     
-    if last(stack)[1] isa CSTParser.IDENTIFIER
-        !all(CSTParser.Tokenize.Lexers.is_identifier_char, tdcce.text) && return false
-        first(editrange) == last(stack)[2] && (isempty(tdcce.text) || !CSTParser.Tokenize.Lexers.is_identifier_start_char(first(tdcce.text))) && return false
-        last(stack)[2] + last(stack)[1].span < last(editrange) && return false
-        oldtok = deepcopy(last(stack)[1])
-        newtext = edit_string(oldtok.val, broadcast(-, editrange, last(stack)[2]), tdcce.text)
-        dl = sizeof(oldtok.val) - sizeof(last(stack)[1].val)
+#     if last(stack)[1] isa CSTParser.IDENTIFIER
+#         !all(CSTParser.Tokenize.Lexers.is_identifier_char, tdcce.text) && return false
+#         first(editrange) == last(stack)[2] && (isempty(tdcce.text) || !CSTParser.Tokenize.Lexers.is_identifier_start_char(first(tdcce.text))) && return false
+#         last(stack)[2] + last(stack)[1].span < last(editrange) && return false
+#         oldtok = deepcopy(last(stack)[1])
+#         newtext = edit_string(oldtok.val, broadcast(-, editrange, last(stack)[2]), tdcce.text)
+#         dl = sizeof(oldtok.val) - sizeof(last(stack)[1].val)
         
-        _edit_expr_args(stack[end-1][1], CSTParser.IDENTIFIER(oldtok.fullspan + dl, oldtok.span + dl, newtext), last(stack)[3])
-        for i = 1:length(stack) - 1
-            stack[i][1].fullspan += dl
-            stack[i][1].span += dl
-        end
-        return true
-    end
+#         _edit_expr_args(stack[end-1][1], CSTParser.IDENTIFIER(oldtok.fullspan + dl, oldtok.span + dl, newtext), last(stack)[3])
+#         for i = 1:length(stack) - 1
+#             stack[i][1].fullspan += dl
+#             stack[i][1].span += dl
+#         end
+#         return true
+#     end
 
-    return false 
-end
+#     return false 
+# end
 
 function _get_range_stack(x, offset::T, pos = 0, child_pos = nothing, stack = []) where T <: Union{Int,UnitRange{Int}}
     push!(stack, (x, pos, child_pos))
@@ -160,64 +160,4 @@ end
 
 function _edit_expr_args(x::EXPR, t, i)
     x.args[i] = t
-end
-
-function _edit_expr_args(x::T, t, i) where T <: Union{BinaryOpCall,BinarySyntaxOpCall}
-    if i == 1
-        x.arg1 = t
-    elseif i == 2
-        x.op = t
-    elseif i == 3
-        x.arg2 = t
-    else
-        error("Attempt to access out of bounds.")
-    end
-end
-
-function _edit_expr_args(x::UnaryOpCall, t, i) 
-    if i == 1
-        x.op = t
-    elseif i == 2
-        x.arg1 = t
-    else
-        error("Attempt to access out of bounds.")
-    end
-end
-
-function _edit_expr_args(x::UnarySyntaxOpCall, t, i) 
-    if i == 1
-        x.arg1 = t
-    elseif i == 2
-        x.arg2 = t
-    else
-        error("Attempt to access out of bounds.")
-    end
-end
-
-function _edit_expr_args(x::WhereOpCall, t, i) 
-    if i == 1
-        x.arg1 = t
-    elseif i == 2
-        x.op = t
-    elseif 2 < i <= length(x.args) + 2
-        x.args[i-2] = t
-    else
-        error("Attempt to access out of bounds.")
-    end
-end
-
-function _edit_expr_args(x::CSTParser.ChainOpCall, t, i) 
-    if i == 1
-        x.cond = t
-    elseif i == 2
-        x.op1 = t
-    elseif i == 3
-        x.arg1 = t
-    elseif i == 4
-        x.op2 = t
-    elseif i == 5
-        x.arg2 = t
-    else
-        error("Attempt to access out of bounds.")
-    end
 end

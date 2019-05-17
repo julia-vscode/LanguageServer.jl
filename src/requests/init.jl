@@ -50,17 +50,19 @@ function load_folder(path::String, server)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 filepath = joinpath(root, file)
-                if isvalidjlfile(file)
+                if isvalidjlfile(filepath)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
-                    @info "parsed $filepath" 
                     uri = filepath2uri(filepath)
-                    URI2(uri) in keys(server.documents) && continue
+                    if URI2(uri) in keys(server.documents)
+                        @info "skipped $filepath" 
+                        continue
+                    else
+                        @info "parsed $filepath" 
+                    end
                     content = read(filepath, String)
                     server.documents[URI2(uri)] = Document(uri, content, true, server)
                     doc = server.documents[URI2(uri)]
-                    doc._runlinter = false
                     parse_all(doc, server)
-                    doc._runlinter = true
                 end
             end
         end

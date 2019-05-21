@@ -3,352 +3,29 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, pa
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    # if !haskey(server.documents, URI2(r.params.textDocument.uri))
-    #     send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
-    #     return
-    # end
-    # doc = server.documents[URI2(r.params.textDocument.uri)]
     commands = Command[]
-    # range = r.params.range
-    # range_loc = get_offset(doc, range.start.line + 1, range.start.character):get_offset(doc, range.stop.line + 1, range.stop.character)
     
-    # tde = TextDocumentEdit(VersionedTextDocumentIdentifier(doc._uri, doc._version), [])
-    # action_type = Any
-    # tdeall = TextDocumentEdit(VersionedTextDocumentIdentifier(doc._uri, doc._version), [])
-    # for d in doc.diagnostics
-    #     if first(d.loc) <= first(range_loc) <= last(range_loc) <= last(d.loc) && typeof(d).parameters[1] isa LintCodes && !isempty(d.actions) 
-    #         action_type = typeof(d).parameters[1]
-    #         for a in d.actions
-    #             start_l, start_c = get_position_at(doc, first(a.range))
-    #             end_l, end_c = get_position_at(doc, last(a.range))
-    #             push!(tde.edits, TextEdit(Range(start_l - 1, start_c, end_l - 1, end_c), a.text))
-    #         end
-    #     end
-    # end
-    # file_actions = []
-    # for d in doc.diagnostics
-    #     if typeof(d).parameters[1] == action_type && !isempty(d.actions) 
-    #         for a in d.actions
-    #             push!(file_actions, a)
-                
-    #         end
-    #     end
-    # end
-    # sort!(file_actions, lt = (a, b) -> last(b.range) < first(a.range))
-    # for a in file_actions
-    #     start_l, start_c = get_position_at(doc, first(a.range))
-    #     end_l, end_c = get_position_at(doc, last(a.range))
-    #     push!(tdeall.edits, TextEdit(Range(start_l - 1, start_c, end_l - 1, end_c), a.text))
-    # end
-
-    # if !isempty(tde.edits)
-    #     push!(commands, Command("Fix deprecation", "language-julia.applytextedit", [WorkspaceEdit(nothing, [tde])]))
-    # end
-    # if !isempty(tdeall.edits)
-    #     push!(commands, Command("Fix all similar deprecations in file", "language-julia.applytextedit", [WorkspaceEdit(nothing, [tdeall])]))
-    # end
     response = JSONRPC.Response(r.id, commands)
     send(response, server)
 end
 
+function get_signatures(b, sigs, server) end
 
-function get_partial_completion(doc, offset)
-    ppt, pt, t = toks = get_toks(doc, offset)
-    is_at_end = offset == t.endbyte + 1
-    return ppt, pt, t, is_at_end
-end
-
-function latex_completions(doc, offset, toks, CIs)
-    ppt, pt, t = toks
-    partial = string("\\", CSTParser.Tokens.untokenize(t))
-    for (k, v) in REPL.REPLCompletions.latex_symbols
-        if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
-            t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
-            push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2], 1))
-        end
-    end
-end
-
-function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-    length(spartial) == 0 && return
-    fc = first(spartial)
-    if startswith("abstract", spartial)
-    elseif fc == 'b'
-        if startswith("baremodule", spartial)
-            push!(CIs, CompletionItem("baremodule", 14, "baremodule", TextEdit(Range(doc, offset:offset), "baremodule \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("begin", spartial)
-            push!(CIs, CompletionItem("begin", 14, "begin", TextEdit(Range(doc, offset:offset), "begin\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("break", spartial)
-            push!(CIs, CompletionItem("break", 14, "break", TextEdit(Range(doc, offset:offset), "break"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-    elseif fc == 'c'
-        if startswith("catch", spartial)
-            push!(CIs, CompletionItem("catch", 14, "catch", TextEdit(Range(doc, offset:offset), "catch"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-        if startswith("const", spartial)
-            push!(CIs, CompletionItem("const", 14, "const", TextEdit(Range(doc, offset:offset), "const \$0"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("continue", spartial)
-            push!(CIs, CompletionItem("continue", 14, "continue", TextEdit(Range(doc, offset:offset), "continue"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-    elseif startswith("do", spartial)
-        push!(CIs, CompletionItem("do", 14, "do", TextEdit(Range(doc, offset:offset), "do \$0\n end"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif fc == 'e'
-        if startswith("else", spartial)
-            push!(CIs, CompletionItem("else", 14, "else", TextEdit(Range(doc, offset:offset), "else"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-        if startswith("elseif", spartial)
-            push!(CIs, CompletionItem("elseif", 14, "elseif", TextEdit(Range(doc, offset:offset), "elseif"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-        if startswith("end", spartial)
-            push!(CIs, CompletionItem("end", 14, "end", TextEdit(Range(doc, offset:offset), "end"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-        if startswith("export", spartial)
-            push!(CIs, CompletionItem("export", 14, "export", TextEdit(Range(doc, offset:offset), "export \$0"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif fc == 'f'
-        if startswith("finally", spartial)
-            push!(CIs, CompletionItem("finally", 14, "finally", TextEdit(Range(doc, offset:offset), "finally"[length(spartial) + 1:end]), TextEdit[], 1))
-        end
-        if startswith("for", spartial)
-            push!(CIs, CompletionItem("for", 14, "for", TextEdit(Range(doc, offset:offset), "for \$1 in \$2\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("function", spartial)
-            push!(CIs, CompletionItem("function", 14, "function", TextEdit(Range(doc, offset:offset), "function \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif startswith("global", spartial)
-        push!(CIs, CompletionItem("global", 14, "global", TextEdit(Range(doc, offset:offset), "global \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif fc == 'i'
-        if startswith("if", spartial)
-            push!(CIs, CompletionItem("if", 14, "if", TextEdit(Range(doc, offset:offset), "if \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("import", spartial)
-            push!(CIs, CompletionItem("import", 14, "import", TextEdit(Range(doc, offset:offset), "import \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("importall", spartial)
-            push!(CIs, CompletionItem("importall", 14, "importall", TextEdit(Range(doc, offset:offset), "importall \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif fc == 'l'
-        if startswith("let", spartial)
-            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("local", spartial)
-            push!(CIs, CompletionItem("local", 14, "local", TextEdit(Range(doc, offset:offset), "local \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif fc == 'm'
-        if startswith("macro", spartial)
-            push!(CIs, CompletionItem("macro", 14, "macro", TextEdit(Range(doc, offset:offset), "macro \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("module", spartial)
-            push!(CIs, CompletionItem("module", 14, "module", TextEdit(Range(doc, offset:offset), "module \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-        if startswith("mutable", spartial)
-            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif startswith("outer", spartial)
-        push!(CIs, CompletionItem("outer", 14, "outer", TextEdit(Range(doc, offset:offset), "outer"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif startswith("primitive", spartial)
-        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif startswith("quote", spartial)
-        push!(CIs, CompletionItem("quote", 14, "quote", TextEdit(Range(doc, offset:offset), "quote\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif startswith("return", spartial)
-        push!(CIs, CompletionItem("return", 14, "return", TextEdit(Range(doc, offset:offset), "return \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif startswith("struct", spartial)
-        push!(CIs, CompletionItem("struct", 14, "struct", TextEdit(Range(doc, offset:offset), "struct \$1\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif fc == 't'
-        if startswith("try", spartial)
-            push!(CIs, CompletionItem("try", 14, "try", TextEdit(Range(doc, offset:offset), "try \$1\n    \$0\ncatch\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-        end
-    elseif startswith("using", spartial)
-        push!(CIs, CompletionItem("using", 14, "using", TextEdit(Range(doc, offset:offset), "using \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
-    elseif startswith("while", spartial)
-        push!(CIs, CompletionItem("while", 14, "while", TextEdit(Range(doc, offset:offset), "while \$1\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
-    end
-end
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
-    return CompletionParams(params)
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
-        return
-    end
-    
-    CIs = CompletionItem[]
-    doc = server.documents[URI2(r.params.textDocument.uri)]
-    offset = get_offset(doc, r.params.position)
-    rng = Range(doc, offset:offset)
-    ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
-    toks = ppt, pt, t 
-    x = get_expr(getcst(doc), offset)
-
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
-        #latex completion
-        latex_completions(doc, offset, toks, CIs)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
-        #path completion
-        path, partial = splitdir(t.val[2:prevind(t.val, length(t.val))])
-        if !startswith(path, "/")
-            path = joinpath(dirname(uri2filepath(doc._uri)), path)  
-        end
-        if ispath(path)
-            fs = readdir(path)
-            for f in fs
-                if startswith(f, partial)
-                    if isdir(joinpath(path, f))
-                        f = string(f, "/")
-                    end
-                    push!(CIs, CompletionItem(f, 6, f, TextEdit(rng, f[length(partial) + 1:end]), TextEdit[], 1))
+function get_signatures(b::CSTParser.Binding, sigs, server)
+    if b.t == getsymbolserver(server)["Core"].vals["Function"]
+        if b.val isa CSTParser.EXPR && CSTParser.defines_function(b.val)
+            sig = CSTParser.rem_where_decl(CSTParser.get_sig(b.val))
+            args = EXPR[]
+            for i = 2:length(sig.args)
+                if sig.args[i].binding !== nothing 
+                    push!(args, sig.args[i].binding)
                 end
             end
-        end
-    elseif x.parent !== nothing && (x.parent.typ === CSTParser.Using || x.parent.typ === CSTParser.Import || x.parent.typ === CSTParser.ImportAll)
-        #import completion
-        import_statement = x.parent
-        if (t.kind == Tokens.WHITESPACE && pt.kind ∈ (Tokens.USING,Tokens.IMPORT,Tokens.IMPORTALL,Tokens.COMMA)) || 
-            (t.kind == Tokens.COMMA)
-            #no partial, no dot
-            for (n,m) in StaticLint.getsymbolserver(server)
-                startswith(n, ".") && continue
-                push!(CIs, CompletionItem(n, 6, MarkupContent(m.doc), TextEdit(rng, n), TextEdit[], 1))
-            end
-        elseif t.kind == Tokens.DOT && pt.kind == Tokens.IDENTIFIER
-            #no partial, dot
-            if haskey(StaticLint.getsymbolserver(server), pt.val)
-                collect_completions(StaticLint.getsymbolserver(server)[pt.val], "", rng, CIs, false)
-            end
-        elseif t.kind == Tokens.IDENTIFIER && is_at_end 
-            #partial
-            if pt.kind == Tokens.DOT && ppt.kind == Tokens.IDENTIFIER
-                if haskey(StaticLint.getsymbolserver(server), ppt.val)
-                    rootmod = StaticLint.getsymbolserver(server)[ppt.val]
-                    for (n,m) in rootmod.vals
-                        if startswith(n, t.val)
-                            push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
-                        end
-                    end
-                end
-            else
-                for (n,m) in StaticLint.getsymbolserver(server)
-                    if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
-                    end
-                end
-            end
-        end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
-        #getfield completion, no partial
-        px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
-        if px != nothing
-            if px.ref isa CSTParser.Binding && px.ref.val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(px.ref.val, "", rng, CIs, false)
-            elseif px.ref isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(px.ref, "", rng, CIs, false)
-            end
-        end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
-        #getfield completion, partial
-        px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
-        if px != nothing
-            if px.ref isa CSTParser.Binding && px.ref.val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(px.ref.val, t.val, rng, CIs, false)
-            elseif px.ref isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(px.ref, t.val, rng, CIs, false)
-            end
-        end
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
-        #token completion
-        if is_at_end && x != nothing
-            if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.AT_SIGN
-                spartial = string("@", t.val)
-            else
-                spartial = t.val
-            end
-            kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-            rng = Range(doc, offset:offset)
-            collect_completions(x, spartial, rng, CIs)
+            params = (a->ParameterInformation(a.name)).(args)
+            push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
         end
     end
-
-    send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
 end
-
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, exportedonly = true)
-    for val in m.vals
-        n, v = val[1], val[2]
-        startswith(n, ".") && continue
-        v isa String && continue
-        !startswith(n, spartial) && continue
-        exportedonly && !(n in m.exported) && continue
-        
-        push!(CIs, CompletionItem(n, 6, MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]), TextEdit[], 1)) 
-    end
-end
-
-function collect_completions(x::EXPR, spartial, rng, CIs)
-    if x.scope !== nothing
-        for n in x.scope.names
-            if startswith(n[1], spartial)
-                push!(CIs, CompletionItem(n[1], 6, MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]), TextEdit[], 1))
-            end
-        end
-        if x.scope.modules isa Dict
-            for m in x.scope.modules
-                collect_completions(m[2], spartial, rng, CIs)
-            end
-        end
-    end
-    if x.parent !== nothing && x.typ !== CSTParser.ModuleH && x.typ !== CSTParser.BareModule
-        return collect_completions(x.parent, spartial, rng, CIs)
-    else
-        return
-    end
-end
-
-
-# temp fix for user defined sigs
-function get_sig_args(sig)
-    # while sig isa CSTParser.WhereOpCall
-    #     sig = sig.arg1
-    # end
-    # state, s = StaticLint.State(), StaticLint.Scope()
-    # StaticLint.get_fcall_bindings(sig, state, s)
-    out = Tuple{Int,String}[]
-    # if haskey(state.bindings, ())
-    #     for (n,B) in state.bindings[()]
-    #         b = last(B)
-    #         push!(out, (b.si.n, n))
-    #     end
-    # end
-    sort!(out, lt = (a,b)->a[1]<b[1])   
-    return [o[2] for o in out]
-end
-
-# function get_signatures(x::StaticLint.ResolvedRef, state, sigs = SignatureInformation[])
-#     if x.b.val isa StaticLint.SymbolServer.FunctionStore || x.b.val isa StaticLint.SymbolServer.structStore
-#         for m in x.b.val.methods
-#             p_sigs = [join(string.(p), "::") for p in m.args]
-#             PI = map(ParameterInformation, p_sigs)
-#             push!(sigs, SignatureInformation("$(CSTParser.str_value(x.r.val))($(join(p_sigs, ",")))", "", PI))
-#         end
-#     elseif CSTParser.defines_function(x.b.val)
-#         for m in StaticLint.get_methods(x, state)
-#             !(m.val isa CSTParser.AbstractEXPR) && continue 
-#             sig = CSTParser.get_sig(m.val)
-#             args = get_sig_args(sig)
-#             PI = map(p->ParameterInformation(string(p)), args)
-#             push!(sigs, SignatureInformation(string(Expr(sig)), "", PI))
-#         end
-#     end
-#     return sigs
-# end
-
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params)
@@ -363,45 +40,43 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     end
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     sigs = SignatureInformation[]
-    # rootdoc = find_root(doc, server)
-    # state = StaticLint.build_bindings(rootdoc.code)
-    # offset = get_offset(doc, r.params.position)
+    offset = get_offset(doc, r.params.position)
+    rng = Range(doc, offset:offset)
+    x = get_expr(getcst(doc), offset)
     arg = 0
-    # stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-    
-    # if length(stack)>1 && stack[end-1] isa CSTParser.EXPR{CSTParser.Call}
-    #     call_ex = stack[end-1]
-    #     fname = call_ex.args[1]
-    #     if fname isa CSTParser.EXPR{CSTParser.Curly}
-    #         fname = fname.args[1]
-    #     end
-    #     fname_offset = offsets[end-1]
-    #     if fname isa CSTParser.BinarySyntaxOpCall && fname.op.kind == CSTParser.Tokens.DOT
-    #         fname_offset += fname.arg1.fullspan + fname.op.fullspan
-    #     end
 
-    #     x = find_ref(doc, fname_offset)
-    #     if x isa Nothing 
-    #         send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    #         return
-    #     end
-    #     sigs = get_signatures(x, state, sigs)
-    #     if isempty(sigs)
-    #         send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    #         return
-    #     end
-    #     if CSTParser.is_lparen(last(stack))
-    #         arg = 0
-    #     elseif CSTParser.is_rparen(last(stack)) && offset > last(offsets) 
-    #         return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    #     else
-    #         arg = sum(!(a isa PUNCTUATION) for a in call_ex.args) - 2
-    #     end
-    # else
-    #     return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
-    # end
-    
-    send(JSONRPC.Response(r.id, SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)), server)
+    if x isa EXPR && x.parent isa EXPR && x.parent.typ === CSTParser.Call
+        if x.parent.args[1].typ === CSTParser.IDENTIFIER && StaticLint.hasref(x.parent.args[1])
+            call_name = x.parent.args[1]
+        elseif x.parent.args[1].typ === CSTParser.Curly && x.parent.args[1].args[1].typ === CSTParser.IDENTIFIER
+            call_name = x.parent.args[1].args[1]
+        else
+            call_name = nothing
+        end
+        if call_name !== nothing && StaticLint.hasref(call_name)
+            if call_name.ref isa CSTParser.Binding
+                f_binding = call_name.ref
+                while f_binding !== nothing && f_binding.t == getsymbolserver(server)["Core"].vals["Function"]
+                    get_signatures(f_binding, sigs, server)
+                    f_binding = f_binding.overwrites
+                end
+            elseif call_name.ref isa SymbolServer.FunctionStore
+                for m in call_name.ref.methods
+                    sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
+                    params = (a->ParameterInformation(a[1])).(m.args)
+                    push!(sigs, SignatureInformation(sig, "", params))
+                end
+            end
+        end
+    end
+    (isempty(sigs) || (x.typ === CSTParser.PUNCTUATION  && x.kind === CSTParser.Tokens.RPAREN)) && return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
+
+    if x.typ === CSTParser.Tokens.LPAREN
+        arg = 0
+    else
+        arg = sum(!(a.typ === CSTParser.PUNCTUATION) for a in x.parent.args) - 1
+    end
+    send(JSONRPC.Response(r.id, SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)), server)
 end
 
 
@@ -442,21 +117,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         end
     end
     
-    # stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-    # if length(stack)>2 && stack[end] isa CSTParser.LITERAL && stack[end].kind == CSTParser.Tokens.STRING && stack[end-1] isa CSTParser.EXPR{CSTParser.Call} && length(stack[end-1]) == 4 && stack[end-1].args[1] isa CSTParser.IDENTIFIER && stack[end-1].args[1].val == "include"
-    #     path = (joinpath(dirname(doc._uri), stack[end].val))
-    #     if haskey(server.documents, URI2(path))
-    #         push!(locations, Location(path, 1))
-    #     end
-    # else
-    #     for rref in doc.code.rref
-    #         if rref.r.loc.offset <= offset <= rref.r.loc.offset + rref.r.val.fullspan
-    #             get_locations(rref, state, locations, server)
-    #             break
-    #         end
-    #     end
-    # end
-    
     send(JSONRPC.Response(r.id, locations), server)
 end
 
@@ -492,65 +152,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
 
     send(JSONRPC.Response(r.id, lsedits), server)
 end
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params)
-    return TextDocumentPositionParams(params)
-end
-
-function get_hover(x, documentation) end
-function get_hover(x::EXPR, documentation)
-    if x.parent isa EXPR  && (x.kind === CSTParser.Tokens.END || x.kind === CSTParser.Tokens.RPAREN || x.kind === CSTParser.Tokens.RBRACE || x.kind === CSTParser.Tokens.RSQUARE)
-        push!(documentation, MarkedString("Closes $(x.parent.typ) expression."))
-    elseif CSTParser.isidentifier(x) && StaticLint.hasref(x)
-        if x.ref isa StaticLint.Binding
-            get_hover(x.ref, documentation)
-        elseif x.ref isa SymbolServer.SymStore
-            push!(documentation, MarkedString(x.ref.doc))
-        end
-    end
-end
-function get_hover(b::CSTParser.Binding, documentation)
-    if b.val isa EXPR
-        if CSTParser.defines_function(b.val) && false
-            while true
-                if b.val isa EXPR
-                    push!(documentation, string(Expr(CSTParser.get_sig(b.val))))
-                elseif b.val isa SymbolServer.SymStore
-                    push!(documentation, b.val.doc)
-                else
-                    break
-                end
-                if b.overwrites != b && (b.overwrites.t == getsymbolserver(server)["Core"].vals["Function"] || b.overwrites.t == getsymbolserver(server)["Core"].vals["DataType"])
-                    b = b.overwrites
-                else
-                    break
-                end
-            end
-        else
-            push!(documentation, MarkedString(Expr(b.val)))
-        end
-    elseif b.val isa SymbolServer.SymStore
-        push!(documentation, MarkedString(b.val.doc))
-    elseif b.val isa CSTParser.Binding
-        get_hover(b.val, documentation)
-    end
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
-        return
-    end
-    documentation = Any[]
-    doc = server.documents[URI2(r.params.textDocument.uri)]
-    x = get_expr(getcst(doc), get_offset(doc, r.params.position))
-    
-    get_hover(x, documentation)
-    
-    send(JSONRPC.Response(r.id, Hover(unique(documentation))), server)
-end
-
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params)
     return DocumentLinkParams(params) 
@@ -640,7 +241,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
         p,b = x[1], x[2]
         !(b.val isa EXPR) && continue
         isempty(b.name) && continue
-        @info typeof(b.val)
         push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p .+ (0:b.val.span))), nothing))
     end
     send(JSONRPC.Response(r.id, syms), server)

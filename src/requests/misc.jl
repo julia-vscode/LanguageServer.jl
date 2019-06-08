@@ -15,7 +15,7 @@ end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
-    return 
+    return
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server)
@@ -84,7 +84,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
-    end 
+    end
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position)
@@ -95,17 +95,31 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         else
             p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
         end
-    else 
+    else
         p1 = p2 = p3 = length(doc._content)
     end
-    
+
     response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
-    
+
     send(response, server)
 end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params)
+    return params
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
+    server.env_path = r.params
+    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+    @info "Restarted symbol server"
+    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
+    @info "StaticLint store set"
+    kill(server.symbol_server)
+
+    if server.workspaceFolders != nothing
+        for wkspc in server.workspaceFolders
+            load_folder(wkspc, server)
+        end
+    end
+    @info "Finished reparsing everything"
 end

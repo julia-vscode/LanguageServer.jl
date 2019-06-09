@@ -1,7 +1,7 @@
 using LanguageServer
 import LanguageServer.JSONRPC:Request, parse
 import LanguageServer: process, lint
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
 init_request = """
 {
     "jsonrpc":"2.0",

@@ -1,5 +1,5 @@
 import LanguageServer: LanguageServerInstance, Document
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
 server.runlinter = true
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse(init_request)), server)
 

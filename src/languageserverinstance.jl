@@ -29,7 +29,7 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
-    server. symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path)
+    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path)
     @info "Started symbol server"
     server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
     @info "StaticLint store set"
@@ -75,7 +75,7 @@ function read_transport_layer(stream, debug_mode = false)
     message_str = String(message)
     debug_mode && @info "RECEIVED: $message_str"
     debug_mode && @info ""
-    return message_str    
+    return message_str
 end
 
 function write_transport_layer(stream, response, debug_mode = false)

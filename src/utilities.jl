@@ -76,17 +76,17 @@ end
 
 is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
-function toggle_file_lint(doc, server)
-    if doc._runlinter
-        doc._runlinter = false
-        empty!(doc.diagnostics)
-    else
-        doc._runlinter = true
-        # L = lint(doc, server)
-        # doc.diagnostics = L.diagnostics
-    end
-    publish_diagnostics(doc, server)
-end
+# function toggle_file_lint(doc, server)
+#     if doc._runlinter
+#         doc._runlinter = false
+#         empty!(doc.diagnostics)
+#     else
+#         doc._runlinter = true
+#         # L = lint(doc, server)
+#         # doc.diagnostics = L.diagnostics
+#     end
+#     publish_diagnostics(doc, server)
+# end
 
 function remove_workspace_files(root, server)
     for (uri, doc) in server.documents

@@ -17,8 +17,8 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, env_path, depot_path, packages)
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing)
     end
 end
 

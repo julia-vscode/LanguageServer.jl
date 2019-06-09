@@ -47,23 +47,23 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server)
-    path = get(r.params, "path", "")
-    uri = get(r.params, "external", "")
-    if isdir(uri2filepath(path))
-        for doc in values(server.documents)
-            uri2 = doc._uri
-            server.debug_mode && @info "LINT: ignoring $path"
-            if startswith(uri2, uri)
-                toggle_file_lint(doc, server)
-            end
-        end
-    else
-        if uri in map(i->i._uri, values(server.documents))
-            server.debug_mode && @info "LINT: ignoring $path"
-            doc = server.documents[URI2(uri)]
-            toggle_file_lint(doc, server)
-        end
-    end
+    # path = get(r.params, "path", "")
+    # uri = get(r.params, "external", "")
+    # if isdir(uri2filepath(path))
+    #     for doc in values(server.documents)
+    #         uri2 = doc._uri
+    #         server.debug_mode && @info "LINT: ignoring $path"
+    #         if startswith(uri2, uri)
+    #             toggle_file_lint(doc, server)
+    #         end
+    #     end
+    # else
+    #     if uri in map(i->i._uri, values(server.documents))
+    #         server.debug_mode && @info "LINT: ignoring $path"
+    #         doc = server.documents[URI2(uri)]
+    #         toggle_file_lint(doc, server)
+    #     end
+    # end
 end
 
 
@@ -88,6 +88,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position)
+    x = getcst(doc)
     loc = 0
     if x.typ === CSTParser.FileH
         offset > x.fullspan && return 1, x.span, x.fullspan

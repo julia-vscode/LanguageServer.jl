@@ -113,7 +113,7 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(doc._content) && error("offset > sizeof(content)")
+    offset > sizeof(doc._content) && error("offset[$offset] > sizeof(content)[$(sizeof(doc._content))]")
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0

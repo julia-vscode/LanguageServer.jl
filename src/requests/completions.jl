@@ -32,7 +32,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                     if isdir(joinpath(path, f))
                         f = string(f, "/")
                     end
-                    push!(CIs, CompletionItem(f, 6, f, TextEdit(rng, f[length(partial) + 1:end]), TextEdit[], 1))
+                    push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end]), TextEdit[], 1))
                 end
             end
         end
@@ -44,12 +44,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             #no partial, no dot
             for (n,m) in StaticLint.getsymbolserver(server)
                 startswith(n, ".") && continue
-                push!(CIs, CompletionItem(n, 6, MarkupContent(m.doc), TextEdit(rng, n), TextEdit[], 1))
+                push!(CIs, CompletionItem(n, 9, MarkupContent(m.doc), TextEdit(rng, n), TextEdit[], 1))
             end
         elseif t.kind == Tokens.DOT && pt.kind == Tokens.IDENTIFIER
             #no partial, dot
             if haskey(StaticLint.getsymbolserver(server), pt.val)
-                collect_completions(StaticLint.getsymbolserver(server)[pt.val], "", rng, CIs, false)
+                collect_completions(StaticLint.getsymbolserver(server)[pt.val], "", rng, CIs, server, false)
             end
         elseif t.kind == Tokens.IDENTIFIER && is_at_end 
             #partial
@@ -58,14 +58,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                     rootmod = StaticLint.getsymbolserver(server)[ppt.val]
                     for (n,m) in rootmod.vals
                         if startswith(n, t.val)
-                            push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
+                            push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
                         end
                     end
                 end
             else
                 for (n,m) in StaticLint.getsymbolserver(server)
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 6, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
+                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
                     end
                 end
             end
@@ -73,11 +73,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
         #getfield completion, no partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
-        _get_dot_completion(px, "", rng, CIs)
+        _get_dot_completion(px, "", rng, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
         #getfield completion, partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
-        _get_dot_completion(px, t.val, rng, CIs)
+        _get_dot_completion(px, t.val, rng, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
         #token completion
         if is_at_end && x != nothing
@@ -88,7 +88,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             end
             kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
             rng = Range(doc, offset:offset)
-            collect_completions(x, spartial, rng, CIs)
+            collect_completions(x, spartial, rng, CIs, server)
         end
     end
 
@@ -108,7 +108,7 @@ function latex_completions(doc, offset, toks, CIs)
         if startswith(string(k), partial)
             t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
             t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
-            push!(CIs, CompletionItem(k[2:end], 6, v, t1, TextEdit[t2], 1))
+            push!(CIs, CompletionItem(k[2:end], 11, v, t1, TextEdit[t2], 1))
         end
     end
 end
@@ -176,7 +176,7 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
         end
     elseif fc == 'l'
         if startswith("let", spartial)
-            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
+            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
         end
         if startswith("local", spartial)
             push!(CIs, CompletionItem("local", 14, "local", TextEdit(Range(doc, offset:offset), "local \$0\n"[length(spartial) + 1:end]), TextEdit[], 2))
@@ -189,12 +189,12 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
             push!(CIs, CompletionItem("module", 14, "module", TextEdit(Range(doc, offset:offset), "module \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
         end
         if startswith("mutable", spartial)
-            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
+            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
         end
     elseif startswith("outer", spartial)
         push!(CIs, CompletionItem("outer", 14, "outer", TextEdit(Range(doc, offset:offset), "outer"[length(spartial) + 1:end]), TextEdit[], 2))
     elseif startswith("primitive", spartial)
-        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n   \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
+        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
     elseif startswith("quote", spartial)
         push!(CIs, CompletionItem("quote", 14, "quote", TextEdit(Range(doc, offset:offset), "quote\n    \$0\nend"[length(spartial) + 1:end]), TextEdit[], 2))
     elseif startswith("return", spartial)
@@ -212,7 +212,7 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
     end
 end
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, exportedonly = true)
+function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, exportedonly = true)
     for val in m.vals
         n, v = val[1], val[2]
         startswith(n, ".") && continue
@@ -220,47 +220,76 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, ex
         !startswith(n, spartial) && continue
         exportedonly && !(n in m.exported) && continue
         
-        push!(CIs, CompletionItem(n, 6, MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]), TextEdit[], 1)) 
+        push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]), TextEdit[], 1)) 
     end
 end
 
-function collect_completions(x::EXPR, spartial, rng, CIs, exportedonly = false)
+function collect_completions(x::EXPR, spartial, rng, CIs, server, exportedonly = false)
     if x.scope !== nothing
-        _get_scope_completions(x, spartial, rng, CIs)
+        _get_scope_completions(x, spartial, rng, CIs, server)
         if x.scope.modules isa Dict
             for m in x.scope.modules
-                collect_completions(m[2], spartial, rng, CIs)
+                collect_completions(m[2], spartial, rng, CIs, server)
             end
         end
     end
     if x.parent !== nothing && x.typ !== CSTParser.ModuleH && x.typ !== CSTParser.BareModule
-        return collect_completions(x.parent, spartial, rng, CIs)
+        return collect_completions(x.parent, spartial, rng, CIs, server)
     else
         return
     end
 end
 
 
-function _get_scope_completions(x, spartial, rng, CIs)
+function _get_scope_completions(x, spartial, rng, CIs, server)
     for n in x.scope.names
         if startswith(n[1], spartial)
-            push!(CIs, CompletionItem(n[1], 6, MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]), TextEdit[], 1))
+            push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]), TextEdit[], 1))
         end
     end
 end
 
-function _get_dot_completion(px, spartial, rng, CIs)
+function _get_dot_completion(px, spartial, rng, CIs, server)
     if px != nothing
         if px.ref isa CSTParser.Binding
             if px.ref.val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(px.ref.val, spartial, rng, CIs, false)
+                collect_completions(px.ref.val, spartial, rng, CIs, server, false)
             elseif px.ref.val isa EXPR && px.ref.val.typ === CSTParser.ModuleH && px.ref.val.scope isa CSTParser.Scope && px.ref.val.scope.names isa Dict
-                _get_scope_completions(px.ref.val, spartial, rng, CIs)
+                _get_scope_completions(px.ref.val, spartial, rng, CIs, server)
             elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa EXPR && CSTParser.defines_struct(px.ref.t.val) && px.ref.t.val.scope isa CSTParser.Scope && px.ref.t.val.scope.names isa Dict
-                _get_scope_completions(px.ref.t.val, spartial, rng, CIs)
+                _get_scope_completions(px.ref.t.val, spartial, rng, CIs, server)
             end
         elseif px.ref isa StaticLint.SymbolServer.ModuleStore
-            collect_completions(px.ref, spartial, rng, CIs, false)
+            collect_completions(px.ref, spartial, rng, CIs, server, false)
         end
     end
 end
+
+function _completion_kind(b ,server)
+    if b isa CSTParser.Binding
+        if b.t == getsymbolserver(server)["Core"].vals["String"]
+            return 1
+        elseif b.t == getsymbolserver(server)["Core"].vals["Function"]
+            return 2
+        elseif b.t == getsymbolserver(server)["Core"].vals["Module"]
+            return 9
+        elseif b.t == getsymbolserver(server)["Core"].vals["Int"] || b.t == getsymbolserver(server)["Core"].vals["Float64"]
+            return 12
+        elseif b.t == getsymbolserver(server)["Core"].vals["DataType"]
+            return 22
+        else 
+            return 13
+        end
+    elseif b isa SymbolServer.ModuleStore
+        return 9
+    elseif b isa SymbolServer.MethodStore
+        return 2        
+    elseif b isa SymbolServer.FunctionStore
+        return 3
+    elseif b isa SymbolServer.abstractStore || b isa SymbolServer.primitiveStore || b isa SymbolServer.structStore
+        return 22
+    else 
+        return 6
+    end
+end
+

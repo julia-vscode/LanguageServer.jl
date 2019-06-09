@@ -92,7 +92,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
             p, b = x[1], x[2]
             !(b.val isa EXPR) && continue
             isempty(b.name) && continue
-            push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p .+ (0:b.val.span))), nothing))
+            push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p)), nothing))
         end
     end
 

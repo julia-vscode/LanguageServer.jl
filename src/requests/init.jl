@@ -9,13 +9,13 @@ const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Incremental"
     false, #documentHighlightProvider::Bool
     true, #documentSymbolProvider::Bool
     true, #workspaceSymbolProvider::Bool
-    true, #codeActionProvider::Bool
+    false, #codeActionProvider::Bool
     # codeLensProvider::CodeLensOptions
     true, #documentFormattingProvider::Bool
     false, #documentRangeFormattingProvider::Bool
     # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
     true, #renameProvider::Bool
-    DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
+    # DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
     false, #colorProvider::Bool
     ExecuteCommandOptions([]), #executeCommandProvider::ExecuteCommandOptions
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)), #workspace::WorkspaceOptions
@@ -54,15 +54,13 @@ function load_folder(path::String, server)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
                     uri = filepath2uri(filepath)
                     if URI2(uri) in keys(server.documents)
-                        @info "skipped $filepath" 
                         continue
                     else
-                        @info "parsed $filepath" 
+                        content = read(filepath, String)
+                        server.documents[URI2(uri)] = Document(uri, content, true, server)
+                        doc = server.documents[URI2(uri)]
+                        parse_all(doc, server)
                     end
-                    content = read(filepath, String)
-                    server.documents[URI2(uri)] = Document(uri, content, true, server)
-                    doc = server.documents[URI2(uri)]
-                    parse_all(doc, server)
                 end
             end
         end

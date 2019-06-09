@@ -1,4 +1,4 @@
-using LanguageServer
+using LanguageServer, Pkg
 import LanguageServer.JSONRPC:Request, parse
 import LanguageServer: process, lint
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false)

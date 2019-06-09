@@ -15,7 +15,7 @@ function get_signatures(b::CSTParser.Binding, sigs, server)
     if b.t == getsymbolserver(server)["Core"].vals["Function"]
         if b.val isa CSTParser.EXPR && CSTParser.defines_function(b.val)
             sig = CSTParser.rem_where_decl(CSTParser.get_sig(b.val))
-            args = EXPR[]
+            args = []
             for i = 2:length(sig.args)
                 if sig.args[i].binding !== nothing 
                     push!(args, sig.args[i].binding)
@@ -241,14 +241,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
         p,b = x[1], x[2]
         !(b.val isa EXPR) && continue
         isempty(b.name) && continue
-        push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p .+ (0:b.val.span))), nothing))
+        push!(syms, SymbolInformation(b.name, _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), nothing))
     end
     send(JSONRPC.Response(r.id, syms), server)
 end
 
-function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{Int,CSTParser.Binding}[])
+function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},CSTParser.Binding}[])
     if x.binding !== nothing
-        push!(bindings, (pos, x.binding))
+        push!(bindings, (pos .+ (0:x.span), x.binding))
     end
     if x.args !== nothing
         for a in x.args
@@ -257,4 +257,34 @@ function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{Int,CSTParser
         end
     end
     return bindings
+end
+
+function _binding_kind(b ,server)
+    if b isa CSTParser.Binding
+        if b.t == nothing
+            return 13
+        elseif b.t == getsymbolserver(server)["Core"].vals["Module"]
+            return 2
+        elseif b.t == getsymbolserver(server)["Core"].vals["Function"]
+            return 12
+        elseif b.t == getsymbolserver(server)["Core"].vals["String"]
+            return 15
+        elseif b.t == getsymbolserver(server)["Core"].vals["Int"] || b.t == getsymbolserver(server)["Core"].vals["Float64"]
+            return 16
+        elseif b.t == getsymbolserver(server)["Core"].vals["DataType"]
+            return 23
+        else 
+            return 13
+        end
+    elseif b isa SymbolServer.ModuleStore
+        return 2
+    elseif b isa SymbolServer.MethodStore
+        return 6        
+    elseif b isa SymbolServer.FunctionStore
+        return 12
+    elseif b isa SymbolServer.abstractStore || b isa SymbolServer.primitiveStore || b isa SymbolServer.structStore
+        return 23
+    else 
+        return 13
+    end
 end

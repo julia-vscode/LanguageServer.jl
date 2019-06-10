@@ -46,10 +46,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     arg = 0
 
     if x isa EXPR && x.parent isa EXPR && x.parent.typ === CSTParser.Call
-        if x.parent.args[1].typ === CSTParser.IDENTIFIER && StaticLint.hasref(x.parent.args[1])
+        if x.parent.args[1].typ === CSTParser.IDENTIFIER
             call_name = x.parent.args[1]
         elseif x.parent.args[1].typ === CSTParser.Curly && x.parent.args[1].args[1].typ === CSTParser.IDENTIFIER
             call_name = x.parent.args[1].args[1]
+        elseif x.parent.args[1].typ === CSTParser.BinaryOpCall && x.parent.args[1].args[2].kind === CSTParser.Tokens.DOT && length(x.parent.args[1].args) == 3 && length(x.parent.args[1].args[3]) == 1
+            call_name = x.parent.args[1].args[3].args[1]
         else
             call_name = nothing
         end

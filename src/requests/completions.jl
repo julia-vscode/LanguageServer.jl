@@ -254,6 +254,18 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
         if px.ref isa CSTParser.Binding
             if px.ref.val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(px.ref.val, spartial, rng, CIs, server, false)
+            elseif px.ref.t isa SymbolServer.structStore
+                for a in px.ref.t.fields
+                    if startswith(a, spartial)
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]), TextEdit[], 1))
+                    end
+                end
+            elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa SymbolServer.structStore
+                for a in px.ref.t.val.fields
+                    if startswith(a, spartial)
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]), TextEdit[], 1))
+                    end
+                end
             elseif px.ref.val isa EXPR && px.ref.val.typ === CSTParser.ModuleH && px.ref.val.scope isa CSTParser.Scope && px.ref.val.scope.names isa Dict
                 _get_scope_completions(px.ref.val, spartial, rng, CIs, server)
             elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa EXPR && CSTParser.defines_struct(px.ref.t.val) && px.ref.t.val.scope isa CSTParser.Scope && px.ref.t.val.scope.names isa Dict

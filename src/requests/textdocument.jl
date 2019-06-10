@@ -155,10 +155,9 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
             CSTParser.setparent!(cst.args[i1], cst)
             i1 += 1
         end
-    elseif i1 == i2 == 0
-        cst = CSTParser.parse(updated_text, true)
     else
-        error("Erk..")
+        StaticLint.clear_meta(cst)
+        cst = CSTParser.parse(updated_text, true)
     end
     CSTParser.update_span!(cst)
     doc.cst = cst

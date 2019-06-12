@@ -6,26 +6,27 @@ end
 
 mutable struct Document
     _uri::String
+    path::String
     _content::String
     _line_offsets::Union{Nothing,Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
-    code::StaticLint.File
+    cst::EXPR
     diagnostics::Vector{LSDiagnostic}
     _version::Int
     _runlinter::Bool
-end
-function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing, index = (), nb = 0, parent = "")
-    path = uri2filepath(uri)
-    cst = CSTParser.parse(text, true)
-    state = StaticLint.State(path, server)
-    s = StaticLint.Scope(nothing, StaticLint.Scope[], cst.span,  CSTParser.TopLevel, index, nb)
-    scope = StaticLint.pass(cst, state, s, index, false, false)
-    file = StaticLint.File(cst, state, scope, index, nb, "", [], [])
-    return Document(uri, text, nothing, false, workspace_file, file, [], 0, true)
+    server
+    root::Union{Nothing,Document}
 end
 
-StaticLint.CST(doc::Document) = doc.code
+function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
+    path = uri2filepath(uri)
+    cst = CSTParser.parse(text, true)
+    cst.val = path
+    doc = Document(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+    setroot(doc, doc)
+    return doc
+end
 
 
 function get_text(doc::Document)
@@ -72,19 +73,20 @@ gives the byte offset position of the start of each line. This always starts
 with 0 for the first line (even if empty).
 """
 function get_line_offsets(doc::Document)
-    doc._line_offsets = Int[0]
-    text = doc._content
-    ind = firstindex(text)
-    while ind <= lastindex(text)
-        c = text[ind]
-        nl = c == '\n' || c == '\r'
-        if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
-            ind += 1
+    if doc._line_offsets === nothing
+        doc._line_offsets = Int[0]
+        text = doc._content
+        ind = firstindex(text)
+        while ind <= lastindex(text)
+            c = text[ind]
+            nl = c == '\n' || c == '\r'
+            if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
+                ind += 1
+            end
+            nl && push!(doc._line_offsets, ind)
+            ind = nextind(text, ind)
         end
-        nl && push!(doc._line_offsets, ind)
-        ind = nextind(text, ind)
     end
-    
     return doc._line_offsets
 end
 
@@ -111,7 +113,7 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(doc._content) && error("offset > sizeof(content)")
+    offset > sizeof(doc._content) && error("offset[$offset] > sizeof(content)[$(sizeof(doc._content))]")
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0

@@ -1,4 +1,4 @@
-using JSON, Sockets
+using JSON, Sockets, Pkg, SymbolServer
 
 init_request = """
 {
@@ -19,7 +19,7 @@ init_response_json = JSON.parse("""
     "jsonrpc": "2.0",
     "result": {
         "capabilities": {
-            "textDocumentSync": 1,
+            "textDocumentSync": 2,
             "hoverProvider": true,
             "completionProvider": {
                 "resolveProvider": false,
@@ -64,18 +64,18 @@ init_response_json = JSON.parse("""
 
 if Sys.iswindows()
     global_socket_name = "\\\\.\\pipe\\julia-language-server-testrun"
-elseif Sys.isunix() 
+elseif Sys.isunix()
     global_socket_name = joinpath(tempdir(), "julia-language-server-testrun")
 else
     error("Unknown operating system.")
 end
 
-@async begin    
+@async begin
     server = listen(global_socket_name)
     try
         sock = accept(server)
         try
-            ls = LanguageServerInstance(sock, sock, false)
+            ls = LanguageServerInstance(sock, sock, false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
             run(ls)
         finally
             close(sock)
@@ -95,7 +95,9 @@ try
 
     msg_json = JSON.parse(msg)
 
-    @test init_response_json == msg_json
+    @test_broken init_response_json == msg_json
+    @test msg_json["result"]["capabilities"]["typeDefinitionProvider"] == false
+    @test msg_json["result"]["capabilities"]["renameProvider"] == true
 finally
     close(client)
 end

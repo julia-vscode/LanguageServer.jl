@@ -15,10 +15,10 @@ mutable struct LanguageServerInstance
     packages::Dict
     env_path::String
     depot_path::String
-    symbol_server::Union{Nothing,StaticLint.SymbolServer.SymbolServerProcess}
+    symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool, env_path, depot_path, packages)
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(),  debug_mode, false, Set{String}(), false, packages, env_path, depot_path, nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing)
     end
 end
 
@@ -29,10 +29,11 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
-    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+
     @info "Started symbol server"
-    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
-    @info "StaticLint store set"
+    server.packages = SymbolServer.getstore(server.symbol_server)
+    @info "store set"
     kill(server.symbol_server)
     global T
     while true

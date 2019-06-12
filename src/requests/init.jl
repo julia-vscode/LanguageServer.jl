@@ -7,15 +7,15 @@ const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Incremental"
     false, #implementationProvider::Bool
     true, #referencesProvider::Bool
     false, #documentHighlightProvider::Bool
-    true, #documentSymbolProvider::Bool
+    true, #documentSymbolProvider::Boolxx1.args[1].args[3].args[21].args[3]
     true, #workspaceSymbolProvider::Bool
-    true, #codeActionProvider::Bool
+    false, #codeActionProvider::Bool
     # codeLensProvider::CodeLensOptions
     true, #documentFormattingProvider::Bool
-    false, #documentRangeFormattingProvider::Bool
+    true, #documentRangeFormattingProvider::Bool
     # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
     true, #renameProvider::Bool
-    DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
+    # DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions
     false, #colorProvider::Bool
     ExecuteCommandOptions([]), #executeCommandProvider::ExecuteCommandOptions
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)), #workspace::WorkspaceOptions
@@ -50,17 +50,17 @@ function load_folder(path::String, server)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 filepath = joinpath(root, file)
-                if isvalidjlfile(file)
+                if isvalidjlfile(filepath)
                     (!isfile(filepath) || !hasreadperm(filepath)) && continue
-                    @info "parsed $filepath" 
                     uri = filepath2uri(filepath)
-                    URI2(uri) in keys(server.documents) && continue
-                    content = read(filepath, String)
-                    server.documents[URI2(uri)] = Document(uri, content, true, server)
-                    doc = server.documents[URI2(uri)]
-                    doc._runlinter = false
-                    parse_all(doc, server)
-                    doc._runlinter = true
+                    if URI2(uri) in keys(server.documents)
+                        continue
+                    else
+                        content = read(filepath, String)
+                        server.documents[URI2(uri)] = Document(uri, content, true, server)
+                        doc = server.documents[URI2(uri)]
+                        parse_all(doc, server)
+                    end
                 end
             end
         end

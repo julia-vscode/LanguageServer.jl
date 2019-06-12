@@ -47,23 +47,23 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, param
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server)
-    path = get(r.params, "path", "")
-    uri = get(r.params, "external", "")
-    if isdir(uri2filepath(path))
-        for doc in values(server.documents)
-            uri2 = doc._uri
-            server.debug_mode && @info "LINT: ignoring $path"
-            if startswith(uri2, uri)
-                toggle_file_lint(doc, server)
-            end
-        end
-    else
-        if uri in map(i->i._uri, values(server.documents))
-            server.debug_mode && @info "LINT: ignoring $path"
-            doc = server.documents[URI2(uri)]
-            toggle_file_lint(doc, server)
-        end
-    end
+    # path = get(r.params, "path", "")
+    # uri = get(r.params, "external", "")
+    # if isdir(uri2filepath(path))
+    #     for doc in values(server.documents)
+    #         uri2 = doc._uri
+    #         server.debug_mode && @info "LINT: ignoring $path"
+    #         if startswith(uri2, uri)
+    #             toggle_file_lint(doc, server)
+    #         end
+    #     end
+    # else
+    #     if uri in map(i->i._uri, values(server.documents))
+    #         server.debug_mode && @info "LINT: ignoring $path"
+    #         doc = server.documents[URI2(uri)]
+    #         toggle_file_lint(doc, server)
+    #     end
+    # end
 end
 
 
@@ -88,15 +88,33 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
     offset = get_offset(doc, tdpp.position)
-    stack, offsets = StaticLint.get_stack(doc.code.cst, offset)
-    if length(stack) > 1 && stack[1] isa CSTParser.EXPR{CSTParser.FileH}
-        if stack[2] isa  CSTParser.EXPR{CSTParser.ModuleH} && length(stack) > 3
-            p1, p2, p3 = (offsets[4] + 1, offsets[4] + stack[4].span, offsets[4] + stack[4].fullspan)
-        else
-            p1, p2, p3 = (offsets[2] + 1, offsets[2] + stack[2].span, offsets[2] + stack[2].fullspan)
+    x = getcst(doc)
+    loc = 0
+    if x.typ === CSTParser.FileH
+        offset > x.fullspan && return 1, x.span, x.fullspan
+        for a in x.args
+            if loc <= offset < loc + a.fullspan
+                if a.typ === CSTParser.ModuleH
+                    if loc + a.args[1].fullspan + a.args[2].fullspan < offset < loc + a.args[1].fullspan + a.args[2].fullspan + a.args[3].fullspan
+                        loc0 = loc +  a.args[1].fullspan + a.args[2].fullspan
+                        for b in a.args[3].args
+                            if loc <= offset < loc + b.fullspan
+                                p1, p2, p3 = loc + 1, loc + b.span, loc + b.fullspan
+                            end
+                            loc += b.fullspan
+                        end
+                        p1, p2, p3 = loc0 + 1, loc0 + a.span, loc0 + a.fullspan
+                    else
+                        p1, p2, p3 = loc + 1, loc + a.span, loc + a.fullspan
+                    end
+                else
+                    p1, p2, p3 = loc + 1, loc + a.span, loc + a.fullspan
+                end
+            end
+            loc += a.fullspan
         end
     else
-        p1 = p2 = p3 = length(doc._content)
+        p1, p2, p3 = 1, x.span, x.fullspan
     end
 
     response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))

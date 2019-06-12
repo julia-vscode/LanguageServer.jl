@@ -95,7 +95,9 @@ try
 
     msg_json = JSON.parse(msg)
 
-    @test init_response_json == msg_json
+    @test_broken init_response_json == msg_json
+    @test msg_json["result"]["capabilities"]["typeDefinitionProvider"] == false
+    @test msg_json["result"]["capabilities"]["renameProvider"] == true
 finally
     close(client)
 end

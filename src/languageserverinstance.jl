@@ -75,7 +75,7 @@ function read_transport_layer(stream, debug_mode = false)
     message_str = String(message)
     debug_mode && @info "RECEIVED: $message_str"
     debug_mode && @info ""
-    return message_str    
+    return message_str
 end
 
 function write_transport_layer(stream, response, debug_mode = false)

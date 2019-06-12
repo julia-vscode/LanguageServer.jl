@@ -1,4 +1,4 @@
-using LanguageServer
+using LanguageServer, Pkg
 import LanguageServer.JSONRPC:Request, parse
 import LanguageServer: process, lint
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())

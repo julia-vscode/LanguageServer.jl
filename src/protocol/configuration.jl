@@ -198,7 +198,7 @@ mutable struct ServerCapabilities
     documentRangeFormattingProvider::Bool
     # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
     renameProvider::Bool
-    documentLinkProvider::DocumentLinkOptions
+    # documentLinkProvider::DocumentLinkOptions
     colorProvider::Bool
     executeCommandProvider::ExecuteCommandOptions
     workspace::WorkspaceOptions

@@ -38,8 +38,6 @@ test_script:
   - echo "%JL_TEST_SCRIPT%"
   - C:\julia\bin\julia -e "%JL_TEST_SCRIPT%"
 
-# # Uncomment to support code coverage upload. Should only be enabled for packages
-# # which would have coverage gaps without running on Windows
-# on_success:
-#   - echo "%JL_CODECOV_SCRIPT%"
-#   - C:\julia\bin\julia -e "%JL_CODECOV_SCRIPT%"
+on_success:
+  - echo "%JL_CODECOV_SCRIPT%"
+  - C:\julia\bin\julia -e "%JL_CODECOV_SCRIPT%"

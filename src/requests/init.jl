@@ -7,12 +7,12 @@ const serverCapabilities = ServerCapabilities(TextDocumentSyncKind["Incremental"
     false, #implementationProvider::Bool
     true, #referencesProvider::Bool
     false, #documentHighlightProvider::Bool
-    true, #documentSymbolProvider::Bool
+    true, #documentSymbolProvider::Boolxx1.args[1].args[3].args[21].args[3]
     true, #workspaceSymbolProvider::Bool
     false, #codeActionProvider::Bool
     # codeLensProvider::CodeLensOptions
     true, #documentFormattingProvider::Bool
-    false, #documentRangeFormattingProvider::Bool
+    true, #documentRangeFormattingProvider::Bool
     # documentOnTypeFormattingProvider::DocumentOnTypeFormattingOptions
     true, #renameProvider::Bool
     # DocumentLinkOptions(false), #documentLinkProvider::DocumentLinkOptions

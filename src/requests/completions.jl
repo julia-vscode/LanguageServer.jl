@@ -13,17 +13,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     offset = get_offset(doc, r.params.position)
     rng = Range(doc, offset:offset)
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
-    toks = ppt, pt, t 
     x = get_expr(getcst(doc), offset)
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
         #latex completion
-        latex_completions(doc, offset, toks, CIs)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
+        latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING
         #path completion
-        path, partial = splitdir(t.val[2:prevind(t.val, length(t.val))])
+        if t.kind == CSTParser.Tokenize.Tokens.STRING
+            path, partial = splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
+        else
+            path, partial = splitdir(t.val[4:prevind(t.val, lastindex(t.val), 3)])
+        end
         if !startswith(path, "/")
-            path = joinpath(dirname(uri2filepath(doc._uri)), path)  
+            path = joinpath(dirname(uri2filepath(doc._uri)), path)
         end
         if ispath(path)
             fs = readdir(path)
@@ -34,6 +37,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
                     end
                     push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end]), TextEdit[], 1))
                 end
+            end
+        end
+        if isempty(CIs)
+            ind = lastindex(partial)
+            while ind >= 1
+                if partial[ind] == '\\'
+                    @info offset, t.endbyte
+                    latex_completions(doc, offset, partial[ind+1:end], CIs)
+                    break
+                end
+                ind = prevind(partial, ind)
             end
         end
     elseif x isa EXPR && x.parent !== nothing && (x.parent.typ === CSTParser.Using || x.parent.typ === CSTParser.Import || x.parent.typ === CSTParser.ImportAll)
@@ -101,13 +115,12 @@ function get_partial_completion(doc, offset)
     return ppt, pt, t, is_at_end
 end
 
-function latex_completions(doc, offset, toks, CIs)
-    ppt, pt, t = toks
-    partial = string("\\", CSTParser.Tokens.untokenize(t))
+function latex_completions(doc, offset, partial, CIs)
+    partial = string("\\", partial)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset-length(partial)+1:offset), "")
-            t2 = TextEdit(Range(doc, offset-length(partial):offset-length(partial)+1), v)
+            t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "")
+            t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v)
             push!(CIs, CompletionItem(k[2:end], 11, v, t1, TextEdit[t2], 1))
         end
     end

@@ -2,7 +2,7 @@ module LanguageServer
 using JSON
 using REPL
 import URIParser
-# import DocumentFormat
+import DocumentFormat
 import CSTParser
 import SymbolServer
 using CSTParser

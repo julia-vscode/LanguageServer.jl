@@ -40,7 +40,7 @@ function mark_errors(doc, out = Diagnostic[])
                 while offset > ind
                     ind = nextind(doc._content, ind)
                     char += 1
-                end
+                end                
                 if start
                     r[1] = line
                     r[2] = char
@@ -54,7 +54,7 @@ function mark_errors(doc, out = Diagnostic[])
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Incorrect number of args", nothing))
                     end
                     i += 1
-                    i>=n && break
+                    i>n && break
                     offset = errs[i][1]
                 end
                 start = !start

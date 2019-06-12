@@ -1,4 +1,4 @@
-server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), true, "/home/zac/.julia/", "", Dict())
+server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), true, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
 @async run(server)
 t = time()
 while server.symbol_server isa Nothing && time() - t < 60

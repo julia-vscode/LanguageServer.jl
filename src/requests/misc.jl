@@ -134,10 +134,8 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, s
     @info "StaticLint store set"
     kill(server.symbol_server)
 
-    if server.workspaceFolders != nothing
-        for wkspc in server.workspaceFolders
-            load_folder(wkspc, server)
-        end
+    for (uri, doc) in server.documents
+        parse_all(doc, server)
     end
     @info "Finished reparsing everything"
 end

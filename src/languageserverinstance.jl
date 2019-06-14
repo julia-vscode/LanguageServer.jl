@@ -29,7 +29,8 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path)
+    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+
     @info "Started symbol server"
     server.packages = SymbolServer.getstore(server.symbol_server)
     @info "store set"

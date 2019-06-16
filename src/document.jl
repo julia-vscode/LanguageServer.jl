@@ -22,8 +22,9 @@ end
 function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
     path = uri2filepath(uri)
     cst = CSTParser.parse(text, true)
-    cst.val = path
     doc = Document(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+    cst.val = path
+    doc.cst.ref = doc
     setroot(doc, doc)
     return doc
 end

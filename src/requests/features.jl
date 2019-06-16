@@ -107,9 +107,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
 
         while b isa CSTParser.Binding
             if b.val isa EXPR
-                p, o = get_file_loc(b.val)
-                if p isa String && hasfile(server, p)
-                    doc1 = getfile(server, p)
+                doc1, o = get_file_loc(b.val)
+                if doc1 isa Document
                     push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
                 end
             elseif b.val isa SymbolServer.FunctionStore
@@ -140,9 +139,9 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     if x.parent !== nothing
         return get_file_loc(x.parent, offset, x)
     elseif x.typ === CSTParser.FileH
-        return x.val, offset
+        return x.ref, offset
     else
-        return "", offset
+        return nothing, offset
     end
 end
 
@@ -186,9 +185,8 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     if x isa EXPR && StaticLint.hasref(x) && x.ref isa CSTParser.Binding
         for r in x.ref.refs
             !(r isa EXPR) && continue
-            p, o = get_file_loc(r)
-            if p isa String && hasfile(server, p)
-                doc1 = getfile(server, p)
+            doc1, o = get_file_loc(r)
+            if doc1 isa Document
                 push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
             end
         end

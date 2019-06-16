@@ -8,6 +8,7 @@ function parse_all(doc::Document, server)
     end
     if doc.cst.typ === CSTParser.FileH
         doc.cst.val = doc.path
+        doc.cst.ref = doc
     end
     ls_diags = Diagnostic[]
     if server.runlinter && doc._runlinter

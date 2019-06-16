@@ -163,6 +163,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     doc.cst = cst
     if doc.cst.typ === CSTParser.FileH
         doc.cst.val = doc.path
+        doc.cst.ref = doc
     end
 end
 

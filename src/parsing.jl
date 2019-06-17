@@ -52,9 +52,11 @@ function mark_errors(doc, out = Diagnostic[])
                     elseif errs[i][2].typ === CSTParser.ErrorToken
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 1, "Julia", "Julia", "Parsing error", nothing))
                     elseif errs[i][2].ref == StaticLint.IncorrectCallNargs
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Incorrect number of args", nothing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Incorrect number of arguments", nothing))
                     elseif errs[i][2].ref == StaticLint.IncorrectIterSpec
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Incorrect specification for iterator", nothing))
+                    elseif errs[i][2].ref == StaticLint.NothingEquality
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Compare against `nothing` using === ", nothing))
                     end
                     i += 1
                     i>n && break

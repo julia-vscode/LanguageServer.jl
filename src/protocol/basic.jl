@@ -49,12 +49,12 @@ end
     name::String
 end
 
-mutable struct WorkspaceFoldersChangeEvent
+@json_read mutable struct WorkspaceFoldersChangeEvent
     added::Vector{WorkspaceFolder}
     removed::Vector{WorkspaceFolder}
 end
 
-mutable struct didChangeWorkspaceFoldersParams
+@json_read mutable struct didChangeWorkspaceFoldersParams
     event::WorkspaceFoldersChangeEvent
 end
 

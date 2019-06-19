@@ -2,6 +2,15 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, pa
     return CompletionParams(params)
 end
 
+_ispath(s) = false
+function _ispath(s::String)
+    try
+        return ispath(s)
+    catch e
+        return false
+    end
+end
+
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -28,7 +37,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         if !startswith(path, "/")
             path = joinpath(dirname(uri2filepath(doc._uri)), path)
         end
-        if ispath(path)
+        if _ispath(path)
             fs = readdir(path)
             for f in fs
                 if startswith(f, partial)

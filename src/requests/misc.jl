@@ -90,6 +90,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     offset = get_offset(doc, tdpp.position)
     x = getcst(doc)
     loc = 0
+    p1, p2, p3 = 1, x.span, x.fullspan
     if x.typ === CSTParser.FileH
         offset > x.fullspan && return 1, x.span, x.fullspan
         for a in x.args
@@ -113,11 +114,9 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
             end
             loc += a.fullspan
         end
-    else
-        p1, p2, p3 = 1, x.span, x.fullspan
     end
 
-    response = JSONRPC.Response(r.id, (length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
+    response = JSONRPC.Response(r.id, (isempty(doc._content ? 0 : length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
 
     send(response, server)
 end

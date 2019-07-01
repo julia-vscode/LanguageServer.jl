@@ -97,7 +97,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     x = get_expr(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
         b = x.ref
-        if b isa SymbolServer.FunctionStore
+        if b isa SymbolServer.FunctionStore || b isa SymbolServer.structStore
             for m in b.methods
                 if isfile(m.file)
                     push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))

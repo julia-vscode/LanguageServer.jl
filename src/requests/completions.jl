@@ -27,6 +27,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
         #latex completion
         latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
+    elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
+        latex_completions(doc, offset, join(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING
         #path completion
         if t.kind == CSTParser.Tokenize.Tokens.STRING

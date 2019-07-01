@@ -16,9 +16,11 @@ function get_signatures(b::CSTParser.Binding, sigs, server)
         if b.val isa CSTParser.EXPR && CSTParser.defines_function(b.val)
             sig = CSTParser.rem_where_decl(CSTParser.get_sig(b.val))
             args = []
-            for i = 2:length(sig.args)
-                if sig.args[i].binding !== nothing 
-                    push!(args, sig.args[i].binding)
+            if sig.args !== nothing
+                for i = 2:length(sig.args)
+                    if sig.args[i].binding !== nothing 
+                        push!(args, sig.args[i].binding)
+                    end
                 end
             end
             params = (a->ParameterInformation(a.name)).(args)

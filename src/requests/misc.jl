@@ -92,7 +92,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     loc = 0
     p1, p2, p3 = 1, x.span, x.fullspan
     if x.typ === CSTParser.FileH
-        offset > x.fullspan && return 1, x.span, x.fullspan
+        (offset > x.fullspan || x.args === nothing) && return 1, x.span, x.fullspan
         for a in x.args
             if loc <= offset < loc + a.fullspan
                 if a.typ === CSTParser.ModuleH

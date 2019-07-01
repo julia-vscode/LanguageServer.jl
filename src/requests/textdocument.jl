@@ -232,7 +232,7 @@ function edit_string(text, editrange, edit)
     elseif last(editrange) == sizeof(text)
         text = string(text[1:first(editrange)], edit)
     else
-        text = string(text[1:first(editrange)], edit, text[nextind(text, last(editrange)):end])
+        text = string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
     end    
 end
 

@@ -8,9 +8,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     if URI2(uri) in keys(server.documents)
         doc = server.documents[URI2(uri)]
         doc._content = r.params.textDocument.text
+        doc._version = r.params.textDocument.version
     else
         server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
         doc = server.documents[URI2(uri)]
+        doc._version = r.params.textDocument.version
         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
             doc._workspace_file = true
         end
@@ -22,6 +24,31 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     parse_all(doc, server)
 end
 
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params)
+    return DidOpenTextDocumentParams(params)
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
+    server.isrunning = true
+    uri = r.params.textDocument.uri
+    if URI2(uri) in keys(server.documents)
+        doc = server.documents[URI2(uri)]
+        doc._content = r.params.textDocument.text
+        doc._version = r.params.textDocument.version
+    else
+        doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
+        doc = server.documents[URI2(uri)]
+        doc._version = r.params.textDocument.version
+        if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+            doc._workspace_file = true
+        end
+        set_open_in_editor(doc, true)
+        if is_ignored(uri, server)
+            doc._runlinter = false
+        end
+    end
+    parse_all(doc, server)
+end
 
 function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params)
     return DidCloseTextDocumentParams(params)
@@ -80,7 +107,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
     if r.params.textDocument.version < doc._version
-        error("TextDocumentContentChangeEvent is older than existing Document version.")
+        write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri)), server.debug_mode)
+        return
     end
     doc._version = r.params.textDocument.version
     
@@ -99,14 +127,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         end
         doc._line_offsets = nothing
         parse_all(doc, server)
-    end
-    # urefs = check_refs(doc)[3]
-    # if length(urefs) > 0
-    #     @info  join((r.val for r in urefs if r.val isa String), ", ")
-    # else 
-    #     @info "all refs resolved"
-    # end
-    
+    end    
 end
 
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)

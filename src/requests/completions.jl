@@ -29,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
         latex_completions(doc, offset, join(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
         #path completion
         if t.kind == CSTParser.Tokenize.Tokens.STRING
             path, partial = splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
@@ -37,7 +37,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             path, partial = splitdir(t.val[4:prevind(t.val, lastindex(t.val), 3)])
         end
         if !startswith(path, "/")
-            path = joinpath(dirname(uri2filepath(doc._uri)), path)
+            path = joinpath(_dirname(uri2filepath(doc._uri)), path)
         end
         if _ispath(path)
             fs = readdir(path)

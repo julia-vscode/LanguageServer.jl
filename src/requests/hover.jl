@@ -26,7 +26,7 @@ function get_hover(x::EXPR, documentation, server)
         if x.ref isa StaticLint.Binding
             get_hover(x.ref, documentation, server)
         elseif x.ref isa SymbolServer.SymStore
-            push!(documentation, MarkedString(x.ref.doc))
+            append!(documentation, split_docs(x.ref.doc))
         end
     end
 end
@@ -56,9 +56,43 @@ function get_hover(b::CSTParser.Binding, documentation, server)
             push!(documentation, MarkedString(Expr(b.val)))
         end
     elseif b.val isa SymbolServer.SymStore
-        push!(documentation, MarkedString(b.val.doc))
+        append!(documentation, split_docs(b.val.doc))
     elseif b.val isa CSTParser.Binding
         get_hover(b.val, documentation, server)
     end
 end
 
+"""
+    split_docs(s::String)
+
+Returns an array of Union{String,MarkedString} by separating code blocks (denoted by ```sometext```) within s.
+"""
+function split_docs(s::String)
+    out = Any[]
+    locs = Int[]
+    i = 1
+    while i < length(s)
+        m = match(r"```", s, i)
+        if m isa Nothing
+            isempty(out) && push!(out, s)
+            break
+        else
+            push!(locs, m.offset)
+            i = m.offset + 3
+        end
+    end
+    if length(locs) > 0 && iseven(length(locs))
+        if locs[1] !== 1
+            push!(out, s[1:locs[1]-1])
+        end
+        for i = 1:2:length(locs)
+            push!(out, LanguageServer.MarkedString("julia", replace(s[locs[i]+3:locs[i+1]-1], "jldoctest"=>"")))
+            if i + 1 == length(locs)
+                push!(out, s[locs[i+1]+3:end])
+            else
+                push!(out, s[locs[i+1]+3:locs[i+2]-1])
+            end
+        end
+    end
+    return out
+end

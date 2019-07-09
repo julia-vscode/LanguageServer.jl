@@ -208,12 +208,12 @@ function get_identifier(x, offset, pos = 0)
     end
     if x.args !== nothing
         for a in x.args
-            if a.typ === CSTParser.IDENTIFIER && pos <= offset <= (pos + a.span)
+            if pos <= offset <= (pos + a.span)
                 return get_identifier(a, offset, pos)
             end
             pos += a.fullspan
         end
-    elseif (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif x.typ === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
 end

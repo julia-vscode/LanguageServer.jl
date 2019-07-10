@@ -20,7 +20,6 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server)
     for (uri, f) in server.documents
-        @info basename(uri._uri), " ", f.code.index
     end
 end
 

@@ -224,4 +224,6 @@ end
         a, b = String(m.captures[1]), String(m.captures[2])
         Base._splitdir_nodrive(a,b)[1]
     end
+else
+    _dirname = dirname
 end

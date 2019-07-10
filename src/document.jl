@@ -23,6 +23,7 @@ function Document(uri::AbstractString, text::AbstractString, workspace_file::Boo
     path = uri2filepath(uri)
     cst = CSTParser.parse(text, true)
     doc = Document(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+    get_line_offsets(doc)
     cst.val = path
     doc.cst.ref = doc
     setroot(doc, doc)
@@ -73,8 +74,8 @@ Updates the doc._line_offsets field, an n length Array each entry of which
 gives the byte offset position of the start of each line. This always starts 
 with 0 for the first line (even if empty).
 """
-function get_line_offsets(doc::Document)
-    if doc._line_offsets === nothing
+function get_line_offsets(doc::Document, force = false)
+    if force || doc._line_offsets === nothing
         doc._line_offsets = Int[0]
         text = doc._content
         ind = firstindex(text)

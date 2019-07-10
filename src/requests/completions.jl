@@ -54,7 +54,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             ind = lastindex(partial)
             while ind >= 1
                 if partial[ind] == '\\'
-                    @info offset, t.endbyte
                     latex_completions(doc, offset, partial[ind+1:end], CIs)
                     break
                 end

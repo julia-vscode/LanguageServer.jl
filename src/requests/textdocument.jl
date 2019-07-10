@@ -9,6 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc = server.documents[URI2(uri)]
         doc._content = r.params.textDocument.text
         doc._version = r.params.textDocument.version
+        get_line_offsets(doc, true)
     else
         server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
         doc = server.documents[URI2(uri)]
@@ -47,6 +48,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextD
             doc._runlinter = false
         end
     end
+    get_line_offsets(doc)
     parse_all(doc, server)
 end
 
@@ -127,7 +129,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         end
         doc._line_offsets = nothing
         parse_all(doc, server)
-    end    
+    end
 end
 
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)

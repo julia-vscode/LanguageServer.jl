@@ -219,10 +219,20 @@ function get_identifier(x, offset, pos = 0)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
+    if VERSION < v"1.1"
+        function _splitdir_nodrive(a::String, b::String)
+            m = match(Base.path_dir_splitter,b)
+            m === nothing && return (a,b)
+            a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
+            a, String(m.captures[3])
+        end
+    else
+        _splitdir_nodrive = Base._splitdir_nodrive
+    end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
         a, b = String(m.captures[1]), String(m.captures[2])
-        Base._splitdir_nodrive(a,b)[1]
+        _splitdir_nodrive(a,b)[1]
     end
 else
     _dirname = dirname

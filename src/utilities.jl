@@ -219,7 +219,7 @@ function get_identifier(x, offset, pos = 0)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
-    if VERSION < v"1.1"
+    if VERSION < v"1.2"
         function _splitdir_nodrive(a::String, b::String)
             m = match(Base.path_dir_splitter,b)
             m === nothing && return (a,b)

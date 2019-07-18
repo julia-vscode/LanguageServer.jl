@@ -13,11 +13,11 @@ Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
 URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 
 [compat]
-CSTParser = "0.6"
-DocumentFormat = "0.4"
+CSTParser = "0.6.1"
+DocumentFormat = "0.4.1"
 JSON = "0.20"
-StaticLint = "0.2"
-Tokenize = "0.5.4"
+StaticLint = "0.2.1"
+Tokenize = "0.5.5"
 URIParser = "0.4.0"
 julia = "1"
 

@@ -221,7 +221,7 @@ end
 @static if Sys.iswindows() && VERSION < v"1.3"
     if VERSION < v"1.2"
         function _splitdir_nodrive(a::String, b::String)
-            m = match(Base.path_dir_splitter,b)
+            m = match(r"^(.*?)([/\\]+)([^/\\]*)$",b)
             m === nothing && return (a,b)
             a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
             a, String(m.captures[3])

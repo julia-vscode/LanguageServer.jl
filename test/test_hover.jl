@@ -41,7 +41,7 @@ take!(server.pipe_out)
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":11}}}""")), server)
 res = getresult(server)
-@test res[1]["value"] == server.symbol_server.depot["Core"].vals["Float64"].doc
+@test res[1] == server.symbol_server.depot["Core"].vals["Float64"].doc
 
 
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":8,"character":12}}}""")), server)

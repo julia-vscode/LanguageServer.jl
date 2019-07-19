@@ -87,11 +87,9 @@ end
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
-        bs = collect_bindings_w_loc(getcst(doc))
+        bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
         for x in bs
             p, b = x[1], x[2]
-            !(b.val isa EXPR) && continue
-            isempty(b.name) && continue
             push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p)), nothing))
         end
     end

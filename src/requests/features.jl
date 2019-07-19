@@ -269,6 +269,22 @@ function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int
     return bindings
 end
 
+function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},CSTParser.Binding}[]; query = "")
+    if x.binding isa CSTParser.Binding && !isempty(x.binding.name) && x.binding.val isa CSTParser.EXPR && startswith(x.binding.name, query)
+        push!(bindings, (pos .+ (0:x.span), x.binding))
+    end
+    if x.scope !== nothing && !(x.typ === CSTParser.FileH || x.typ === CSTParser.ModuleH || x.typ === CSTParser.BareModule)
+        return bindings
+    end
+    if x.args !== nothing
+        for a in x.args
+            collect_toplevel_bindings_w_loc(a, pos, bindings, query = query)
+            pos += a.fullspan
+        end
+    end
+    return bindings
+end
+
 function _binding_kind(b ,server)
     if b isa CSTParser.Binding
         if b.t == nothing

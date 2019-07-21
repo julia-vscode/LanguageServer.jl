@@ -45,28 +45,21 @@ function load_folder(wf::WorkspaceFolder, server)
     load_folder(path, server)
 end
 
-function load_folder(path::String, server)
-    if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
-            for file in files
-                filepath = joinpath(root, file)
-                if isvalidjlfile(filepath)
-                    (!isfile(filepath) || !hasreadperm(filepath)) && continue
-                    uri = filepath2uri(filepath)
-                    if URI2(uri) in keys(server.documents)
-                        continue
-                    else
-                        content = read(filepath, String)
-                        server.documents[URI2(uri)] = Document(uri, content, true, server)
-                        doc = server.documents[URI2(uri)]
-                        parse_all(doc, server)
-                    end
-                end
-            end
+function load_folder(path, server)
+    (uperm(path) & 0x04) != 0x04 && return
+    startswith(path, ".") && return
+    if isfile(path) && isvalidjlfile(path)
+        uri = filepath2uri(path)
+        if !(URI2(uri) in keys(server.documents))
+            server.documents[URI2(uri)] = Document(uri, read(path, String), true, server)
+            parse_all(server.documents[URI2(uri)], server)
+        end
+    elseif isdir(path)
+        for f in readdir(path)
+            load_folder(joinpath(path, f), server)
         end
     end
 end
-
 
 function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
     return InitializeParams(params)

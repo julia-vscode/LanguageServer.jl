@@ -151,13 +151,13 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/formatting")}}, pa
     return DocumentFormattingParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server::LanguageServerInstance)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
-    newcontent = DocumentFormat.format(doc._content)
+    newcontent = DocumentFormat.format(doc._content, server.format_options)
     end_l, end_c = get_position_at(doc, sizeof(doc._content))
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 

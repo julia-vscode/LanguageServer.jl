@@ -1,7 +1,7 @@
 
 
 @json_read mutable struct WorkspaceEditCapabilities
-    documentChanges::Bool
+    documentChanges::Union{Nothing,Bool}
 end
 
 @json_read mutable struct Capabilities

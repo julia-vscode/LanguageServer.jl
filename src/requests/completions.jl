@@ -249,7 +249,7 @@ end
 
 function collect_completions(x::EXPR, spartial, rng, CIs, server, exportedonly = false)
     if x.scope !== nothing
-        _get_scope_completions(x, spartial, rng, CIs, server)
+        _get_scope_completions(x.scope, spartial, rng, CIs, server)
         if x.scope.modules isa Dict
             for m in x.scope.modules
                 collect_completions(m[2], spartial, rng, CIs, server)
@@ -263,11 +263,17 @@ function collect_completions(x::EXPR, spartial, rng, CIs, server, exportedonly =
     end
 end
 
+function collect_completions(x::CSTParser.Scope, spartial, rng, CIs, server, exportedonly = false)
+    _get_scope_completions(x, spartial,rng, CIs, server)
+end
 
-function _get_scope_completions(x, spartial, rng, CIs, server)
-    for n in x.scope.names
-        if startswith(n[1], spartial)
-            push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]), TextEdit[], 1))
+
+function _get_scope_completions(s, spartial, rng, CIs, server)
+    if s.names !== nothing
+        for n in s.names
+            if startswith(n[1], spartial)
+                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]), TextEdit[], 1))
+            end
         end
     end
 end
@@ -289,10 +295,10 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]), TextEdit[], 1))
                     end
                 end
-            elseif px.ref.val isa EXPR && px.ref.val.typ === CSTParser.ModuleH && px.ref.val.scope isa CSTParser.Scope && px.ref.val.scope.names isa Dict
-                _get_scope_completions(px.ref.val, spartial, rng, CIs, server)
-            elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa EXPR && CSTParser.defines_struct(px.ref.t.val) && px.ref.t.val.scope isa CSTParser.Scope && px.ref.t.val.scope.names isa Dict
-                _get_scope_completions(px.ref.t.val, spartial, rng, CIs, server)
+            elseif px.ref.val isa EXPR && px.ref.val.typ === CSTParser.ModuleH && px.ref.val.scope isa CSTParser.Scope
+                _get_scope_completions(px.ref.val.scope, spartial, rng, CIs, server)
+            elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa EXPR && CSTParser.defines_struct(px.ref.t.val) && px.ref.t.val.scope isa CSTParser.Scope
+                _get_scope_completions(px.ref.t.val.scope, spartial, rng, CIs, server)
             end
         elseif px.ref isa StaticLint.SymbolServer.ModuleStore
             collect_completions(px.ref, spartial, rng, CIs, server, false)

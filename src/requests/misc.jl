@@ -146,3 +146,27 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, s
     end
     @info "Finished reparsing everything"
 end
+
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/help")}}, params)
+    params
+end
+
+function process(r::JSONRPC.Request{Val{Symbol("julia/help")},String}, server)
+    ex = Meta.parse(r.params)
+    if ex isa Symbol
+        d = REPL.lookup_doc(ex)
+        if d isa Markdown.MD
+            send(JSONRPC.Response(r.id, string(d)), server)
+            return
+        else
+            binding = Base.Docs.Binding(Main, ex)
+            d = Base.Docs.doc(binding) 
+            if d isa Markdown.MD
+                send(JSONRPC.Response(r.id, string(d)), server)
+                return
+            end
+        end
+    end
+    send(JSONRPC.Response(r.id, "No documentation found."), server)
+end
+

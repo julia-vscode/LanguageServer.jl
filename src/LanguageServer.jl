@@ -1,6 +1,7 @@
 module LanguageServer
 using JSON
 using REPL
+using Markdown
 import URIParser
 import DocumentFormat
 import CSTParser

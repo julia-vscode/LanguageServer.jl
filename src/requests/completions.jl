@@ -242,6 +242,10 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
         v isa String && continue
         !startswith(n, spartial) && continue
         exportedonly && !(n in m.exported) && continue
+        if v isa SymbolServer.PackageRef 
+            v = SymbolServer._lookup(v, getsymbolserver(server))
+            v === nothing && return 
+        end
         
         push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]), TextEdit[], 1)) 
     end
@@ -283,13 +287,13 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
         if px.ref isa CSTParser.Binding
             if px.ref.val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(px.ref.val, spartial, rng, CIs, server, false)
-            elseif px.ref.t isa SymbolServer.structStore
+            elseif px.ref.t isa SymbolServer.DataTypeStore
                 for a in px.ref.t.fields
                     if startswith(a, spartial)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]), TextEdit[], 1))
                     end
                 end
-            elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa SymbolServer.structStore
+            elseif px.ref.t isa CSTParser.Binding && px.ref.t.val isa SymbolServer.DataTypeStore
                 for a in px.ref.t.val.fields
                     if startswith(a, spartial)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]), TextEdit[], 1))
@@ -321,13 +325,13 @@ function _completion_kind(b ,server)
         else 
             return 13
         end
-    elseif b isa SymbolServer.ModuleStore
+    elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.PackageRef
         return 9
     elseif b isa SymbolServer.MethodStore
         return 2        
     elseif b isa SymbolServer.FunctionStore
         return 3
-    elseif b isa SymbolServer.abstractStore || b isa SymbolServer.primitiveStore || b isa SymbolServer.structStore
+    elseif b isa SymbolServer.DataTypeStore
         return 22
     else 
         return 6

@@ -137,7 +137,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, s
     server.env_path = r.params
     server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
     @info "Restarted symbol server"
-    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
+    StaticLint.SymbolServer.getstore(server.symbol_server)
     @info "StaticLint store set"
     kill(server.symbol_server)
 

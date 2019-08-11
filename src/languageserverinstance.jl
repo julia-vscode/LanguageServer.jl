@@ -12,13 +12,12 @@ mutable struct LanguageServerInstance
     ignorelist::Set{String}
     isrunning::Bool
 
-    packages::Dict
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing)
     end
 end
 
@@ -29,12 +28,20 @@ function send(message, server)
 end
 
 function Base.run(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
-
-    @info "Started symbol server"
-    server.packages = SymbolServer.getstore(server.symbol_server)
-    @info "store set"
-    kill(server.symbol_server)
+    server.symbol_server = SymbolServer.SymbolServerProcess()
+    missing_pkgs = SymbolServer.disc_load_project(server.symbol_server)
+    if isempty(missing_pkgs)
+        ss1 = nothing
+    else
+        pkg_uuids = collect(keys(missing_pkgs))
+        if nworkers() > 0 # Send cache-update request to worker
+            wid = last(procs())
+            ss1 = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
+        else
+            ss1 = nothing
+            SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
+        end
+    end
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
@@ -43,9 +50,19 @@ function Base.run(server::LanguageServerInstance)
         if haskey(message_dict, "method")
             server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
-            # server.isrunning && serverbusy(server)
             process(request, server)
-            # server.isrunning && serverready(server)
+        end
+
+        # import reloaded package caches
+        if ss1 !== nothing && isready(ss1)
+            uuids = fetch(ss1)
+            if !isempty(uuids)
+                for uuid in uuids
+                    SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
+                    # should probably re-run linting
+                end
+            end
+            ss1 = nothing
         end
     end
 end
@@ -59,21 +76,15 @@ function serverready(server)
 end
 
 function read_transport_layer(stream, debug_mode = false)
-    header = String[]
+    header_dict = Dict{String,String}()
     line = chomp(readline(stream))
     while length(line) > 0
-        push!(header, line)
+        h_parts = split(line, ":")
+        header_dict[chomp(h_parts[1])] = chomp(h_parts[2])
         line = chomp(readline(stream))
     end
-    header_dict = Dict{String,String}()
-    for h in header
-        h_parts = split(h, ":")
-        header_dict[chomp(h_parts[1])] = chomp(h_parts[2])
-    end
     message_length = parse(Int, header_dict["Content-Length"])
-
-    message = read(stream, message_length)
-    message_str = String(message)
+    message_str = String(read(stream, message_length))
     debug_mode && @info "RECEIVED: $message_str"
     debug_mode && @info ""
     return message_str

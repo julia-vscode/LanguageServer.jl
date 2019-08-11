@@ -1,15 +1,7 @@
 module LanguageServer
-using JSON
-using REPL
 import URIParser
-import DocumentFormat
-import CSTParser
-import SymbolServer
-using CSTParser
-using CSTParser: EXPR
-import CSTParser.Tokenize.Tokens
-
-import StaticLint
+using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint, Distributed
+using CSTParser: EXPR, Tokenize.Tokens
 
 export LanguageServerInstance
 

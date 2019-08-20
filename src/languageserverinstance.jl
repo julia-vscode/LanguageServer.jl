@@ -15,9 +15,10 @@ mutable struct LanguageServerInstance
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+    ss_task
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing)
     end
 end
 
@@ -27,21 +28,24 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
-function Base.run(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess()
-    missing_pkgs = SymbolServer.disc_load_project(server.symbol_server)
-    if isempty(missing_pkgs)
-        ss1 = nothing
-    else
-        pkg_uuids = collect(keys(missing_pkgs))
-        if nworkers() > 0 # Send cache-update request to worker
-            wid = last(procs())
-            ss1 = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
-        else
-            ss1 = nothing
-            SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
-        end
+function init_symserver(server::LanguageServerInstance)
+    wid = last(procs())
+    server.debug_mode && @info "Number of processes: ", wid
+    
+    server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
+    @fetchfrom wid begin 
+        empty!(Base.DEPOT_PATH)
+        push!(Base.DEPOT_PATH, server.depot_path)
     end
+    server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
+    server.symbol_server = SymbolServer.SymbolServerProcess()
+    env_path = server.env_path
+    _set_worker_env(env_path, server)
+end
+
+function Base.run(server::LanguageServerInstance)
+    init_symserver(server)
+    
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
@@ -54,15 +58,18 @@ function Base.run(server::LanguageServerInstance)
         end
 
         # import reloaded package caches
-        if ss1 !== nothing && isready(ss1)
-            uuids = fetch(ss1)
+        if server.ss_task !== nothing && isready(server.ss_task)
+            uuids = fetch(server.ss_task)
             if !isempty(uuids)
                 for uuid in uuids
                     SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
                     # should probably re-run linting
                 end
+                for (uri, doc) in server.documents
+                    parse_all(doc, server)
+                end
             end
-            ss1 = nothing
+            server.ss_task = nothing
         end
     end
 end

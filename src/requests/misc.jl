@@ -150,7 +150,7 @@ function _set_worker_env(env_path, server::LanguageServerInstance)
         server.ss_task = nothing
     else
         pkg_uuids = collect(keys(missing_pkgs))
-        server.debug_mode && @info "Missing or outdated package caches: ", pkg_uuids
+        server.debug_mode && @info "Missing or outdated package caches: ", collect(missing_pkgs)
         server.ss_task = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
     end
 end

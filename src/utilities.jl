@@ -42,16 +42,16 @@ function should_file_be_linted(uri, server)
     end
 end
 
-CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 : 
-                                t == :Function ? 3 : 
-                                t == :DataType ? 7 :  
-                                t == :Module ? 9 : 6 
+CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
+                                t == :Function ? 3 :
+                                t == :DataType ? 7 :
+                                t == :Module ? 9 : 6
 
-SymbolKind(t) = t in [:String, :AbstractString] ? 15 : 
-                        t == :Function ? 12 : 
-                        t == :DataType ? 5 :  
+SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
+                        t == :Function ? 12 :
+                        t == :DataType ? 5 :
                         t == :Module ? 2 :
-                        t == :Bool ? 17 : 13  
+                        t == :Bool ? 17 : 13
 
 
 
@@ -65,7 +65,7 @@ function is_ignored(uri, server)
     fpath = uri2filepath(uri)
     fpath in server.ignorelist && return true
     for ig in server.ignorelist
-        if !endswith(ig, ".jl")        
+        if !endswith(ig, ".jl")
             if startswith(fpath, ig)
                 return true
             end
@@ -140,7 +140,7 @@ function get_toks(doc, offset)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
     if offset > length(doc._content)
-        offset = sizeof(doc._content) - 1 
+        offset = sizeof(doc._content) - 1
     end
 
     while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
@@ -155,8 +155,8 @@ function get_toks(doc, offset)
 end
 
 function isvalidjlfile(path)
-    isfile(path) && 
-    endswith(path, ".jl") && 
+    isfile(path) &&
+    endswith(path, ".jl") &&
     validchars(path)
 end
 
@@ -219,15 +219,11 @@ function get_identifier(x, offset, pos = 0)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
-    if VERSION < v"1.2"
-        function _splitdir_nodrive(a::String, b::String)
-            m = match(r"^(.*?)([/\\]+)([^/\\]*)$",b)
-            m === nothing && return (a,b)
-            a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
-            a, String(m.captures[3])
-        end
-    else
-        _splitdir_nodrive = Base._splitdir_nodrive
+    function _splitdir_nodrive(a::String, b::String)
+        m = match(r"^(.*?)([/\\]+)([^/\\]*)$",b)
+        m === nothing && return (a,b)
+        a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
+        a, String(m.captures[3])
     end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)

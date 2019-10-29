@@ -36,7 +36,7 @@ d2 = Document("untitled", s2, true)
 
 
 applytextdocumentchanges(d2, LanguageServer.TextDocumentContentChangeEvent(Range(1), 0, "12"))
-@test_broken get_line_offsets(d2) == [0, 8, 17]
+@test get_line_offsets(d2) == [0, 8, 17]
 
 s4 = "1234\r\nabcd"
 d4 = Document("untitled", s4, false)

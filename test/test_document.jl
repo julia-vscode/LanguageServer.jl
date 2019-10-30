@@ -36,7 +36,7 @@ d2 = Document("untitled", s2, true)
 
 
 applytextdocumentchanges(d2, LanguageServer.TextDocumentContentChangeEvent(Range(1), 0, "12"))
-@test_broken get_line_offsets(d2) == [0, 8, 17]
+@test get_line_offsets(d2) == [0, 8, 17]
 
 s4 = "1234\r\nabcd"
 d4 = Document("untitled", s4, false)
@@ -50,3 +50,21 @@ s6 = "\n"
 d6 = Document("untitled", s6, false)
 @test get_line_offsets(d6) == [0,1]
 
+@testset "applytextdocumentchanges" begin
+    doc = LS.Document("file:///example/path/example.jl", "function foo()", false)
+    c1 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(0,14), LS.Position(0,14)),
+                                        0, "\n")
+    c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1,0), LS.Position(1,0)),
+                                           0, "    ")
+    c3 = LS.TextDocumentContentChangeEvent(nothing, nothing, "println(\"Hello World\")")
+
+    LS.applytextdocumentchanges(doc, c1)
+    @test LS.get_text(doc) == "function foo()\n"
+    # Implicitly test for issue #403
+    LS.applytextdocumentchanges(doc, c2)
+    @test LS.get_text(doc) == "function foo()\n    "
+    LS.applytextdocumentchanges(doc, c3)
+    @test LS.get_text(doc) == "println(\"Hello World\")"
+    # doc currently has only one line, applying change to 2nd line should throw
+    @test_throws BoundsError LS.applytextdocumentchanges(doc, c2)
+end

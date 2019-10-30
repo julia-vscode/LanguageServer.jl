@@ -20,6 +20,7 @@ StaticLint = "1.0.2"
 Tokenize = "0.5.6"
 URIParser = "0.4.0"
 julia = "1"
+SymbolServer = "1.0.1"
 
 [extras]
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"

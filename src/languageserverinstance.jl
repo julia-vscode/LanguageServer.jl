@@ -16,9 +16,10 @@ mutable struct LanguageServerInstance
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+    format_options::DocumentFormat.FormatOptions
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing, DocumentFormat.FormatOptions())
     end
 end
 
@@ -46,6 +47,14 @@ function Base.run(server::LanguageServerInstance)
             # server.isrunning && serverbusy(server)
             process(request, server)
             # server.isrunning && serverready(server)
+        elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
+            # set format options
+            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions))
+                try
+                    server.format_options = DocumentFormat.FormatOptions(message_dict["result"]...)
+                catch 
+                end
+            end
         end
     end
 end

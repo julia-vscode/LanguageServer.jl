@@ -101,6 +101,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             load_folder(wkspc, server)
         end
     end
+    send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
+        ConfigurationItem(nothing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions)])), server)
 
     write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))), server.debug_mode)
 end

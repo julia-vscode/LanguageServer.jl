@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]
 done
 
 $JULIABIN --startup-file=no --history-file=no -e \
-    "using LanguageServer; server = LanguageServer.LanguageServerInstance(STDIN, STDOUT, $DEBUG); server.runlinter = true; run(server);" \
+    "using LanguageServer; import SymbolServer; server = LanguageServer.LanguageServerInstance(stdin, stdout, $DEBUG); server.runlinter = true; run(server);" \
     <&0 >&1 &
 
 PID=$!

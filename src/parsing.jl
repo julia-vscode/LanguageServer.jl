@@ -57,6 +57,8 @@ function mark_errors(doc, out = Diagnostic[])
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Incorrect specification for iterator", nothing))
                     elseif errs[i][2].ref == StaticLint.NothingEquality
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Compare against `nothing` using === ", nothing))
+                     elseif errs[i][2].ref == StaticLint.NothingNotEq
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Compare against `nothing` using !== ", nothing))
                     end
                     i += 1
                     i>n && break

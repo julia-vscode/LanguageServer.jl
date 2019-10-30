@@ -8,6 +8,14 @@ export Request, Response, parse_params
 mutable struct Request{method,Tparams}
     id::Union{Nothing,Union{String,Int64}}
     params::Tparams
+
+    function Request{method,Tparams}(id, params) where {method,Tparams}
+        return new{method,Tparams}(id, params)
+    end
+
+    function Request{method,Tparams}(id::Int32, params) where {method,Tparams}
+        return new{method,Tparams}(convert(Int64, id), params)
+    end
 end
 
 mutable struct Error

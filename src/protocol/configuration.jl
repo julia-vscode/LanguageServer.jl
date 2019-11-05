@@ -234,7 +234,7 @@ mutable struct DidChangeConfiguration
     settings::Any
 end
 
-mutable struct ConfigurationItem
+@json_read mutable struct ConfigurationItem
     scopeUri::Union{Nothing,String}    
     section::Union{Nothing,String}
 end

@@ -32,7 +32,7 @@ end
 end
 
 @json_read mutable struct CompletionItemKindCapabilities
-    valueSet::Union{Nothing,Vector{Int}}    
+    valueSet::Union{Nothing,Vector{Int}}
 end
 
 @json_read mutable struct CompletionCapabilities
@@ -43,7 +43,7 @@ end
 end
 
 @json_read mutable struct HoverCapabilities
-    dynamicRegistration::Union{Nothing,Bool}    
+    dynamicRegistration::Union{Nothing,Bool}
     contentFormat::Union{Nothing,Vector{String}}
 end
 
@@ -129,7 +129,7 @@ end
 
 
 # Server Response
-mutable struct CompletionOptions 
+mutable struct CompletionOptions
     resolveProvider::Bool
     triggerCharacters::Vector{String}
 end
@@ -235,8 +235,17 @@ mutable struct DidChangeConfiguration
 end
 
 @json_read mutable struct ConfigurationItem
-    scopeUri::Union{Nothing,String}    
+    scopeUri::Union{Nothing,String}
     section::Union{Nothing,String}
+end
+
+function JSON.lower(a::ConfigurationItem)
+    d = Dict{String, Any}()
+
+    a.scopeUri!==nothing && d["scopeUri"] = a.scopeUri
+    a.section!==nothing && d["section"] = a.section
+
+    return d
 end
 
 mutable struct ConfigurationParams

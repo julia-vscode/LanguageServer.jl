@@ -50,16 +50,19 @@ end
 """
     get_offset(doc, line, char)
 
-Returns the byte offset position corresponding to a line/character position. 
+Returns the byte offset position corresponding to a line/character position.
 This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
 function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
     offset = line_offsets[line + 1]
-    while character > 0
-        offset = nextind(doc._content, offset)
-        character -= 1
+    for c in Iterators.take(SubString(doc._content, offset), character)
+        if c >= 0x010000
+            offset += 2
+        else
+            offset += 1
+        end
     end
     return offset
 end
@@ -69,9 +72,9 @@ get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
 """
     get_line_offsets(doc::Document)
-    
-Updates the doc._line_offsets field, an n length Array each entry of which 
-gives the byte offset position of the start of each line. This always starts 
+
+Updates the doc._line_offsets field, an n length Array each entry of which
+gives the byte offset position of the start of each line. This always starts
 with 0 for the first line (even if empty).
 """
 function get_line_offsets(doc::Document, force = false)
@@ -120,8 +123,12 @@ function get_position_at(doc::Document, offset::Integer)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0
     while offset > ind
+        if doc._content[ind] >= 0x010000
+            char += 2
+        else
+            char += 1
+        end
         ind = nextind(doc._content, ind)
-        char += 1
     end
     return line - 1, char
 end

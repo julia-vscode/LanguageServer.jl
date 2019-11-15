@@ -1,5 +1,28 @@
 T = 0.0
 
+"""
+    LanguageServerInstance(pipe_in, pipe_out, debug=false, env="", depot="")
+
+Construct an instance of the language server.
+
+Once the instance is `run`, it will read JSON-RPC from `pipe_out` and
+write JSON-RPC from `pipe_in` according to the [language server
+specification](https://microsoft.github.io/language-server-protocol/specifications/specification-3-14/).
+For normal usage, the language server can be instantiated with
+`LanguageServerInstance(stdin, stdout, false, "/path/to/environment")`.
+
+# Arguments
+- `pipe_in::IO`: Pipe to read JSON-RPC from.
+- `pipe_out::IO`: Pipe to write JSON-RPC to.
+- `debug::Bool`: Whether to log debugging information with `Base.CoreLogging`.
+- `env::String`: Path to the
+  [environment](https://docs.julialang.org/en/v1.2/manual/code-loading/#Environments-1)
+  for which the language server is running. An empty string uses julia's
+  default environment.
+- `depot::String`: Sets the
+  [`JULIA_DEPOT_PATH`](https://docs.julialang.org/en/v1.2/manual/environment-variables/#JULIA_DEPOT_PATH-1)
+  where the language server looks for packages required in `env`.
+"""
 mutable struct LanguageServerInstance
     pipe_in
     pipe_out
@@ -29,6 +52,11 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
+"""
+    run(server::LanguageServerInstance)
+
+Run the language `server`.
+"""
 function Base.run(server::LanguageServerInstance)
     server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
 

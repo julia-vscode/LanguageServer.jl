@@ -242,8 +242,13 @@ end
 function JSON.lower(a::ConfigurationItem)
     d = Dict{String, Any}()
 
-    a.scopeUri!==nothing && d["scopeUri"] = a.scopeUri
-    a.section!==nothing && d["section"] = a.section
+    if a.scopeUri!==nothing
+        d["scopeUri"] = a.scopeUri
+    end
+
+    if a.section!==nothing
+        d["section"] = a.section
+    end
 
     return d
 end

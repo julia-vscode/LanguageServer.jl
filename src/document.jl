@@ -58,7 +58,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
     offset = line_offsets[line + 1]
     for c in Iterators.take(SubString(doc._content, offset), character)
-        if c >= 0x010000
+        if UInt32(c) >= 0x010000
             offset += 2
         else
             offset += 1
@@ -123,7 +123,7 @@ function get_position_at(doc::Document, offset::Integer)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0
     while offset > ind
-        if doc._content[ind] >= 0x010000
+        if UInt32(doc._content[ind]) >= 0x010000
             char += 2
         else
             char += 1

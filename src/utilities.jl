@@ -180,7 +180,7 @@ function goto_loc(x::EXPR, offset::Int, pos = 0)
             end
         end
     end
-    if offset == x.fullspan && !(x.parent isa EXPR)
+    if offset == x.fullspan && !(parentof(x) isa EXPR)
         return last(x.args)
     end
     return x
@@ -213,7 +213,7 @@ function get_identifier(x, offset, pos = 0)
             end
             pos += a.fullspan
         end
-    elseif x.typ === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif typof(x) === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
 end

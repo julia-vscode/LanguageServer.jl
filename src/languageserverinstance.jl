@@ -9,6 +9,7 @@ mutable struct LanguageServerInstance
 
     debug_mode::Bool
     runlinter::Bool
+    lint_options::StaticLint.LintOptions
     ignorelist::Set{String}
     isrunning::Bool
 
@@ -18,7 +19,7 @@ mutable struct LanguageServerInstance
     ss_task
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing)
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, StaticLint.LintOptions(), Set{String}(), false, env_path, depot_path, nothing, nothing)
     end
 end
 

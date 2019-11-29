@@ -1,8 +1,8 @@
 module LanguageServer
 import URIParser
 using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint, Distributed
-using CSTParser: EXPR, Tokenize.Tokens
-
+using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
+using StaticLint: refof, scopeof, bindingof
 export LanguageServerInstance
 
 include("uri2.jl")
@@ -19,7 +19,6 @@ include("requests/features.jl")
 include("requests/hover.jl")
 include("requests/completions.jl")
 include("requests/workspace.jl")
-include("parsing.jl")
 include("utilities.jl")
 include("jmd.jl")
 include("display.jl")

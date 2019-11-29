@@ -4,6 +4,7 @@ version = "0.6.1-DEV"
 
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 DocumentFormat = "ffa9a821-9c82-50df-894e-fbcef3ed31cd"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
@@ -22,9 +23,9 @@ URIParser = "0.4.0"
 julia = "1"
 
 [extras]
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [targets]
 test = ["Test", "Sockets", "Pkg"]

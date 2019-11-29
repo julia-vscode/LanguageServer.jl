@@ -90,7 +90,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
         for x in bs
             p, b = x[1], x[2]
-            push!(syms, SymbolInformation(b.name, 1, false, Location(doc._uri, Range(doc, p)), nothing))
+            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), nothing))
         end
     end
 

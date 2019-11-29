@@ -20,18 +20,18 @@ end
 function get_hover(x, documentation, server) end
 
 function get_hover(x::EXPR, documentation, server)
-    if x.parent isa EXPR  && (x.kind === CSTParser.Tokens.END || x.kind === CSTParser.Tokens.RPAREN || x.kind === CSTParser.Tokens.RBRACE || x.kind === CSTParser.Tokens.RSQUARE)
-        push!(documentation, MarkedString("Closes $(x.parent.typ) expression."))
+    if parentof(x) isa EXPR  && (kindof(x) === CSTParser.Tokens.END || kindof(x) === CSTParser.Tokens.RPAREN || kindof(x) === CSTParser.Tokens.RBRACE || kindof(x) === CSTParser.Tokens.RSQUARE)
+        push!(documentation, MarkedString("Closes $(typof(parentof(x))) expression."))
     elseif CSTParser.isidentifier(x) && StaticLint.hasref(x)
-        if x.ref isa StaticLint.Binding
-            get_hover(x.ref, documentation, server)
-        elseif x.ref isa SymbolServer.SymStore
-            append!(documentation, split_docs(x.ref.doc))
+        if refof(x) isa StaticLint.Binding
+            get_hover(refof(x), documentation, server)
+        elseif refof(x) isa SymbolServer.SymStore
+            append!(documentation, split_docs(refof(x).doc))
         end
     end
 end
 
-function get_hover(b::CSTParser.Binding, documentation, server)
+function get_hover(b::StaticLint.Binding, documentation, server)
     if b.val isa EXPR
         if CSTParser.defines_function(b.val)
             while true
@@ -46,8 +46,8 @@ function get_hover(b::CSTParser.Binding, documentation, server)
                 else
                     break
                 end
-                if b.overwrites isa CSTParser.Binding && b.overwrites != b && (b.overwrites.t == getsymbolserver(server)["Core"].vals["Function"] || b.overwrites.t == getsymbolserver(server)["Core"].vals["DataType"])
-                    b = b.overwrites
+                if b.prev isa StaticLint.Binding && b.prev != b && (b.prev.type == getsymbolserver(server)["Core"].vals["Function"] || b.prev.type == getsymbolserver(server)["Core"].vals["DataType"])
+                    b = b.prev
                 else
                     break
                 end
@@ -57,7 +57,7 @@ function get_hover(b::CSTParser.Binding, documentation, server)
         end
     elseif b.val isa SymbolServer.SymStore
         append!(documentation, split_docs(b.val.doc))
-    elseif b.val isa CSTParser.Binding
+    elseif b.val isa StaticLint.Binding
         get_hover(b.val, documentation, server)
     end
 end

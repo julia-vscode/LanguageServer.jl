@@ -29,7 +29,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguratio
 end
 
 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
     if r.params["settings"] isa Dict && haskey(r.params["settings"], "julia")
         jsettings = r.params["settings"]["julia"]
         if haskey(jsettings, "runLinter") && jsettings["runLinter"] != server.runlinter
@@ -58,7 +58,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
                     end
                 end
             end
-
+        end
+        if haskey(jsettings, "format")
+            for (k,v) in jsettings["format"]
+                setproperty!(server.format_options, Symbol(k), v)
+            end
         end
     end
 end

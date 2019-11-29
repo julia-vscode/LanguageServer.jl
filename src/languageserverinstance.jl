@@ -1,5 +1,28 @@
 T = 0.0
 
+"""
+    LanguageServerInstance(pipe_in, pipe_out, debug=false, env="", depot="")
+
+Construct an instance of the language server.
+
+Once the instance is `run`, it will read JSON-RPC from `pipe_out` and
+write JSON-RPC from `pipe_in` according to the [language server
+specification](https://microsoft.github.io/language-server-protocol/specifications/specification-3-14/).
+For normal usage, the language server can be instantiated with
+`LanguageServerInstance(stdin, stdout, false, "/path/to/environment")`.
+
+# Arguments
+- `pipe_in::IO`: Pipe to read JSON-RPC from.
+- `pipe_out::IO`: Pipe to write JSON-RPC to.
+- `debug::Bool`: Whether to log debugging information with `Base.CoreLogging`.
+- `env::String`: Path to the
+  [environment](https://docs.julialang.org/en/v1.2/manual/code-loading/#Environments-1)
+  for which the language server is running. An empty string uses julia's
+  default environment.
+- `depot::String`: Sets the
+  [`JULIA_DEPOT_PATH`](https://docs.julialang.org/en/v1.2/manual/environment-variables/#JULIA_DEPOT_PATH-1)
+  where the language server looks for packages required in `env`.
+"""
 mutable struct LanguageServerInstance
     pipe_in
     pipe_out
@@ -16,10 +39,13 @@ mutable struct LanguageServerInstance
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+    format_options::DocumentFormat.FormatOptions
     ss_task
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
         new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, StaticLint.LintOptions(), Set{String}(), false, env_path, depot_path, nothing, nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing, DocumentFormat.FormatOptions())
     end
 end
 
@@ -44,6 +70,11 @@ function init_symserver(server::LanguageServerInstance)
     _set_worker_env(env_path, server)
 end
 
+"""
+    run(server::LanguageServerInstance)
+
+Run the language `server`.
+"""
 function Base.run(server::LanguageServerInstance)
     init_symserver(server)
     
@@ -56,6 +87,15 @@ function Base.run(server::LanguageServerInstance)
             server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
             process(request, server)
+            # server.isrunning && serverready(server)
+        elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
+            # set format options
+            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions))
+                try
+                    server.format_options = DocumentFormat.FormatOptions(message_dict["result"]...)
+                catch 
+                end
+            end
         end
 
         # import reloaded package caches

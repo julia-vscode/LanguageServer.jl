@@ -128,7 +128,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         for tdcce in r.params.contentChanges
             applytextdocumentchanges(doc, tdcce)
         end
-        doc._line_offsets = nothing
         parse_all(doc, server)
     end
 end
@@ -241,6 +240,7 @@ function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChang
         editrange = get_offset(doc, tdcce.range)
         doc._content = edit_string(doc._content, editrange, tdcce.text)
     end
+    doc._line_offsets = nothing
 end
 
 function edit_string(text, editrange, edit)

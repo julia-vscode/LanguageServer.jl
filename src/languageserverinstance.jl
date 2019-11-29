@@ -39,13 +39,11 @@ mutable struct LanguageServerInstance
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
-    format_options::DocumentFormat.FormatOptions
     ss_task
+    format_options::DocumentFormat.FormatOptions
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, StaticLint.LintOptions(), Set{String}(), false, env_path, depot_path, nothing, nothing)
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing, DocumentFormat.FormatOptions())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, StaticLint.LintOptions(), Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions())
     end
 end
 

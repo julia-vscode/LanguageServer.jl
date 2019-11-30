@@ -34,16 +34,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
         (ConfigurationItem(nothing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
         ConfigurationItem(nothing, "julia.runLinter")
         ])), server)
-
-
-    if r.params["settings"] isa Dict && haskey(r.params["settings"], "julia")
-        jsettings = r.params["settings"]["julia"]
-        if haskey(jsettings, "format")
-            for (k,v) in jsettings["format"]
-                setproperty!(server.format_options, Symbol(k), v)
-            end
-        end
-    end
 end
 
 

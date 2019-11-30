@@ -30,41 +30,10 @@ end
 
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
-    if r.params["settings"] isa Dict && haskey(r.params["settings"], "julia")
-        jsettings = r.params["settings"]["julia"]
-        if haskey(jsettings, "runLinter") && jsettings["runLinter"] != server.runlinter
-            server.runlinter = !server.runlinter
-            if server.runlinter
-                if !server.isrunning
-                    for doc in values(server.documents)
-                        publish_diagnostics(doc, server)
-                    end
-                end
-            else
-                clear_diagnostics(server)
-            end
-        end
-        if haskey(jsettings, "lintIgnoreList")
-            server.ignorelist = Set(jsettings["lintIgnoreList"])
-            for (uri,doc) in server.documents
-                if is_ignored(uri, server)
-                    doc._runlinter = false
-                    clear_diagnostics(uri, server)
-                else
-                    if !doc._runlinter
-                        doc._runlinter = true
-                        append!(doc.diagnostics, L.diagnostics)
-                        publish_diagnostics(doc, server)
-                    end
-                end
-            end
-        end
-        if haskey(jsettings, "format")
-            for (k,v) in jsettings["format"]
-                setproperty!(server.format_options, Symbol(k), v)
-            end
-        end
-    end
+    send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
+        (ConfigurationItem(nothing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
+        ConfigurationItem(nothing, "julia.runLinter")
+        ])), server)
 end
 
 

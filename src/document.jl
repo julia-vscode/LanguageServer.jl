@@ -1,9 +1,3 @@
-mutable struct LSDiagnostic{C}
-    loc::UnitRange{Int}
-    actions::Vector{Any}
-    message::String
-end
-
 mutable struct Document
     _uri::String
     path::String
@@ -12,7 +6,7 @@ mutable struct Document
     _open_in_editor::Bool
     _workspace_file::Bool
     cst::EXPR
-    diagnostics::Vector{LSDiagnostic}
+    diagnostics::Vector{Diagnostic}
     _version::Int
     _runlinter::Bool
     server

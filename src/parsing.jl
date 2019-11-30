@@ -10,12 +10,11 @@ function parse_all(doc::Document, server)
         doc.cst.val = doc.path
         doc.cst.ref = doc
     end
-    ls_diags = Diagnostic[]
-    if server.runlinter && doc._runlinter
-        scopepass(getroot(doc))
-        mark_errors(doc, ls_diags)
-    end
-    send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
+
+    scopepass(getroot(doc))
+    mark_errors(doc, doc.diagnostics)
+
+    publish_diagnostics(doc, server)
 end
 
 function mark_errors(doc, out = Diagnostic[])
@@ -90,31 +89,12 @@ function get_errors(x::EXPR, errs = Tuple{Int,EXPR}[], pos = 0)
     errs
 end
 
-function convert_diagnostic(h::LSDiagnostic{T}, doc::Document) where {T}
-    rng = Range(doc, h.loc)
-    code = 1
-    Diagnostic(rng, code, string(T), string(typeof(h).name), isempty(h.message) ? string(T) : h.message, nothing)
-end
-
 function publish_diagnostics(doc::Document, server)
-    ls_diags = map(doc.diagnostics) do diag
-        convert_diagnostic(diag, doc)
+    if server.runlinter
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
+    else
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
     end
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, ls_diags)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
     send(response, server)
-end
-
-
-function clear_diagnostics(uri::URI2, server)
-    doc = server.documents[uri]
-    empty!(doc.diagnostics)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
-    send(response, server)
-end 
-
-function clear_diagnostics(server)
-    for (uri, doc) in server.documents
-        clear_diagnostics(uri, server)
-    end
 end

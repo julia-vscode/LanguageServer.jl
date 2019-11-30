@@ -49,11 +49,22 @@ function Base.run(server::LanguageServerInstance)
             # server.isrunning && serverready(server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
-            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions))
+            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1
                 try
-                    server.format_options = DocumentFormat.FormatOptions(message_dict["result"]...)
-                catch 
+                    server.format_options = DocumentFormat.FormatOptions(message_dict["result"][1:end-1]...)
+                catch
                 end
+
+                x = message_dict["result"][end]
+                new_run_lint_value = x===nothing ? false : true
+
+                if new_run_lint_value != server.runlinter
+                    server.runlinter = new_run_lint_value
+                    for doc in values(server.documents)
+                        publish_diagnostics(doc, server)
+                    end
+                end
+
             end
         end
     end

@@ -1,5 +1,28 @@
 T = 0.0
 
+"""
+    LanguageServerInstance(pipe_in, pipe_out, debug=false, env="", depot="")
+
+Construct an instance of the language server.
+
+Once the instance is `run`, it will read JSON-RPC from `pipe_out` and
+write JSON-RPC from `pipe_in` according to the [language server
+specification](https://microsoft.github.io/language-server-protocol/specifications/specification-3-14/).
+For normal usage, the language server can be instantiated with
+`LanguageServerInstance(stdin, stdout, false, "/path/to/environment")`.
+
+# Arguments
+- `pipe_in::IO`: Pipe to read JSON-RPC from.
+- `pipe_out::IO`: Pipe to write JSON-RPC to.
+- `debug::Bool`: Whether to log debugging information with `Base.CoreLogging`.
+- `env::String`: Path to the
+  [environment](https://docs.julialang.org/en/v1.2/manual/code-loading/#Environments-1)
+  for which the language server is running. An empty string uses julia's
+  default environment.
+- `depot::String`: Sets the
+  [`JULIA_DEPOT_PATH`](https://docs.julialang.org/en/v1.2/manual/environment-variables/#JULIA_DEPOT_PATH-1)
+  where the language server looks for packages required in `env`.
+"""
 mutable struct LanguageServerInstance
     pipe_in
     pipe_out
@@ -29,6 +52,11 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
+"""
+    run(server::LanguageServerInstance)
+
+Run the language `server`.
+"""
 function Base.run(server::LanguageServerInstance)
     server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
 
@@ -49,11 +77,29 @@ function Base.run(server::LanguageServerInstance)
             # server.isrunning && serverready(server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
-            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions))
-                try
-                    server.format_options = DocumentFormat.FormatOptions(message_dict["result"]...)
-                catch 
+            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1
+                server.format_options = DocumentFormat.FormatOptions(
+                    message_dict["result"][1]===nothing ? 0 : message_dict["result"][1],
+                    message_dict["result"][2]===nothing ? false : message_dict["result"][2],
+                    message_dict["result"][3]===nothing ? false : message_dict["result"][3],
+                    message_dict["result"][4]===nothing ? false : message_dict["result"][4],
+                    message_dict["result"][5]===nothing ? false : message_dict["result"][5],
+                    message_dict["result"][6]===nothing ? false : message_dict["result"][6],
+                    message_dict["result"][7]===nothing ? false : message_dict["result"][7],
+                    message_dict["result"][8]===nothing ? false : message_dict["result"][8],
+                    message_dict["result"][9]===nothing ? false : message_dict["result"][9],
+                    message_dict["result"][10]===nothing ? false : message_dict["result"][10])
+
+                x = message_dict["result"][end]
+                new_run_lint_value = x===nothing ? false : true
+
+                if new_run_lint_value != server.runlinter
+                    server.runlinter = new_run_lint_value
+                    for doc in values(server.documents)
+                        publish_diagnostics(doc, server)
+                    end
                 end
+
             end
         end
     end

@@ -17,3 +17,15 @@ make use of the Julia Language Server for various code editing features:
 - [Vim and Neovim](../../wiki/Vim-and-Neovim)
 - [Emacs](../../wiki/Emacs)
 - [Sublime Text](https://github.com/tomv564/LSP)
+
+## Usage
+
+Instantiate an instance of the language server with
+`LanguageServerInstance` and `run` it:
+
+```julia
+using LanguageServer
+
+server = LanguageServerInstance(stdin, stdout, false, "/path/to/environment")
+run(server)
+```

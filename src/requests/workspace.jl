@@ -38,21 +38,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
 
     if r.params["settings"] isa Dict && haskey(r.params["settings"], "julia")
         jsettings = r.params["settings"]["julia"]
-        if haskey(jsettings, "lintIgnoreList")
-            server.ignorelist = Set(jsettings["lintIgnoreList"])
-            for (uri,doc) in server.documents
-                if is_ignored(uri, server)
-                    doc._runlinter = false
-                    clear_diagnostics(uri, server)
-                else
-                    if !doc._runlinter
-                        doc._runlinter = true
-                        append!(doc.diagnostics, L.diagnostics)
-                        publish_diagnostics(doc, server)
-                    end
-                end
-            end
-        end
         if haskey(jsettings, "format")
             for (k,v) in jsettings["format"]
                 setproperty!(server.format_options, Symbol(k), v)

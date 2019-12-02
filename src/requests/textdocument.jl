@@ -115,15 +115,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && first(r.params.contentChanges).range !== nothing
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
-        ls_diags = Diagnostic[]
-        if server.runlinter && doc._runlinter
-            t = time()
             scopepass(getroot(doc), doc)
-            # @info string(round(time()-t, sigdigits = 4))
             StaticLint.check_all(getcst(doc), server.lint_options, server)
-            mark_errors(doc, ls_diags)
-        end
-        send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
+        mark_errors(doc, doc.diagnostics)
+        publish_diagnostics(doc, server)
     else
         for tdcce in r.params.contentChanges
             applytextdocumentchanges(doc, tdcce)

@@ -326,8 +326,12 @@ function mark_errors(doc, out = Diagnostic[])
 end
 
 function publish_diagnostics(doc::Document, server)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
+    if server.runlinter
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
+    else
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+    end
     send(response, server)
 end
 

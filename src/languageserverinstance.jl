@@ -53,18 +53,28 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
+# SymbolServer:parallel branch ################################################
+# function init_symserver(server::LanguageServerInstance)
+#     wid = last(procs())
+#     server.debug_mode && @info "Number of processes: ", wid
+#     server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
+#     @fetchfrom wid begin 
+#         empty!(Base.DEPOT_PATH)
+#         push!(Base.DEPOT_PATH, server.depot_path)
+#     end
+#     server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
+#     server.symbol_server = SymbolServer.SymbolServerProcess()
+#     env_path = server.env_path
+#     _set_worker_env(env_path, server)
+# end
+###############################################################################
+
 function init_symserver(server::LanguageServerInstance)
-    wid = last(procs())
-    server.debug_mode && @info "Number of processes: ", wid
-    server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
-    @fetchfrom wid begin 
-        empty!(Base.DEPOT_PATH)
-        push!(Base.DEPOT_PATH, server.depot_path)
-    end
-    server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
-    server.symbol_server = SymbolServer.SymbolServerProcess()
-    env_path = server.env_path
-    _set_worker_env(env_path, server)
+    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+    @info "Started symbol server"
+    SymbolServer.getstore(server.symbol_server)
+    @info "store set"
+    kill(server.symbol_server)
 end
 
 """
@@ -84,7 +94,6 @@ function Base.run(server::LanguageServerInstance)
             server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
             process(request, server)
-            # server.isrunning && serverready(server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
             if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions))
@@ -95,20 +104,22 @@ function Base.run(server::LanguageServerInstance)
             end
         end
 
+        # SymbolServer:parallel branch ########################################
         # import reloaded package caches
-        if server.ss_task !== nothing && isready(server.ss_task)
-            uuids = fetch(server.ss_task)
-            if !isempty(uuids)
-                for uuid in uuids
-                    SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
-                    # should probably re-run linting
-                end
-                for (uri, doc) in server.documents
-                    parse_all(doc, server)
-                end
-            end
-            server.ss_task = nothing
-        end
+        # if server.ss_task !== nothing && isready(server.ss_task)
+        #     uuids = fetch(server.ss_task)
+        #     if !isempty(uuids)
+        #         for uuid in uuids
+        #             SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
+        #             # should probably re-run linting
+        #         end
+        #         for (uri, doc) in server.documents
+        #             parse_all(doc, server)
+        #         end
+        #     end
+        #     server.ss_task = nothing
+        # end
+        #######################################################################
     end
 end
 

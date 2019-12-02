@@ -32,18 +32,18 @@ mutable struct LanguageServerInstance
 
     debug_mode::Bool
     runlinter::Bool
-    lint_options::StaticLint.LintOptions
     ignorelist::Set{String}
     isrunning::Bool
-
+    
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
-    ss_task
+    ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
+    lint_options::StaticLint.LintOptions
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, StaticLint.LintOptions(), Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
     end
 end
 
@@ -56,7 +56,6 @@ end
 function init_symserver(server::LanguageServerInstance)
     wid = last(procs())
     server.debug_mode && @info "Number of processes: ", wid
-    
     server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
     @fetchfrom wid begin 
         empty!(Base.DEPOT_PATH)

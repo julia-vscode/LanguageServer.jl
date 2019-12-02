@@ -133,9 +133,23 @@ function JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, 
     return params
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server::LanguageServerInstance)
-    _set_worker_env(r.params, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
+    server.env_path = r.params
+    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment = server.env_path)
+    @info "Restarted symbol server"
+    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
+    @info "StaticLint store set"
+    kill(server.symbol_server)
+
+    for (uri, doc) in server.documents
+        parse_all(doc, server)
+    end
+    @info "Finished reparsing everything"
 end
+
+# function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server::LanguageServerInstance)
+#     _set_worker_env(r.params, server)
+# end
 
 function _set_worker_env(env_path, server::LanguageServerInstance)
     wid = last(procs())

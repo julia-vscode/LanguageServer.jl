@@ -119,7 +119,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         if server.runlinter && doc._runlinter
             t = time()
             scopepass(getroot(doc), doc)
-            @info string(round(time()-t, sigdigits = 4))
+            # @info string(round(time()-t, sigdigits = 4))
             StaticLint.check_all(getcst(doc), server.lint_options, server)
             mark_errors(doc, ls_diags)
         end

@@ -115,8 +115,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && first(r.params.contentChanges).range !== nothing
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
-            scopepass(getroot(doc), doc)
-            StaticLint.check_all(getcst(doc), server.lint_options, server)
+        scopepass(getroot(doc), doc)
+        StaticLint.check_all(getcst(doc), server.lint_options, server)
+        empty!(doc.diagnostics)
         mark_errors(doc, doc.diagnostics)
         publish_diagnostics(doc, server)
     else
@@ -266,13 +267,13 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst.val = doc.path
         set_doc(doc.cst, doc)
     end
-    ls_diags = Diagnostic[]
-    if server.runlinter && doc._runlinter
-        scopepass(getroot(doc), doc)
-        StaticLint.check_all(getcst(doc), server.lint_options, server)
-        mark_errors(doc, ls_diags)
-    end
-    send(JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, ls_diags)), server)
+    
+    scopepass(getroot(doc), doc)
+    StaticLint.check_all(getcst(doc), server.lint_options, server)
+    empty!(doc.diagnostics)
+    mark_errors(doc, doc.diagnostics)
+    
+    publish_diagnostics(doc, server)
 end
 
 function mark_errors(doc, out = Diagnostic[])
@@ -324,18 +325,8 @@ function mark_errors(doc, out = Diagnostic[])
     return out
 end
 
-
-function convert_diagnostic(h::LSDiagnostic{T}, doc::Document) where {T}
-    rng = Range(doc, h.loc)
-    code = 1
-    Diagnostic(rng, code, string(T), string(typeof(h).name), isempty(h.message) ? string(T) : h.message, nothing)
-end
-
 function publish_diagnostics(doc::Document, server)
-    ls_diags = map(doc.diagnostics) do diag
-        convert_diagnostic(diag, doc)
-    end
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, ls_diags)
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
     response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
     send(response, server)
 end

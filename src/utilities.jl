@@ -136,8 +136,8 @@ end
 
 function get_toks(doc, offset)
     ts = CSTParser.Tokenize.tokenize(doc._content)
-    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0)
-    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0)
+    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
+    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
     if offset > length(doc._content)
         offset = sizeof(doc._content) - 1
@@ -180,7 +180,7 @@ function goto_loc(x::EXPR, offset::Int, pos = 0)
             end
         end
     end
-    if offset == x.fullspan && !(x.parent isa EXPR)
+    if offset == x.fullspan && !(parentof(x) isa EXPR)
         return last(x.args)
     end
     return x
@@ -213,7 +213,7 @@ function get_identifier(x, offset, pos = 0)
             end
             pos += a.fullspan
         end
-    elseif x.typ === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif typof(x) === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
 end

@@ -34,15 +34,16 @@ mutable struct LanguageServerInstance
     runlinter::Bool
     ignorelist::Set{String}
     isrunning::Bool
-
-    packages::Dict
+    
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+    ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
+    lint_options::StaticLint.LintOptions
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", packages = Dict())
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, packages, env_path, depot_path, nothing, DocumentFormat.FormatOptions())
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
     end
 end
 
@@ -52,18 +53,38 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
+# SymbolServer:parallel branch ################################################
+# function init_symserver(server::LanguageServerInstance)
+#     wid = last(procs())
+#     server.debug_mode && @info "Number of processes: ", wid
+#     server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
+#     @fetchfrom wid begin 
+#         empty!(Base.DEPOT_PATH)
+#         push!(Base.DEPOT_PATH, server.depot_path)
+#     end
+#     server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
+#     server.symbol_server = SymbolServer.SymbolServerProcess()
+#     env_path = server.env_path
+#     _set_worker_env(env_path, server)
+# end
+###############################################################################
+
+function init_symserver(server::LanguageServerInstance)
+    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+    @info "Started symbol server"
+    SymbolServer.getstore(server.symbol_server)
+    @info "store set"
+    kill(server.symbol_server)
+end
+
 """
     run(server::LanguageServerInstance)
 
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
-
-    @info "Started symbol server"
-    server.packages = SymbolServer.getstore(server.symbol_server)
-    @info "store set"
-    kill(server.symbol_server)
+    init_symserver(server)
+    
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
@@ -72,9 +93,7 @@ function Base.run(server::LanguageServerInstance)
         if haskey(message_dict, "method")
             server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
-            # server.isrunning && serverbusy(server)
             process(request, server)
-            # server.isrunning && serverready(server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
             if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1
@@ -102,6 +121,23 @@ function Base.run(server::LanguageServerInstance)
 
             end
         end
+
+        # SymbolServer:parallel branch ########################################
+        # import reloaded package caches
+        # if server.ss_task !== nothing && isready(server.ss_task)
+        #     uuids = fetch(server.ss_task)
+        #     if !isempty(uuids)
+        #         for uuid in uuids
+        #             SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
+        #             # should probably re-run linting
+        #         end
+        #         for (uri, doc) in server.documents
+        #             parse_all(doc, server)
+        #         end
+        #     end
+        #     server.ss_task = nothing
+        # end
+        #######################################################################
     end
 end
 
@@ -114,21 +150,15 @@ function serverready(server)
 end
 
 function read_transport_layer(stream, debug_mode = false)
-    header = String[]
+    header_dict = Dict{String,String}()
     line = chomp(readline(stream))
     while length(line) > 0
-        push!(header, line)
+        h_parts = split(line, ":")
+        header_dict[chomp(h_parts[1])] = chomp(h_parts[2])
         line = chomp(readline(stream))
     end
-    header_dict = Dict{String,String}()
-    for h in header
-        h_parts = split(h, ":")
-        header_dict[chomp(h_parts[1])] = chomp(h_parts[2])
-    end
     message_length = parse(Int, header_dict["Content-Length"])
-
-    message = read(stream, message_length)
-    message_str = String(message)
+    message_str = String(read(stream, message_length))
     debug_mode && @info "RECEIVED: $message_str"
     debug_mode && @info ""
     return message_str

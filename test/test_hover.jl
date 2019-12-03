@@ -1,7 +1,7 @@
 import LanguageServer: LanguageServerInstance, Document, Pkg
 using LanguageServer, CSTParser, StaticLint, SymbolServer
 
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), true, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), true, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 @async run(server)
 t = time()
 while server.symbol_server isa Nothing && time() - t < 60
@@ -24,7 +24,6 @@ struct testtype
     b::Float64
     c::Vector{Float64}
 end
-
 function testfunction(a, b::Float64, c::testtype)
     return c
 end
@@ -44,11 +43,11 @@ res = getresult(server)
 @test res[1] == server.symbol_server.depot["Core"].vals["Float64"].doc
 
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":8,"character":12}}}""")), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":12}}}""")), server)
 res = getresult(server)
 @test res[1]["value"] == "c::testtype"
 
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":10,"character":1}}}""")), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":9,"character":1}}}""")), server)
 res = getresult(server)
 @test res[1]["value"] == "Closes ModuleH expression."

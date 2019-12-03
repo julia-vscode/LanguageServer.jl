@@ -21,7 +21,10 @@ mutable struct CompletionItem
     textEdit::TextEdit
     additionalTextEdits::Vector{TextEdit}
     insertTextFormat::Union{Nothing,Int}
+    sortText::Union{Nothing,String}
+    filterText::Union{Nothing,String}
 end
+CompletionItem(label, kind, documentation, textEdit, additionalTextEdits, insertTextFormat) = CompletionItem(label, kind, documentation, textEdit, additionalTextEdits, insertTextFormat, label, label)
 
 mutable struct CompletionList
     isIncomplete::Bool

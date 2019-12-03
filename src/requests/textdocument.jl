@@ -11,8 +11,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc._version = r.params.textDocument.version
         get_line_offsets(doc, true)
     else
-        server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
-        doc = server.documents[URI2(uri)]
+        doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
         doc._version = r.params.textDocument.version
         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
             doc._workspace_file = true
@@ -38,7 +37,6 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextD
         doc._version = r.params.textDocument.version
     else
         doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
-        doc = server.documents[URI2(uri)]
         doc._version = r.params.textDocument.version
         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
             doc._workspace_file = true
@@ -103,7 +101,7 @@ function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, par
     return DidChangeTextDocumentParams(params)
 end
 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true, server)
     end
@@ -117,7 +115,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && first(r.params.contentChanges).range !== nothing
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
-        scopepass(getroot(doc))
+        scopepass(getroot(doc), doc)
+        StaticLint.check_all(getcst(doc), server.lint_options, server)
+        empty!(doc.diagnostics)
         mark_errors(doc, doc.diagnostics)
         publish_diagnostics(doc, server)
     else
@@ -130,7 +130,6 @@ end
 
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     cst = getcst(doc)
-    # cst = CSTParser.parse(doc._content, true)
     insert_range = get_offset(doc, tdcce.range)
     doc._content = updated_text = edit_string(doc._content, insert_range, tdcce.text)
     doc._line_offsets = nothing
@@ -180,9 +179,9 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     end
     CSTParser.update_span!(cst)
     doc.cst = cst
-    if doc.cst.typ === CSTParser.FileH
+    if typof(doc.cst) === CSTParser.FileH
         doc.cst.val = doc.path
-        doc.cst.ref = doc
+        set_doc(doc.cst, doc)
     end
 end
 
@@ -256,19 +255,96 @@ function edit_string(text, editrange, edit)
     end    
 end
 
-function check_refs(doc::Document)
-    binds, refs = [], []
-    for doc1 in doc.server.documents
-        if doc1[2].root == doc.root
-            StaticLint.collect_bindings_refs(doc1[2].cst, binds, refs)
+function parse_all(doc::Document, server::LanguageServerInstance)
+    ps = CSTParser.ParseState(doc._content)
+    StaticLint.clear_meta(getcst(doc))
+    if endswith(doc._uri, ".jmd")
+        doc.cst, ps = parse_jmd(ps, doc._content)
+    else
+        doc.cst, ps = CSTParser.parse(ps, true)
+    end
+    if typof(doc.cst) === CSTParser.FileH
+        doc.cst.val = doc.path
+        set_doc(doc.cst, doc)
+    end
+    
+    scopepass(getroot(doc), doc)
+    StaticLint.check_all(getcst(doc), server.lint_options, server)
+    empty!(doc.diagnostics)
+    mark_errors(doc, doc.diagnostics)
+    
+    publish_diagnostics(doc, server)
+end
+
+function mark_errors(doc, out = Diagnostic[])
+    line_offsets = get_line_offsets(doc)
+    errs = StaticLint.collect_hints(getcst(doc))
+    n = length(errs)
+    n == 0 && return out
+    i = 1
+    start = true
+    offset = errs[i][1]
+    
+    r = Int[0, 0]
+    pos = 0
+    nlines = length(line_offsets)
+    if offset > last(line_offsets)
+        line = nlines
+    else
+        line = 1
+        while line < nlines
+            while line_offsets[line] <= offset < line_offsets[line + 1]
+                ind = line_offsets[line]
+                char = 0
+                while offset > ind
+                    ind = nextind(doc._content, ind)
+                    char += 1
+                end                
+                if start
+                    r[1] = line
+                    r[2] = char
+                    offset += errs[i][2].span
+                else
+                    if typof(errs[i][2]) === CSTParser.ErrorToken
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 1, "Julia", "Julia", "Parsing error", nothing))
+                    elseif typof(errs[i][2]) === CSTParser.IDENTIFIER
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", nothing))
+                    elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 3, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), nothing))
+                    end
+                    i += 1
+                    i>n && break
+                    offset = errs[i][1]
+                end
+                start = !start
+                offset = start ? errs[i][1] : errs[i][1] + errs[i][2].span
+            end
+            line += 1
         end
     end
-    urefs = []
-    for r in refs
-        # if (r.ref isa CSTParser.Binding && r.ref.val isa CSTParser.EXPR) && !(r.ref in binds || r.ref.val in binds)
-        if !(any(r.ref == b.binding for b in binds) || r.ref isa SymbolServer.SymStore || r.ref isa String)
-            push!(urefs, r)
-        end
+    return out
+end
+
+function publish_diagnostics(doc::Document, server)
+    if server.runlinter
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
+    else
+        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
     end
-    binds, refs, urefs
+    send(response, server)
+end
+
+
+function clear_diagnostics(uri::URI2, server)
+    doc = server.documents[uri]
+    empty!(doc.diagnostics)
+    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+    send(response, server)
+end 
+
+function clear_diagnostics(server)
+    for (uri, doc) in server.documents
+        clear_diagnostics(uri, server)
+    end
 end

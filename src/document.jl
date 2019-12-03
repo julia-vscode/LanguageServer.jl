@@ -19,9 +19,16 @@ function Document(uri::AbstractString, text::AbstractString, workspace_file::Boo
     doc = Document(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
     get_line_offsets(doc)
     cst.val = path
-    doc.cst.ref = doc
+    set_doc(doc.cst, doc)
     setroot(doc, doc)
-    return doc
+    return doc 
+end
+
+function set_doc(x::EXPR, doc)
+    if !StaticLint.hasmeta(x)
+        x.meta = StaticLint.Meta()
+    end
+    x.meta.error = doc
 end
 
 

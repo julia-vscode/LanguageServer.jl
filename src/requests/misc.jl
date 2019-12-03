@@ -90,11 +90,11 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
     x = getcst(doc)
     loc = 0
     p1, p2, p3 = 1, x.span, x.fullspan
-    if x.typ === CSTParser.FileH
+    if typof(x) === CSTParser.FileH
         (offset > x.fullspan || x.args === nothing) && return 1, x.span, x.fullspan
         for a in x.args
             if loc <= offset < loc + a.fullspan
-                if a.typ === CSTParser.ModuleH
+                if typof(a) === CSTParser.ModuleH
                     if loc + a.args[1].fullspan + a.args[2].fullspan < offset < loc + a.args[1].fullspan + a.args[2].fullspan + a.args[3].fullspan
                         loc0 = loc +  a.args[1].fullspan + a.args[2].fullspan
                         loc += a.args[1].fullspan + a.args[2].fullspan
@@ -108,7 +108,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
                     else
                         p1, p2, p3 = loc + 1, loc + a.span, loc + a.fullspan
                     end
-                elseif a.typ === CSTParser.TopLevel
+                elseif typof(a) === CSTParser.TopLevel
                     p1, p2, p3 = loc + 1, loc + a.span, loc + a.fullspan
                     for b in a.args
                         if loc <= offset < loc + b.fullspan
@@ -135,9 +135,9 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
     server.env_path = r.params
-    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
+    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment = server.env_path)
     @info "Restarted symbol server"
-    server.packages = StaticLint.SymbolServer.getstore(server.symbol_server)
+    StaticLint.SymbolServer.getstore(server.symbol_server)
     @info "StaticLint store set"
     kill(server.symbol_server)
 
@@ -146,3 +146,28 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, s
     end
     @info "Finished reparsing everything"
 end
+
+# SymbolServer:parallel branch ################################################
+
+# function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server::LanguageServerInstance)
+#     _set_worker_env(r.params, server)
+# end
+
+# function _set_worker_env(env_path, server::LanguageServerInstance)
+#     wid = last(procs())
+#     server.debug_mode && @info "Activating: ", server.env_path
+#     @fetchfrom wid SymbolServer.Pkg.activate(env_path)
+
+#     server.symbol_server.context = @fetchfrom wid SymbolServer.Pkg.Types.Context()
+#     server.debug_mode && @info "New project file: ",  server.symbol_server.context.env.project_file
+
+#     missing_pkgs = SymbolServer.disc_load_project(server.symbol_server)
+#     if isempty(missing_pkgs)
+#         server.ss_task = nothing
+#     else
+#         pkg_uuids = collect(keys(missing_pkgs))
+#         server.debug_mode && @info "Missing or outdated package caches: ", collect(missing_pkgs)
+#         server.ss_task = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
+#     end
+# end
+###############################################################################        

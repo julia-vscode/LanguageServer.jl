@@ -14,14 +14,14 @@ Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
 URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 
 [compat]
-CSTParser = "1.1"
+CSTParser = "2"
 DocumentFormat = "1.1.1"
 JSON = "0.20, 0.21"
-StaticLint = "1.1"
+StaticLint = "2"
 Tokenize = "0.5.7"
 URIParser = "0.4.0"
 julia = "1"
-SymbolServer = "1.0.1"
+SymbolServer = "2"
 
 [extras]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"

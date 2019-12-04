@@ -20,7 +20,5 @@ include("requests/hover.jl")
 include("requests/completions.jl")
 include("requests/workspace.jl")
 include("utilities.jl")
-include("jmd.jl")
-include("display.jl")
 
 end

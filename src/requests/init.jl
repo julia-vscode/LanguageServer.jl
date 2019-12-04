@@ -68,10 +68,7 @@ function load_folder(path::String, server)
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params)
-    return InitializeParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params) = InitializeParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
     if r.params.capabilities.workspace.workspaceFolders === nothing || r.params.capabilities.workspace.workspaceFolders == false
@@ -91,10 +88,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params)
-    return params
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     if server.workspaceFolders != nothing
         for wkspc in server.workspaceFolders
@@ -110,19 +104,12 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params)
-    return params
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
     send(nothing, server)
 end
 
-
-function JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params)
-    return params
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server) 
     exit()
 end

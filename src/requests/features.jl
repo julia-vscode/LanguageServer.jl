@@ -1,7 +1,4 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params)
-    return CodeActionParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
     commands = Command[]
     
@@ -30,11 +27,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params)
-    return TextDocumentPositionParams(params)
-end
-
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -83,11 +76,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     send(JSONRPC.Response(r.id, SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)), server)
 end
 
-
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params)
-    return TextDocumentPositionParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -148,27 +137,21 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     end
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/formatting")}}, params)
-    return DocumentFormattingParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/formatting")}}, params) = DocumentFormattingParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server::LanguageServerInstance)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
-    newcontent = DocumentFormat.format(doc._content, server.format_options)
-    end_l, end_c = get_position_at(doc, sizeof(doc._content))
+    newcontent = DocumentFormat.format(get_text(doc), server.format_options)
+    end_l, end_c = get_position_at(doc, sizeof(get_text(doc)))
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     send(JSONRPC.Response(r.id, lsedits), server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params)
-    return DocumentLinkParams(params) 
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -197,10 +180,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     return locations
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params)
-    return ReferenceParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params) = ReferenceParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -210,10 +190,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
     send(JSONRPC.Response(r.id, locations), server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params)
-    return RenameParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = RenameParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -234,10 +211,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params)
-    return DocumentSymbolParams(params) 
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)

@@ -1,7 +1,4 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params)
-    return TextDocumentPositionParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)

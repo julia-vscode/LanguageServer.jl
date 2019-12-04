@@ -1,7 +1,3 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params)
-    return CompletionParams(params)
-end
-
 _ispath(s) = false
 function _ispath(s::String)
     try
@@ -11,6 +7,7 @@ function _ispath(s::String)
     end
 end
 
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -319,10 +316,39 @@ end
 
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
     import_statement = parentof(x)
-        import_root = get_import_root(import_statement)
-        if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
-            (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
-            #no partial, no dot
+    import_root = get_import_root(import_statement)
+    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
+        (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
+        #no partial, no dot
+        if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
+            for (n,m) in refof(import_root).vals
+                if startswith(n, t.val)
+                    push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
+                end
+            end
+        else
+            for (n,m) in StaticLint.getsymbolserver(server)
+                startswith(n, ".") && continue
+                push!(CIs, CompletionItem(n, 9, MarkupContent(m.doc), TextEdit(rng, n), TextEdit[], 1))
+            end
+        end
+    elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
+        #no partial, dot
+        if haskey(getsymbolserver(server), pt.val)
+            collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
+        end
+    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
+        #partial
+        if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
+            if haskey(StaticLint.getsymbolserver(server), ppt.val)
+                rootmod = StaticLint.getsymbolserver(server)[ppt.val]
+                for (n,m) in rootmod.vals
+                    if startswith(n, t.val)
+                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
+                    end
+                end
+            end
+        else
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
                 for (n,m) in refof(import_root).vals
                     if startswith(n, t.val)
@@ -331,40 +357,11 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                 end
             else
                 for (n,m) in StaticLint.getsymbolserver(server)
-                    startswith(n, ".") && continue
-                    push!(CIs, CompletionItem(n, 9, MarkupContent(m.doc), TextEdit(rng, n), TextEdit[], 1))
-                end
-            end
-        elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
-            #no partial, dot
-            if haskey(getsymbolserver(server), pt.val)
-                collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
-            end
-        elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
-            #partial
-            if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
-                if haskey(StaticLint.getsymbolserver(server), ppt.val)
-                    rootmod = StaticLint.getsymbolserver(server)[ppt.val]
-                    for (n,m) in rootmod.vals
-                        if startswith(n, t.val)
-                            push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
-                        end
-                    end
-                end
-            else
-                if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-                    for (n,m) in refof(import_root).vals
-                        if startswith(n, t.val)
-                            push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end]), TextEdit[], 1))
-                        end
-                    end
-                else
-                    for (n,m) in StaticLint.getsymbolserver(server)
-                        if startswith(n, t.val)
-                            push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
-                        end
+                    if startswith(n, t.val)
+                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]), TextEdit[], 1))
                     end
                 end
             end
         end
+    end
 end

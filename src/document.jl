@@ -60,6 +60,9 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     offset = line_offsets[line + 1]
     while character > 0
         offset = nextind(doc._content, offset)
+        if nextind(get_text(doc), offset) - offset > 2
+            character -= 1
+        end
         character -= 1
     end
     return offset
@@ -121,7 +124,10 @@ function get_position_at(doc::Document, offset::Integer)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0
     while offset > ind
-        ind = nextind(doc._content, ind)
+        ind = nextind(get_text(doc), ind)
+        if nextind(get_text(doc), ind) - ind > 2
+            char += 1
+        end
         char += 1
     end
     return line - 1, char

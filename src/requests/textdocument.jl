@@ -298,6 +298,9 @@ function mark_errors(doc, out = Diagnostic[])
                 char = 0
                 while offset > ind
                     ind = nextind(doc._content, ind)
+                    if nextind(get_text(doc), ind) - ind > 2
+                        char += 1
+                    end
                     char += 1
                 end                
                 if start

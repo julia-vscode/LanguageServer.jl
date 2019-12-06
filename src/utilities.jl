@@ -42,16 +42,16 @@ function should_file_be_linted(uri, server)
     end
 end
 
-CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
-                                t == :Function ? 3 :
-                                t == :DataType ? 7 :
-                                t == :Module ? 9 : 6
+# CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
+#                                 t == :Function ? 3 :
+#                                 t == :DataType ? 7 :
+#                                 t == :Module ? 9 : 6
 
-SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
-                        t == :Function ? 12 :
-                        t == :DataType ? 5 :
-                        t == :Module ? 2 :
-                        t == :Bool ? 17 : 13
+# SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
+#                         t == :Function ? 12 :
+#                         t == :DataType ? 5 :
+#                         t == :Module ? 2 :
+#                         t == :Bool ? 17 : 13
 
 
 

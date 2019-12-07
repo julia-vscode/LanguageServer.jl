@@ -36,7 +36,7 @@ end
     command::Union{Command,Missing}
     data::Union{Any,Missing}
 end
-CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, documentation, missing, missing, missing, missing, missing, missing, textEdit, missing, missing, missing, missing)
+CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, documentation, missing, missing, missing, missing, missing, 2, textEdit, missing, missing, missing, missing)
 
 struct CompletionList <: Outbound
     isIncomplete::Bool

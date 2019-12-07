@@ -96,7 +96,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     locations = Location[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     offset = get_offset(doc, r.params.position)
-    x = get_identifier(getcst(doc), offset)
+    x = get_expr(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
         b = refof(x)
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
@@ -126,6 +126,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                 b = nothing
             end
         end
+    elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
+        if isfile(valof(x))
+            push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
+        elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
+            push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
+        end 
     end
     
     send(JSONRPC.Response(r.id, locations), server)

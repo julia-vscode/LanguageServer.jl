@@ -2,7 +2,7 @@ const serverCapabilities = ServerCapabilities(
     TextDocumentSyncKinds["Incremental"],
     true,
     CompletionOptions(false, ["."]),
-    SignatureHelpOptions(["("]),
+    SignatureHelpOptions(["(", ","]),
     true,
     false,
     false,

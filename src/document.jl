@@ -122,13 +122,14 @@ function get_position_at(doc::Document, offset::Integer)
     offset > sizeof(doc._content) && error("offset[$offset] > sizeof(content)[$(sizeof(doc._content))]")
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(doc._line_offsets, offset)
+    ind = nextind(get_text(doc), ind)
     char = 0
-    while offset > ind
-        ind = nextind(get_text(doc), ind)
+    while offset >= ind
         if nextind(get_text(doc), ind) - ind > 2
             char += 1
         end
         char += 1
+        ind = nextind(get_text(doc), ind)
     end
     return line - 1, char
 end

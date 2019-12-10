@@ -284,7 +284,6 @@ function mark_errors(doc, out = Diagnostic[])
     i = 1
     start = true
     offset = errs[i][1]
-    
     r = Int[0, 0]
     pos = 0
     nlines = length(line_offsets)
@@ -293,16 +292,16 @@ function mark_errors(doc, out = Diagnostic[])
     else
         line = 1
         while line < nlines
-            while line_offsets[line] <= offset < line_offsets[line + 1]
-                ind = line_offsets[line]
+            while line_offsets[line] <= offset < line_offsets[line + 1]  
+                ind = nextind(get_text(doc), line_offsets[line])
                 char = 0
-                while offset > ind
-                    ind = nextind(doc._content, ind)
+                while offset >= ind
                     if nextind(get_text(doc), ind) - ind > 2
                         char += 1
                     end
                     char += 1
-                end                
+                    ind = nextind(doc._content, ind)
+                end                  
                 if start
                     r[1] = line
                     r[2] = char

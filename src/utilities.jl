@@ -186,21 +186,25 @@ function goto_loc(x::EXPR, offset::Int, pos = 0)
     return x
 end
 
-function get_expr(x, offset, pos = 0)
+function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
         return nothing
     end
     if x.args !== nothing
         for a in x.args
             if pos < offset <= (pos + a.fullspan)
-                return get_expr(a, offset, pos)
+                return get_expr(a, offset, pos, ignorewhitespace)
             end
             pos += a.fullspan
         end
-    elseif (pos < offset <= (pos + x.fullspan)) || pos == 0
+    elseif pos == 0
+        return x
+    elseif (pos < offset <= (pos + x.fullspan))
+        ignorewhitespace && pos + x.span < offset && return nothing
         return x
     end
 end
+
 
 function get_identifier(x, offset, pos = 0)
     if pos > offset

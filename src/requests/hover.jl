@@ -9,7 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     end
     documentation = Any[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
-    x = get_expr(getcst(doc), get_offset(doc, r.params.position))
+    x = get_expr(getcst(doc), get_offset(doc, r.params.position), 0, true)
     
     get_hover(x, documentation, server)
     

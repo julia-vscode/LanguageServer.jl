@@ -46,7 +46,8 @@ function get_hover(b::StaticLint.Binding, documentation, server)
                 else
                     break
                 end
-                if b.prev isa StaticLint.Binding && b.prev != b && (b.prev.type == getsymbolserver(server)["Core"].vals["Function"] || b.prev.type == getsymbolserver(server)["Core"].vals["DataType"])
+                @info typeof(b.prev)
+                if b.prev isa StaticLint.Binding && b.prev != b && (b.prev.type == getsymbolserver(server)["Core"].vals["Function"] || b.prev.type == getsymbolserver(server)["Core"].vals["DataType"] || b.prev.val isa Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore})
                     b = b.prev
                 else
                     break

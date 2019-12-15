@@ -7,13 +7,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
-    documentation = Any[]
+    documentation = MarkedString[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     x = get_expr(getcst(doc), get_offset(doc, r.params.position), 0, true)
     
     get_hover(x, documentation, server)
     
-    send(JSONRPC.Response(r.id, Hover(unique(documentation))), server)
+    send(JSONRPC.Response(r.id, Hover(unique(documentation), missing)), server)
 end
 
 
@@ -68,13 +68,13 @@ end
 Returns an array of Union{String,MarkedString} by separating code blocks (denoted by ```sometext```) within s.
 """
 function split_docs(s::String)
-    out = Any[]
+    out = MarkedString[]
     locs = Int[]
     i = 1
     while i < length(s)
         m = match(r"```", s, i)
         if m isa Nothing
-            isempty(out) && push!(out, s)
+            isempty(out) && push!(out, MarkedString(s))
             break
         else
             push!(locs, m.offset)
@@ -86,7 +86,7 @@ function split_docs(s::String)
             push!(out, s[1:locs[1]-1])
         end
         for i = 1:2:length(locs)
-            push!(out, LanguageServer.MarkedString("julia", replace(s[locs[i]+3:locs[i+1]-1], "jldoctest"=>"")))
+            push!(out, MarkedString("julia", replace(s[locs[i]+3:locs[i+1]-1], "jldoctest"=>"")))
             if i + 1 == length(locs)
                 push!(out, s[locs[i+1]+3:end])
             else

@@ -6,7 +6,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
     for change in r.params.changes
         uri = change.uri
         !haskey(server.documents, URI2(uri)) && continue
-        if change._type == FileChangeType_Created || (change._type == FileChangeType_Changed && !get_open_in_editor(server.documents[URI2(uri)]))
+        if change.type == FileChangeTypes["Created"] || (change.type == FileChangeTypes["Changed"] && !get_open_in_editor(server.documents[URI2(uri)]))
             doc = server.documents[URI2(uri)]
             filepath = uri2filepath(uri)
             content = String(read(filepath))
@@ -14,7 +14,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             server.documents[URI2(uri)] = Document(uri, content, true, server)
             parse_all(server.documents[URI2(uri)], server)
 
-        elseif change._type == FileChangeType_Deleted && !get_open_in_editor(server.documents[URI2(uri)])
+        elseif change.type == FileChangeTypes["Deleted"] && !get_open_in_editor(server.documents[URI2(uri)])
             delete!(server.documents, URI2(uri))
 
             response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(uri, Diagnostic[]))
@@ -31,14 +31,14 @@ end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
     send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
-        (ConfigurationItem(nothing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
-        ConfigurationItem(nothing, "julia.runLinter")
+        (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
+        ConfigurationItem(missing, "julia.runLinter")
         ])), server)
 end
 
 
 function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params)
-    return didChangeWorkspaceFoldersParams(params)
+    return DidChangeWorkspaceFoldersParams(params)
 end
 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)

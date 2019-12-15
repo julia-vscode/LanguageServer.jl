@@ -1,41 +1,31 @@
-@json_read mutable struct TextDocumentIdentifier
+@dict_readable struct TextDocumentIdentifier
     uri::DocumentUri
 end
 
-@json_read mutable struct TextDocumentItem
+@dict_readable struct TextDocumentItem
     uri::DocumentUri
     languageId::String
     version::Int
     text::String
 end
 
-@json_read mutable struct VersionedTextDocumentIdentifier
+@dict_readable struct VersionedTextDocumentIdentifier
     uri::DocumentUri
-    version::Int
+    version::Union{Int,Nothing}
 end
 
-@json_read mutable struct TextDocumentPositionParams
+@dict_readable struct TextDocumentPositionParams
     textDocument::TextDocumentIdentifier
     position::Position
 end
 
-@json_read mutable struct DocumentFilter
-    language::Union{Nothing,String}
-    scheme::Union{Nothing,String}
-    pattern::Union{Nothing,String}
+mutable struct DocumentFilter
+    language::Union{String,Missing}
+    scheme::Union{String,Missing}
+    pattern::Union{String,Missing}
 end
 
 const DocumentSelector = Vector{DocumentFilter}
-
-mutable struct TextDocumentRegistrationOptions
-    documentSelector::DocumentSelector
-end
-
-
-mutable struct TextDocumentChangeRegistrationOptions
-    documentSelector::DocumentSelector
-    syncKind::Int    
-end
 
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
@@ -43,54 +33,41 @@ mutable struct TextDocumentEdit
 end
 
 mutable struct WorkspaceEdit
-    changes
-    documentChanges::Union{Nothing,Vector{TextDocumentEdit}}
+    changes::Union{Any,Missing}
+    documentChanges::Union{Vector{TextDocumentEdit},Missing}
 end
 
-@json_read mutable struct DidOpenTextDocumentParams
+@dict_readable struct DidOpenTextDocumentParams
     textDocument::TextDocumentItem
 end
 
-@json_read mutable struct TextDocumentContentChangeEvent 
-    range::Union{Nothing,Range}
-    rangeLength::Union{Nothing,Int}
+@dict_readable struct TextDocumentContentChangeEvent 
+    range::Union{Range,Missing}
+    rangeLength::Union{Int,Missing}
     text::String
 end
 
-@json_read mutable struct DidChangeTextDocumentParams
+@dict_readable struct DidChangeTextDocumentParams
     textDocument::VersionedTextDocumentIdentifier
     contentChanges::Vector{TextDocumentContentChangeEvent}
 end
 
-@json_read mutable struct DidSaveTextDocumentParams
+@dict_readable struct DidSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
-    text::Union{Nothing,String}
+    text::Union{String,Missing}
 end
 
-@json_read mutable struct DidCloseTextDocumentParams
+@dict_readable struct DidCloseTextDocumentParams
     textDocument::TextDocumentIdentifier
 end
 
-mutable struct FileEvent
-    uri::String
-    _type::Int
-end
-FileEvent(d::Dict) = FileEvent(d["uri"], d["type"])
+const TextDocumentSaveReason = Int
+const TextDocumentSaveReasons = Dict(1 => "Manual", 2 => "AfterDelay", 3 => "FocusOut")
 
-@json_read mutable struct DidChangeWatchedFilesParams
-    changes::Vector{FileEvent}
-end
-
-mutable struct FileSystemWatcher
-    globPattern::String
-    kind::Union{Nothing,Int}
-end
-
-mutable struct DidChangeWatchedFilesRegistrationOptions
-    watchers::Vector{FileSystemWatcher}
-end
-
-@json_read mutable struct WillSaveTextDocumentParams
+@dict_readable struct WillSaveTextDocumentParams
     textDocument::TextDocumentIdentifier
-    reason::Int
+    reason::TextDocumentSaveReason
 end
+
+
+

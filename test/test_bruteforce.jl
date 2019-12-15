@@ -1,7 +1,8 @@
 using LanguageServer, Pkg
-import LanguageServer.JSONRPC:Request, parse
-import LanguageServer: process, lint
+import LanguageServer.JSONRPC: Request, parse
+import LanguageServer: process
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+server.symbol_server = LanguageServer.SymbolServer.SymbolServerProcess()
 init_request = """
 {
     "jsonrpc":"2.0",
@@ -14,18 +15,18 @@ init_request = """
               "trace":"off"}
 }"""
 
-process(LanguageServer.parse(Request,init_request), server)
-process(LanguageServer.parse(Request, """{"jsonrpc":"2.0","method":"initialized","params":{}}"""), server)
-
+process(LanguageServer.parse(Request, LanguageServer.JSON.parse(init_request)), server)
+process(LanguageServer.parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","method":"initialized","params":{}}""")), server)
+server.debug_mode = false
 
 # Workspace Symbols
-r = parse(Request, """{"jsonrpc":"2.0","id":59,"method":"workspace/symbol","params":{"query":""}}""")
+r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":59,"method":"workspace/symbol","params":{"query":""}}"""))
 process(r, server);
 
 # Document Symbols
 for doc in values(server.documents)
     uri = doc._uri
-    r = parse(Request, """{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$(uri)"}}}""")
+    r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$(uri)"}}}"""))
     process(r, server)
 end
 
@@ -34,58 +35,58 @@ end
 for doc in values(server.documents)
     uri = doc._uri
     print("Hovers: $uri ")
-    for loc in 1:sizeof(doc._content)-1
+    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
         line, character = LanguageServer.get_position_at(doc, loc)
-        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
-        while !isempty(server.user_modules.data)
-            take!(server.user_modules)
-        end
     end
-    println("($(sizeof(doc._content)))")
 end
 
 # Completions
 for doc in values(server.documents)
     uri = doc._uri
     print("Completions: $uri ")
-    for loc in 1:sizeof(doc._content)-1
+    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
+        mod(loc,100)==0 && println(loc/sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
-        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
-        while !isempty(server.user_modules.data)
-            take!(server.user_modules)
-        end
     end
-    println("($(sizeof(doc._content)))")
 end
 
 # Definitions
 for doc in values(server.documents)
     uri = doc._uri
     print("Definitions: $uri ")
-    for loc in 1:sizeof(doc._content)-1
+    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
+        mod(loc,100)==0 && println(loc/sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
-        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
-        while !isempty(server.user_modules.data)
-            take!(server.user_modules)
-        end
     end
-    println("($(sizeof(doc._content)))")
 end
 
 # Signatures
 for doc in values(server.documents)
     uri = doc._uri
     print("Signatures: $uri ")
-    for loc in 1:sizeof(doc._content)-1
+    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
+        mod(loc,100)==0 && println(loc/sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
-        r = parse(Request, """{"jsonrpc":"2.0","id":2,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")
+        r = parse(Request, (LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")))
         process(r, server)
-        while !isempty(server.user_modules.data)
-            take!(server.user_modules)
-        end
     end
-    println("($(sizeof(doc._content)))")
 end
+
+# References
+for doc in values(server.documents)
+    uri = doc._uri
+    print("References: $uri ")
+    for loc in 1:sizeof(doc._content)-1
+        mod(loc,100)==0 && println(loc/sizeof(doc._content))
+        line, character = LanguageServer.get_position_at(doc, loc)
+        r = parse(Request, (LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/references","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")))
+        process(r, server)
+    end
+end
+

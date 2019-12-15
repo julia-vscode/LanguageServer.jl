@@ -24,11 +24,6 @@ function filepath2uri(file::String)
     end
 end
 
-function joinuriwithpath(uri::AbstractString, path::AbstractString)
-    left_file_path = uri2filepath(uri)
-    combined_path = joinpath(left_file_path, path)
-    return filepath2uri(combined_path)
-end
 
 function should_file_be_linted(uri, server)
     !server.runlinter && return false
@@ -42,16 +37,16 @@ function should_file_be_linted(uri, server)
     end
 end
 
-CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
-                                t == :Function ? 3 :
-                                t == :DataType ? 7 :
-                                t == :Module ? 9 : 6
+# CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
+#                                 t == :Function ? 3 :
+#                                 t == :DataType ? 7 :
+#                                 t == :Module ? 9 : 6
 
-SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
-                        t == :Function ? 12 :
-                        t == :DataType ? 5 :
-                        t == :Module ? 2 :
-                        t == :Bool ? 17 : 13
+# SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
+#                         t == :Function ? 12 :
+#                         t == :DataType ? 5 :
+#                         t == :Module ? 2 :
+#                         t == :Bool ? 17 : 13
 
 
 
@@ -76,18 +71,6 @@ end
 
 is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
-# function toggle_file_lint(doc, server)
-#     if doc._runlinter
-#         doc._runlinter = false
-#         empty!(doc.diagnostics)
-#     else
-#         doc._runlinter = true
-#         # L = lint(doc, server)
-#         # doc.diagnostics = L.diagnostics
-#     end
-#     publish_diagnostics(doc, server)
-# end
-
 function remove_workspace_files(root, server)
     for (uri, doc) in server.documents
         fpath = uri2filepath(uri._uri)
@@ -103,24 +86,6 @@ function remove_workspace_files(root, server)
     end
 end
 
-function find_root(doc::Document, server)
-    path = uri2filepath(doc._uri)
-    for (uri1,f) in server.documents
-        for incl in f.code.state.includes
-            if path == incl.file
-                if doc.code.index != incl.index
-                    doc.code.index = incl.index
-                    doc.code.nb = incl.pos
-                end
-
-                return find_root(f, server)
-            end
-        end
-    end
-    return doc
-end
-
-
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)
     out = []
@@ -135,12 +100,12 @@ function _offset_unitrange(r::UnitRange{Int}, first = true)
 end
 
 function get_toks(doc, offset)
-    ts = CSTParser.Tokenize.tokenize(doc._content)
+    ts = CSTParser.Tokenize.tokenize(get_text(doc))
     ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
-    if offset > length(doc._content)
-        offset = sizeof(doc._content) - 1
+    if offset > length(get_text(doc))
+        offset = sizeof(get_text(doc)) - 1
     end
 
     while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
@@ -170,37 +135,26 @@ function validchars(path)
     return true
 end
 
-function goto_loc(x::EXPR, offset::Int, pos = 0)
-    if x.args isa Vector{EXPR}
-        for a in x.args
-            if pos <= offset < pos + a.fullspan
-                return goto_loc(a, offset, pos)
-            else
-                pos += a.fullspan
-            end
-        end
-    end
-    if offset == x.fullspan && !(parentof(x) isa EXPR)
-        return last(x.args)
-    end
-    return x
-end
 
-function get_expr(x, offset, pos = 0)
+function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
         return nothing
     end
     if x.args !== nothing
         for a in x.args
             if pos < offset <= (pos + a.fullspan)
-                return get_expr(a, offset, pos)
+                return get_expr(a, offset, pos, ignorewhitespace)
             end
             pos += a.fullspan
         end
-    elseif (pos < offset <= (pos + x.fullspan)) || pos == 0
+    elseif pos == 0
+        return x
+    elseif (pos < offset <= (pos + x.fullspan))
+        ignorewhitespace && pos + x.span < offset && return nothing
         return x
     end
 end
+
 
 function get_identifier(x, offset, pos = 0)
     if pos > offset

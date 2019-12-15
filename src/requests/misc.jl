@@ -1,84 +1,31 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params)
-    return CancelParams(params)
-end
+JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params) = CancelParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server) end
 
-function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server)
-end
+JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params) = params
+function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server) end
 
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params) end
+function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server) end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params)
-    return params
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server)
-end
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params)
-    return
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server)
-    for (uri, f) in server.documents
-    end
-end
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params)
-    return TextDocumentIdentifier(params["textDocument"])
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params) = TextDocumentIdentifier(params["textDocument"])
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
     doc = server.documents[URI2(r.uri)]
     doc._runlinter = !doc._runlinter
 end
 
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params) end
+function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server) end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params)
-end
+JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params) = params
+function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server) end
 
-function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server)
-end
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params)
-    return params
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server)
-    # path = get(r.params, "path", "")
-    # uri = get(r.params, "external", "")
-    # if isdir(uri2filepath(path))
-    #     for doc in values(server.documents)
-    #         uri2 = doc._uri
-    #         server.debug_mode && @info "LINT: ignoring $path"
-    #         if startswith(uri2, uri)
-    #             toggle_file_lint(doc, server)
-    #         end
-    #     end
-    # else
-    #     if uri in map(i->i._uri, values(server.documents))
-    #         server.debug_mode && @info "LINT: ignoring $path"
-    #         doc = server.documents[URI2(uri)]
-    #         toggle_file_lint(doc, server)
-    #     end
-    # end
-end
-
-
-
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params)
-end
-
+function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params) end
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, server)
     server.debug_mode = !server.debug_mode
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params)
-    return TextDocumentPositionParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
@@ -124,15 +71,12 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
         end
     end
 
-    response = JSONRPC.Response(r.id, (isempty(doc._content) ? 0 : length(doc._content, 1, max(1, p1)), length(doc._content, 1, p2), length(doc._content, 1, p3)))
+    response = JSONRPC.Response(r.id, (isempty(get_text(doc)) ? 0 : length(get_text(doc), 1, max(1, p1)), length(get_text(doc), 1, p2), length(get_text(doc), 1, p3)))
 
     send(response, server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params)
-    return params
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
     server.env_path = r.params
     server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment = server.env_path)

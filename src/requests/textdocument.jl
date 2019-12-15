@@ -1,13 +1,10 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params)
-    return DidOpenTextDocumentParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params) = DidOpenTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     server.isrunning = true
     uri = r.params.textDocument.uri
     if URI2(uri) in keys(server.documents)
         doc = server.documents[URI2(uri)]
-        doc._content = r.params.textDocument.text
+        set_text!(doc, r.params.textDocument.text)
         doc._version = r.params.textDocument.version
         get_line_offsets(doc, true)
     else
@@ -24,16 +21,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     parse_all(doc, server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params)
-    return DidOpenTextDocumentParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
     server.isrunning = true
     uri = r.params.textDocument.uri
     if URI2(uri) in keys(server.documents)
         doc = server.documents[URI2(uri)]
-        doc._content = r.params.textDocument.text
+        set_text!(doc, r.params.textDocument.text)
         doc._version = r.params.textDocument.version
     else
         doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
@@ -50,10 +44,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextD
     parse_all(doc, server)
 end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params)
-    return DidCloseTextDocumentParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = DidCloseTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     !haskey(server.documents, URI2(uri)) && return
@@ -68,10 +59,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params)
-    return DidSaveTextDocumentParams(params)
-end
- 
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params) = DidSaveTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[URI2(uri)]
@@ -79,28 +67,18 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSave")}}, params)
-    return WillSaveTextDocumentParams(params)
-end
-
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSave")},WillSaveTextDocumentParams}, server)
-end
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSave")}}, params) = WillSaveTextDocumentParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSave")},WillSaveTextDocumentParams}, server) end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil")}}, params)
-    return WillSaveTextDocumentParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil")}}, params) = WillSaveTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSaveWaitUntil")},WillSaveTextDocumentParams}, server)
     response = JSONRPC.Response(r.id, TextEdit[])
     send(response, server)
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params)
-    return DidChangeTextDocumentParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params) = DidChangeTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true, server)
@@ -131,7 +109,8 @@ end
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     cst = getcst(doc)
     insert_range = get_offset(doc, tdcce.range)
-    doc._content = updated_text = edit_string(doc._content, insert_range, tdcce.text)
+    updated_text = edit_string(get_text(doc), insert_range, tdcce.text)
+    set_text!(doc, updated_text)
     doc._line_offsets = nothing
 
     i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
@@ -231,10 +210,10 @@ end
 function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
     if tdcce.range == tdcce.rangeLength == nothing
         # No range given, replace all text
-        doc._content = tdcce.text
+        set_text!(doc, tdcce.text)
     else
         editrange = get_offset(doc, tdcce.range)
-        doc._content = edit_string(doc._content, editrange, tdcce.text)
+        set_text!(doc, edit_string(get_text(doc), editrange, tdcce.text))
     end
     doc._line_offsets = nothing
 end
@@ -256,10 +235,10 @@ function edit_string(text, editrange, edit)
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
-    ps = CSTParser.ParseState(doc._content)
+    ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
     if endswith(doc._uri, ".jmd")
-        doc.cst, ps = parse_jmd(ps, doc._content)
+        doc.cst, ps = parse_jmd(ps, get_text(doc))
     else
         doc.cst, ps = CSTParser.parse(ps, true)
     end
@@ -309,11 +288,11 @@ function mark_errors(doc, out = Diagnostic[])
                     offset += errs[i][2].span
                 else
                     if typof(errs[i][2]) === CSTParser.ErrorToken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 1, "Julia", "Julia", "Parsing error", nothing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 1, "Julia", "Julia", "Parsing error", missing))
                     elseif typof(errs[i][2]) === CSTParser.IDENTIFIER
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", nothing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 3, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), nothing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 3, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing))
                     end
                     i += 1
                     i>n && break
@@ -351,4 +330,53 @@ function clear_diagnostics(server)
     for (uri, doc) in server.documents
         clear_diagnostics(uri, server)
     end
+end
+
+function parse_jmd(ps, str)
+    currentbyte = 1
+    blocks = []
+    while ps.nt.kind != Tokens.ENDMARKER
+        CSTParser.next(ps)
+        if ps.t.kind == Tokens.CMD || ps.t.kind == Tokens.TRIPLE_CMD
+            push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
+        end
+    end
+    top = EXPR(CSTParser.Block, EXPR[])
+    if isempty(blocks)
+        return top, ps
+    end
+
+    for (startbyte, b) in blocks
+        if typof(b) === CSTParser.LITERAL && kindof(b) == CSTParser.Tokens.TRIPLE_CMD && (startswith(b.val, "julia") || startswith(b.val, "{julia"))
+            blockstr = b.val
+            ps = CSTParser.ParseState(blockstr)
+            # skip first line
+            while ps.nt.startpos[1] == 1
+                CSTParser.next(ps)
+            end
+            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
+
+            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]) , "", CSTParser.Tokens.STRING))
+
+            args, ps = CSTParser.parse(ps, true)
+            append!(top.args, args.args)
+            CSTParser.update_span!(top)
+            currentbyte = top.fullspan + 1
+        elseif typof(b) === CSTParser.LITERAL && kindof(b) == CSTParser.Tokens.CMD && startswith(b.val, "j ")
+            blockstr = b.val
+            ps = CSTParser.ParseState(blockstr)
+            CSTParser.next(ps)
+            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
+            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+
+            args, ps = parse(ps, true)
+            append!(top.args, args.args)
+            CSTParser.update_span!(top)
+            currentbyte = top.fullspan + 1
+        end
+    end
+    prec_str_size = currentbyte:sizeof(str)
+    push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+
+    return top, ps
 end

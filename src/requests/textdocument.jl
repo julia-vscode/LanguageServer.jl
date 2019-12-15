@@ -291,16 +291,17 @@ function mark_errors(doc, out = Diagnostic[])
         line = nlines
     else
         line = 1
+        io = IOBuffer(get_text(doc))
         while line < nlines
+            seek(io, line_offsets[line])
+            char = 0
             while line_offsets[line] <= offset < line_offsets[line + 1]  
-                ind = nextind(get_text(doc), line_offsets[line])
-                char = 0
-                while offset >= ind
-                    if nextind(get_text(doc), ind) - ind > 2
+                while offset > position(io)
+                    c = read(io, Char)
+                    if UInt32(c) >= 0x010000
                         char += 1
                     end
                     char += 1
-                    ind = nextind(doc._content, ind)
                 end                  
                 if start
                     r[1] = line
@@ -323,6 +324,7 @@ function mark_errors(doc, out = Diagnostic[])
             end
             line += 1
         end
+        close(io)
     end
     return out
 end

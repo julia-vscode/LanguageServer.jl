@@ -56,16 +56,26 @@ This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
 function get_offset(doc::Document, line::Integer, character::Integer)
+    c = ' '
     line_offsets = get_line_offsets(doc)
-    offset = line_offsets[line + 1]
+    io = IOBuffer(get_text(doc))
+    seek(io, line_offsets[line + 1])
     while character > 0
-        offset = nextind(doc._content, offset)
-        if nextind(get_text(doc), offset) - offset > 2
+        c = read(io, Char)
+        character -= 1
+        if UInt32(c) >= 0x010000
             character -= 1
         end
-        character -= 1
     end
-    return offset
+    if UInt32(c) < 0x0080
+        return position(io)
+    elseif UInt32(c) < 0x0800
+        return position(io) - 1
+    elseif UInt32(c) < 0x010000
+        return position(io) - 2
+    else
+        return position(io) - 3
+    end
 end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
@@ -122,16 +132,18 @@ function get_position_at(doc::Document, offset::Integer)
     offset > sizeof(doc._content) && error("offset[$offset] > sizeof(content)[$(sizeof(doc._content))]")
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(doc._line_offsets, offset)
-    ind = nextind(get_text(doc), ind)
-    char = 0
-    while offset >= ind
-        if nextind(get_text(doc), ind) - ind > 2
-            char += 1
+    io = IOBuffer(get_text(doc))
+    seek(io, line_offsets[line])
+    character = 0
+    while offset > position(io)
+        c = read(io, Char)
+        character += 1
+        if UInt32(c) >= 0x010000
+            character += 1
         end
-        char += 1
-        ind = nextind(get_text(doc), ind)
     end
-    return line - 1, char
+    close(io)
+    return line - 1, character
 end
 
 """

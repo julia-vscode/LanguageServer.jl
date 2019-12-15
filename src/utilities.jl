@@ -136,7 +136,7 @@ function validchars(path)
 end
 
 
-function get_expr(x, offset, pos = 0)
+function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
         return nothing
     end

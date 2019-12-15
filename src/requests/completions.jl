@@ -28,7 +28,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         latex_completions(doc, offset, join(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
         path_completion(doc, offset, rng, t, CIs)
-    elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import || typof(parentof(x)) === CSTParser.ImportAll)
+    elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
         #getfield completion, no partial

@@ -56,7 +56,7 @@ d6 = Document("untitled", s6, false)
                                         0, "\n")
     c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1,0), LS.Position(1,0)),
                                            0, "    ")
-    c3 = LS.TextDocumentContentChangeEvent(nothing, nothing, "println(\"Hello World\")")
+    c3 = LS.TextDocumentContentChangeEvent(missing, missing, "println(\"Hello World\")")
 
     LS.applytextdocumentchanges(doc, c1)
     @test LS.get_text(doc) == "function foo()\n"

@@ -1,7 +1,4 @@
-function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, params)
-    return DidChangeWatchedFilesParams(params)
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, params) = DidChangeWatchedFilesParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
@@ -10,7 +7,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             doc = server.documents[URI2(uri)]
             filepath = uri2filepath(uri)
             content = String(read(filepath))
-            content == doc._content && return
+            content == get_text(doc) && return
             server.documents[URI2(uri)] = Document(uri, content, true, server)
             parse_all(server.documents[URI2(uri)], server)
 
@@ -24,11 +21,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params)
-    return params
-end
-
-
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
     send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
         (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
@@ -37,10 +30,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params)
-    return DidChangeWorkspaceFoldersParams(params)
-end
 
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = didChangeWorkspaceFoldersParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
     for wksp in r.params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
@@ -53,10 +44,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFold
 end
 
 
-function JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params)
-    return WorkspaceSymbolParams(params) 
-end
-
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
     for (uri,doc) in server.documents

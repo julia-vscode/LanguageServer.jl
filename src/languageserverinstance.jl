@@ -46,6 +46,12 @@ mutable struct LanguageServerInstance
         new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
     end
 end
+function Base.display(server::LanguageServerInstance)
+    println("Root: ", server.workspaceFolders)
+    for (uri, d) in server.documents
+        display(d)
+    end
+end
 
 function send(message, server)
     message_json = JSON.json(message)

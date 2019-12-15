@@ -11,18 +11,18 @@ mutable struct Document
     _runlinter::Bool
     server
     root::Union{Nothing,Document}
+    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
+        path = uri2filepath(uri)
+        cst = CSTParser.parse(text, true)
+        doc = new(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+        get_line_offsets(doc)
+        cst.val = path
+        set_doc(doc.cst, doc)
+        setroot(doc, doc)
+        return doc 
+    end
 end
-
-function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
-    path = uri2filepath(uri)
-    cst = CSTParser.parse(text, true)
-    doc = Document(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
-    get_line_offsets(doc)
-    cst.val = path
-    set_doc(doc.cst, doc)
-    setroot(doc, doc)
-    return doc 
-end
+Base.display(doc::Document) = println("Doc: $(basename(doc._uri)) ")
 
 function set_doc(x::EXPR, doc)
     if !StaticLint.hasmeta(x)
@@ -34,6 +34,10 @@ end
 
 function get_text(doc::Document)
     return doc._content
+end
+
+function set_text!(doc::Document, text)
+    doc._content = text
 end
 
 function set_open_in_editor(doc::Document, value::Bool)
@@ -59,7 +63,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
     offset = line_offsets[line + 1]
     while character > 0
-        offset = nextind(doc._content, offset)
+        offset = nextind(get_text(doc), offset)
         character -= 1
     end
     return offset
@@ -78,7 +82,7 @@ with 0 for the first line (even if empty).
 function get_line_offsets(doc::Document, force = false)
     if force || doc._line_offsets === nothing
         doc._line_offsets = Int[0]
-        text = doc._content
+        text = get_text(doc)
         ind = firstindex(text)
         while ind <= lastindex(text)
             c = text[ind]
@@ -116,12 +120,12 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(doc._content) && error("offset[$offset] > sizeof(content)[$(sizeof(doc._content))]")
+    offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(doc._line_offsets, offset)
     char = 0
     while offset > ind
-        ind = nextind(doc._content, ind)
+        ind = nextind(get_text(doc), ind)
         char += 1
     end
     return line - 1, char

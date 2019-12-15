@@ -20,7 +20,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
                     end
                 end
             end
-            params = (a->ParameterInformation(valof(a.name))).(args)
+            params = (a->ParameterInformation(valof(a.name), missing)).(args)
             push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
         end
     end
@@ -51,17 +51,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
             call_name = nothing
         end
         if call_name !== nothing && StaticLint.hasref(call_name)
-            if refof(call_name) isa StaticLint.Binding
-                f_binding = refof(call_name)
-                while f_binding !== nothing && f_binding.type == getsymbolserver(server)["Core"].vals["Function"]
+            f_binding = refof(call_name)
+            while f_binding isa StaticLint.Binding || f_binding isa SymbolServer.FunctionStore
+                if f_binding isa StaticLint.Binding && f_binding.type == getsymbolserver(server)["Core"].vals["Function"]
                     get_signatures(f_binding, sigs, server)
                     f_binding = f_binding.prev
-                end
-            elseif refof(call_name) isa SymbolServer.FunctionStore
-                for m in refof(call_name).methods
-                    sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
-                    params = (a->ParameterInformation(a[1])).(m.args)
-                    push!(sigs, SignatureInformation(sig, "", params))
+                elseif refof(call_name) isa SymbolServer.FunctionStore
+                    for m in refof(call_name).methods
+                        sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
+                        params = (a->ParameterInformation(a[1], missing)).(m.args)
+                        push!(sigs, SignatureInformation(sig, "", params))
+                    end
+                    break
+                else
+                    break
                 end
             end
         end

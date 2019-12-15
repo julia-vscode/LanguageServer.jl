@@ -37,16 +37,16 @@ function should_file_be_linted(uri, server)
     end
 end
 
-CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
-                                t == :Function ? 3 :
-                                t == :DataType ? 7 :
-                                t == :Module ? 9 : 6
+# CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
+#                                 t == :Function ? 3 :
+#                                 t == :DataType ? 7 :
+#                                 t == :Module ? 9 : 6
 
-SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
-                        t == :Function ? 12 :
-                        t == :DataType ? 5 :
-                        t == :Module ? 2 :
-                        t == :Bool ? 17 : 13
+# SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
+#                         t == :Function ? 12 :
+#                         t == :DataType ? 5 :
+#                         t == :Module ? 2 :
+#                         t == :Bool ? 17 : 13
 
 
 
@@ -135,6 +135,7 @@ function validchars(path)
     return true
 end
 
+
 function get_expr(x, offset, pos = 0)
     if pos > offset
         return nothing
@@ -142,14 +143,18 @@ function get_expr(x, offset, pos = 0)
     if x.args !== nothing
         for a in x.args
             if pos < offset <= (pos + a.fullspan)
-                return get_expr(a, offset, pos)
+                return get_expr(a, offset, pos, ignorewhitespace)
             end
             pos += a.fullspan
         end
-    elseif (pos < offset <= (pos + x.fullspan)) || pos == 0
+    elseif pos == 0
+        return x
+    elseif (pos < offset <= (pos + x.fullspan))
+        ignorewhitespace && pos + x.span < offset && return nothing
         return x
     end
 end
+
 
 function get_identifier(x, offset, pos = 0)
     if pos > offset

@@ -90,7 +90,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     end
     doc._version = r.params.textDocument.version
     
-    if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && first(r.params.contentChanges).range !== nothing
+    if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(r.params.contentChanges).range)
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
         scopepass(getroot(doc), doc)
@@ -208,7 +208,7 @@ end
 
 
 function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
-    if tdcce.range == tdcce.rangeLength == nothing
+    if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
         # No range given, replace all text
         set_text!(doc, tdcce.text)
     else

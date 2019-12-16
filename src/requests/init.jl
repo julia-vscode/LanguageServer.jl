@@ -35,11 +35,11 @@ function isjuliabasedir(path)
 end
 
 function load_rootpath(path)
+    isdir(path) &&
+    hasreadperm(path) &&
     !(path == "" || 
     path == homedir() ||
-    isjuliabasedir(path)) &&
-    isdir(path) &&
-    hasreadperm(path)
+    isjuliabasedir(path))    
 end
 
 function load_folder(wf::WorkspaceFolder, server)

@@ -70,24 +70,22 @@ else
     error("Unknown operating system.")
 end
 
-@async begin
+@async try
     server = listen(global_socket_name)
     try
         sock = accept(server)
         try
-            ls = LanguageServerInstance(sock, sock, false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH), Dict())
-            try
-                run(ls)
-            catch err
-                Base.display_error(stderr, err, catch_backtrace())
-                rethrow()
-            end
+            ls = LanguageServerInstance(sock, sock, false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+            run(ls)
         finally
             close(sock)
         end
     finally
         close(server)
     end
+catch err
+    Base.display_error(stderr, err, catch_backtrace())
+    rethrow()
 end
 
 sleep(1)

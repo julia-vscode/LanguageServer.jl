@@ -9,7 +9,7 @@ end
 function get_signatures(b, sigs, server) end
 
 function get_signatures(b::StaticLint.Binding, sigs, server)
-    if b.type == getsymbolserver(server)["Core"].vals["Function"]
+    if b.type == StaticLint.CoreTypes.Function
         if b.val isa EXPR && CSTParser.defines_function(b.val)
             sig = CSTParser.rem_where_decl(CSTParser.get_sig(b.val))
             args = []
@@ -53,7 +53,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         if call_name !== nothing && StaticLint.hasref(call_name)
             f_binding = refof(call_name)
             while f_binding isa StaticLint.Binding || f_binding isa SymbolServer.FunctionStore
-                if f_binding isa StaticLint.Binding && f_binding.type == getsymbolserver(server)["Core"].vals["Function"]
+                if f_binding isa StaticLint.Binding && f_binding.type == StaticLint.CoreTypes.Function
                     get_signatures(f_binding, sigs, server)
                     f_binding = f_binding.prev
                 elseif refof(call_name) isa SymbolServer.FunctionStore
@@ -112,7 +112,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
                 end
             end
-            if b.type == getsymbolserver(server)["Core"].vals["Function"] && b.prev isa StaticLint.Binding && (b.prev.type == getsymbolserver(server)["Core"].vals["Function"] || b.prev.type == getsymbolserver(server)["Core"].vals["DataType"])
+            if b.type == StaticLint.CoreTypes.Function && b.prev isa StaticLint.Binding && (b.prev.type == Function || b.prev.type == StaticLint.CoreTypes.DataType)
                 b = b.prev
             else
                 b = nothing
@@ -274,15 +274,15 @@ function _binding_kind(b ,server)
     if b isa StaticLint.Binding
         if b.type == nothing
             return 13
-        elseif b.type == getsymbolserver(server)["Core"].vals["Module"]
+        elseif b.type == StaticLint.CoreTypes.Module
             return 2
-        elseif b.type == getsymbolserver(server)["Core"].vals["Function"]
+        elseif b.type == StaticLint.CoreTypes.Function
             return 12
-        elseif b.type == getsymbolserver(server)["Core"].vals["String"]
+        elseif b.type == StaticLint.CoreTypes.String
             return 15
-        elseif b.type == getsymbolserver(server)["Core"].vals["Int"] || b.type == getsymbolserver(server)["Core"].vals["Float64"]
+        elseif b.type == StaticLint.CoreTypes.Int || b.type == StaticLint.CoreTypes.Float64
             return 16
-        elseif b.type == getsymbolserver(server)["Core"].vals["DataType"]
+        elseif b.type == StaticLint.CoreTypes.DataType
             return 23
         else 
             return 13

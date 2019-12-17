@@ -247,15 +247,15 @@ end
 
 function _completion_kind(b ,server)
     if b isa StaticLint.Binding
-        if b.type == getsymbolserver(server)["Core"].vals["String"]
+        if b.type == StaticLint.CoreTypes.String
             return 1
-        elseif b.type == getsymbolserver(server)["Core"].vals["Function"]
+        elseif b.type == StaticLint.CoreTypes.Function
             return 2
-        elseif b.type == getsymbolserver(server)["Core"].vals["Module"]
+        elseif b.type == StaticLint.CoreTypes.Module
             return 9
-        elseif b.type == getsymbolserver(server)["Core"].vals["Int"] || b.type == getsymbolserver(server)["Core"].vals["Float64"]
+        elseif b.type == Int || b.type == StaticLint.CoreTypes.Float64
             return 12
-        elseif b.type == getsymbolserver(server)["Core"].vals["DataType"]
+        elseif b.type == StaticLint.CoreTypes.DataType
             return 22
         else 
             return 13

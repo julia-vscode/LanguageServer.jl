@@ -16,7 +16,7 @@ function get_hover(x, documentation, server) documentation end
 
 function get_hover(x::EXPR, documentation, server)
     if parentof(x) isa EXPR  && (kindof(x) === CSTParser.Tokens.END || kindof(x) === CSTParser.Tokens.RPAREN || kindof(x) === CSTParser.Tokens.RBRACE || kindof(x) === CSTParser.Tokens.RSQUARE)
-        documentation = "Closes `$(typof(parentof(x)))`` expression."
+        documentation = "Closes `$(typof(parentof(x)))` expression."
     elseif CSTParser.isidentifier(x) && StaticLint.hasref(x)
         if refof(x) isa StaticLint.Binding
             documentation = get_hover(refof(x), documentation, server)

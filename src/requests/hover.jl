@@ -21,7 +21,7 @@ function get_hover(x::EXPR, documentation, server)
         if refof(x) isa StaticLint.Binding
             documentation = get_hover(refof(x), documentation, server)
         elseif refof(x) isa SymbolServer.SymStore
-            documentation = string(documentation, "\n", refof(x).doc)
+            documentation = string(documentation, refof(x).doc)
         end
     end
     return documentation
@@ -33,12 +33,12 @@ function get_hover(b::StaticLint.Binding, documentation, server)
             while true
                 if b.val isa EXPR 
                     if CSTParser.defines_function(b.val)
-                        documentation = string(documentation, "\n", "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```")
+                        documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
                     elseif CSTParser.defines_datatype(b.val)
-                        documentation = string(documentation, "\n", "```julia\n", Expr(b.val), "\n```")
+                        documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
                     end
                 elseif b.val isa SymbolServer.SymStore
-                    documentation = string(documentation, "\n", b.val.doc, "\n")
+                    documentation = string(documentation, b.val.doc)
                 else
                     break
                 end
@@ -49,10 +49,10 @@ function get_hover(b::StaticLint.Binding, documentation, server)
                 end
             end
         else
-            documentation = string(documentation, "\n", "```julia\n", Expr(b.val), "\n```")
+            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = string(documentation, "\n", b.val.doc, "\n")
+        documentation = string(documentation, b.val.doc)
     elseif b.val isa StaticLint.Binding
         documentation = get_hover(b.val, documentation, server)
     end

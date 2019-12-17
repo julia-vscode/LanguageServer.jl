@@ -97,6 +97,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
                 end
             end
+        elseif b.val isa StaticLint.Binding
+            b = b.val
         end
 
         while b isa StaticLint.Binding
@@ -119,11 +121,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
-        if isfile(valof(x))
-            push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-        elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
-            push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
-        end 
+        if sizeof(valof(x)) < 256
+            if isfile(valof(x))
+                push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
+            elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
+                push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
+            end
+        end
     end
     
     send(JSONRPC.Response(r.id, locations), server)

@@ -32,7 +32,10 @@ function get_hover(b::StaticLint.Binding, documentation, server)
         if CSTParser.defines_function(b.val)
             while true
                 if b.val isa EXPR 
-                    if CSTParser.defines_function(b.val)
+                    if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
+                        # Binding has preceding docs so use them..
+                        documentation = string(documentation, Expr(parentof(b.val).args[2]))
+                    elseif CSTParser.defines_function(b.val)
                         documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
                     elseif CSTParser.defines_datatype(b.val)
                         documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")

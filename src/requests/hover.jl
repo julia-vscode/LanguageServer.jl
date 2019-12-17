@@ -4,28 +4,27 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
         send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
         return
     end
-    documentation = MarkedString[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     x = get_expr(getcst(doc), get_offset(doc, r.params.position), 0, true)
+    documentation = get_hover(x, "", server)
     
-    get_hover(x, documentation, server)
-    
-    send(JSONRPC.Response(r.id, Hover(unique(documentation), missing)), server)
+    send(JSONRPC.Response(r.id, Hover(MarkupContent(documentation), missing)), server)
 end
 
 
-function get_hover(x, documentation, server) end
+function get_hover(x, documentation, server) documentation end
 
 function get_hover(x::EXPR, documentation, server)
     if parentof(x) isa EXPR  && (kindof(x) === CSTParser.Tokens.END || kindof(x) === CSTParser.Tokens.RPAREN || kindof(x) === CSTParser.Tokens.RBRACE || kindof(x) === CSTParser.Tokens.RSQUARE)
-        push!(documentation, MarkedString("Closes $(typof(parentof(x))) expression."))
+        documentation = "Closes `$(typof(parentof(x)))` expression."
     elseif CSTParser.isidentifier(x) && StaticLint.hasref(x)
         if refof(x) isa StaticLint.Binding
-            get_hover(refof(x), documentation, server)
+            documentation = get_hover(refof(x), documentation, server)
         elseif refof(x) isa SymbolServer.SymStore
-            append!(documentation, split_docs(refof(x).doc))
+            documentation = string(documentation, refof(x).doc)
         end
     end
+    return documentation
 end
 
 function get_hover(b::StaticLint.Binding, documentation, server)
@@ -33,13 +32,16 @@ function get_hover(b::StaticLint.Binding, documentation, server)
         if CSTParser.defines_function(b.val)
             while true
                 if b.val isa EXPR 
-                    if CSTParser.defines_function(b.val)
-                        pushfirst!(documentation, MarkedString(Expr(CSTParser.get_sig(b.val))))
+                    if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
+                        # Binding has preceding docs so use them..
+                        documentation = string(documentation, Expr(parentof(b.val).args[2]))
+                    elseif CSTParser.defines_function(b.val)
+                        documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
                     elseif CSTParser.defines_datatype(b.val)
-                        pushfirst!(documentation, MarkedString(Expr(b.val)))
+                        documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
                     end
                 elseif b.val isa SymbolServer.SymStore
-                    push!(documentation, b.val.doc)
+                    documentation = string(documentation, b.val.doc)
                 else
                     break
                 end
@@ -50,46 +52,12 @@ function get_hover(b::StaticLint.Binding, documentation, server)
                 end
             end
         else
-            push!(documentation, MarkedString(Expr(b.val)))
+            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
         end
     elseif b.val isa SymbolServer.SymStore
-        append!(documentation, split_docs(b.val.doc))
+        documentation = string(documentation, b.val.doc)
     elseif b.val isa StaticLint.Binding
-        get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, server)
     end
-end
-
-"""
-    split_docs(s::String)
-
-Returns an array of Union{String,MarkedString} by separating code blocks (denoted by ```sometext```) within s.
-"""
-function split_docs(s::String)
-    out = MarkedString[]
-    locs = Int[]
-    i = 1
-    while i < length(s)
-        m = match(r"```", s, i)
-        if m isa Nothing
-            isempty(out) && push!(out, MarkedString(s))
-            break
-        else
-            push!(locs, m.offset)
-            i = m.offset + 3
-        end
-    end
-    if length(locs) > 0 && iseven(length(locs))
-        if locs[1] !== 1
-            push!(out, s[1:locs[1]-1])
-        end
-        for i = 1:2:length(locs)
-            push!(out, MarkedString("julia", replace(s[locs[i]+3:locs[i+1]-1], "jldoctest"=>"")))
-            if i + 1 == length(locs)
-                push!(out, s[locs[i+1]+3:end])
-            else
-                push!(out, s[locs[i+1]+3:locs[i+2]-1])
-            end
-        end
-    end
-    return out
+    return documentation
 end

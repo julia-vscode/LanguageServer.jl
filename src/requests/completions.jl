@@ -171,7 +171,7 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
     end
 end
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, exportedonly = false)
+function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false)
     for val in m.vals
         n, v = val[1], val[2]
         startswith(n, ".") && continue
@@ -181,33 +181,32 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v = SymbolServer._lookup(v, getsymbolserver(server))
             v === nothing && return 
         end
-        if exportedonly && !(n in m.exported)
+        if n in m.exported
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
+        elseif inclexported
             rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop)
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng1, string(m.name, ".", n)))) 
-        else
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
         end
-        
     end
 end
 
-function collect_completions(x::EXPR, spartial, rng, CIs, server, exportedonly = false)
+function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false)
     if scopeof(x) !== nothing
-        collect_completions(scopeof(x), spartial, rng, CIs, server, exportedonly)
+        collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported)
         if scopeof(x).modules isa Dict
             for m in scopeof(x).modules
-                collect_completions(m[2], spartial, rng, CIs, server, exportedonly)
+                collect_completions(m[2], spartial, rng, CIs, server, inclexported)
             end
         end
     end
     if parentof(x) !== nothing && typof(x) !== CSTParser.ModuleH && typof(x) !== CSTParser.BareModule
-        return collect_completions(parentof(x), spartial, rng, CIs, server, exportedonly)
+        return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported)
     else
         return
     end
 end
 
-function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, exportedonly = false)
+function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false)
     if x.names !== nothing
         for n in x.names
             if startswith(n[1], spartial)

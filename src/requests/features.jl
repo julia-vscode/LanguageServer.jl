@@ -97,7 +97,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
                 end
             end
-        elseif b.val isa StaticLint.Binding
+        elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
             b = b.val
         end
 

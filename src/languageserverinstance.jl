@@ -78,8 +78,8 @@ end
 function init_symserver(server::LanguageServerInstance)
     server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
     @info "Started symbol server"
-    SymbolServer.getstore(server.symbol_server)
-    @info "store set"
+    el = @elapsed SymbolServer.getstore(server.symbol_server)
+    @info "store set in $el seconds"
     kill(server.symbol_server)
 end
 

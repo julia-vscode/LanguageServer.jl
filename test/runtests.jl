@@ -4,7 +4,7 @@ const Range = LanguageServer.Range
 
 @testset "LanguageServer" begin
 
-include("test_document.jl")
+include("document/all_tests.jl")
 include("test_communication.jl")
 include("test_hover.jl")
 include("text_edit.jl")

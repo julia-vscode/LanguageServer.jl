@@ -20,7 +20,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
                     end
                 end
             end
-            params = (a->ParameterInformation(valof(a.name), missing)).(args)
+            params = (a->ParameterInformation(valof(a.name) isa String ? valof(a.name) : "", missing)).(args)
             push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
         end
     end

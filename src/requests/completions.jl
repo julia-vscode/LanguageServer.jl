@@ -171,7 +171,7 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
     end
 end
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false)
+function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
     for val in m.vals
         n, v = val[1], val[2]
         startswith(n, ".") && continue
@@ -181,32 +181,32 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v = SymbolServer._lookup(v, getsymbolserver(server))
             v === nothing && return 
         end
-        if n in m.exported
+        if n in m.exported || inclexported
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
-        elseif inclexported
+        elseif dotcomps
             rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop)
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng1, string(m.name, ".", n)))) 
         end
     end
 end
 
-function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false)
+function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
     if scopeof(x) !== nothing
-        collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported)
+        collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported, dotcomps)
         if scopeof(x).modules isa Dict
             for m in scopeof(x).modules
-                collect_completions(m[2], spartial, rng, CIs, server, inclexported)
+                collect_completions(m[2], spartial, rng, CIs, server, inclexported, dotcomps)
             end
         end
     end
     if parentof(x) !== nothing && typof(x) !== CSTParser.ModuleH && typof(x) !== CSTParser.BareModule
-        return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported)
+        return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported, dotcomps)
     else
         return
     end
 end
 
-function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false)
+function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
     if x.names !== nothing
         for n in x.names
             if startswith(n[1], spartial)
@@ -220,7 +220,7 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
     if px !== nothing
         if refof(px) isa StaticLint.Binding
             if refof(px).val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(refof(px).val, spartial, rng, CIs, server)
+                collect_completions(refof(px).val, spartial, rng, CIs, server, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fields
                     if startswith(a, spartial)
@@ -234,12 +234,12 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
                     end
                 end
             elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server)
+                collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).type.val), spartial, rng, CIs, server)
+                collect_completions(scopeof(refof(px).type.val), spartial, rng, CIs, server, true)
             end
         elseif refof(px) isa StaticLint.SymbolServer.ModuleStore
-            collect_completions(refof(px), spartial, rng, CIs, server)
+            collect_completions(refof(px), spartial, rng, CIs, server, true)
         end
     end
 end

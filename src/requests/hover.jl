@@ -7,7 +7,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     doc = server.documents[URI2(r.params.textDocument.uri)]
     x = get_expr(getcst(doc), get_offset(doc, r.params.position), 0, true)
     documentation = get_hover(x, "", server)
-    
+    documentation = get_fcall_position(x, documentation)
+
     send(JSONRPC.Response(r.id, Hover(MarkupContent(documentation), missing)), server)
 end
 
@@ -58,6 +59,43 @@ function get_hover(b::StaticLint.Binding, documentation, server)
         documentation = string(documentation, b.val.doc)
     elseif b.val isa StaticLint.Binding
         documentation = get_hover(b.val, documentation, server)
+    end
+    return documentation
+end
+
+get_fcall_position(x, documentation) = documentation
+function get_fcall_position(x::EXPR, documentation)
+    while parentof(x) isa EXPR
+        if typof(parentof(x)) === CSTParser.Call
+            call_counts = StaticLint.call_nargs(parentof(x))
+            call_counts[1] < 5 && return documentation
+            arg_i = 0
+            for i = 1:length(parentof(x).args)
+                arg = parentof(x).args[i]
+                if arg == x
+                    arg_i = div(i-1, 2)
+                end
+            end
+            arg_i == 0 && return documentation
+            fname = CSTParser.get_name(parentof(x))
+            if StaticLint.hasref(fname) && 
+                (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
+                dt_ex = refof(fname).val
+
+                args = CSTParser.defines_mutable(dt_ex) ? dt_ex.args[4] : dt_ex.args[3]
+                _fieldname = CSTParser.str_value(CSTParser.get_arg_name(args.args[arg_i]))
+                documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
+            elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
+                dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
+                if length(dts.fields) == call_counts[1]
+                    documentation = string("Datatype field `$(dts.fields[arg_i])`", "\n", documentation)
+                end
+            else
+                documentation = string("Argument $arg_i of $(call_counts[1]) in call to `", CSTParser.str_value(fname), "`\n", documentation)
+            end
+            return documentation
+        end
+        x = parentof(x)
     end
     return documentation
 end

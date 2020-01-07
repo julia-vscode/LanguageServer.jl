@@ -1,9 +1,60 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    commands = Command[]
-    
-    response = JSONRPC.Response(r.id, commands)
-    send(response, server)
+    actions = CodeAction[]
+    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    offset = get_offset(doc, r.params.range.start)
+    x = get_expr(getcst(doc), offset)
+    if x isa EXPR
+        if is_in_inline_func(x)
+            expand_inline_func(x, actions)
+        end
+    end
+
+    send(JSONRPC.Response(r.id, actions), server)
+end
+
+function is_in_inline_func(x::EXPR)
+    if CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
+        return true
+    elseif parentof(x) isa EXPR
+        return is_in_inline_func(parentof(x))
+    else
+        return false
+    end
+end
+
+function _get_inline_func(x::EXPR)
+    if CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
+        return x
+    elseif parentof(x) isa EXPR
+        return _get_inline_func(parentof(x))
+    end
+end
+
+function expand_inline_func(x, actions)
+    func = _get_inline_func(x)
+    sig = func.args[1]
+    op = func.args[2]
+    body = func.args[3]
+    if typof(body) == CSTParser.Block && body.args !== nothing length(body.args) == 1
+        file, offset = get_file_loc(func)
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+            TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
+        ])
+        push!(actions, CodeAction("Expand function definition.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && body.args isa Vector{EXPR} && length(body.args) == 3 &&
+        typof(body.args[2]) === CSTParser.Block && body.args[2].args isa Vector{EXPR}
+        file, offset = get_file_loc(func)
+        newtext = string("function ",get_text(file)[offset .+ (1:sig.span)])
+        blockoffset = offset + sig.fullspan + op.fullspan + body.args[1].fullspan
+        for i = 1:length(body.args[2].args)
+            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[2].args[i].span)])
+            blockoffset += body.args[2].args[i].fullspan
+        end
+        newtext = string(newtext, "\nend\n")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
+        push!(actions, CodeAction("Expand function definition.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+    end
 end
 
 function get_signatures(b, sigs, server) end

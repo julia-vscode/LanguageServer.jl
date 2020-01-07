@@ -8,8 +8,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
             explicitly_import_used_variables(x, actions, server)
         end
-        if is_in_inline_func(x)
+        if is_in_fexpr(x, is_single_line_func)
             expand_inline_func(x, actions)
+        end
+        if is_in_fexpr(x, CSTParser.defines_struct)
+            add_default_constructor(x, actions)
         end
     end
 
@@ -84,26 +87,10 @@ function explicitly_import_used_variables(x::EXPR, actions, server)
     return 
 end
 
-function is_in_inline_func(x::EXPR)
-    if CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
-        return true
-    elseif parentof(x) isa EXPR
-        return is_in_inline_func(parentof(x))
-    else
-        return false
-    end
-end
-
-function _get_inline_func(x::EXPR)
-    if CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
-        return x
-    elseif parentof(x) isa EXPR
-        return _get_inline_func(parentof(x))
-    end
-end
+is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
 
 function expand_inline_func(x, actions)
-    func = _get_inline_func(x)
+    func = _get_parent_fexpr(x, is_single_line_func)
     sig = func.args[1]
     op = func.args[2]
     body = func.args[3]
@@ -125,5 +112,49 @@ function expand_inline_func(x, actions)
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
         push!(actions, CodeAction("Expand function definition.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+    end
+end
+
+
+function add_default_constructor(x::EXPR, actions)
+    sexpr = _get_parent_fexpr(x, CSTParser.defines_struct)
+    !(sexpr.args isa Vector{EXPR}) && return
+    ismutable = length(sexpr.args) == 5
+    name = CSTParser.get_name(sexpr)
+    sig = sexpr.args[2 + ismutable]
+    block = sexpr.args[3 + ismutable]
+
+    isempty(block.args) && return
+    any(CSTParser.defines_function(a) for a in block.args) && return # constructor already exists
+
+    newtext = string("\n    function $(valof(name))(args...)\n\n        new")
+    # if DataType is parameterised do something here
+
+    newtext = string(newtext, "(")
+    for i in 1:length(block.args)
+        newtext = string(newtext, "", valof(CSTParser.get_arg_name(block.args[i])))
+        newtext = string(newtext, i < length(block.args) ? ", " : ")\n    end")
+    end
+    file, offset = get_file_loc(last(block.args))
+    offset += last(block.args).span
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
+    push!(actions, CodeAction("Add default constructor.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+end
+
+function is_in_fexpr(x::EXPR, f)
+    if f(x)
+        return true
+    elseif parentof(x) isa EXPR
+        return is_in_fexpr(parentof(x), f)
+    else
+        return false
+    end
+end
+
+function _get_parent_fexpr(x::EXPR, f)
+    if f(x)
+        return x
+    elseif parentof(x) isa EXPR
+        return _get_parent_fexpr(parentof(x), f)
     end
 end

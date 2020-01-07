@@ -10,7 +10,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     true,
     true,
-    false,
+    true,
     missing,
     true,
     false,

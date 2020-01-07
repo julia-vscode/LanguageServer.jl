@@ -44,7 +44,7 @@ struct DiagnosticRelatedInformation
     message::String
 end
 
-struct Diagnostic <: Outbound
+@dict_readable struct Diagnostic <: Outbound
     range::Range
     severity::Union{Int,Missing}
     code::Union{String,Missing}

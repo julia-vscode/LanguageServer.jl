@@ -1,11 +1,3 @@
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    commands = Command[]
-    
-    response = JSONRPC.Response(r.id, commands)
-    send(response, server)
-end
-
 function get_signatures(b, sigs, server) end
 
 function get_signatures(b::StaticLint.Binding, sigs, server)

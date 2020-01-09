@@ -8,6 +8,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
             explicitly_import_used_variables(x, actions, server)
         end
+        if parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding
+            if refof(x).type === StaticLint.CoreTypes.Module || refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module
+                reexport_module(x, actions, server)
+            elseif refof(x).val isa SymbolServer.ModuleStore 
+                reexport_package(x, actions, server)
+            end
+        end
         if is_in_fexpr(x, is_single_line_func)
             expand_inline_func(x, actions)
         end
@@ -67,13 +74,7 @@ function explicitly_import_used_variables(x::EXPR, actions, server)
         i1 == 0 && return WorkspaceEdit(missing, missing)
         
         file, offset = get_file_loc(using_stmt)
-        # get next line after using_stmt
-        insertpos = -1
-        for i = 1:length(file._line_offsets)-1
-            if file._line_offsets[i] < offset + using_stmt.span <= file._line_offsets[i+1]
-                insertpos = file._line_offsets[i+1]
-            end
-        end
+        insertpos = get_next_line_offset(using_stmt)
         insertpos == -1 && return 
 
         if !haskey(tdes, file._uri)
@@ -157,4 +158,62 @@ function _get_parent_fexpr(x::EXPR, f)
     elseif parentof(x) isa EXPR
         return _get_parent_fexpr(parentof(x), f)
     end
+end
+function get_next_line_offset(x)
+    file, offset = get_file_loc(x)
+    # get next line after using_stmt
+    insertpos = -1
+    for i = 1:length(file._line_offsets)-1
+        if file._line_offsets[i] < offset + x.span <= file._line_offsets[i+1]
+            insertpos = file._line_offsets[i+1]
+        end
+    end
+    return insertpos
+end
+
+function reexport_package(x::EXPR, actions, server)
+    using_stmt = parentof(x)
+    file, offset = get_file_loc(x)
+    insertpos = get_next_line_offset(using_stmt)
+    insertpos == -1 && return 
+    
+    tde =TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
+    ])
+    push!(actions, CodeAction("Re-export package variables.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+end
+
+#TODO move to StaticLint
+# to be called where typof(x) === CSTParser.ModuleH/BareModule 
+function find_exported_names(x::EXPR)
+    exported_vars = EXPR[]
+    for i in 1:length(x.args[3].args)
+        expr = x.args[3].args[i]
+        if typof(expr) == CSTParser.Export && 
+            for j = 2:length(expr)
+                if CSTParser.isidentifier(expr.args[j]) && StaticLint.hasref(expr.args[j])
+                    push!(exported_vars, expr.args[j])
+                end
+            end
+        end
+    end
+    return exported_vars
+end
+
+function reexport_module(x::EXPR, actions, server)
+    using_stmt = parentof(x)
+    mod_expr = refof(x).val isa StaticLint.Binding ? refof(x).val.val : refof(x).val
+    (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
+    # find export EXPR
+    exported_names = find_exported_names(mod_expr)
+    
+    isempty(exported_names) && return
+    file, offset = get_file_loc(x)
+    insertpos = get_next_line_offset(using_stmt)
+    insertpos == -1 && return 
+    names = filter!(s->!isempty(s), collect(CSTParser.str_value.(exported_names)))
+    tde =TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
+    ])
+    push!(actions, CodeAction("Re-export package variables.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
 end

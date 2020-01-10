@@ -77,41 +77,11 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
-    server.env_path = r.params
-    server.symbol_server = StaticLint.SymbolServer.SymbolServerProcess(depot = server.depot_path, environment = server.env_path)
-    @info "Restarted symbol server"
-    StaticLint.SymbolServer.getstore(server.symbol_server)
-    @info "StaticLint store set"
-    kill(server.symbol_server)
-
-    for (uri, doc) in server.documents
-        parse_all(doc, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server::LanguageServerInstance)
+    wid = last(procs())
+    env_path = r.params
+    server.ss_task = @spawnat wid begin
+        SymbolServer.Pkg.activate(env_path)
+        SymbolServer.Pkg.Types.Context()
     end
-    @info "Finished reparsing everything"
 end
-
-# SymbolServer:parallel branch ################################################
-
-# function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server::LanguageServerInstance)
-#     _set_worker_env(r.params, server)
-# end
-
-# function _set_worker_env(env_path, server::LanguageServerInstance)
-#     wid = last(procs())
-#     server.debug_mode && @info "Activating: ", server.env_path
-#     @fetchfrom wid SymbolServer.Pkg.activate(env_path)
-
-#     server.symbol_server.context = @fetchfrom wid SymbolServer.Pkg.Types.Context()
-#     server.debug_mode && @info "New project file: ",  server.symbol_server.context.env.project_file
-
-#     missing_pkgs = SymbolServer.disc_load_project(server.symbol_server)
-#     if isempty(missing_pkgs)
-#         server.ss_task = nothing
-#     else
-#         pkg_uuids = collect(keys(missing_pkgs))
-#         server.debug_mode && @info "Missing or outdated package caches: ", collect(missing_pkgs)
-#         server.ss_task = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
-#     end
-# end
-###############################################################################        

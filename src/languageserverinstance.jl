@@ -38,12 +38,12 @@ mutable struct LanguageServerInstance
     env_path::String
     depot_path::String
     symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
-    # ss_task::Union{Nothing,Future}
+    ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
+        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
     end
 end
 function Base.display(server::LanguageServerInstance)
@@ -59,29 +59,18 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
-# SymbolServer:parallel branch ################################################
-# function init_symserver(server::LanguageServerInstance)
-#     wid = last(procs())
-#     server.debug_mode && @info "Number of processes: ", wid
-#     server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
-#     @fetchfrom wid begin 
-#         empty!(Base.DEPOT_PATH)
-#         push!(Base.DEPOT_PATH, server.depot_path)
-#     end
-#     server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
-#     server.symbol_server = SymbolServer.SymbolServerProcess()
-#     env_path = server.env_path
-#     _set_worker_env(env_path, server)
-# end
-###############################################################################
-
 function init_symserver(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
-    @info "Started symbol server"
-    el = @elapsed SymbolServer.getstore(server.symbol_server)
-    @info "store set in $el seconds"
-    kill(server.symbol_server)
+    wid = last(procs())
+    env_path = server.env_path
+    server.symbol_server = SymbolServer.SymbolServerProcess()
+    server.ss_task = @spawnat wid begin 
+        empty!(Base.DEPOT_PATH)
+        push!(Base.DEPOT_PATH, server.depot_path)
+        SymbolServer.Pkg.activate(env_path)
+        SymbolServer.Pkg.Types.Context()
+    end
 end
+
 
 """
     run(server::LanguageServerInstance)
@@ -128,22 +117,62 @@ function Base.run(server::LanguageServerInstance)
             end
         end
 
-        # SymbolServer:parallel branch ########################################
-        # import reloaded package caches
-        # if server.ss_task !== nothing && isready(server.ss_task)
-        #     uuids = fetch(server.ss_task)
-        #     if !isempty(uuids)
-        #         for uuid in uuids
-        #             SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
-        #             # should probably re-run linting
-        #         end
-        #         for (uri, doc) in server.documents
-        #             parse_all(doc, server)
-        #         end
-        #     end
-        #     server.ss_task = nothing
-        # end
-        #######################################################################
+        if server.ss_task !== nothing && isready(server.ss_task)
+            res = fetch(server.ss_task)
+            server.ss_task = nothing
+            if res isa Vector{Base.UUID}
+                uuids = res
+                if !isempty(uuids)
+                    for uuid in uuids
+                        SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
+                    end
+                end
+                repass_all(server)
+            elseif res isa SymbolServer.Pkg.Types.Context
+                # Clear all meta info from cst to ensure no lingering links to packages
+                clear_all_meta(server)
+                # Remove all non base/core packages
+                if server.symbol_server isa SymbolServerProcess
+                    for (n, _) in server.symbol_server.depot
+                        if !(n in ("Base", "Core"))
+                            delete!(server.symbol_server.depot, n)
+                        end
+                    end
+                end
+                server.symbol_server.context = res
+                missing_pkgs = SymbolServer.disc_load_project(server.symbol_server)
+                if !isempty(missing_pkgs)
+                    pkg_uuids = collect(keys(missing_pkgs))
+                    server.debug_mode && @info "Missing or outdated package caches: ", collect(missing_pkgs)
+                    wid = last(procs())
+                    server.ss_task = @spawnat wid SymbolServer.cache_packages_and_save(server.symbol_server.context, pkg_uuids)
+                end
+                repass_all(server)
+            end
+        end
+    end
+end
+
+function clear_all_meta(server)
+    for (uri, doc) in server.documents
+        StaticLint.clear_meta(getcst(doc))
+    end
+end
+
+function repass_all(server::LanguageServerInstance)
+    roots = Document[]
+    for (uri, doc) in server.documents
+        if !(getroot(doc) in roots)
+            push!(roots, getroot(doc))
+            scopepass(getroot(doc))
+        end
+    end
+
+    for (uri, doc) in server.documents
+        StaticLint.check_all(getcst(doc), server.lint_options, server)
+        empty!(doc.diagnostics)
+        mark_errors(doc, doc.diagnostics)
+        publish_diagnostics(doc, server)
     end
 end
 

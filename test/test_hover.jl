@@ -1,7 +1,5 @@
-import LanguageServer: LanguageServerInstance, Document, Pkg
-using LanguageServer, CSTParser, StaticLint, SymbolServer
-
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), true, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+server.symbol_server = ssp
 @async run(server)
 t = time()
 while server.symbol_server isa Nothing && time() - t < 60
@@ -10,7 +8,6 @@ end
 
 server.runlinter = true
 LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse(init_request)), server)
-
 
 function getresult(server)
     str = String(take!(server.pipe_out))

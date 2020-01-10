@@ -189,7 +189,7 @@ function get_expr1(x, offset, pos = 0)
                         return get_expr1(arg, offset, pos)
                     end
                 elseif offset == pos + arg.span
-                    return arg
+                    return get_expr1(arg, offset, pos)
                 elseif offset == pos + arg.fullspan
                 elseif pos+arg.span < offset < pos + arg.fullspan
                     return nothing

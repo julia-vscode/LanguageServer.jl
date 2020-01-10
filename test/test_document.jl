@@ -1,5 +1,3 @@
-import LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
-
 s1 = """
 123456
 abcde

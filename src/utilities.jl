@@ -155,6 +155,52 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     end
 end
 
+function get_expr1(x, offset, pos = 0)
+    if x.args === nothing || isempty(x.args)
+        if pos <= offset <= pos + x.span
+            return x
+        else
+            return nothing
+        end
+    else
+        for i = 1:length(x.args)
+            arg = x.args[i]
+            if pos < offset < (pos + arg.span) # def within span
+                return get_expr1(arg, offset, pos)
+            elseif arg.span == arg.fullspan
+                if offset == pos
+                    if i == 1
+                        return get_expr1(arg, offset, pos)
+                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i-1], offset, pos)
+                    else
+                        return get_expr1(arg, offset, pos)
+                    end
+                else # offset == pos + arg.fullspan
+
+                end
+            else
+                if offset == pos
+                    if i == 1
+                        return get_expr1(arg, offset, pos)
+                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i-1], offset, pos)
+                    else
+                        return get_expr1(arg, offset, pos)
+                    end
+                elseif offset == pos + arg.span
+                    return get_expr1(arg, offset, pos)
+                elseif offset == pos + arg.fullspan
+                elseif pos+arg.span < offset < pos + arg.fullspan
+                    return nothing
+                end
+            end
+            pos += arg.fullspan
+        end
+        return nothing
+    end
+end
+
 
 function get_identifier(x, offset, pos = 0)
     if pos > offset

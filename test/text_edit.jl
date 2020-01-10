@@ -24,9 +24,6 @@ mktempdir() do dir
         doc._line_offsets = nothing
 
         LanguageServer._partial_update(doc, tdcce)
-        # LanguageServer.applytextdocumentchanges(doc, tdcce)
-        # doc._line_offsets = nothing
-        # LanguageServer.parse_all(doc, server)
         new_cst = CSTParser.parse(LanguageServer.get_text(doc), true)
         Expr(doc.cst) == Expr(new_cst), doc.cst, new_cst
     end

@@ -1,5 +1,3 @@
-using JSON, Sockets, Pkg, SymbolServer
-
 init_request = """
 {
     "jsonrpc":"2.0",

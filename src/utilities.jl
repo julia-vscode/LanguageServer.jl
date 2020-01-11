@@ -140,7 +140,7 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing
+    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
         for a in x.args
             if pos < offset <= (pos + a.fullspan)
                 return get_expr(a, offset, pos, ignorewhitespace)
@@ -156,7 +156,7 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
 end
 
 function get_expr1(x, offset, pos = 0)
-    if x.args === nothing || isempty(x.args)
+    if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
             return x
         else
@@ -232,4 +232,8 @@ end
     end
 else
     _dirname = dirname
+end
+
+function valid_id(s::String)
+    !isempty(s) && all(i == 1 ? Base.is_id_start_char(c) : Base.is_id_char(c) for (i,c) in enumerate(s))
 end

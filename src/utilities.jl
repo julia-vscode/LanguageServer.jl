@@ -176,8 +176,8 @@ function get_expr1(x, offset, pos = 0)
                     else
                         return get_expr1(arg, offset, pos)
                     end
-                else # offset == pos + arg.fullspan
-
+                elseif i == length(x.args) # offset == pos + arg.fullspan
+                    return get_expr1(arg, offset, pos)
                 end
             else
                 if offset == pos

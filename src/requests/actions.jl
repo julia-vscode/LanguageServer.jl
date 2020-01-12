@@ -1,30 +1,58 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    actions = CodeAction[]
+    commands = Command[]
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     offset = get_offset(doc, r.params.range.start)
+    offset1 = get_offset(doc, r.params.range.stop)
     x = get_expr(getcst(doc), offset)
+    arguments = Any[r.params.textDocument.uri, offset, offset1] # use the same arguments for all commands 
     if x isa EXPR
         if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
-            explicitly_import_used_variables(x, actions, server)
+            push!(commands, Command("Explicitly import used package variables.", "ExplicitPackageVarImport", arguments))
         end
         if parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding
-            if refof(x).type === StaticLint.CoreTypes.Module || refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module
-                reexport_module(x, actions, server)
-            elseif refof(x).val isa SymbolServer.ModuleStore 
-                reexport_package(x, actions, server)
+            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore 
+                push!(commands, Command("Re-export package variables.", "ReexportModule", arguments))
             end
         end
         if is_in_fexpr(x, is_single_line_func)
-            expand_inline_func(x, actions)
+            push!(commands, Command("Expand function definition.", "ExpandFunction", arguments))
         end
         if is_in_fexpr(x, CSTParser.defines_struct)
-            add_default_constructor(x, actions)
+            push!(commands, Command("Add default constructor", "AddDefaultConstructor", arguments))
         end
+        # if r.params.range.start.line != r.params.range.stop.line # selection across _line_offsets
+        #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
+        # end
     end
 
-    send(JSONRPC.Response(r.id, actions), server)
+    send(JSONRPC.Response(r.id, commands), server)
 end
+
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = ExecuteCommandParams(params) 
+function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},ExecuteCommandParams}, server) 
+    uri = r.params.arguments[1]
+    offset = r.params.arguments[2]
+    doc = server.documents[URI2(uri)] 
+    x = get_expr(getcst(doc), offset)
+    if r.params.command == "ExplicitPackageVarImport"
+        explicitly_import_used_variables(x, r.id + 1, server)
+    elseif r.params.command == "ExpandFunction"
+        expand_inline_func(x, r.id + 1, server)
+    elseif r.params.command == "AddDefaultConstructor"
+        add_default_constructor(x, r.id + 1, server)
+    elseif r.params.command == "ReexportModule"
+        if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)
+            reexport_module(x, r.id + 1, server)
+        elseif refof(x).val isa SymbolServer.ModuleStore 
+            reexport_package(x, r.id + 1, server)
+        end
+    elseif r.params.command == "WrapIfBlock"
+        @info 1
+        wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
+    end
+end
+
 
 function find_using_statement(x::EXPR)
     for ref in refof(x).refs
@@ -35,7 +63,7 @@ function find_using_statement(x::EXPR)
     return nothing
 end
 
-function explicitly_import_used_variables(x::EXPR, actions, server)
+function explicitly_import_used_variables(x::EXPR, id, server)
     !(refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore) && return
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
@@ -84,13 +112,13 @@ function explicitly_import_used_variables(x::EXPR, actions, server)
     else
         return
     end
-    push!(actions, CodeAction("Explicitly import package variables.", missing, missing, WorkspaceEdit(nothing, collect(values(tdes))), missing))
-    return 
+    
+    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes))))), server)
 end
 
 is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
 
-function expand_inline_func(x, actions)
+function expand_inline_func(x, id, server)
     func = _get_parent_fexpr(x, is_single_line_func)
     sig = func.args[1]
     op = func.args[2]
@@ -100,11 +128,11 @@ function expand_inline_func(x, actions)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
-        push!(actions, CodeAction("Expand function definition.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+        send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
     elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && body.args isa Vector{EXPR} && length(body.args) == 3 &&
         typof(body.args[2]) === CSTParser.Block && body.args[2].args isa Vector{EXPR}
         file, offset = get_file_loc(func)
-        newtext = string("function ",get_text(file)[offset .+ (1:sig.span)])
+        newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
         blockoffset = offset + sig.fullspan + op.fullspan + body.args[1].fullspan
         for i = 1:length(body.args[2].args)
             newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[2].args[i].span)])
@@ -112,12 +140,12 @@ function expand_inline_func(x, actions)
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
-        push!(actions, CodeAction("Expand function definition.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+        send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
     end
 end
 
 
-function add_default_constructor(x::EXPR, actions)
+function add_default_constructor(x::EXPR, id, server)
     sexpr = _get_parent_fexpr(x, CSTParser.defines_struct)
     !(sexpr.args isa Vector{EXPR}) && return
     ismutable = length(sexpr.args) == 5
@@ -139,7 +167,8 @@ function add_default_constructor(x::EXPR, actions)
     file, offset = get_file_loc(last(block.args))
     offset += last(block.args).span
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
-    push!(actions, CodeAction("Add default constructor.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+
+    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
 end
 
 function is_in_fexpr(x::EXPR, f)
@@ -163,27 +192,28 @@ function get_next_line_offset(x)
     file, offset = get_file_loc(x)
     # get next line after using_stmt
     insertpos = -1
-    for i = 1:length(file._line_offsets)-1
-        if file._line_offsets[i] < offset + x.span <= file._line_offsets[i+1]
-            insertpos = file._line_offsets[i+1]
+    for i = 1:length(file._line_offsets) - 1
+        if file._line_offsets[i] < offset + x.span <= file._line_offsets[i + 1]
+            insertpos = file._line_offsets[i + 1]
         end
     end
     return insertpos
 end
 
-function reexport_package(x::EXPR, actions, server)
+function reexport_package(x::EXPR, id, server)
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return 
     
-    tde =TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
     ])
-    push!(actions, CodeAction("Re-export package variables.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+
+    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
 end
 
-#TODO move to StaticLint
+# TODO move to StaticLint
 # to be called where typof(x) === CSTParser.ModuleH/BareModule 
 function find_exported_names(x::EXPR)
     exported_vars = EXPR[]
@@ -200,7 +230,7 @@ function find_exported_names(x::EXPR)
     return exported_vars
 end
 
-function reexport_module(x::EXPR, actions, server)
+function reexport_module(x::EXPR, id, server)
     using_stmt = parentof(x)
     mod_expr = refof(x).val isa StaticLint.Binding ? refof(x).val.val : refof(x).val
     (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
@@ -212,8 +242,24 @@ function reexport_module(x::EXPR, actions, server)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return 
     names = filter!(s->!isempty(s), collect(CSTParser.str_value.(exported_names)))
-    tde =TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])
-    push!(actions, CodeAction("Re-export package variables.", missing, missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]), missing))
+
+    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+end
+
+function wrap_block(x, id, server, type) end
+function wrap_block(x::EXPR, id, server, type)
+    @info 2
+    file, offset = get_file_loc(x) # rese
+    l0, _ = get_position_at(file, offset)
+    l1, _ = get_position_at(file, offset + x.span)
+    if type == :if
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+            TextEdit(Range(file, offset .+ (0:0)), "if CONDITION\n"),
+            TextEdit(Range(file, offset + x.span .+ (0:0)), "\nend")
+        ])
+    end
+    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
 end

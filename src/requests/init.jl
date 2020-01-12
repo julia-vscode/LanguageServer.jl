@@ -20,7 +20,13 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     false,
-    missing,
+    ExecuteCommandOptions(String[
+        "ExplicitPackageVarImport",
+        "ExpandFunction",
+        "AddDefaultConstructor",
+        "ReexportModule",
+        # "WrapIfBlock"
+        ]),
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
 

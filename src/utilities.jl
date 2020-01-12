@@ -155,6 +155,30 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     end
 end
 
+function get_expr(x, offset::UnitRange{Int}, pos = 0, ignorewhitespace = false)
+    if all(pos .> offset)
+        return nothing
+    end
+    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
+        for a in x.args
+            if all(pos .< offset .<= (pos + a.fullspan))
+                return get_expr(a, offset, pos, ignorewhitespace)
+            end
+            pos += a.fullspan
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos .< offset .<= (pos + x.fullspan))
+        ignorewhitespace && all(pos + x.span .< offset) && return nothing
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos .< offset .<= (pos + x.fullspan))
+        ignorewhitespace && all(pos + x.span .< offset) && return nothing
+        return x
+    end
+end
+
 function get_expr1(x, offset, pos = 0)
     if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span

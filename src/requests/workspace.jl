@@ -31,7 +31,7 @@ end
 
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = didChangeWorkspaceFoldersParams(params)
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
     for wksp in r.params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))

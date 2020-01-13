@@ -37,13 +37,31 @@ mutable struct LanguageServerInstance
     
     env_path::String
     depot_path::String
-    symbol_server::Union{Nothing,SymbolServer.SymbolServerProcess}
+    symbol_server::SymbolServer.SymbolServerInstance
+    symbol_results_channel::Channel{Any}
+    symbol_store::Dict{String,SymbolServer.ModuleStore}
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
-        new(pipe_in, pipe_out, Set{String}(), Dict{URI2,Document}(), debug_mode, true, Set{String}(), false, env_path, depot_path, nothing, DocumentFormat.FormatOptions(), StaticLint.LintOptions())
+        new(
+            pipe_in,
+            pipe_out,
+            Set{String}(),
+            Dict{URI2,Document}(),
+            debug_mode,
+            true, 
+            Set{String}(), 
+            false, 
+            env_path, 
+            depot_path, 
+            SymbolServer.SymbolServerInstance(depot_path), 
+            Channel(Inf),
+            Dict{String,SymbolServer.ModuleStore}(),
+            DocumentFormat.FormatOptions(), 
+            StaticLint.LintOptions()
+        )
     end
 end
 function Base.display(server::LanguageServerInstance)
@@ -59,37 +77,13 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
-# SymbolServer:parallel branch ################################################
-# function init_symserver(server::LanguageServerInstance)
-#     wid = last(procs())
-#     server.debug_mode && @info "Number of processes: ", wid
-#     server.debug_mode && @info "Default DEPOT_PATH: ", server.depot_path
-#     @fetchfrom wid begin 
-#         empty!(Base.DEPOT_PATH)
-#         push!(Base.DEPOT_PATH, server.depot_path)
-#     end
-#     server.debug_mode && @info "New DEPOT_PATH: ", @fetchfrom wid Base.DEPOT_PATH
-#     server.symbol_server = SymbolServer.SymbolServerProcess()
-#     env_path = server.env_path
-#     _set_worker_env(env_path, server)
-# end
-###############################################################################
-
-function init_symserver(server::LanguageServerInstance)
-    server.symbol_server = SymbolServer.SymbolServerProcess(depot = server.depot_path, environment=server.env_path)
-    @info "Started symbol server"
-    el = @elapsed SymbolServer.getstore(server.symbol_server)
-    @info "store set in $el seconds"
-    kill(server.symbol_server)
-end
-
 """
     run(server::LanguageServerInstance)
 
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
-    init_symserver(server)
+    SymbolServer.getstore(server.symbol_server, server.env_path, server.symbol_results_channel)
     
     global T
     while true
@@ -128,22 +122,15 @@ function Base.run(server::LanguageServerInstance)
             end
         end
 
-        # SymbolServer:parallel branch ########################################
-        # import reloaded package caches
-        # if server.ss_task !== nothing && isready(server.ss_task)
-        #     uuids = fetch(server.ss_task)
-        #     if !isempty(uuids)
-        #         for uuid in uuids
-        #             SymbolServer.disc_load(server.symbol_server.context, uuid, server.symbol_server.depot)
-        #             # should probably re-run linting
-        #         end
-        #         for (uri, doc) in server.documents
-        #             parse_all(doc, server)
-        #         end
-        #     end
-        #     server.ss_task = nothing
-        # end
-        #######################################################################
+        if isready(server.symbol_results_channel)
+            server.symbol_store = take!(server.symbol_results_channel)
+
+            # TODO should probably re-run linting
+
+            for (uri, doc) in server.documents
+                parse_all(doc, server)
+            end
+        end
     end
 end
 

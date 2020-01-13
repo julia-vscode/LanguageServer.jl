@@ -113,7 +113,8 @@ function Base.run(server::LanguageServerInstance)
                     message_dict["result"][7]===nothing ? false : message_dict["result"][7],
                     message_dict["result"][8]===nothing ? false : message_dict["result"][8],
                     message_dict["result"][9]===nothing ? false : message_dict["result"][9],
-                    message_dict["result"][10]===nothing ? false : message_dict["result"][10])
+                    message_dict["result"][10]===nothing ? false : message_dict["result"][10],
+                    message_dict["result"][11]===nothing ? false : message_dict["result"][11])
 
                 x = message_dict["result"][end]
                 new_run_lint_value = x===nothing ? false : true

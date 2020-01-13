@@ -102,30 +102,7 @@ function Base.run(server::LanguageServerInstance)
             process(request, server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
-            if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1
-                server.format_options = DocumentFormat.FormatOptions(
-                    message_dict["result"][1]===nothing ? 0 : message_dict["result"][1],
-                    message_dict["result"][2]===nothing ? false : message_dict["result"][2],
-                    message_dict["result"][3]===nothing ? false : message_dict["result"][3],
-                    message_dict["result"][4]===nothing ? false : message_dict["result"][4],
-                    message_dict["result"][5]===nothing ? false : message_dict["result"][5],
-                    message_dict["result"][6]===nothing ? false : message_dict["result"][6],
-                    message_dict["result"][7]===nothing ? false : message_dict["result"][7],
-                    message_dict["result"][8]===nothing ? false : message_dict["result"][8],
-                    message_dict["result"][9]===nothing ? false : message_dict["result"][9],
-                    message_dict["result"][10]===nothing ? false : message_dict["result"][10])
-
-                x = message_dict["result"][end]
-                new_run_lint_value = x===nothing ? false : true
-
-                if new_run_lint_value != server.runlinter
-                    server.runlinter = new_run_lint_value
-                    for doc in values(server.documents)
-                        publish_diagnostics(doc, server)
-                    end
-                end
-
-            end
+            update_julia_config(message_dict, server)
         end
 
         # SymbolServer:parallel branch ########################################

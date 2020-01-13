@@ -23,12 +23,59 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
+    request_julia_config(server)
+end
+
+function request_julia_config(server)
     send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
         (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
-        ConfigurationItem(missing, "julia.runLinter")
+        ConfigurationItem(missing, "julia.lint.run");
+        (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
         ])), server)
 end
 
+function update_julia_config(message_dict, server)
+    if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
+        server.format_options = DocumentFormat.FormatOptions(
+            message_dict["result"][1]===nothing ? 0 : message_dict["result"][1],
+            message_dict["result"][2]===nothing ? false : message_dict["result"][2],
+            message_dict["result"][3]===nothing ? false : message_dict["result"][3],
+            message_dict["result"][4]===nothing ? false : message_dict["result"][4],
+            message_dict["result"][5]===nothing ? false : message_dict["result"][5],
+            message_dict["result"][6]===nothing ? false : message_dict["result"][6],
+            message_dict["result"][7]===nothing ? false : message_dict["result"][7],
+            message_dict["result"][8]===nothing ? false : message_dict["result"][8],
+            message_dict["result"][9]===nothing ? false : message_dict["result"][9],
+            message_dict["result"][10]===nothing ? false : message_dict["result"][10],
+            message_dict["result"][11]===nothing ? false : message_dict["result"][11])
+        
+        N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
+        x = message_dict["result"][N]
+        new_lint_opts = StaticLint.LintOptions(
+            message_dict["result"][N + 1]===nothing ? false : message_dict["result"][N + 1],
+            message_dict["result"][N + 2]===nothing ? false : message_dict["result"][N + 2],
+            message_dict["result"][N + 3]===nothing ? false : message_dict["result"][N + 3],
+            message_dict["result"][N + 4]===nothing ? false : message_dict["result"][N + 4],
+            message_dict["result"][N + 5]===nothing ? false : message_dict["result"][N + 5],
+            message_dict["result"][N + 6]===nothing ? false : message_dict["result"][N + 6],
+            message_dict["result"][N + 7]===nothing ? false : message_dict["result"][N + 7],
+            message_dict["result"][N + 8]===nothing ? false : message_dict["result"][N + 8],
+            message_dict["result"][N + 9]===nothing ? false : message_dict["result"][N + 9],
+        )
+        
+        new_run_lint_value = x===nothing ? false : true
+        if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
+            server.lint_options = new_lint_opts
+            server.runlinter = new_run_lint_value
+            for doc in values(server.documents)
+                StaticLint.check_all(getcst(doc), server.lint_options, server)
+                empty!(doc.diagnostics)
+                mark_errors(doc, doc.diagnostics)
+                publish_diagnostics(doc, server)
+            end
+        end
+    end
+end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)

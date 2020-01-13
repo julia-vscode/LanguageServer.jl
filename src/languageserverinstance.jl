@@ -58,7 +58,7 @@ mutable struct LanguageServerInstance
             depot_path, 
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
-            Dict{String,SymbolServer.ModuleStore}(),
+            deepcopy(SymbolServer.stdlibs),
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions()
         )

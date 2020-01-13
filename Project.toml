@@ -14,21 +14,21 @@ URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 
 [compat]
 CSTParser = "2.1"
-DocumentFormat = "1.1.1"
+DocumentFormat = "1.1.1, 2.0"
 JSON = "0.20, 0.21"
 StaticLint = "3"
+SymbolServer = "2"
 Tokenize = "0.5.7"
 URIParser = "0.4.0"
 julia = "1"
-SymbolServer = "2"
 
 [extras]
+LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
-Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
-SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

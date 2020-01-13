@@ -46,11 +46,12 @@ function update_julia_config(message_dict, server)
             message_dict["result"][7]===nothing ? false : message_dict["result"][7],
             message_dict["result"][8]===nothing ? false : message_dict["result"][8],
             message_dict["result"][9]===nothing ? false : message_dict["result"][9],
-            message_dict["result"][10]===nothing ? false : message_dict["result"][10])
+            message_dict["result"][10]===nothing ? false : message_dict["result"][10],
+            message_dict["result"][11]===nothing ? false : message_dict["result"][11])
         
         N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
         x = message_dict["result"][N]
-        server.lint_options = StaticLint.LintOptions(
+        new_lint_opts = StaticLint.LintOptions(
             message_dict["result"][N + 1]===nothing ? false : message_dict["result"][N + 1],
             message_dict["result"][N + 2]===nothing ? false : message_dict["result"][N + 2],
             message_dict["result"][N + 3]===nothing ? false : message_dict["result"][N + 3],
@@ -61,11 +62,15 @@ function update_julia_config(message_dict, server)
             message_dict["result"][N + 8]===nothing ? false : message_dict["result"][N + 8],
             message_dict["result"][N + 9]===nothing ? false : message_dict["result"][N + 9],
         )
+        
         new_run_lint_value = x===nothing ? false : true
-
-        if new_run_lint_value != server.runlinter
+        if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
+            server.lint_options = new_lint_opts
             server.runlinter = new_run_lint_value
             for doc in values(server.documents)
+                StaticLint.check_all(getcst(doc), server.lint_options, server)
+                empty!(doc.diagnostics)
+                mark_errors(doc, doc.diagnostics)
                 publish_diagnostics(doc, server)
             end
         end

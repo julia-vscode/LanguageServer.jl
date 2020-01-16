@@ -8,18 +8,25 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc._version = r.params.textDocument.version
         get_line_offsets(doc, true)
     else
-        doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
-        doc._version = r.params.textDocument.version
-        if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-            doc._workspace_file = true
-        end
-        set_open_in_editor(doc, true)
-        if is_ignored(uri, server)
-            doc._runlinter = false
+        try_to_load_parents(uri2filepath(uri), server)
+
+        if haskey(server.documents, URI2(uri))
+            doc = server.documents[URI2(uri)]
+        else
+            doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
+            doc._version = r.params.textDocument.version
+            if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+                doc._workspace_file = true
+            end
+            set_open_in_editor(doc, true)
+            if is_ignored(uri, server)
+                doc._runlinter = false
+            end
         end
     end
     parse_all(doc, server)
 end
+
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
@@ -379,4 +386,54 @@ function parse_jmd(ps, str)
     push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
 
     return top, ps
+end
+
+function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
+    drop<1 && return parents
+    !isdir(dir) && return parents
+    for f in readdir(dir)
+        if endswith(f, ".jl")
+            # Could be sped up?
+            s = read(joinpath(dir, f), String)
+            occursin(file, s) && push!(parents, joinpath(dir, f))
+        end
+    end
+    search_for_parent(splitdir(dir)[1], file, drop - 1, parents)
+    return parents
+end
+
+
+function is_parentof(parent_path, child_path, server)
+    !isvalidjlfile(parent_path) && return false
+    previous_server_docs = collect(keys(server.documents)) # additions to this to be removed at end
+    # load parent file
+    puri = filepath2uri(parent_path)
+    pdoc = server.documents[URI2(puri)] = Document(puri, read(parent_path, String), false, server)
+    parse_all
+    CSTParser.parse(get_text(pdoc))
+    if typof(pdoc.cst) === CSTParser.FileH
+        pdoc.cst.val = pdoc.path
+        set_doc(pdoc.cst, pdoc)
+    end
+    scopepass(getroot(pdoc), pdoc)
+    # check whether child has been included automatically
+    if any(uri2filepath(k._uri) == child_path for k in keys(server.documents) if !(k in previous_server_docs))
+        cdoc = server.documents[URI2(filepath2uri(child_path))]
+        parse_all(cdoc, server)
+        scopepass(getroot(cdoc))
+        return true
+    else
+        # clean up
+        foreach(k-> !(k in previous_server_docs) && delete!(server.documents, k), keys(server.documents))
+        return false
+    end
+end
+
+function try_to_load_parents(child_path, server)
+    for p in search_for_parent(splitdir(child_path)...)
+        success = is_parentof(p, child_path, server)
+        if success 
+            return try_to_load_parents(p, server)
+        end
+    end
 end

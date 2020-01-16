@@ -40,12 +40,29 @@ function isjuliabasedir(path)
     all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 
+function has_too_many_files(path, N = 5000)
+    i = 0
+    for (root, dirs, files) in walkdir(path, onerror = x->x)
+        for file in files
+            if endswith(file, ".jl")
+                i += 1
+            end
+            if i > N
+                @info "Your workspace folder has > $N Julia files, server will not try to load them."
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function load_rootpath(path)
     isdir(path) &&
     hasreadperm(path) &&
-    !(path == "" || 
-    path == homedir() ||
-    isjuliabasedir(path))    
+    path != "" &&
+    path != homedir() &&
+    !isjuliabasedir(path) &&
+    !has_too_many_files(path)
 end
 
 function load_folder(wf::WorkspaceFolder, server)

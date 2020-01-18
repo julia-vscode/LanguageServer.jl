@@ -40,12 +40,29 @@ function isjuliabasedir(path)
     all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 
+function has_too_many_files(path, N = 5000)
+    i = 0
+    for (root, dirs, files) in walkdir(path, onerror = x->x)
+        for file in files
+            if endswith(file, ".jl")
+                i += 1
+            end
+            if i > N
+                @info "Your workspace folder has > $N Julia files, server will not try to load them."
+                return true
+            end
+        end
+    end
+    return false
+end
+
 function load_rootpath(path)
     isdir(path) &&
     hasreadperm(path) &&
-    !(path == "" || 
-    path == homedir() ||
-    isjuliabasedir(path))    
+    path != "" &&
+    path != homedir() &&
+    !isjuliabasedir(path) &&
+    !has_too_many_files(path)
 end
 
 function load_folder(wf::WorkspaceFolder, server)
@@ -103,10 +120,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             load_folder(wkspc, server)
         end
     end
-    send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
-        (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
-        ConfigurationItem(missing, "julia.runLinter")
-        ])), server)
+    request_julia_config(server)
 
     write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))), server.debug_mode)
 end

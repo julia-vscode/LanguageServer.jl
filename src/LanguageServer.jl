@@ -19,6 +19,7 @@ include("requests/features.jl")
 include("requests/hover.jl")
 include("requests/completions.jl")
 include("requests/workspace.jl")
+include("requests/actions.jl")
 include("utilities.jl")
 
 end

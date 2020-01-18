@@ -140,7 +140,7 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing
+    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
         for a in x.args
             if pos < offset <= (pos + a.fullspan)
                 return get_expr(a, offset, pos, ignorewhitespace)
@@ -152,6 +152,76 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     elseif (pos < offset <= (pos + x.fullspan))
         ignorewhitespace && pos + x.span < offset && return nothing
         return x
+    end
+end
+
+function get_expr(x, offset::UnitRange{Int}, pos = 0, ignorewhitespace = false)
+    if all(pos .> offset)
+        return nothing
+    end
+    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
+        for a in x.args
+            if all(pos .< offset .<= (pos + a.fullspan))
+                return get_expr(a, offset, pos, ignorewhitespace)
+            end
+            pos += a.fullspan
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos .< offset .<= (pos + x.fullspan))
+        ignorewhitespace && all(pos + x.span .< offset) && return nothing
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos .< offset .<= (pos + x.fullspan))
+        ignorewhitespace && all(pos + x.span .< offset) && return nothing
+        return x
+    end
+end
+
+function get_expr1(x, offset, pos = 0)
+    if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
+        if pos <= offset <= pos + x.span
+            return x
+        else
+            return nothing
+        end
+    else
+        for i = 1:length(x.args)
+            arg = x.args[i]
+            if pos < offset < (pos + arg.span) # def within span
+                return get_expr1(arg, offset, pos)
+            elseif arg.span == arg.fullspan
+                if offset == pos
+                    if i == 1
+                        return get_expr1(arg, offset, pos)
+                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i-1], offset, pos)
+                    else
+                        return get_expr1(arg, offset, pos)
+                    end
+                elseif i == length(x.args) # offset == pos + arg.fullspan
+                    return get_expr1(arg, offset, pos)
+                end
+            else
+                if offset == pos
+                    if i == 1
+                        return get_expr1(arg, offset, pos)
+                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i-1], offset, pos)
+                    else
+                        return get_expr1(arg, offset, pos)
+                    end
+                elseif offset == pos + arg.span
+                    return get_expr1(arg, offset, pos)
+                elseif offset == pos + arg.fullspan
+                elseif pos+arg.span < offset < pos + arg.fullspan
+                    return nothing
+                end
+            end
+            pos += arg.fullspan
+        end
+        return nothing
     end
 end
 
@@ -186,4 +256,8 @@ end
     end
 else
     _dirname = dirname
+end
+
+function valid_id(s::String)
+    !isempty(s) && all(i == 1 ? Base.is_id_start_char(c) : Base.is_id_char(c) for (i,c) in enumerate(s))
 end

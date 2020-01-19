@@ -10,7 +10,7 @@ function loadfile(server::LanguageServerInstance, path::String)
 end
 setfile(server::LanguageServerInstance, path::String, x::Document) = server.documents[URI2(filepath2uri(path))] = x
 getfile(server::LanguageServerInstance, path::String) = server.documents[URI2(filepath2uri(path))]
-getsymbolserver(server::LanguageServerInstance) = server.symbol_server.depot
+getsymbolserver(server::LanguageServerInstance) = server.symbol_store
 
 getpath(d::Document) = d.path
 function setpath(d::Document, path::String)

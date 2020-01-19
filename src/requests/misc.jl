@@ -80,12 +80,5 @@ JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) =
 function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
     server.env_path = r.params
 
-    @async begin
-        # TODO Add try catch handler that links into crash reporting
-        ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
-
-        if ssi_ret==:success
-            push!(server.symbol_results_channel, payload)
-        end
-    end    
+    trigger_symbolstore_reload(server)
 end

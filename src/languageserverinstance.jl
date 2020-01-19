@@ -77,12 +77,7 @@ function send(message, server)
     write_transport_layer(server.pipe_out, message_json, server.debug_mode)
 end
 
-"""
-    run(server::LanguageServerInstance)
-
-Run the language `server`.
-"""
-function Base.run(server::LanguageServerInstance)
+function trigger_symbolstore_reload(server::LanguageServerInstance)
     @async begin
         # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
@@ -91,6 +86,15 @@ function Base.run(server::LanguageServerInstance)
             push!(server.symbol_results_channel, payload)
         end
     end
+end
+
+"""
+    run(server::LanguageServerInstance)
+
+Run the language `server`.
+"""
+function Base.run(server::LanguageServerInstance)
+    trigger_symbolstore_reload(server)
     
     global T
     while true

@@ -92,7 +92,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
     if r.params.textDocument.version < doc._version
-        write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri)), server.debug_mode)
+        send(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri), server)
         return
     end
     doc._version = r.params.textDocument.version

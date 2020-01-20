@@ -1,4 +1,4 @@
-server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), true, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 @async run(server)
 t = time()
 while server.symbol_server isa Nothing && time() - t < 60

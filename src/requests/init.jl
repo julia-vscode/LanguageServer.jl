@@ -123,6 +123,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     request_julia_config(server)
 
     send(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")])), server)
+
+    send(Dict("jsonrpc" => "2.0", "id" => "98723548", "method" => "window/workDoneProgress/create", "params" => Dict("token" => "98237846234")), server)
 end
 
 

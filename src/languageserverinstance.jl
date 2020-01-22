@@ -125,6 +125,8 @@ function Base.run(server::LanguageServerInstance)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
             # set format options
             update_julia_config(message_dict, server)
+        elseif get(message_dict, "id", 0)  == "98723548"
+            send(Dict("jsonrpc" => "2.0", "id" => "987256348", "method" => "\$/progress", "params" => Dict("token" => "98237846234", "value" => Dict("kind"=>"begin", "title"=>"Julia indexing...", "percentage"=>0, "message"=>"Some message", "cancellable"=>true))), server)
         end
 
         if isready(server.symbol_results_channel)

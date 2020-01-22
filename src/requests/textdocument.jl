@@ -405,7 +405,7 @@ end
 
 
 function is_parentof(parent_path, child_path, server)
-    !isvalidjlfile(parent_path) && return false
+    !(hasreadperm(parent_path) && isvalidjlfile(parent_path)) && return false
     previous_server_docs = collect(keys(server.documents)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)

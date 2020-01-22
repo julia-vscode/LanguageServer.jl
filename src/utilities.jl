@@ -261,3 +261,9 @@ end
 function valid_id(s::String)
     !isempty(s) && all(i == 1 ? Base.is_id_start_char(c) : Base.is_id_char(c) for (i,c) in enumerate(s))
 end
+
+function sanitize_docstring(doc::String)
+    doc = replace(doc, "```jldoctest"=>"```julia")
+    doc = replace(doc,"\n#"=>"\n###")
+    return doc
+end

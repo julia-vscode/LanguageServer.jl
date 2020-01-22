@@ -94,7 +94,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if r.params.textDocument.version < doc._version
         # write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri)), server.debug_mode)
         # return
-        @warn "The client and server have different textDocument versions for $(doc._uri)."
+        error("The client and server have different textDocument versions for $(doc._uri).")
     end
     doc._version = r.params.textDocument.version
     

@@ -44,6 +44,8 @@ mutable struct LanguageServerInstance
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
 
+    out_msg_queue::Channel{Any}
+
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
         new(
             pipe_in,
@@ -60,7 +62,8 @@ mutable struct LanguageServerInstance
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             DocumentFormat.FormatOptions(), 
-            StaticLint.LintOptions()
+            StaticLint.LintOptions(),
+            Channel{Any}(Inf)
         )
     end
 end
@@ -74,7 +77,7 @@ end
 function send(message, server)
     message_json = JSON.json(message)
 
-    write_transport_layer(server.pipe_out, message_json, server.debug_mode)
+    put!(server.out_msg_queue, message_json)
 end
 
 function trigger_symbolstore_reload(server::LanguageServerInstance)
@@ -94,11 +97,25 @@ end
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
+    @async for msg in server.out_msg_queue
+        try
+            write_transport_layer(server.pipe_out, msg, server.debug_mode)
+        catch err
+            Base.display_error(stderr, err, catch_backtrace())
+            rethrow(err)
+        end
+    end
+
     trigger_symbolstore_reload(server)
     
     global T
     while true
         message = read_transport_layer(server.pipe_in, server.debug_mode)
+        
+        if message===nothing
+            break
+        end
+        
         message_dict = JSON.parse(message)
         # For now just ignore response messages
         if haskey(message_dict, "method")
@@ -122,17 +139,13 @@ function Base.run(server::LanguageServerInstance)
     end
 end
 
-function serverbusy(server)
-    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusBusy")), server.debug_mode)
-end
-
-function serverready(server)
-    write_transport_layer(server.pipe_out, JSON.json(Dict("jsonrpc" => "2.0", "method" => "window/setStatusReady")), server.debug_mode)
-end
-
 function read_transport_layer(stream, debug_mode = false)
     header_dict = Dict{String,String}()
     line = chomp(readline(stream))
+    # Check whether the socket was closed
+    if line == ""        
+        return nothing
+    end
     while length(line) > 0
         h_parts = split(line, ":")
         header_dict[chomp(h_parts[1])] = chomp(h_parts[2])

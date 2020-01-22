@@ -8,6 +8,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocume
     x = get_expr1(getcst(doc), get_offset(doc, r.params.position))
     documentation = get_hover(x, "", server)
     documentation = get_fcall_position(x, documentation)
+    documentation = sanitize_docstring(documentation)
 
     send(JSONRPC.Response(r.id, Hover(MarkupContent(documentation), missing)), server)
 end

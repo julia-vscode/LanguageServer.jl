@@ -213,6 +213,7 @@ function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, in
                 documentation = ""
                 if n[2] isa StaticLint.Binding
                     documentation = get_hover(n[2], documentation, server)
+                    sanitize_docstring(documentation)
                 end
                 push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end])))
             end
@@ -326,13 +327,13 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
             for (n,m) in refof(import_root).vals
                 if startswith(n, t.val)
-                    push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                    push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                 end
             end
         else
             for (n,m) in StaticLint.getsymbolserver(server)
                 startswith(n, ".") && continue
-                push!(CIs, CompletionItem(n, 9, MarkupContent(m.doc), TextEdit(rng, n)))
+                push!(CIs, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(rng, n)))
             end
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
@@ -347,7 +348,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                 rootmod = StaticLint.getsymbolserver(server)[ppt.val]
                 for (n,m) in rootmod.vals
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                     end
                 end
             end
@@ -355,7 +356,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
                 for (n,m) in refof(import_root).vals
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                     end
                 end
             else

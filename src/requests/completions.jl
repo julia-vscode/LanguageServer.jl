@@ -210,7 +210,11 @@ function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, in
     if x.names !== nothing
         for n in x.names
             if startswith(n[1], spartial)
-                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(n[1]), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end])))
+                documentation = ""
+                if n[2] isa StaticLint.Binding
+                    documentation = get_hover(n[2], documentation, server)
+                end
+                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end])))
             end
         end
     end

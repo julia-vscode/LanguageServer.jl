@@ -99,7 +99,7 @@ Run the language `server`.
 function Base.run(server::LanguageServerInstance)
     @async for msg in server.out_msg_queue
         try
-            write_transport_layer(server.pipe_out, msg, server.debug_mode)
+            write_transport_layer(server.pipe_out, msg)
         catch err
             Base.display_error(stderr, err, catch_backtrace())
             rethrow(err)
@@ -110,7 +110,7 @@ function Base.run(server::LanguageServerInstance)
     
     global T
     while true
-        message = read_transport_layer(server.pipe_in, server.debug_mode)
+        message = read_transport_layer(server.pipe_in)
         
         if message===nothing
             break
@@ -119,7 +119,6 @@ function Base.run(server::LanguageServerInstance)
         message_dict = JSON.parse(message)
         # For now just ignore response messages
         if haskey(message_dict, "method")
-            server.debug_mode && (T = time())
             request = parse(JSONRPC.Request, message_dict)
             process(request, server)
         elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
@@ -139,7 +138,7 @@ function Base.run(server::LanguageServerInstance)
     end
 end
 
-function read_transport_layer(stream, debug_mode = false)
+function read_transport_layer(stream)
     header_dict = Dict{String,String}()
     line = chomp(readline(stream))
     # Check whether the socket was closed
@@ -153,18 +152,14 @@ function read_transport_layer(stream, debug_mode = false)
     end
     message_length = parse(Int, header_dict["Content-Length"])
     message_str = String(read(stream, message_length))
-    debug_mode && @info "RECEIVED: $message_str"
-    debug_mode && @info ""
     return message_str
 end
 
-function write_transport_layer(stream, response, debug_mode = false)
+function write_transport_layer(stream, response)
     global T
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")
     write(stream, response_utf8)
-    debug_mode && @info "SENT: $response"
-    debug_mode && @info string("TIME:", round(time()-T, sigdigits = 2))
 end
 

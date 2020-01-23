@@ -56,9 +56,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
     uri = r.params.textDocument.uri
     !haskey(server.documents, URI2(uri)) && return
     doc = server.documents[URI2(uri)]
-    empty!(doc.diagnostics)
-    publish_diagnostics(doc, server)
     if !is_workspace_file(doc)
+        empty!(doc.diagnostics)
+        publish_diagnostics(doc, server)
         delete!(server.documents, URI2(uri))
     else
         set_open_in_editor(doc, false)

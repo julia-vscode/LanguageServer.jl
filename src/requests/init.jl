@@ -32,14 +32,6 @@ const serverCapabilities = ServerCapabilities(
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
-function isjuliabasedir(path)
-    fs = readdir(path)
-    if "base" in fs && isdir(joinpath(path, "base"))
-        return isjuliabasedir(joinpath(path, "base"))
-    end
-    all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
-end
-
 function has_too_many_files(path, N = 5000)
     i = 0
     for (root, dirs, files) in walkdir(path, onerror = x->x)
@@ -61,7 +53,6 @@ function load_rootpath(path)
     hasreadperm(path) &&
     path != "" &&
     path != homedir() &&
-    !isjuliabasedir(path) &&
     !has_too_many_files(path)
 end
 

@@ -24,9 +24,7 @@ For normal usage, the language server can be instantiated with
   where the language server looks for packages required in `env`.
 """
 mutable struct LanguageServerInstance
-    pipe_in
-    pipe_out
-
+    jr_endpoint::JSONRPCEndpoints.JSONRPCEndpoint
     workspaceFolders::Set{String}
     documents::Dict{URI2,Document}
 
@@ -44,12 +42,11 @@ mutable struct LanguageServerInstance
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
 
-    out_msg_queue::Channel{Any}
+    combined_msg_queue::Channel{Any}
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
         new(
-            pipe_in,
-            pipe_out,
+            JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out),
             Set{String}(),
             Dict{URI2,Document}(),
             debug_mode,
@@ -74,12 +71,6 @@ function Base.display(server::LanguageServerInstance)
     end
 end
 
-function send(message, server)
-    message_json = JSON.json(message)
-
-    put!(server.out_msg_queue, message_json)
-end
-
 function trigger_symbolstore_reload(server::LanguageServerInstance)
     @async begin
         # TODO Add try catch handler that links into crash reporting
@@ -97,38 +88,48 @@ end
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
-    @async for msg in server.out_msg_queue
-        try
-            write_transport_layer(server.pipe_out, msg, server.debug_mode)
-        catch err
-            Base.display_error(stderr, err, catch_backtrace())
-            rethrow(err)
+    run(server.jr_endpoint)
+
+    trigger_symbolstore_reload(server)
+
+    @async begin
+        while true
+            msg = JSONRPCEndpoints.get_next_message(server.jr_endpoint)
+            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     end
 
-    trigger_symbolstore_reload(server)
-    
-    global T
+    @async begin
+        while true
+            msg = take!(server.symbol_results_channel)
+            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
+        end
+    end
+        
     while true
-        message = read_transport_layer(server.pipe_in, server.debug_mode)
-        
-        if message===nothing
-            break
-        end
-        
-        message_dict = JSON.parse(message)
-        # For now just ignore response messages
-        if haskey(message_dict, "method")
-            server.debug_mode && (T = time())
-            request = parse(JSONRPC.Request, message_dict)
-            process(request, server)
-        elseif get(message_dict, "id", 0)  == -100 && haskey(message_dict, "result")
-            # set format options
-            update_julia_config(message_dict, server)
-        end
+        message = take!(server.combined_msg_queue)
 
-        if isready(server.symbol_results_channel)
-            server.symbol_store = take!(server.symbol_results_channel)
+        if message.type==:clientmsg
+            msg = message.msg                
+
+            request = parse(JSONRPC.Request, msg)
+
+            try
+                res = process(request, server)
+
+                if request.id!=nothing
+                    send_success_response(server.jr_endpoint, msg, res)
+                end
+            catch err
+                if request.id!=nothing
+                    # TODO Make sure this is right
+                    send_error_response(server.jr_endpoint, msg, res)
+                end
+            end        
+        elseif message.type==:symservmsg
+            msg = message.msg
+
+            server.symbol_store = msg
 
             # TODO should probably re-run linting
 
@@ -139,32 +140,6 @@ function Base.run(server::LanguageServerInstance)
     end
 end
 
-function read_transport_layer(stream, debug_mode = false)
-    header_dict = Dict{String,String}()
-    line = chomp(readline(stream))
-    # Check whether the socket was closed
-    if line == ""        
-        return nothing
-    end
-    while length(line) > 0
-        h_parts = split(line, ":")
-        header_dict[chomp(h_parts[1])] = chomp(h_parts[2])
-        line = chomp(readline(stream))
-    end
-    message_length = parse(Int, header_dict["Content-Length"])
-    message_str = String(read(stream, message_length))
-    debug_mode && @info "RECEIVED: $message_str"
-    debug_mode && @info ""
-    return message_str
-end
 
-function write_transport_layer(stream, response, debug_mode = false)
-    global T
-    response_utf8 = transcode(UInt8, response)
-    n = length(response_utf8)
-    write(stream, "Content-Length: $n\r\n\r\n")
-    write(stream, response_utf8)
-    debug_mode && @info "SENT: $response"
-    debug_mode && @info string("TIME:", round(time()-T, sigdigits = 2))
-end
+
 

@@ -27,11 +27,14 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
 end
 
 function request_julia_config(server)
-    send(JSONRPC.Request{Val{Symbol("workspace/configuration")},ConfigurationParams}(-100, ConfigurationParams([
+    response = send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
         (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
         ConfigurationItem(missing, "julia.lint.run");
         (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
-        ])), server)
+        ]))
+    
+        # TODO Make sure update_julia_config can deal with the response
+    update_julia_config(response, server)
 end
 
 function update_julia_config(message_dict, server)

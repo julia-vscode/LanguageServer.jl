@@ -108,8 +108,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         end
     end
 
-    response = JSONRPC.Response(r.id, InitializeResult(serverCapabilities))
-    send(response, server)
+    return InitializeResult(serverCapabilities)
 end
 
 
@@ -122,13 +121,13 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     end
     request_julia_config(server)
 
-    send(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")])), server)
+    send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
 end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
-    send(nothing, server)
+    return nothing
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params

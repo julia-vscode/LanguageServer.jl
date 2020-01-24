@@ -51,7 +51,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         end
     end
 
-    send(JSONRPC.Response(r.id, CompletionList(true, unique(CIs))), server)
+    return CompletionList(true, unique(CIs))
 end
 
 function get_partial_completion(doc, offset)

@@ -71,7 +71,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     else
         arg = sum(!(typof(a) === CSTParser.PUNCTUATION) for a in parentof(x).args) - 1
     end
-    send(JSONRPC.Response(r.id, SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)), server)
+    return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params) = TextDocumentPositionParams(params)
@@ -124,7 +124,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
         end
     end
     
-    send(JSONRPC.Response(r.id, locations), server)
+    return locations
 end
 
 function get_file_loc(x::EXPR, offset = 0, c  = nothing)
@@ -154,7 +154,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc)))
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
-    send(JSONRPC.Response(r.id, lsedits), server)
+    return lsedits
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params) 
@@ -164,7 +164,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},Doc
     end
     links = Tuple{String,UnitRange{Int}}[]
 
-    send(JSONRPC.Response(r.id, links), server) 
+    return links
 end
 
 
@@ -191,7 +191,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},Refer
         error("Received 'textDocument/references for non-existing document.")
     end
     locations = find_references(r.params.textDocument, r.params.position, server)
-    send(JSONRPC.Response(r.id, locations), server)
+    return locations
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = RenameParams(params)
@@ -210,7 +210,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
         end
     end
     
-    send(JSONRPC.Response(r.id, WorkspaceEdit(nothing, collect(values(tdes)))), server)
+    return WorkspaceEdit(nothing, collect(values(tdes)))
 end
 
 
@@ -230,7 +230,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
         (valof(b.name) === nothing || isempty(valof(b.name))) && continue
         push!(syms, SymbolInformation(valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), nothing))
     end
-    send(JSONRPC.Response(r.id, syms), server)
+    return syms
 end
 
 function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},StaticLint.Binding}[])

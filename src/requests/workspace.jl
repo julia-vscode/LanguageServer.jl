@@ -14,8 +14,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
         elseif change.type == FileChangeTypes["Deleted"] && !get_open_in_editor(server.documents[URI2(uri)])
             delete!(server.documents, URI2(uri))
 
-            response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(uri, Diagnostic[]))
-            send(response, server)
+            publishDiagnosticsParams = PublishDiagnosticsParams(uri, Diagnostic[])
+            send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
         end
     end
 end
@@ -105,6 +105,5 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
         end
     end
 
-    response = JSONRPC.Response(r.id, syms) 
-    send(response, server) 
+    return syms
 end

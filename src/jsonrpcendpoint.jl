@@ -12,7 +12,7 @@ mutable struct JSONRPCEndpoint
     outstanding_requests::Dict{String, Channel{Any}}
 
     function JSONRPCEndpoint(pipe_in, pipe_out)
-        return new(new pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String, Channel{Any}}())
+        return new(pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String, Channel{Any}}())
     end
 end
 
@@ -68,7 +68,7 @@ function Base.run(x::JSONRPCEndpoint)
                 id_of_request = message_dict["id"]
 
                 channel_for_response = x.outstanding_requests[id_of_request]
-                put!(channel_for_response, message_dict))
+                put!(channel_for_response, message_dict)
             end
         end
     end

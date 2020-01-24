@@ -15,7 +15,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             delete!(server.documents, URI2(uri))
 
             publishDiagnosticsParams = PublishDiagnosticsParams(uri, Diagnostic[])
-            send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
         end
     end
 end
@@ -27,7 +27,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
 end
 
 function request_julia_config(server)
-    response = send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
+    response = JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
         (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
         ConfigurationItem(missing, "julia.lint.run");
         (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...

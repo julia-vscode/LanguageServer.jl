@@ -121,7 +121,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     end
     request_julia_config(server)
 
-    send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
 end
 
 

@@ -1,6 +1,8 @@
 module JSONRPCEndpoints
 
-export JSONRPCEndpoint, send_notification, send_request
+import JSON, UUIDs
+
+export JSONRPCEndpoint, send_notification, send_request, send_success_response, send_error_response
 
 mutable struct JSONRPCEndpoint
     pipe_in
@@ -17,7 +19,6 @@ mutable struct JSONRPCEndpoint
 end
 
 function write_transport_layer(stream, response)
-    global T
     response_utf8 = transcode(UInt8, response)
     n = length(response_utf8)
     write(stream, "Content-Length: $n\r\n\r\n")
@@ -42,18 +43,18 @@ function read_transport_layer(stream)
 end
 
 function Base.run(x::JSONRPCEndpoint)
-    @async for msg in server.out_msg_queue
-        try
-            write_transport_layer(x.pipe_out, msg, x.debug_mode)
-        catch err
-            Base.display_error(stderr, err, catch_backtrace())
-            rethrow(err)
+    @async try
+        for msg in x.out_msg_queue
+            @info "handling an out message"
+            write_transport_layer(x.pipe_out, msg)
         end
+    catch err
+        Base.display_error(stderr, err, catch_backtrace())
     end
 
-    @async begin
+    @async try
         while true
-            message = read_transport_layer(x.pipe_in, x.debug_mode)
+            message = read_transport_layer(x.pipe_in)
 
             if message===nothing
                 break
@@ -61,7 +62,7 @@ function Base.run(x::JSONRPCEndpoint)
 
             message_dict = JSON.parse(message)
 
-            if haskey(message_dict, "message")
+            if haskey(message_dict, "method")
                 put!(x.in_msg_queue, message_dict)
             else
                 # This must be a response
@@ -71,45 +72,50 @@ function Base.run(x::JSONRPCEndpoint)
                 put!(channel_for_response, message_dict)
             end
         end
+    catch err
+        Base.display_error(stderr, err, catch_backtrace())
     end
 end
 
-function send_notification(server::JSONRPCEndpoint, method::AbstractString, params)
+function send_notification(x::JSONRPCEndpoint, method::AbstractString, params)
+    @info "Sending a notification"
     message = Dict("jsonrpc"=>"2.0", "method"=>method, params=>params)
 
     message_json = JSON.json(message)
 
-    put!(server.out_msg_queue, message_json)
+    put!(x.out_msg_queue, message_json)
 end
 
-function send_request(server::JSONRPCEndpoint, method::AbstractString, params)
-    id = string(uuid4())
+function send_request(x::JSONRPCEndpoint, method::AbstractString, params)
+    @info "sending a request"
+    id = string(UUIDs.uuid4())
     message = Dict("jsonrpc"=>"2.0", "method"=>method, params=>params, "id"=>id)
 
     response_channel = Channel{Any}(1)
-    server.outstanding_requests[id] = response_channel
+    x.outstanding_requests[id] = response_channel
 
     message_json = JSON.json(message)
 
-    put!(server.out_msg_queue, message_json)
+    put!(x.out_msg_queue, message_json)
 
     response = take!(response_channel)
 
     if haskey(response, "result")
         return response["result"]
     else
-        error("Throw a better error here.")
+        @info "We recieved an error response: $response"
+        # error("Throw a better error here.")
     end
 end
 
 function get_next_message(endpoint::JSONRPCEndpoint)
     msg = take!(endpoint.in_msg_queue)
 
-    return (id=get(msg, "id", nothing), method=msg["method"], params=msg["params"])
+    return msg
 end
 
 function send_success_response(endpoint, original_request, result)
-    response = Dict("jsonrpc"=>"2.0", "id"=>original_request.id, "result"=>result)
+    response = Dict("jsonrpc"=>"2.0", "id"=>original_request["id"], "result"=>result)
 
     response_json = JSON.json(response)
 
@@ -117,7 +123,7 @@ function send_success_response(endpoint, original_request, result)
 end
 
 function send_error_response(endpoint, origina_request, code, message, data)
-    response = Dict("jsonrpc"=>"2.0", "id"=>original_request.id, "error"=>Dict("code"=>code, "message"=>message, "data"=>data))
+    response = Dict("jsonrpc"=>"2.0", "id"=>original_request["id"], "error"=>Dict("code"=>code, "message"=>message, "data"=>data))
 
     response_json = JSON.json(response)
 

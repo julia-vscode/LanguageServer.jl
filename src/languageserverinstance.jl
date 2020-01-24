@@ -72,13 +72,15 @@ function Base.display(server::LanguageServerInstance)
 end
 
 function trigger_symbolstore_reload(server::LanguageServerInstance)
-    @async begin
+    @async try
         # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
 
         if ssi_ret==:success
             push!(server.symbol_results_channel, payload)
         end
+    catch err
+        Base.display_error(stderr, err, catch_backtrace())
     end
 end
 
@@ -92,18 +94,22 @@ function Base.run(server::LanguageServerInstance)
 
     trigger_symbolstore_reload(server)
 
-    @async begin
+    @async try
         while true
             msg = JSONRPCEndpoints.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
+    catch err
+        Base.display_error(stderr, err, catch_backtrace())
     end
 
-    @async begin
+    @async try
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
         end
+    catch err
+        Base.display_error(stderr, err, catch_backtrace())
     end
         
     while true
@@ -118,12 +124,14 @@ function Base.run(server::LanguageServerInstance)
                 res = process(request, server)
 
                 if request.id!=nothing
-                    send_success_response(server.jr_endpoint, msg, res)
+                    JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
                 end
             catch err
+                Base.display_error(stderr, err, catch_backtrace())
+
                 if request.id!=nothing
                     # TODO Make sure this is right
-                    send_error_response(server.jr_endpoint, msg, res)
+                    JSONRPCEndpoints.send_error_response(server.jr_endpoint, msg, res)
                 end
             end        
         elseif message.type==:symservmsg

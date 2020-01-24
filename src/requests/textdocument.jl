@@ -321,7 +321,7 @@ function publish_diagnostics(doc::Document, server)
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
     end
-    send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end
 
 
@@ -329,7 +329,7 @@ function clear_diagnostics(uri::URI2, server)
     doc = server.documents[uri]
     empty!(doc.diagnostics)
     publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
-    send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end 
 
 function clear_diagnostics(server)

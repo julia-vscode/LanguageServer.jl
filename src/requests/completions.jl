@@ -10,8 +10,7 @@ end
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
-        return
+        error("Received 'textDocument/completion for non-existing document.")
     end
     
     CIs = CompletionItem[]

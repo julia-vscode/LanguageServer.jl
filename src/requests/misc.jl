@@ -28,8 +28,7 @@ end
 JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        send(JSONRPC.Response(r.id, CancelParams(r.id)), server)
-        return
+        error("Received 'julia/getCurrentBlockOffsetRange for non-existing document.")
     end
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]

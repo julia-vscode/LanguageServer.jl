@@ -208,8 +208,7 @@ end
 function _valid_ws_delete(x, pos, insert_range, old_text)
     preceding_ws = SubString(old_text, nextind(old_text, first(insert_range) - first(pos) + x.span):first(insert_range))
     trailing_ws = SubString(old_text, nextind(old_text, last(insert_range)):first(insert_range) - first(pos) + x.fullspan)
-
-    return (x.span < first(pos) || last(pos) < x.fullspan) && 
+    return (x.span < first(pos) || first(pos) == x.span && last(pos) < x.fullspan) && 
     (
         all(c->c === ' ', SubString(old_text, nextind(old_text, first(insert_range)):last(insert_range))) ||
         (any(c->c === '\n', preceding_ws) || any(c->c === '\n', trailing_ws))
@@ -222,8 +221,8 @@ function _valid_ws_add(x, pos, insert_range, insert_text, old_text)
     # needs change to allow arbitrary length additions (where no newline is added without there already being one)
     return (pos > x.span || (x.span < x.fullspan && pos == x.span)) && 
             (all(c -> c === ' ', insert_text) ||
-            any(c -> c === '\n', preceding_ws) ||
-            any(c -> c === '\n', trailing_ws))
+            (all(c -> c === ' ' || c === '\n', insert_text) && (any(c -> c === '\n', preceding_ws) ||
+            any(c -> c === '\n', trailing_ws))))
 end
 
 function _valid_number_addition(x, pos, insert_text)

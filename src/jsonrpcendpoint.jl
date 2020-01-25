@@ -45,7 +45,6 @@ end
 function Base.run(x::JSONRPCEndpoint)
     @async try
         for msg in x.out_msg_queue
-            @info "handling an out message"
             write_transport_layer(x.pipe_out, msg)
         end
     catch err
@@ -78,7 +77,6 @@ function Base.run(x::JSONRPCEndpoint)
 end
 
 function send_notification(x::JSONRPCEndpoint, method::AbstractString, params)
-    @info "Sending a notification"
     message = Dict("jsonrpc"=>"2.0", "method"=>method, params=>params)
 
     message_json = JSON.json(message)

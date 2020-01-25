@@ -100,9 +100,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(r.params.contentChanges).range)
         tdcce = first(r.params.contentChanges)
-        new_cst = _partial_update(doc, tdcce) 
-        scopepass(getroot(doc), doc)
-        StaticLint.check_all(getcst(doc), server.lint_options, server)
+        skipscope = _partial_update(doc, tdcce) 
+        @info [round((c/sum(update_count))*100, sigdigits = 4) for c in update_count]
+        if !skipscope # we've updated a teriminal expr where there's no need to run scoping.
+            scopepass(getroot(doc), doc)
+            StaticLint.check_all(getcst(doc), server.lint_options, server)
+        end
         empty!(doc.diagnostics)
         mark_errors(doc, doc.diagnostics)
         publish_diagnostics(doc, server)
@@ -114,13 +117,145 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     end
 end
 
+function update_parent_spans!(x::EXPR)
+    CSTParser.update_span!(x)
+    if CSTParser.parentof(x) isa EXPR
+        update_parent_spans!(CSTParser.parentof(x))
+    end
+end
+
+const update_count = [0, 0]
+
+# checks whether we can update a terminal token with no need to run a scopepass
+# Handled states:
+# 1: Digit added to existing INTEGER or FLOAT
+# 2: ws added to existing ws
+# 3: edits of IDENT (where not a Bindings name, part of a DOT expr or macrocall)
+function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
+    if first(insert_range) == last(insert_range)
+        # in the following we can treat an arbitrary string of spaces as a single space
+        # pos is the insert offset from start of expr
+        x, pos = get_insert_expr(cst, first(insert_range), first(insert_text))
+        (!(x isa EXPR) || x.args !== nothing) && return false
+
+        if length(insert_text) == 1 && _valid_number_addition(x, pos, insert_text)
+            x.val = edit_string(x.val, pos, insert_text)
+            x.span += 1
+            x.fullspan += 1
+            update_parent_spans!(x)
+            update_count[1] += 1
+            return true
+        elseif _valid_ws_add(x, pos, insert_range, insert_text, old_text)
+            x.fullspan += length(insert_text)
+            update_parent_spans!(x)
+            update_count[1] += 1
+            return true
+        elseif length(insert_text) == 1 && typof(x) === CSTParser.IDENTIFIER && _valid_id_edit(x, pos, insert_text)
+            newval = edit_string(x.val, pos, insert_text)
+            if (!StaticLint.hasref(x) || refof(x) isa SymbolServer.SymStore) || 
+                (!StaticLint.hasbinding(x) && !_id_is_name(x) &&
+                !(parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.BinaryOpCall && kindof(parentof(x).args[2]) === CSTParser.Tokens.DOT) &&
+                !(parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.MacroName))
+                x.val = newval
+                x.span += 1
+                x.fullspan += 1
+                update_parent_spans!(x)
+                update_count[1] += 1
+                StaticLint.clear_ref(x)
+                StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
+                return true
+            end
+        end
+    elseif isempty(insert_text)
+        x, pos = get_deletion_expr(cst, insert_range)
+        (pos == 1:0 || x.args !== nothing) && return false
+        if _valid_ws_delete(x, pos, insert_range, old_text)
+            x.fullspan -= (length(insert_range) - 1)
+            update_parent_spans!(x)
+            update_count[1] += 1
+            return true
+        elseif _valid_int_delete(x, pos)
+            newval = string(x.val[1:first(pos)], x.val[nextind(x.val, last(pos)):end])
+            x.val = newval
+            x.span -= length(pos) - 1
+            x.fullspan -= length(pos) - 1
+            update_parent_spans!(x)
+            update_count[1] += 1
+            return true
+        elseif typof(x) == CSTParser.IDENTIFIER && last(pos) <= x.span && length(pos) < x.span &&
+                ((!StaticLint.hasref(x) || refof(x) isa SymbolServer.SymStore) || 
+                (!StaticLint.hasbinding(x) && !_id_is_name(x) &&
+                !(parentof(x) isa EXPR && StaticLint._binary_assert(parentof(x), CSTParser.Tokens.DOT)) &&
+                !(parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.MacroName)))
+            newval = string(x.val[1:first(pos)], x.val[nextind(x.val, last(pos)):end])
+            CSTParser.Tokenize.Lexers.next_token(CSTParser.Tokenize.tokenize(newval)).kind !== Tokens.IDENTIFIER && return false
+            x.val = newval
+            x.span -= length(pos) - 1
+            x.fullspan -= length(pos) - 1
+            update_parent_spans!(x)
+            update_count[1] += 1
+            StaticLint.clear_ref(x)
+            StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
+            return true
+        end
+    end
+    return false
+end
+
+# Checks whether ws can be deleted:
+# 1. only remove spaces and there remains ws
+# 2. if we're deleting a newline, make sure there's still one in the remaining ws text
+function _valid_ws_delete(x, pos, insert_range, old_text)
+    preceding_ws = SubString(old_text, nextind(old_text, first(insert_range) - first(pos) + x.span):first(insert_range))
+    trailing_ws = SubString(old_text, nextind(old_text, last(insert_range)):first(insert_range) - first(pos) + x.fullspan)
+
+    return (x.span < first(pos) || last(pos) < x.fullspan) && 
+    (
+        all(c->c === ' ', SubString(old_text, nextind(old_text, first(insert_range)):last(insert_range))) ||
+        (any(c->c === '\n', preceding_ws) || any(c->c === '\n', trailing_ws))
+    )
+end
+
+function _valid_ws_add(x, pos, insert_range, insert_text, old_text)
+    preceding_ws = SubString(old_text, nextind(old_text, first(insert_range) - first(pos) + x.span):first(insert_range))
+    trailing_ws = SubString(old_text, nextind(old_text, last(insert_range)):first(insert_range) - first(pos) + x.fullspan)
+    # needs change to allow arbitrary length additions (where no newline is added without there already being one)
+    return (pos > x.span || (x.span < x.fullspan && pos == x.span)) && 
+            (all(c -> c === ' ', insert_text) ||
+            any(c -> c === '\n', preceding_ws) ||
+            any(c -> c === '\n', trailing_ws))
+end
+
+function _valid_number_addition(x, pos, insert_text)
+    (CSTParser.is_integer(x) || CSTParser.is_float(x)) && isdigit(first(insert_text)) && parentof(x) isa EXPR && pos <= x.span
+end
+
+function _valid_int_delete(x, pos)
+    CSTParser.is_integer(x) && last(pos) <= x.span && length(pos) < x.span
+end
+
+function _valid_id_edit(x, pos, insert_text)
+    ((pos == 0 && CSTParser.Tokenize.Lexers.is_identifier_start_char(first(insert_text))) ||
+    (0 < pos <= x.span && CSTParser.Tokenize.Lexers.is_identifier_char(first(insert_text)))) &&
+    (newval = string(x.val[1:pos], insert_text, x.val[pos+1:end]);CSTParser.Tokenize.Lexers.next_token(CSTParser.Tokenize.tokenize(newval)).kind === Tokens.IDENTIFIER)
+end
+
+function _id_is_name(x)
+    # assumes hasref(x)
+    x.meta.ref isa StaticLint.Binding && x.meta.ref.name === x
+end
+
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     cst = getcst(doc)
     insert_range = get_offset(doc, tdcce.range)
+    noimpact = _noimpact_partial_update(cst, insert_range, tdcce.text, get_text(doc))
     updated_text = edit_string(get_text(doc), insert_range, tdcce.text)
     set_text!(doc, updated_text)
     doc._line_offsets = nothing
 
+    noimpact && return true
+
+    update_count[2] += 1
     i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
     is = insert_size(tdcce.text, insert_range)
     if isempty(updated_text)
@@ -170,6 +305,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
         doc.cst.val = doc.path
         set_doc(doc.cst, doc)
     end
+    return false
 end
 
 insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0)
@@ -228,18 +364,18 @@ end
 
 function edit_string(text, editrange, edit)
     if first(editrange) == last(editrange) == 0
-        text = string(edit, text)
+        string(edit, text)
     elseif first(editrange) == 0 && last(editrange) == sizeof(text)
-        text = edit
+        edit
     elseif first(editrange) == 0
-        text = string(edit, text[nextind(text, last(editrange)):end])
+        string(edit, text[nextind(text, last(editrange)):end])
     elseif first(editrange) == last(editrange) == sizeof(text)
-        text = string(text, edit)
+        string(text, edit)
     elseif last(editrange) == sizeof(text)
-        text = string(text[1:first(editrange)], edit)
+        string(text[1:first(editrange)], edit)
     else
-        text = string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
-    end    
+        string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
+    end
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
@@ -437,4 +573,106 @@ function try_to_load_parents(child_path, server)
             return try_to_load_parents(p, server)
         end
     end
+end
+
+#utils
+# whether to choose the lhs or rhs expr given insert `ch`
+function lhs_expr_boundary(lhs, rhs, ch::Char)
+    if isdigit(ch)
+        if typof(rhs) === CSTParser.LITERAL && (kindof(rhs) === CSTParser.Tokens.INTEGER || kindof(rhs) === CSTParser.Tokens.FLOAT)
+            return false
+        elseif typof(lhs) === CSTParser.LITERAL && (kindof(lhs) === CSTParser.Tokens.INTEGER || kindof(lhs) === CSTParser.Tokens.FLOAT) && lhs.span == lhs.fullspan
+            return true
+        else
+            # handle other numeric literals
+            # handle appending digit onto end of identifier lhs.span == lhs.fullspan
+        end
+    elseif ch === ' ' && lhs.span < lhs.fullspan
+        return true
+    end
+    # default to choosing rhs?
+    return false
+end
+
+# gets ultimate child node at offset, makes lhs/rhs decision when offset is
+# between exprs according to which expr will be modified by `ch`.
+# i.e.
+#  expr:     asdfsd + 123123
+#  edit:             ^^
+# 
+# e.g. will choose the lhs (`+ `) when ch is a space ` `but will choose the rhs
+# when ch is a digit
+function get_insert_expr(x, offset, ch, pos = 0)
+    if x.args === nothing
+        if offset == pos 
+            return x, 0
+        elseif pos < offset < pos + x.span 
+            return x, offset - pos
+        elseif offset == pos + x.span
+            return x, x.span
+        elseif pos + x.span < offset < pos + x.fullspan
+            return x, offset - pos
+        elseif offset == pos + x.fullspan
+            return x, x.fullspan
+        else
+            @warn "this had better be unreachable"
+            return x, offset - pos
+        end
+    elseif isempty(x.args)
+        return x, offset - pos
+    else
+        for i = 1:length(x.args)
+            arg = x.args[i]
+            if pos < offset < (pos + arg.span) # within expr body
+                return get_insert_expr(arg, offset, ch, pos)
+            elseif offset == pos # start of expr
+                if i == 1
+                    return get_insert_expr(arg, offset, ch, pos)
+                elseif lhs_expr_boundary(x.args[i-1], x.args[i], ch)
+                    return get_insert_expr(x.args[i-1], offset, ch, pos - x.args[i-1].fullspan)
+                else
+                    return get_insert_expr(x.args[i], offset, ch, pos)
+                end
+            elseif offset == pos + arg.span
+                if arg.span == arg.fullspan
+                    if i == length(x.args)
+                        return get_insert_expr(x.args[i], offset, ch, pos)
+                    else
+                        # continue to next expr
+                        # return get_expr2(x.args[i + 1], offset, text, pos + arg.fullspan)
+                    end
+                else
+                    return get_insert_expr(x.args[i], offset, ch, pos)
+                end
+            elseif offset == pos + arg.fullspan
+                if i == length(x.args)
+                    return get_insert_expr(x.args[i], offset, ch, pos)
+                else
+                    # continue to next expr
+                    # return get_expr2(x.args[i + 1], offset, text, pos + arg.fullspan)
+                end
+            elseif pos + arg.span < offset < pos + arg.fullspan
+                return get_insert_expr(x.args[i], offset, ch, pos)
+            end
+            pos += arg.fullspan
+        end
+        return nothing, pos
+    end
+end
+
+function get_deletion_expr(x::EXPR, offset_range::UnitRange{Int}, pos::Int = 0)
+    if x.args === nothing && pos <= first(offset_range) && last(offset_range) <= (pos + x.fullspan) # within expr body
+        return x, offset_range .- pos
+    elseif x.args === nothing || isempty(x.args)
+        return x, 1:0
+    else
+        for i in 1:length(x.args)
+            arg = x.args[i]
+            if pos <= first(offset_range) && last(offset_range) <= (pos + arg.fullspan) # within expr body
+                return get_deletion_expr(arg, offset_range, pos)
+            end
+            pos += arg.fullspan
+        end
+    end
+    return x, 1:0
 end

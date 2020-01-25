@@ -87,9 +87,8 @@ function send_notification(x::JSONRPCEndpoint, method::AbstractString, params)
 end
 
 function send_request(x::JSONRPCEndpoint, method::AbstractString, params)
-    @info "sending a request"
     id = string(UUIDs.uuid4())
-    message = Dict("jsonrpc"=>"2.0", "method"=>method, params=>params, "id"=>id)
+    message = Dict("jsonrpc"=>"2.0", "method"=>method, "params"=>params, "id"=>id)
 
     response_channel = Channel{Any}(1)
     x.outstanding_requests[id] = response_channel

@@ -33,37 +33,33 @@ function request_julia_config(server)
         (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
         ]))
     
-        # TODO Make sure update_julia_config can deal with the response
-    update_julia_config(response, server)
-end
-
-function update_julia_config(message_dict, server)
-    if length(message_dict["result"]) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
+    # TODO Make sure update_julia_config can deal with the response
+    if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
         server.format_options = DocumentFormat.FormatOptions(
-            message_dict["result"][1]===nothing ? 0 : message_dict["result"][1],
-            message_dict["result"][2]===nothing ? false : message_dict["result"][2],
-            message_dict["result"][3]===nothing ? false : message_dict["result"][3],
-            message_dict["result"][4]===nothing ? false : message_dict["result"][4],
-            message_dict["result"][5]===nothing ? false : message_dict["result"][5],
-            message_dict["result"][6]===nothing ? false : message_dict["result"][6],
-            message_dict["result"][7]===nothing ? false : message_dict["result"][7],
-            message_dict["result"][8]===nothing ? false : message_dict["result"][8],
-            message_dict["result"][9]===nothing ? false : message_dict["result"][9],
-            message_dict["result"][10]===nothing ? false : message_dict["result"][10],
-            message_dict["result"][11]===nothing ? false : message_dict["result"][11])
+            response[1]===nothing ? 0 : response[1],
+            response[2]===nothing ? false : response[2],
+            response[3]===nothing ? false : response[3],
+            response[4]===nothing ? false : response[4],
+            response[5]===nothing ? false : response[5],
+            response[6]===nothing ? false : response[6],
+            response[7]===nothing ? false : response[7],
+            response[8]===nothing ? false : response[8],
+            response[9]===nothing ? false : response[9],
+            response[10]===nothing ? false : response[10],
+            response[11]===nothing ? false : response[11])
         
         N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
-        x = message_dict["result"][N]
+        x = response[N]
         new_lint_opts = StaticLint.LintOptions(
-            message_dict["result"][N + 1]===nothing ? false : message_dict["result"][N + 1],
-            message_dict["result"][N + 2]===nothing ? false : message_dict["result"][N + 2],
-            message_dict["result"][N + 3]===nothing ? false : message_dict["result"][N + 3],
-            message_dict["result"][N + 4]===nothing ? false : message_dict["result"][N + 4],
-            message_dict["result"][N + 5]===nothing ? false : message_dict["result"][N + 5],
-            message_dict["result"][N + 6]===nothing ? false : message_dict["result"][N + 6],
-            message_dict["result"][N + 7]===nothing ? false : message_dict["result"][N + 7],
-            message_dict["result"][N + 8]===nothing ? false : message_dict["result"][N + 8],
-            message_dict["result"][N + 9]===nothing ? false : message_dict["result"][N + 9],
+            response[N + 1]===nothing ? false : response[N + 1],
+            response[N + 2]===nothing ? false : response[N + 2],
+            response[N + 3]===nothing ? false : response[N + 3],
+            response[N + 4]===nothing ? false : response[N + 4],
+            response[N + 5]===nothing ? false : response[N + 5],
+            response[N + 6]===nothing ? false : response[N + 6],
+            response[N + 7]===nothing ? false : response[N + 7],
+            response[N + 8]===nothing ? false : response[N + 8],
+            response[N + 9]===nothing ? false : response[N + 9],
         )
         
         new_run_lint_value = x===nothing ? false : true
@@ -79,7 +75,6 @@ function update_julia_config(message_dict, server)
         end
     end
 end
-
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)

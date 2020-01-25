@@ -44,9 +44,11 @@ mutable struct LanguageServerInstance
 
     combined_msg_queue::Channel{Any}
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "")
+    err_handler::Union{Nothing,Function}
+
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
         new(
-            JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out),
+            JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
             debug_mode,
@@ -60,7 +62,8 @@ mutable struct LanguageServerInstance
             deepcopy(SymbolServer.stdlibs),
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
-            Channel{Any}(Inf)
+            Channel{Any}(Inf),
+            err_handler
         )
     end
 end
@@ -80,7 +83,12 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             push!(server.symbol_results_channel, payload)
         end
     catch err
-        Base.display_error(stderr, err, catch_backtrace())
+        bt = catch_backtrace()
+        if server.err_handler!==nothing
+            server.err_handler(err, bt)
+        else
+            Base.display_error(stderr, err, bt)
+        end
     end
 end
 
@@ -100,7 +108,12 @@ function Base.run(server::LanguageServerInstance)
             put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
-        Base.display_error(stderr, err, catch_backtrace())
+        bt = catch_backtrace()
+        if server.err_handler!==nothing
+            server.err_handler(err, bt)
+        else
+            Base.display_error(stderr, err, bt)
+        end
     end
 
     @async try
@@ -109,7 +122,12 @@ function Base.run(server::LanguageServerInstance)
             put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
         end
     catch err
-        Base.display_error(stderr, err, catch_backtrace())
+        bt = catch_backtrace()
+        if server.err_handler!==nothing
+            server.err_handler(err, bt)
+        else
+            Base.display_error(stderr, err, bt)
+        end
     end
         
     while true

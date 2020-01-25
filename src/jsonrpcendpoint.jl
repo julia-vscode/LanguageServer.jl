@@ -13,8 +13,10 @@ mutable struct JSONRPCEndpoint
 
     outstanding_requests::Dict{String, Channel{Any}}
 
-    function JSONRPCEndpoint(pipe_in, pipe_out)
-        return new(pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String, Channel{Any}}())
+    err_handler::Union{Nothing,Function}
+
+    function JSONRPCEndpoint(pipe_in, pipe_out, err_handler=nothing)
+        return new(pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String, Channel{Any}}(), err_handler)
     end
 end
 
@@ -48,7 +50,12 @@ function Base.run(x::JSONRPCEndpoint)
             write_transport_layer(x.pipe_out, msg)
         end
     catch err
-        Base.display_error(stderr, err, catch_backtrace())
+        bt = catch_backtrace()
+        if x.err_handler!==nothing
+            x.err_handler(err, bt)
+        else
+            Base.display_error(stderr, err, bt)
+        end
     end
 
     @async try
@@ -72,7 +79,12 @@ function Base.run(x::JSONRPCEndpoint)
             end
         end
     catch err
-        Base.display_error(stderr, err, catch_backtrace())
+        bt = catch_backtrace()
+        if x.err_handler!==nothing
+            x.err_handler(err, bt)
+        else
+            Base.display_error(stderr, err, bt)
+        end
     end
 end
 

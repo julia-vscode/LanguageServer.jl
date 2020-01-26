@@ -75,8 +75,8 @@ function load_folder(path::String, server)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 filepath = joinpath(root, file)
-                if isvalidjlfile(filepath)
-                    (!isfile(filepath) || !hasreadperm(filepath)) && continue
+                if hasreadperm(filepath) && isvalidjlfile(filepath)
+                    !isfile(filepath) && continue
                     uri = filepath2uri(filepath)
                     if URI2(uri) in keys(server.documents)
                         continue

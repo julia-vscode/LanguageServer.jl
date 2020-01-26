@@ -75,8 +75,8 @@ function load_folder(path::String, server)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
                 filepath = joinpath(root, file)
-                if isvalidjlfile(filepath)
-                    (!isfile(filepath) || !hasreadperm(filepath)) && continue
+                if hasreadperm(filepath) && isvalidjlfile(filepath)
+                    !isfile(filepath) && continue
                     uri = filepath2uri(filepath)
                     if URI2(uri) in keys(server.documents)
                         continue
@@ -108,29 +108,32 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         end
     end
 
-    response = JSONRPC.Response(r.id, InitializeResult(serverCapabilities))
-    send(response, server)
+    return InitializeResult(serverCapabilities)
 end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
+    server.status=:running
+
     if server.workspaceFolders !== nothing
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server)
         end
     end
     request_julia_config(server)
+    
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
 
-    send(Dict("jsonrpc" => "2.0", "id" => "278352324", "method" => "client/registerCapability", "params" => Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")])), server)
-
-    send(Dict("jsonrpc" => "2.0", "id" => "98723548", "method" => "window/workDoneProgress/create", "params" => Dict("token" => "98237846234")), server)
+    if server.number_of_outstanding_symserver_requests > 0
+        create_symserver_progress_ui(server)
+    end
 end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
-    send(nothing, server)
+    return nothing
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params

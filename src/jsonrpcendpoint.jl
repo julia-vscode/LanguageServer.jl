@@ -89,7 +89,7 @@ function Base.run(x::JSONRPCEndpoint)
 end
 
 function send_notification(x::JSONRPCEndpoint, method::AbstractString, params)
-    message = Dict("jsonrpc"=>"2.0", "method"=>method, params=>params)
+    message = Dict("jsonrpc"=>"2.0", "method"=>method, "params"=>params)
 
     message_json = JSON.json(message)
 

@@ -46,6 +46,12 @@ mutable struct LanguageServerInstance
 
     err_handler::Union{Nothing,Function}
 
+    status::Symbol
+
+    number_of_outstanding_symserver_requests::Int
+
+    current_symserver_progress_token::Union{Nothing,String}
+
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
@@ -63,7 +69,10 @@ mutable struct LanguageServerInstance
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
             Channel{Any}(Inf),
-            err_handler
+            err_handler,
+            :created,
+            0,
+            nothing
         )
     end
 end
@@ -74,10 +83,34 @@ function Base.display(server::LanguageServerInstance)
     end
 end
 
+function create_symserver_progress_ui(server)
+    server.current_symserver_progress_token = string(uuid4())
+    response = JSONRPCEndpoints.send_request(server.jr_endpoint, "window/workDoneProgress/create", Dict("token" => server.current_symserver_progress_token))
+
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"begin", "title"=>"Julia Language Server", "message"=>"Indexing packages...")))
+end
+
+function destroy_symserver_progress_ui(server)
+    progress_token = server.current_symserver_progress_token
+    server.current_symserver_progress_token = nothing
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))    
+end
+
 function trigger_symbolstore_reload(server::LanguageServerInstance)
+    if server.number_of_outstanding_symserver_requests==0 && server.status==:running
+        create_symserver_progress_ui(server)
+    end
+    server.number_of_outstanding_symserver_requests += 1
+
     @async try
         # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
+
+        server.number_of_outstanding_symserver_requests -= 1
+
+        if server.number_of_outstanding_symserver_requests==0
+            destroy_symserver_progress_ui(server)
+        end
 
         if ssi_ret==:success
             push!(server.symbol_results_channel, payload)
@@ -100,6 +133,8 @@ end
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
+    server.status=:started
+
     run(server.jr_endpoint)
 
     trigger_symbolstore_reload(server)

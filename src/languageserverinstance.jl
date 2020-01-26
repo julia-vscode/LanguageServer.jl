@@ -81,6 +81,8 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
 
         if ssi_ret==:success
             push!(server.symbol_results_channel, payload)
+        elseif ssi_ret==:failure
+            error("The symbol server failed with '$(String(take!(payload)))'")
         end
     catch err
         bt = catch_backtrace()

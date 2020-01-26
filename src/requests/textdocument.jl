@@ -80,8 +80,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSave")},WillSav
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil")}}, params) = WillSaveTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSaveWaitUntil")},WillSaveTextDocumentParams}, server)
-    response = JSONRPC.Response(r.id, TextEdit[])
-    send(response, server)
+    return TextEdit[]
 end
 
 
@@ -319,19 +318,18 @@ end
 function publish_diagnostics(doc::Document, server)
     if server.runlinter
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
-        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, publishDiagnosticsParams)
     else
-        response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
     end
-    send(response, server)
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end
 
 
 function clear_diagnostics(uri::URI2, server)
     doc = server.documents[uri]
     empty!(doc.diagnostics)
-    response =  JSONRPC.Request{Val{Symbol("textDocument/publishDiagnostics")},PublishDiagnosticsParams}(nothing, PublishDiagnosticsParams(doc._uri, Diagnostic[]))
-    send(response, server)
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end 
 
 function clear_diagnostics(server)

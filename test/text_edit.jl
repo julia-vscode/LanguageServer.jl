@@ -1,9 +1,4 @@
 server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-@async run(server)
-t = time()
-while server.symbol_server isa Nothing && time() - t < 60
-    sleep(1)
-end
 
 mktempdir() do dir
 
@@ -12,7 +7,7 @@ mktempdir() do dir
 
     server.runlinter = true
     LanguageServer.process(parse(LanguageServer.JSONRPC.Request, LanguageServer.JSON.parse(initstr)), server)
-    LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("initialized")},Any}(0, nothing), server)
+    # LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("initialized")},Any}(0, nothing), server)
 
     function test_edit(server, text, s1, s2, insert)
         LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/didOpen")},LanguageServer.DidOpenTextDocumentParams}(0,LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("none", "julia", 0, text))), server)

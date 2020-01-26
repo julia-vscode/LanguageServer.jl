@@ -26,7 +26,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         # end
     end
 
-    send(JSONRPC.Response(r.id, commands), server)
+    return commands
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = ExecuteCommandParams(params) 
@@ -112,8 +112,8 @@ function explicitly_import_used_variables(x::EXPR, id, server)
     else
         return
     end
-    
-    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes))))), server)
+  
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
 end
 
 is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
@@ -128,7 +128,7 @@ function expand_inline_func(x, id, server)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
-        send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+        JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
     elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && body.args isa Vector{EXPR} && length(body.args) == 3 &&
         typof(body.args[2]) === CSTParser.Block && body.args[2].args isa Vector{EXPR}
         file, offset = get_file_loc(func)
@@ -140,7 +140,7 @@ function expand_inline_func(x, id, server)
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
-        send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+        JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
     end
 end
 
@@ -168,7 +168,7 @@ function add_default_constructor(x::EXPR, id, server)
     offset += last(block.args).span
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
 
-    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 function is_in_fexpr(x::EXPR, f)
@@ -210,7 +210,7 @@ function reexport_package(x::EXPR, id, server)
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
     ])
 
-    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 # TODO move to StaticLint
@@ -246,7 +246,7 @@ function reexport_module(x::EXPR, id, server)
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])
 
-    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 function wrap_block(x, id, server, type) end
@@ -261,5 +261,6 @@ function wrap_block(x::EXPR, id, server, type)
             TextEdit(Range(file, offset + x.span .+ (0:0)), "\nend")
         ])
     end
-    send(JSONRPC.Request{Val{Symbol("workspace/applyEdit")},ApplyWorkspaceEditParams}(id, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde]))), server)
+
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end

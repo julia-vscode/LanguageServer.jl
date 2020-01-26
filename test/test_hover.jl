@@ -1,17 +1,7 @@
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-@async run(server)
-t = time()
-while server.symbol_server isa Nothing && time() - t < 60
-    sleep(1)
-end
-
 server.runlinter = true
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse(init_request)), server)
 
-function getresult(server)
-    str = String(take!(server.pipe_out))
-    JSON.parse(str[findfirst("{", str)[1]:end])["result"]["contents"]
-end
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, Dict("jsonrpc"=>"2.0","id"=>0,"method"=>"initialize","params"=>init_request)), server)
 
 testtext = """
 module testmodule
@@ -31,23 +21,12 @@ LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/d
 doc = server.documents[LanguageServer.URI2("testdoc")]
 LanguageServer.parse_all(doc, server)
 
-sleep(1)
-# clear init output
-take!(server.pipe_out)
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":11}}}""")), server)
-sleep(1)
-res = getresult(server)
+res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":11}}}""")), server)
+@test res.contents.value == LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc)
 
-@test res["value"] == LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc)
+res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":12}}}""")), server)
+@test occursin(r"c::testtype", res.contents.value)
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":12}}}""")), server)
-sleep(1)
-res = getresult(server)
-@test occursin(r"c::testtype", res["value"])
-
-
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":9,"character":1}}}""")), server)
-sleep(1)
-res = getresult(server)
-@test res["value"] == "Closes `ModuleH` expression."
+res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":9,"character":1}}}""")), server)
+@test res.contents.value == "Closes `ModuleH` expression."

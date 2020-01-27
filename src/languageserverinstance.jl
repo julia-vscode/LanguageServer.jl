@@ -193,7 +193,7 @@ function Base.run(server::LanguageServerInstance)
             msg = message.msg
 
             server.symbol_store = msg
-
+            roots = Document[]
             for (uri, doc) in server.documents
                 # only do a pass on documents once
                 root = getroot(doc)

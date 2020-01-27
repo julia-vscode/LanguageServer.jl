@@ -108,9 +108,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         end
     end
     
-    @info r.params.capabilities.window["workDoneProgress"]
-    @info typeof(r.params.capabilities.window["workDoneProgress"])
-
     if !ismissing(r.params.capabilities.window) && get(r.params.capabilities.window, "workDoneProgress", false)
         server.clientcapability_window_workdoneprogress = true
     else

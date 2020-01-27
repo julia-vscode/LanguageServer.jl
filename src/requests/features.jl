@@ -61,9 +61,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
     end
     if (isempty(sigs) || (typof(x) === CSTParser.PUNCTUATION  && kindof(x) === CSTParser.Tokens.RPAREN))
-        # TODO Is this an error? Or should we return an empty result here?
-        error("Unclear what should happen here.")
-        # return send(JSONRPC.Response(r.id, CancelParams(Dict("id" => r.id))), server)
+        return SignatureHelp(SignatureInformation[], 0, 0)
     end
 
     if typof(x) === CSTParser.Tokens.LPAREN

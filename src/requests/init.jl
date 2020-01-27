@@ -114,14 +114,20 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
+    server.status=:running
+
     if server.workspaceFolders !== nothing
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server)
         end
     end
     request_julia_config(server)
-
+    
     JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
+
+    if server.number_of_outstanding_symserver_requests > 0
+        create_symserver_progress_ui(server)
+    end
 end
 
 

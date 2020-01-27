@@ -161,6 +161,7 @@ end
 @dict_readable struct ClientCapabilities
     workspace::Union{WorkspaceClientCapabilities,Missing}
     textDocument::Union{TextDocumentClientCapabilities,Missing}
+    window::Union{Any,Missing}
     experimental::Union{Any,Missing}
 end
 

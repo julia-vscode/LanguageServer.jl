@@ -107,6 +107,12 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
     end
+    
+    if !ismissing(r.params.capabilities.window) && get(r.params.capabilities.window, "workDoneProgress", false)
+        server.clientcapability_window_workdoneprogress = true
+    else
+        server.clientcapability_window_workdoneprogress = false
+    end
 
     return InitializeResult(serverCapabilities)
 end

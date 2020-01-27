@@ -52,6 +52,8 @@ mutable struct LanguageServerInstance
 
     current_symserver_progress_token::Union{Nothing,String}
 
+    clientcapability_window_workdoneprogress::Bool
+
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
@@ -72,7 +74,8 @@ mutable struct LanguageServerInstance
             err_handler,
             :created,
             0,
-            nothing
+            nothing,
+            false
         )
     end
 end
@@ -84,16 +87,20 @@ function Base.display(server::LanguageServerInstance)
 end
 
 function create_symserver_progress_ui(server)
-    server.current_symserver_progress_token = string(uuid4())
-    response = JSONRPCEndpoints.send_request(server.jr_endpoint, "window/workDoneProgress/create", Dict("token" => server.current_symserver_progress_token))
+    if server.clientcapability_window_workdoneprogress
+        server.current_symserver_progress_token = string(uuid4())
+        response = JSONRPCEndpoints.send_request(server.jr_endpoint, "window/workDoneProgress/create", Dict("token" => server.current_symserver_progress_token))
 
-    JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"begin", "title"=>"Julia Language Server", "message"=>"Indexing packages...")))
+        JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"begin", "title"=>"Julia Language Server", "message"=>"Indexing packages...")))
+    end
 end
 
 function destroy_symserver_progress_ui(server)
-    progress_token = server.current_symserver_progress_token
-    server.current_symserver_progress_token = nothing
-    JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))    
+    if server.clientcapability_window_workdoneprogress
+        progress_token = server.current_symserver_progress_token
+        server.current_symserver_progress_token = nothing
+        JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))
+    end
 end
 
 function trigger_symbolstore_reload(server::LanguageServerInstance)
@@ -190,6 +197,7 @@ function Base.run(server::LanguageServerInstance)
                 end
             end        
         elseif message.type==:symservmsg
+            @info "Received new data from Julia Symbol Server."
             msg = message.msg
 
             server.symbol_store = msg

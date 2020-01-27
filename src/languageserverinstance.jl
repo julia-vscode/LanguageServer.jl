@@ -197,6 +197,7 @@ function Base.run(server::LanguageServerInstance)
                 end
             end        
         elseif message.type==:symservmsg
+            @info "Received new data from Julia Symbol Server."
             msg = message.msg
 
             server.symbol_store = msg

@@ -3,8 +3,10 @@ import URIParser
 using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
+using UUIDs
 export LanguageServerInstance
 
+include("jsonrpcendpoint.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")
 include("document.jl")

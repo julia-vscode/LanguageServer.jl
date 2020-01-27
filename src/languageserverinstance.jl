@@ -159,10 +159,18 @@ function Base.run(server::LanguageServerInstance)
 
             server.symbol_store = msg
 
-            # TODO should probably re-run linting
-
             for (uri, doc) in server.documents
-                parse_all(doc, server)
+                # only do a pass on documents once
+                root = getroot(doc)
+                if !(root in roots)
+                    push!(roots, root)
+                    scopepass(root, doc)
+                end
+
+                StaticLint.check_all(getcst(doc), server.lint_options, server)
+                empty!(doc.diagnostics)
+                mark_errors(doc, doc.diagnostics)
+                publish_diagnostics(doc, server)
             end
         end
     end

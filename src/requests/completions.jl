@@ -225,6 +225,8 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
         if refof(px) isa StaticLint.Binding
             if refof(px).val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(refof(px).val, spartial, rng, CIs, server, true)
+            elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
+                collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fields
                     if startswith(a, spartial)
@@ -237,8 +239,6 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end])))
                     end
                 end
-            elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).type.val), spartial, rng, CIs, server, true)
             end

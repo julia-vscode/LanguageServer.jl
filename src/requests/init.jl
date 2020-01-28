@@ -70,27 +70,49 @@ function load_folder(wf::WorkspaceFolder, server)
     load_folder(path, server)
 end
 
-function load_folder(path::String, server)
-    if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
-            for file in files
-                filepath = joinpath(root, file)
-                if hasreadperm(filepath) && isvalidjlfile(filepath)
-                    !isfile(filepath) && continue
-                    uri = filepath2uri(filepath)
-                    if URI2(uri) in keys(server.documents)
-                        continue
-                    else
-                        content = read(filepath, String)
-                        server.documents[URI2(uri)] = Document(uri, content, true, server)
-                        doc = server.documents[URI2(uri)]
-                        parse_all(doc, server)
-                    end
+function load_folder(dir::String, server)
+    if !isempty(dir) && isdir(dir) && hasreadperm(dir) && !has_too_many_files(dir)
+        for file in readdir(dir)
+            filepath = joinpath(dir, file)
+            !hasreadperm(filepath) && continue
+            if isfile(filepath) && isvalidjlfile(filepath)
+                uri = filepath2uri(filepath)
+                if URI2(uri) in keys(server.documents)
+                    continue
+                else
+                    content = read(filepath, String)
+                    server.documents[URI2(uri)] = Document(uri, content, true, server)
+                    doc = server.documents[URI2(uri)]
+                    parse_all(doc, server)
                 end
+            elseif isdir(filepath)
+                load_folder(filepath, server)
             end
         end
     end
 end
+
+# function load_folder(path::String, server)
+#     if load_rootpath(path)
+#         for (root, dirs, files) in walkdir(path, onerror = x->x)
+#             for file in files
+#                 filepath = joinpath(root, file)
+#                 if hasreadperm(filepath) && isvalidjlfile(filepath)
+#                     !isfile(filepath) && continue
+#                     uri = filepath2uri(filepath)
+#                     if URI2(uri) in keys(server.documents)
+#                         continue
+#                     else
+#                         content = read(filepath, String)
+#                         server.documents[URI2(uri)] = Document(uri, content, true, server)
+#                         doc = server.documents[URI2(uri)]
+#                         parse_all(doc, server)
+#                     end
+#                 end
+#             end
+#         end
+#     end
+# end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params) = InitializeParams(params)

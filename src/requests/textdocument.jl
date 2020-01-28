@@ -390,11 +390,13 @@ end
 function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
     drop<1 && return parents
     !isdir(dir) && return parents
+    !hasreadperm(dir) && return parents
     for f in readdir(dir)
-        if endswith(f, ".jl")
+        fpath = joinpath(dir, f)
+        if endswith(f, ".jl") && hasreadperm(fpath) && isvalidjlfile(fpath)
             # Could be sped up?
-            s = read(joinpath(dir, f), String)
-            occursin(file, s) && push!(parents, joinpath(dir, f))
+            s = read(fpath, String)
+            occursin(file, s) && push!(parents, fpath)
         end
     end
     search_for_parent(splitdir(dir)[1], file, drop - 1, parents)

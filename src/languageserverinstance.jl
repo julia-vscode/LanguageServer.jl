@@ -182,20 +182,11 @@ function Base.run(server::LanguageServerInstance)
 
             request = parse(JSONRPC.Request, msg)
 
-            try
-                res = process(request, server)
+            res = process(request, server)
 
-                if request.id!=nothing
-                    JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
-                end
-            catch err
-                Base.display_error(stderr, err, catch_backtrace())
-
-                if request.id!=nothing
-                    # TODO Make sure this is right
-                    JSONRPCEndpoints.send_error_response(server.jr_endpoint, msg, res)
-                end
-            end        
+            if request.id!=nothing
+                JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
+            end
         elseif message.type==:symservmsg
             @info "Received new data from Julia Symbol Server."
             msg = message.msg

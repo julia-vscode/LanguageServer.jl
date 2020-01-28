@@ -65,7 +65,11 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     io = IOBuffer(get_text(doc))
     seek(io, line_offsets[line + 1])
     while character > 0
-        c = read(io, Char)
+        try
+            c = read(io, Char)
+        catch err
+            error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(get_text(doc))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
+        end
         character -= 1
         if UInt32(c) >= 0x010000
             character -= 1

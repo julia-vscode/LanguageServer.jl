@@ -63,26 +63,26 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     c = ' '
     line_offsets = get_line_offsets(doc)
     io = IOBuffer(get_text(doc))
-    seek(io, line_offsets[line + 1])
-    while character > 0
-        try
+    try
+        seek(io, line_offsets[line + 1])
+        while character > 0        
             c = read(io, Char)
-        catch err
-            error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(get_text(doc))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
-        end
-        character -= 1
-        if UInt32(c) >= 0x010000
             character -= 1
+            if UInt32(c) >= 0x010000
+                character -= 1
+            end
         end
-    end
-    if UInt32(c) < 0x0080
-        return position(io)
-    elseif UInt32(c) < 0x0800
-        return position(io) - 1
-    elseif UInt32(c) < 0x010000
-        return position(io) - 2
-    else
-        return position(io) - 3
+        if UInt32(c) < 0x0080
+            return position(io)
+        elseif UInt32(c) < 0x0800
+            return position(io) - 1
+        elseif UInt32(c) < 0x010000
+            return position(io) - 2
+        else
+            return position(io) - 3
+        end
+    catch err
+        error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(get_text(doc))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
     end
 end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)

@@ -104,9 +104,6 @@ function get_toks(doc, offset)
     ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
-    if offset > length(get_text(doc))
-        offset = sizeof(get_text(doc)) - 1
-    end
 
     while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
         if t.startbyte < offset <= t.endbyte + 1

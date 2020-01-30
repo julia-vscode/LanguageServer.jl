@@ -316,7 +316,7 @@ function mark_errors(doc, out = Diagnostic[])
 end
 
 function publish_diagnostics(doc::Document, server)
-    if server.runlinter
+    if server.runlinter && server.symbol_store_ready
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])

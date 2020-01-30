@@ -38,6 +38,7 @@ mutable struct LanguageServerInstance
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{String,SymbolServer.ModuleStore}
+    symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
@@ -68,6 +69,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
+            false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
             Channel{Any}(Inf),
@@ -104,6 +106,7 @@ function destroy_symserver_progress_ui(server)
 end
 
 function trigger_symbolstore_reload(server::LanguageServerInstance)
+    server.symbol_store_ready = false
     if server.number_of_outstanding_symserver_requests==0 && server.status==:running
         create_symserver_progress_ui(server)
     end
@@ -124,6 +127,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         elseif ssi_ret==:failure
             error("The symbol server failed with '$(String(take!(payload)))'")
         end
+        server.symbol_store_ready = true
     catch err
         bt = catch_backtrace()
         if server.err_handler!==nothing

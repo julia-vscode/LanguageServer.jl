@@ -26,7 +26,7 @@ end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockRange")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlocktRange")}}, server)
+function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         error("Received 'julia/getCurrentBlockRange for non-existing document.")
     end

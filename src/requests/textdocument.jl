@@ -375,7 +375,7 @@ function parse_jmd(ps, str)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
             push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
 
-            args, ps = parse(ps, true)
+            args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
@@ -408,7 +408,7 @@ function is_parentof(parent_path, child_path, server)
     # load parent file
     puri = filepath2uri(parent_path)
     pdoc = server.documents[URI2(puri)] = Document(puri, read(parent_path, String), false, server)
-    parse_all
+
     CSTParser.parse(get_text(pdoc))
     if typof(pdoc.cst) === CSTParser.FileH
         pdoc.cst.val = pdoc.path

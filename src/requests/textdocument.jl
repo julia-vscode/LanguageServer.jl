@@ -390,8 +390,9 @@ end
 function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
     drop<1 && return parents
     !isdir(dir) && return parents
+    !hasreadperm(dir) && return parents
     for f in readdir(dir)
-        if endswith(f, ".jl")
+        if isvalidjlfile(joinpath(dir, f))
             # Could be sped up?
             s = read(joinpath(dir, f), String)
             occursin(file, s) && push!(parents, joinpath(dir, f))
@@ -403,7 +404,7 @@ end
 
 
 function is_parentof(parent_path, child_path, server)
-    !(hasreadperm(parent_path) && isvalidjlfile(parent_path)) && return false
+    !isvalidjlfile(parent_path) && return false
     previous_server_docs = collect(keys(server.documents)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)

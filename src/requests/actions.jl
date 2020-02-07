@@ -1,5 +1,8 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
+    if !haskey(server.documents, URI2(r.params.textDocument.uri))
+        error("Received 'textDocument/action for non-existing document.")
+    end
     commands = Command[]
     doc = server.documents[URI2(r.params.textDocument.uri)] 
     offset = get_offset(doc, r.params.range.start)

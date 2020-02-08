@@ -482,7 +482,7 @@ function parse_jmd(ps, str)
             push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
         end
     end
-    top = EXPR(CSTParser.Block, EXPR[])
+    top = EXPR(CSTParser.FileH, EXPR[])
     if isempty(blocks)
         return top, ps
     end

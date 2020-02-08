@@ -49,6 +49,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
             rng = Range(doc, offset:offset)
             collect_completions(x, spartial, rng, CIs, server, false)
         end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end
+        collect_completions(x, "in", rng, CIs, server, false)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end
+        collect_completions(x, "isa", rng, CIs, server, false)
     end
 
     return CompletionList(true, unique(CIs))
@@ -75,6 +79,7 @@ function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
     length(spartial) == 0 && return
     fc = first(spartial)
     if startswith("abstract", spartial)
+        push!(CIs, CompletionItem("abstract", 14, "abstract", TextEdit(Range(doc, offset:offset), "abstract type \$0 end"[length(spartial) + 1:end])))
     elseif fc == 'b'
         if startswith("baremodule", spartial)
             push!(CIs, CompletionItem("baremodule", 14, "baremodule", TextEdit(Range(doc, offset:offset), "baremodule \$0\nend"[length(spartial) + 1:end])))
@@ -181,10 +186,10 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v === nothing && return 
         end
         if n in m.exported || inclexported
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
         elseif dotcomps
             rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop)
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(v.doc), TextEdit(rng1, string(m.name, ".", n)))) 
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
         end
     end
 end

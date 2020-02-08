@@ -451,7 +451,7 @@ function mark_errors(doc, out = Diagnostic[])
 end
 
 function publish_diagnostics(doc::Document, server)
-    if server.runlinter
+    if server.runlinter && server.symbol_store_ready
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
@@ -510,7 +510,7 @@ function parse_jmd(ps, str)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
             push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
 
-            args, ps = parse(ps, true)
+            args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
@@ -525,8 +525,9 @@ end
 function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
     drop<1 && return parents
     !isdir(dir) && return parents
+    !hasreadperm(dir) && return parents
     for f in readdir(dir)
-        if endswith(f, ".jl")
+        if isvalidjlfile(joinpath(dir, f))
             # Could be sped up?
             s = read(joinpath(dir, f), String)
             occursin(file, s) && push!(parents, joinpath(dir, f))
@@ -538,12 +539,12 @@ end
 
 
 function is_parentof(parent_path, child_path, server)
-    !(hasreadperm(parent_path) && isvalidjlfile(parent_path)) && return false
+    !isvalidjlfile(parent_path) && return false
     previous_server_docs = collect(keys(server.documents)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)
     pdoc = server.documents[URI2(puri)] = Document(puri, read(parent_path, String), false, server)
-    parse_all
+
     CSTParser.parse(get_text(pdoc))
     if typof(pdoc.cst) === CSTParser.FileH
         pdoc.cst.val = pdoc.path

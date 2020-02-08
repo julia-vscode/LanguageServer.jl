@@ -38,6 +38,7 @@ mutable struct LanguageServerInstance
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{String,SymbolServer.ModuleStore}
+    symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
@@ -68,6 +69,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
+            false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
             Channel{Any}(Inf),
@@ -104,6 +106,7 @@ function destroy_symserver_progress_ui(server)
 end
 
 function trigger_symbolstore_reload(server::LanguageServerInstance)
+    server.symbol_store_ready = false
     if server.number_of_outstanding_symserver_requests==0 && server.status==:running
         create_symserver_progress_ui(server)
     end
@@ -124,6 +127,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         elseif ssi_ret==:failure
             error("The symbol server failed with '$(String(take!(payload)))'")
         end
+        server.symbol_store_ready = true
     catch err
         bt = catch_backtrace()
         if server.err_handler!==nothing
@@ -182,20 +186,11 @@ function Base.run(server::LanguageServerInstance)
 
             request = parse(JSONRPC.Request, msg)
 
-            try
-                res = process(request, server)
+            res = process(request, server)
 
-                if request.id!=nothing
-                    JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
-                end
-            catch err
-                Base.display_error(stderr, err, catch_backtrace())
-
-                if request.id!=nothing
-                    # TODO Make sure this is right
-                    JSONRPCEndpoints.send_error_response(server.jr_endpoint, msg, res)
-                end
-            end        
+            if request.id!=nothing
+                JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
+            end
         elseif message.type==:symservmsg
             @info "Received new data from Julia Symbol Server."
             msg = message.msg

@@ -25,10 +25,10 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, se
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange")}}, server)
+JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockRange")}}, params) = TextDocumentPositionParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},TextDocumentPositionParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'julia/getCurrentBlockOffsetRange for non-existing document.")
+        error("Received 'julia/getCurrentBlockRange for non-existing document.")
     end
     tdpp = r.params
     doc = server.documents[URI2(tdpp.textDocument.uri)]
@@ -69,10 +69,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockOffsetRange
             loc += a.fullspan
         end
     end
-    # p1 : byte position of start of expression
-    # p2 : byte position of end of expression
-    # p3 : byte position of end of trailing whitespace of expression
-    return (isempty(get_text(doc)) ? 0 : length(get_text(doc), 1, max(1, p1)), length(get_text(doc), 1, p3), length(get_text(doc), 1, p3))
+    return Position((get_position_at(doc, p1) .- (0, 1))...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) = params

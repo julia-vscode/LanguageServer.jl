@@ -64,7 +64,7 @@ d6 = Document("untitled", s6, false)
     LS.applytextdocumentchanges(doc, c3)
     @test LS.get_text(doc) == "println(\"Hello World\")"
     # doc currently has only one line, applying change to 2nd line should throw
-    @test_throws BoundsError LS.applytextdocumentchanges(doc, c2)
+    @test_throws ErrorException LS.applytextdocumentchanges(doc, c2)
 end
 
 @testset "UTF16 handling" begin

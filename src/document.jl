@@ -63,27 +63,54 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     c = ' '
     line_offsets = get_line_offsets(doc)
     io = IOBuffer(get_text(doc))
-    seek(io, line_offsets[line + 1])
-    while character > 0
-        c = read(io, Char)
-        character -= 1
-        if UInt32(c) >= 0x010000
+    try
+        seek(io, line_offsets[line + 1])
+        while character > 0        
+            c = read(io, Char)
             character -= 1
+            if UInt32(c) >= 0x010000
+                character -= 1
+            end
         end
-    end
-    if UInt32(c) < 0x0080
-        return position(io)
-    elseif UInt32(c) < 0x0800
-        return position(io) - 1
-    elseif UInt32(c) < 0x010000
-        return position(io) - 2
-    else
-        return position(io) - 3
+        if UInt32(c) < 0x0080
+            return position(io)
+        elseif UInt32(c) < 0x0800
+            return position(io) - 1
+        elseif UInt32(c) < 0x010000
+            return position(io) - 2
+        else
+            return position(io) - 3
+        end
+    catch err
+        error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
     end
 end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
+# Note: to be removed
+function obscure_text(s)
+    i = 1
+    io = IOBuffer()
+    while i <= sizeof(s)
+        di = nextind(s, i) - i
+        if di == 1
+            if s[i] in ('\n', '\r')
+                write(io, s[i])
+            else
+                write(io, "a")
+            end
+        elseif di == 2
+            write(io, "α")
+        elseif di == 3
+            write(io, "—")
+        else
+            write(io, s[i])
+        end
+        i += di
+    end
+    s1 = String(take!(io))
+end
 
 """
     get_line_offsets(doc::Document)

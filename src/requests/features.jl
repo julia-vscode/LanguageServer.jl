@@ -48,11 +48,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
                     get_signatures(f_binding, sigs, server)
                     f_binding = f_binding.prev
                 elseif refof(call_name) isa SymbolServer.FunctionStore
-                    for m in refof(call_name).methods
+                    tls = StaticLint.retrieve_toplevel_scope(call_name)
+                    function ff(m)
                         sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
                         params = (a->ParameterInformation(a[1], missing)).(m.args)
                         push!(sigs, SignatureInformation(sig, "", params))
+                        return false
                     end
+                    StaticLint.iterate_over_ss_methods(refof(call_name), tls, server, ff)
                     break
                 else
                     break
@@ -83,12 +86,15 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
         b = refof(x)
+        tls = StaticLint.retrieve_toplevel_scope(x)
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
-            for m in b.methods
-                if isfile(m.file)
+            function ff(m) 
+                if isfile(m.file) 
                     push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
                 end
+                return false
             end
+            StaticLint.iterate_over_ss_methods(b, tls, server, ff)
         elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
             b = b.val
         end
@@ -100,11 +106,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
                 end
             elseif b.val isa SymbolServer.FunctionStore
-                for m in b.val.methods
+                function ff1(m)
                     file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-                    ((file, m.line) == DefaultTypeConstructorLoc || file == nothing) && continue
+                    ((file, m.line) == DefaultTypeConstructorLoc || file == nothing) && return
                     push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
+                    return false
                 end
+                StaticLint.iterate_over_ss_methods(b.val, tls, server, ff1)
             end
             if b.type == StaticLint.CoreTypes.Function && b.prev isa StaticLint.Binding && (b.prev.type == Function || b.prev.type == StaticLint.CoreTypes.DataType)
                 b = b.prev

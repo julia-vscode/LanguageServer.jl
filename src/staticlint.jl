@@ -1,4 +1,4 @@
-import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver
+import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver, getsymbolextendeds
 import StaticLint: getpath, setpath, getroot, setroot, getcst, setcst, scopepass, getserver, setserver
 hasfile(server::LanguageServerInstance, path::String) = haskey(server.documents, URI2(filepath2uri(path)))
 canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
@@ -11,6 +11,7 @@ end
 setfile(server::LanguageServerInstance, path::String, x::Document) = server.documents[URI2(filepath2uri(path))] = x
 getfile(server::LanguageServerInstance, path::String) = server.documents[URI2(filepath2uri(path))]
 getsymbolserver(server::LanguageServerInstance) = server.symbol_store
+getsymbolextendeds(server::LanguageServerInstance) = server.symbol_extendeds
 
 getpath(d::Document) = d.path
 function setpath(d::Document, path::String)

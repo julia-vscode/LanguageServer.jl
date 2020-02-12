@@ -210,7 +210,7 @@ function reexport_package(x::EXPR, id, server)
     insertpos == -1 && return 
     
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([n for (n,v) in refof(x).val.vals if v.exported]), ", "), "\n"))
     ])
 
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))

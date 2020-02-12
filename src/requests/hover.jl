@@ -22,6 +22,13 @@ function get_hover(x::EXPR, documentation, server)
         if refof(x) isa StaticLint.Binding
             documentation = get_hover(refof(x), documentation, server)
         elseif refof(x) isa SymbolServer.SymStore
+            # add documentation from extended function
+            if refof(x) isa SymbolServer.FunctionStore && refof(x).extends !== nothing
+                rootmod = SymbolServer._lookup(refof(x).extends.mod, getsymbolserver(server))
+                if haskey(rootmod.vals, refof(x).extends.name)
+                    documentation = string(documentation, rootmod.vals[refof(x).extends.name].doc)
+                end
+            end
             documentation = string(documentation, refof(x).doc)
         end
     end
@@ -42,6 +49,13 @@ function get_hover(b::StaticLint.Binding, documentation, server)
                         documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
                     end
                 elseif b.val isa SymbolServer.SymStore
+                    # add documentation from extended function
+                    if b.val isa SymbolServer.FunctionStore && b.val.extends !== nothing
+                        rootmod = SymbolServer._lookup(b.val.extends.mod, getsymbolserver(server))
+                        if haskey(rootmod.vals, b.val.extends.name)
+                            documentation = string(documentation, rootmod.vals[b.val.extends.name].doc)
+                        end
+                    end
                     documentation = string(documentation, b.val.doc)
                 else
                     break

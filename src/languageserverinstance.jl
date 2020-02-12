@@ -38,6 +38,7 @@ mutable struct LanguageServerInstance
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{String,SymbolServer.ModuleStore}
+    symbol_extendeds::Dict{SymbolServer.TypeRef,Vector{SymbolServer.PackageRef}}
     symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
@@ -69,6 +70,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
+            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
@@ -196,6 +198,7 @@ function Base.run(server::LanguageServerInstance)
             msg = message.msg
 
             server.symbol_store = msg
+            server.symbol_extendeds = SymbolServer.collect_extended_methods(server.symbol_store)
             roots = Document[]
             for (uri, doc) in server.documents
                 # only do a pass on documents once

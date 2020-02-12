@@ -185,7 +185,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v = SymbolServer._lookup(v, getsymbolserver(server))
             v === nothing && return 
         end
-        if n in m.exported || inclexported
+        if v.exported || inclexported
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
         elseif dotcomps
             rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop)

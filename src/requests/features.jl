@@ -134,7 +134,7 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     end
     if parentof(x) !== nothing
         return get_file_loc(parentof(x), offset, x)
-    elseif typof(x) === CSTParser.FileH
+    elseif typof(x) === CSTParser.FileH && StaticLint.hasmeta(x)
         # return x.ref, offset
         return x.meta.error, offset
     else

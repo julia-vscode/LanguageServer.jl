@@ -131,7 +131,7 @@ function send_success_response(endpoint, original_request, result)
     put!(endpoint.out_msg_queue, response_json)
 end
 
-function send_error_response(endpoint, origina_request, code, message, data)
+function send_error_response(endpoint, original_request, code, message, data)
     response = Dict("jsonrpc"=>"2.0", "id"=>original_request["id"], "error"=>Dict("code"=>code, "message"=>message, "data"=>data))
 
     response_json = JSON.json(response)

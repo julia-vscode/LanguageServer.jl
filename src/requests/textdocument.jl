@@ -516,7 +516,7 @@ function parse_jmd(ps, str)
             currentbyte = top.fullspan + 1
         end
     end
-    prec_str_size = currentbyte:sizeof(str)
+    prec_str_size = currentbyte:lastindex(str)
     push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
 
     return top, ps

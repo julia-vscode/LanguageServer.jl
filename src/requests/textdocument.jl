@@ -177,7 +177,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     end
 end
 
-insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0)
+insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0) # OK, used to adjust EXPR spans
 
 function cst_len(x, i1 = 1, i2 = length(x.args))
     n = 0
@@ -234,13 +234,13 @@ end
 function edit_string(text, editrange, edit)
     if first(editrange) == last(editrange) == 0
         text = string(edit, text)
-    elseif first(editrange) == 0 && last(editrange) == sizeof(text)
+    elseif first(editrange) == 0 && last(editrange) == sizeof(text) # OK, this branch is probably not needed
         text = edit
     elseif first(editrange) == 0
         text = string(edit, text[nextind(text, last(editrange)):end])
-    elseif first(editrange) == last(editrange) == sizeof(text)
+    elseif first(editrange) == last(editrange) == sizeof(text) # OK, this branch is probably not needed
         text = string(text, edit)
-    elseif last(editrange) == sizeof(text)
+    elseif last(editrange) == sizeof(text) # OK, this branch is probably not needed
         text = string(text[1:first(editrange)], edit)
     else
         text = string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
@@ -368,7 +368,7 @@ function parse_jmd(ps, str)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
-            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]) , "", CSTParser.Tokens.STRING))
+            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
@@ -379,7 +379,7 @@ function parse_jmd(ps, str)
             ps = CSTParser.ParseState(blockstr)
             CSTParser.next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
@@ -387,8 +387,9 @@ function parse_jmd(ps, str)
             currentbyte = top.fullspan + 1
         end
     end
-    prec_str_size = currentbyte:lastindex(str)
-    push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+
+    prec_str_size = currentbyte:sizeof(str) # OK
+    push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
     return top, ps
 end

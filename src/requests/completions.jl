@@ -68,8 +68,8 @@ function latex_completions(doc, offset, partial, CIs)
     partial = string("\\", partial)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "")
-            t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v)
+            t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
+            t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
             push!(CIs, CompletionItem(k[2:end], 11, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
         end
     end
@@ -186,9 +186,9 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v === nothing && return 
         end
         if n in m.exported || inclexported
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) 
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
         elseif dotcomps
-            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop)
+            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact 
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
         end
     end
@@ -219,7 +219,7 @@ function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, in
                     documentation = get_hover(n[2], documentation, server)
                     sanitize_docstring(documentation)
                 end
-                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end])))
+                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
             end
         end
     end
@@ -235,13 +235,13 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fields
                     if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end])))
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fields
                     if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end])))
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
@@ -366,7 +366,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
             else
                 for (n,m) in StaticLint.getsymbolserver(server)
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end])))
+                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             end

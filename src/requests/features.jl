@@ -113,7 +113,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
-        if sizeof(valof(x)) < 256
+        if sizeof(valof(x)) < 256 # AUDIT: OK
             if isfile(valof(x))
                 push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
             elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
@@ -149,7 +149,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     end
     doc = server.documents[URI2(r.params.textDocument.uri)]
     newcontent = DocumentFormat.format(get_text(doc), server.format_options)
-    end_l, end_c = get_position_at(doc, sizeof(get_text(doc)))
+    end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits

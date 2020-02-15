@@ -254,7 +254,6 @@ end
 
 function wrap_block(x, id, server, type) end
 function wrap_block(x::EXPR, id, server, type)
-    @info 2
     file, offset = get_file_loc(x) # rese
     l0, _ = get_position_at(file, offset)
     l1, _ = get_position_at(file, offset + x.span)

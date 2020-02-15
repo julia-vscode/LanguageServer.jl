@@ -1,5 +1,6 @@
 const serverCapabilities = ServerCapabilities(
-    TextDocumentSyncKinds["Incremental"],
+    # TextDocumentSyncKinds["Incremental"],
+    TextDocumentSyncOptions(true, TextDocumentSyncKinds["Incremental"], false, false, SaveOptions(true)),
     true,
     CompletionOptions(false, ["."]),
     SignatureHelpOptions(["(", ","]),

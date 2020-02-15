@@ -70,6 +70,12 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params) = DidS
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = server.documents[URI2(uri)]
+    if r.params.text isa String
+        if get_text(doc) != r.params.text
+            error("Mismatch between server and client text for $(doc._uri).")
+            # set_text!(doc, r.params.text)
+        end
+    end
     parse_all(doc, server)
 end
 

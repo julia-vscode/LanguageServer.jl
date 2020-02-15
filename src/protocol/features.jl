@@ -1,5 +1,6 @@
 struct PublishDiagnosticsParams <: Outbound
     uri::DocumentUri
+    version::Union{Int,Missing}
     diagnostics::Vector{Diagnostic}
 end
 

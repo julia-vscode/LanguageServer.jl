@@ -3,3 +3,4 @@
 *.jl.mem
 cache/docs.cache
 .vscode
+Manifest.toml

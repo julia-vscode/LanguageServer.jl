@@ -19,7 +19,7 @@ make use of the Julia Language Server for various code editing features:
 - [Sublime Text](https://github.com/tomv564/LSP)
 
 ## Installation and Usage
-**Documentation**: [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://julia-vscode.github.io/LanguageServer.jl/dev)
+**Documentation**: [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://www.julia-vscode.org/LanguageServer.jl/dev)
 
 ```julia
 using Pkg

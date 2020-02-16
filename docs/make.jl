@@ -8,7 +8,7 @@ makedocs(;
     sitename="LanguageServer.jl",
     format=Documenter.HTML(;
         prettyurls = prettyurls = get(ENV, "CI", nothing) == "true",
-        # canonical="https://julia-vscode.github.io/LanguageServer.jl",
+        # canonical="https://www.julia-vscode.org/LanguageServer.jl",
         # assets=String[],
     ),
     pages=[

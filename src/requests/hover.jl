@@ -32,7 +32,7 @@ function get_hover(b::StaticLint.Binding, documentation, server)
     if b.val isa EXPR
         if CSTParser.defines_function(b.val)
             while true
-                if b.val isa EXPR 
+                if b.val isa EXPR
                     if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
                         # Binding has preceding docs so use them..
                         documentation = string(documentation, Expr(parentof(b.val).args[2]))
@@ -78,7 +78,7 @@ function get_fcall_position(x::EXPR, documentation)
             end
             arg_i == 0 && return documentation
             fname = CSTParser.get_name(parentof(x))
-            if StaticLint.hasref(fname) && 
+            if StaticLint.hasref(fname) &&
                 (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
                 dt_ex = refof(fname).val
 

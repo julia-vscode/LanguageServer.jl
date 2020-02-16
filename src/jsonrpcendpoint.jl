@@ -31,7 +31,7 @@ function read_transport_layer(stream)
     header_dict = Dict{String,String}()
     line = chomp(readline(stream))
     # Check whether the socket was closed
-    if line == ""        
+    if line == ""
         return nothing
     end
     while length(line) > 0

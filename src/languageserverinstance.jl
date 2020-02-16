@@ -32,7 +32,7 @@ mutable struct LanguageServerInstance
     runlinter::Bool
     ignorelist::Set{String}
     isrunning::Bool
-    
+
     env_path::String
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
@@ -61,16 +61,16 @@ mutable struct LanguageServerInstance
             Set{String}(),
             Dict{URI2,Document}(),
             debug_mode,
-            true, 
-            Set{String}(), 
-            false, 
-            env_path, 
-            depot_path, 
-            SymbolServer.SymbolServerInstance(depot_path), 
+            true,
+            Set{String}(),
+            false,
+            env_path,
+            depot_path,
+            SymbolServer.SymbolServerInstance(depot_path),
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             false,
-            DocumentFormat.FormatOptions(), 
+            DocumentFormat.FormatOptions(),
             StaticLint.LintOptions(),
             Channel{Any}(Inf),
             err_handler,
@@ -177,12 +177,12 @@ function Base.run(server::LanguageServerInstance)
             Base.display_error(stderr, err, bt)
         end
     end
-        
+
     while true
         message = take!(server.combined_msg_queue)
 
         if message.type==:clientmsg
-            msg = message.msg                
+            msg = message.msg
 
             request = parse(JSONRPC.Request, msg)
 

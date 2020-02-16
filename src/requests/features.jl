@@ -7,7 +7,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
             args = []
             if sig.args !== nothing
                 for i = 2:length(sig.args)
-                    if bindingof(sig.args[i]) !== nothing 
+                    if bindingof(sig.args[i]) !== nothing
                         push!(args, bindingof(sig.args[i]))
                     end
                 end
@@ -24,7 +24,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         error("Received 'textDocument/signatureHelp for non-existing document.")
     end
-    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    doc = server.documents[URI2(r.params.textDocument.uri)]
     sigs = SignatureInformation[]
     offset = get_offset(doc, r.params.position)
     rng = Range(doc, offset:offset)
@@ -121,7 +121,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     end
-    
+
     return locations
 end
 
@@ -155,7 +155,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     return lsedits
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params) 
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         error("Received 'textDocument/documentLink for non-existing document.")
@@ -168,7 +168,7 @@ end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
-    doc = server.documents[URI2(textDocument.uri)] 
+    doc = server.documents[URI2(textDocument.uri)]
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
@@ -199,7 +199,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
     end
     tdes = Dict{String,TextDocumentEdit}()
     locations = find_references(r.params.textDocument, r.params.position, server)
-    
+
     for loc in locations
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, r.params.newName))
@@ -207,18 +207,18 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
             tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, server.documents[URI2(loc.uri)]._version), [TextEdit(loc.range, r.params.newName)])
         end
     end
-    
+
     return WorkspaceEdit(nothing, collect(values(tdes)))
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server)
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         error("Received 'textDocument/documentSymbol for non-existing document.")
     end
     syms = SymbolInformation[]
-    uri = r.params.textDocument.uri 
+    uri = r.params.textDocument.uri
     doc = server.documents[URI2(uri)]
 
     bs = collect_bindings_w_loc(getcst(doc))
@@ -275,18 +275,18 @@ function _binding_kind(b ,server)
             return 16
         elseif b.type == StaticLint.CoreTypes.DataType
             return 23
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore
         return 2
     elseif b isa SymbolServer.MethodStore
-        return 6        
+        return 6
     elseif b isa SymbolServer.FunctionStore
         return 12
     elseif b isa SymbolServer.DataTypeStore
         return 23
-    else 
+    else
         return 13
     end
 end

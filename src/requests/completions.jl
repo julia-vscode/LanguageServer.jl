@@ -12,7 +12,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     if !haskey(server.documents, URI2(r.params.textDocument.uri))
         error("Received 'textDocument/completion for non-existing document.")
     end
-    
+
     CIs = CompletionItem[]
     doc = server.documents[URI2(r.params.textDocument.uri)]
     offset = get_offset(doc, r.params.position)
@@ -20,7 +20,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     x = get_expr(getcst(doc), offset)
 
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         #latex completion
         latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
@@ -29,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         path_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         #getfield completion, no partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
         _get_dot_completion(px, "", rng, CIs, server)
@@ -181,15 +181,15 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
         startswith(n, ".") && continue
         v isa String && continue
         !startswith(n, spartial) && continue
-        if v isa SymbolServer.PackageRef 
+        if v isa SymbolServer.PackageRef
             v = SymbolServer._lookup(v, getsymbolserver(server))
-            v === nothing && return 
+            v === nothing && return
         end
         if n in m.exported || inclexported
             push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
         elseif dotcomps
-            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact 
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
+            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n))))
         end
     end
 end
@@ -265,18 +265,18 @@ function _completion_kind(b ,server)
             return 12
         elseif b.type == StaticLint.CoreTypes.DataType
             return 22
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.PackageRef
         return 9
     elseif b isa SymbolServer.MethodStore
-        return 2        
+        return 2
     elseif b isa SymbolServer.FunctionStore
         return 3
     elseif b isa SymbolServer.DataTypeStore
         return 22
-    else 
+    else
         return 6
     end
 end
@@ -325,7 +325,7 @@ end
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
     import_statement = parentof(x)
     import_root = get_import_root(import_statement)
-    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
+    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
         #no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
@@ -345,7 +345,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
         if haskey(getsymbolserver(server), pt.val)
             collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
         end
-    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
+    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
         #partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
             if haskey(StaticLint.getsymbolserver(server), ppt.val)

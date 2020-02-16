@@ -4,17 +4,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         error("Received 'textDocument/action for non-existing document.")
     end
     commands = Command[]
-    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    doc = server.documents[URI2(r.params.textDocument.uri)]
     offset = get_offset(doc, r.params.range.start)
     offset1 = get_offset(doc, r.params.range.stop)
     x = get_expr(getcst(doc), offset)
-    arguments = Any[r.params.textDocument.uri, offset, offset1] # use the same arguments for all commands 
+    arguments = Any[r.params.textDocument.uri, offset, offset1] # use the same arguments for all commands
     if x isa EXPR
-        if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
+        if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore
             push!(commands, Command("Explicitly import used package variables.", "ExplicitPackageVarImport", arguments))
         end
         if parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding
-            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore 
+            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore
                 push!(commands, Command("Re-export package variables.", "ReexportModule", arguments))
             end
         end
@@ -32,11 +32,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     return commands
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = ExecuteCommandParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},ExecuteCommandParams}, server) 
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = ExecuteCommandParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},ExecuteCommandParams}, server)
     uri = r.params.arguments[1]
     offset = r.params.arguments[2]
-    doc = server.documents[URI2(uri)] 
+    doc = server.documents[URI2(uri)]
     x = get_expr(getcst(doc), offset)
     if r.params.command == "ExplicitPackageVarImport"
         explicitly_import_used_variables(x, r.id + 1, server)
@@ -47,7 +47,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
     elseif r.params.command == "ReexportModule"
         if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)
             reexport_module(x, r.id + 1, server)
-        elseif refof(x).val isa SymbolServer.ModuleStore 
+        elseif refof(x).val isa SymbolServer.ModuleStore
             reexport_package(x, r.id + 1, server)
         end
     elseif r.params.command == "WrapIfBlock"
@@ -70,7 +70,7 @@ function explicitly_import_used_variables(x::EXPR, id, server)
     !(refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore) && return
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
-    
+
     tdes = Dict{String,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
 
@@ -81,7 +81,7 @@ function explicitly_import_used_variables(x::EXPR, id, server)
             childname = parentof(ref).args[3].args[1]
             StaticLint.hasref(childname) && refof(childname) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
             !haskey(refof(x).val.vals, valof(childname)) && continue # skip, perhaps mark as missing ref ?
-            
+
             file, offset = get_file_loc(ref)
             if !haskey(tdes, file._uri)
                 tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
@@ -91,7 +91,7 @@ function explicitly_import_used_variables(x::EXPR, id, server)
         end
     end
     isempty(tdes) && return
-    
+
     # Add `using x: vars...` statement
     if parentof(using_stmt) isa EXPR && (typof(parentof(using_stmt)) === CSTParser.Block || typof(parentof(using_stmt)) === CSTParser.FileH)
         # this should cover all cases
@@ -103,10 +103,10 @@ function explicitly_import_used_variables(x::EXPR, id, server)
             end
         end
         i1 == 0 && return WorkspaceEdit(missing, missing)
-        
+
         file, offset = get_file_loc(using_stmt)
         insertpos = get_next_line_offset(using_stmt)
-        insertpos == -1 && return 
+        insertpos == -1 && return
 
         if !haskey(tdes, file._uri)
             tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
@@ -115,7 +115,7 @@ function explicitly_import_used_variables(x::EXPR, id, server)
     else
         return
     end
-  
+
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
 end
 
@@ -207,8 +207,8 @@ function reexport_package(x::EXPR, id, server)
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
-    insertpos == -1 && return 
-    
+    insertpos == -1 && return
+
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
     ])
@@ -217,12 +217,12 @@ function reexport_package(x::EXPR, id, server)
 end
 
 # TODO move to StaticLint
-# to be called where typof(x) === CSTParser.ModuleH/BareModule 
+# to be called where typof(x) === CSTParser.ModuleH/BareModule
 function find_exported_names(x::EXPR)
     exported_vars = EXPR[]
     for i in 1:length(x.args[3].args)
         expr = x.args[3].args[i]
-        if typof(expr) == CSTParser.Export && 
+        if typof(expr) == CSTParser.Export &&
             for j = 2:length(expr)
                 if CSTParser.isidentifier(expr.args[j]) && StaticLint.hasref(expr.args[j])
                     push!(exported_vars, expr.args[j])
@@ -239,11 +239,11 @@ function reexport_module(x::EXPR, id, server)
     (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
     # find export EXPR
     exported_names = find_exported_names(mod_expr)
-    
+
     isempty(exported_names) && return
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
-    insertpos == -1 && return 
+    insertpos == -1 && return
     names = filter!(s->!isempty(s), collect(CSTParser.str_value.(exported_names)))
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))

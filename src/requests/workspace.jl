@@ -32,7 +32,7 @@ function request_julia_config(server)
         ConfigurationItem(missing, "julia.lint.run");
         (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
         ]))
-    
+
     # TODO Make sure update_julia_config can deal with the response
     if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
         server.format_options = DocumentFormat.FormatOptions(
@@ -47,7 +47,7 @@ function request_julia_config(server)
             response[9]===nothing ? false : response[9],
             response[10]===nothing ? false : response[10],
             response[11]===nothing ? false : response[11])
-        
+
         N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
         x = response[N]
         new_lint_opts = StaticLint.LintOptions(
@@ -61,7 +61,7 @@ function request_julia_config(server)
             response[N + 8]===nothing ? false : response[N + 8],
             response[N + 9]===nothing ? false : response[N + 9],
         )
-        
+
         new_run_lint_value = x===nothing ? false : true
         if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
             server.lint_options = new_lint_opts
@@ -89,8 +89,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFold
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server)
     syms = SymbolInformation[]
     for (uri,doc) in server.documents
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)

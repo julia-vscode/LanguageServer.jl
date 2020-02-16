@@ -78,7 +78,7 @@ end
     @test LanguageServer.get_position_at(doc, 2) == (0, 2)
     @test LanguageServer.get_offset(doc, 0, 3) == 3
     @test LanguageServer.get_position_at(doc, 3) == (0, 3)
-    
+
 
     doc = LanguageServer.Document("", "ααα", false)
     @test sizeof(LanguageServer.get_text(doc)) == 6
@@ -112,7 +112,7 @@ end
     @test LanguageServer.get_position_at(doc, 5) == (0, 4)
     @test LanguageServer.get_offset(doc, 0, 6) == 9
     @test LanguageServer.get_position_at(doc, 9) == (0, 6)
-    
+
     doc = LanguageServer.Document("", "𐀀𐀀𐀀", false) # 0x010000
     @test sizeof(LanguageServer.get_text(doc)) == 12
     @test LanguageServer.get_offset(doc, 0, 0) == 0
@@ -122,5 +122,5 @@ end
     @test LanguageServer.get_offset(doc, 0, 4) == 5
     @test LanguageServer.get_position_at(doc, 5) == (0, 4)
     @test LanguageServer.get_offset(doc, 0, 6) == 9
-    @test LanguageServer.get_position_at(doc, 9) == (0, 6) 
+    @test LanguageServer.get_position_at(doc, 9) == (0, 6)
 end

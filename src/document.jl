@@ -19,7 +19,7 @@ mutable struct Document
         cst.val = path
         set_doc(doc.cst, doc)
         setroot(doc, doc)
-        return doc 
+        return doc
     end
 end
 Base.display(doc::Document) = println("Doc: $(basename(doc._uri)) ")
@@ -55,7 +55,7 @@ end
 """
     get_offset(doc, line, char)
 
-Returns the byte offset position corresponding to a line/character position. 
+Returns the byte offset position corresponding to a line/character position.
 This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
@@ -65,7 +65,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     io = IOBuffer(get_text(doc))
     try
         seek(io, line_offsets[line + 1])
-        while character > 0        
+        while character > 0
             c = read(io, Char)
             character -= 1
             if UInt32(c) >= 0x010000
@@ -114,9 +114,9 @@ end
 
 """
     get_line_offsets(doc::Document)
-    
-Updates the doc._line_offsets field, an n length Array each entry of which 
-gives the byte offset position of the start of each line. This always starts 
+
+Updates the doc._line_offsets field, an n length Array each entry of which
+gives the byte offset position of the start of each line. This always starts
 with 0 for the first line (even if empty).
 """
 function get_line_offsets(doc::Document, force = false)

@@ -177,11 +177,11 @@ end
 
 # Requires handwritten implementaiton to account for 3-part Unions
 function InitializeParams(dict::Dict)
-    InitializeParams(Int(dict["processId"]), 
+    InitializeParams(Int(dict["processId"]),
     !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
-    dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]), 
-    if haskey(dict, "initializationOptions") dict["initializationOptions"] else missing end, 
-    ClientCapabilities(dict["capabilities"]), 
+    dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]),
+    if haskey(dict, "initializationOptions") dict["initializationOptions"] else missing end,
+    ClientCapabilities(dict["capabilities"]),
     if haskey(dict, "trace") String(dict["trace"]) else missing end,
     !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]))
 end

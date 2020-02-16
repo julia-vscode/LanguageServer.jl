@@ -108,7 +108,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
     end
-    
+
     if !ismissing(r.params.capabilities.window) && get(r.params.capabilities.window, "workDoneProgress", false)
         server.clientcapability_window_workdoneprogress = true
     else
@@ -129,7 +129,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
         end
     end
     request_julia_config(server)
-    
+
     JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
 
     if server.number_of_outstanding_symserver_requests > 0
@@ -144,6 +144,6 @@ function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server)
     exit()
 end

@@ -117,7 +117,7 @@ function get_toks(doc, offset)
 end
 
 function isvalidjlfile(path)
-    hasreadperm(path) && 
+    hasreadperm(path) &&
     isfile(path) &&
     endswith(path, ".jl") &&
     validchars(path)

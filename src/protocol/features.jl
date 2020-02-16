@@ -136,11 +136,11 @@ struct DocumentHighlight <: Outbound
 end
 
 ##############################################################################
-# Symbols 
+# Symbols
 
-@dict_readable struct DocumentSymbolParams 
-    textDocument::TextDocumentIdentifier 
-end 
+@dict_readable struct DocumentSymbolParams
+    textDocument::TextDocumentIdentifier
+end
 
 const SymbolKind = Int
 const SymbolKinds = Dict{String,Int}(
@@ -174,10 +174,10 @@ const SymbolKinds = Dict{String,Int}(
 
 
 struct SymbolInformation <: Outbound
-    name::String 
+    name::String
     kind::SymbolKind
     deprecated::Union{Nothing,Bool}
-    location::Location 
+    location::Location
     containerName::Union{Nothing,String}
 end
 
@@ -193,11 +193,11 @@ end
 
 
 
-@dict_readable struct WorkspaceSymbolParams 
-    query::String 
-end 
+@dict_readable struct WorkspaceSymbolParams
+    query::String
+end
 
-import Base.==  
+import Base.==
 ==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 ==(m1::MarkedString, m2::MarkedString) = m1.language == m2.language && m1.value == m2.value
 

@@ -9,12 +9,8 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/completion for non-existing document.")
-    end
-    
     CIs = CompletionItem[]
-    doc = server.documents[URI2(r.params.textDocument.uri)]
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     offset = get_offset(doc, r.params.position)
     rng = Range(doc, offset:offset)
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)

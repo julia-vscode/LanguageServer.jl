@@ -72,7 +72,7 @@ end
 is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
 function remove_workspace_files(root, server)
-    for (uri, doc) in server.documents
+    for (uri, doc) in getdocuments_pair(server)
         fpath = uri2filepath(uri._uri)
         doc._open_in_editor && continue
         if startswith(fpath, fpath)
@@ -80,7 +80,7 @@ function remove_workspace_files(root, server)
                 if startswith(fpath, folder)
                     continue
                 end
-                delete!(server.documents, uri)
+                deletedocument!(server, uri)
             end
         end
     end
@@ -89,7 +89,7 @@ end
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)
     out = []
-    for (uri,doc) in server.documents
+    for (uri,doc) in getdocuments_pair(server)
         occursin(r, uri._uri) && push!(out, doc)
     end
     return out

@@ -9,7 +9,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, 
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params) = TextDocumentIdentifier(params["textDocument"])
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
-    doc = server.documents[URI2(r.uri)]
+    doc = getdocument(server, URI2(r.uri))
     doc._runlinter = !doc._runlinter
 end
 
@@ -27,11 +27,8 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockRange")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'julia/getCurrentBlockRange for non-existing document.")
-    end
     tdpp = r.params
-    doc = server.documents[URI2(tdpp.textDocument.uri)]
+    doc = getdocument(server, URI2(tdpp.textDocument.uri))
     offset = get_offset(doc, tdpp.position)
     x = getcst(doc)
     loc = 0

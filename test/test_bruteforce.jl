@@ -24,7 +24,7 @@ r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":59,"method
 process(r, server);
 
 # Document Symbols
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"$(uri)"}}}"""))
     process(r, server)
@@ -32,7 +32,7 @@ end
 
 # Hovers
 
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Hovers: $uri ")
     for loc in 1:sizeof(LanguageServer.get_text(doc))-1
@@ -43,7 +43,7 @@ for doc in values(server.documents)
 end
 
 # Completions
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Completions: $uri ")
     for loc in 1:sizeof(LanguageServer.get_text(doc))-1
@@ -55,7 +55,7 @@ for doc in values(server.documents)
 end
 
 # Definitions
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Definitions: $uri ")
     for loc in 1:sizeof(LanguageServer.get_text(doc))-1
@@ -67,7 +67,7 @@ for doc in values(server.documents)
 end
 
 # Signatures
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Signatures: $uri ")
     for loc in 1:sizeof(LanguageServer.get_text(doc))-1
@@ -79,7 +79,7 @@ for doc in values(server.documents)
 end
 
 # References
-for doc in values(server.documents)
+for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("References: $uri ")
     for loc in 1:sizeof(doc._content)-1

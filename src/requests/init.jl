@@ -79,12 +79,12 @@ function load_folder(path::String, server)
                 if isvalidjlfile(filepath)
                     !isfile(filepath) && continue
                     uri = filepath2uri(filepath)
-                    if URI2(uri) in keys(server.documents)
+                    if hasdocument(server, URI2(uri))
                         continue
                     else
                         content = read(filepath, String)
-                        server.documents[URI2(uri)] = Document(uri, content, true, server)
-                        doc = server.documents[URI2(uri)]
+                        doc = Document(uri, content, true, server)
+                        setdocument!(server, URI2(uri), doc)
                         parse_all(doc, server)
                     end
                 end

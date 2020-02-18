@@ -13,7 +13,7 @@ end
 
 function load_file(text, server)
     process(Request{Val{Symbol("textDocument/didOpen")},LanguageServer.DidOpenTextDocumentParams}(0, LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("none", "julia", 0, text))), server)
-    doc = server.documents[LanguageServer.URI2("none")]
+    doc = LanguageServer.getdocument(server, LanguageServer.URI2("none"))
 end
 
 function hover(text, line, col, server)

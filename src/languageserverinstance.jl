@@ -26,7 +26,7 @@ For normal usage, the language server can be instantiated with
 mutable struct LanguageServerInstance
     jr_endpoint::JSONRPCEndpoints.JSONRPCEndpoint
     workspaceFolders::Set{String}
-    documents::Dict{URI2,Document}
+    _documents::Dict{URI2,Document}
 
     debug_mode::Bool
     runlinter::Bool
@@ -83,9 +83,37 @@ mutable struct LanguageServerInstance
 end
 function Base.display(server::LanguageServerInstance)
     println("Root: ", server.workspaceFolders)
-    for (uri, d) in server.documents
+    for d in getdocuments_value(server)
         display(d)
     end
+end
+
+function hasdocument(server::LanguageServerInstance, uri:URI2)
+    return haskey(server._documents, uri)
+end
+
+function getdocument(server::LanguageServerInstance, uri:URI2)
+    return server._documents[uri]
+end
+
+function getdocuments_key(server::LanguageServerInstance)
+    return keys(server._documents)
+end
+
+function getdocuments_pair(server::LanguageServerInstance)
+    return pairs(server._documents)
+end
+
+function getdocuments_value(server::LanguageServerInstance)
+    return values(server._documents)
+end
+
+function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
+    server._documents[uri] = doc
+end
+
+function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    delete!(server._documents, uri)
 end
 
 function create_symserver_progress_ui(server)
@@ -197,7 +225,7 @@ function Base.run(server::LanguageServerInstance)
 
             server.symbol_store = msg
             roots = Document[]
-            for (uri, doc) in server.documents
+            for doc in getdocuments_value(server)
                 # only do a pass on documents once
                 root = getroot(doc)
                 if !(root in roots)

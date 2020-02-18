@@ -2,17 +2,21 @@ JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, par
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        !haskey(server.documents, URI2(uri)) && continue
-        if change.type == FileChangeTypes["Created"] || (change.type == FileChangeTypes["Changed"] && !get_open_in_editor(server.documents[URI2(uri)]))
-            doc = server.documents[URI2(uri)]
+        # TODO DA This seems like a bug, in the case of a create we should
+        # read the file from disc and add it to documents.
+        !hasdocument(server, URI2(uri)) && continue
+        doc = getdocument(server, URI2(uri))
+        if change.type == FileChangeTypes["Created"] || (change.type == FileChangeTypes["Changed"] && !get_open_in_editor(doc))
             filepath = uri2filepath(uri)
             content = String(read(filepath))
             content == get_text(doc) && return
-            server.documents[URI2(uri)] = Document(uri, content, true, server)
-            parse_all(server.documents[URI2(uri)], server)
 
-        elseif change.type == FileChangeTypes["Deleted"] && !get_open_in_editor(server.documents[URI2(uri)])
-            delete!(server.documents, URI2(uri))
+            doc = Document(uri, content, true, server)
+            setdocument!(server, URI2(uri), doc)
+            parse_all(doc, server)
+
+        elseif change.type == FileChangeTypes["Deleted"] && !get_open_in_editor(doc)
+            deletedocument!(server, URI2(uri))
 
             publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
             JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
@@ -66,7 +70,7 @@ function request_julia_config(server)
         if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
             server.lint_options = new_lint_opts
             server.runlinter = new_run_lint_value
-            for doc in values(server.documents)
+            for doc in getdocuments_value(server)
                 StaticLint.check_all(getcst(doc), server.lint_options, server)
                 empty!(doc.diagnostics)
                 mark_errors(doc, doc.diagnostics)
@@ -92,7 +96,7 @@ end
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
     syms = SymbolInformation[]
-    for (uri,doc) in server.documents
+    for doc in getdocuments_value(server)
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
         for x in bs
             p, b = x[1], x[2]

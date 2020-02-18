@@ -88,11 +88,11 @@ function Base.display(server::LanguageServerInstance)
     end
 end
 
-function hasdocument(server::LanguageServerInstance, uri:URI2)
+function hasdocument(server::LanguageServerInstance, uri::URI2)
     return haskey(server._documents, uri)
 end
 
-function getdocument(server::LanguageServerInstance, uri:URI2)
+function getdocument(server::LanguageServerInstance, uri::URI2)
     return server._documents[uri]
 end
 

@@ -1,7 +1,7 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
     commands = Command[]
-    doc = getdocument(serverURI2(r.params.textDocument.uri))
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     offset = get_offset(doc, r.params.range.start)
     offset1 = get_offset(doc, r.params.range.stop)
     x = get_expr(getcst(doc), offset)

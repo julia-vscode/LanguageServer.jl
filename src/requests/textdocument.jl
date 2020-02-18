@@ -4,27 +4,21 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
-        set_text!(doc, r.params.textDocument.text)
-        doc._version = r.params.textDocument.version
+        set_text!(doc, r.params.textDocument.text)        
         get_line_offsets(doc, true)
     else
-        try_to_load_parents(uri2filepath(uri), server)
-
-        if hasdocument(server, URI2(uri))
-            doc = getdocument(server, URI2(uri))
-        else
-            doc = Document(uri, r.params.textDocument.text, false, server)
-            setdocument!(server, URI2(uri), doc)
-            doc._version = r.params.textDocument.version
-            if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-                doc._workspace_file = true
-            end
-            set_open_in_editor(doc, true)
-            if is_ignored(uri, server)
-                doc._runlinter = false
-            end
-        end
+        doc = Document(
+            uri,
+            r.params.textDocument.text,
+            any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders),
+            server
+        )
+        setdocument!(server, URI2(uri), doc)        
     end
+
+    doc._runlinter = !is_ignored(uri, server)
+    set_open_in_editor(doc, true)
+    doc._version = r.params.textDocument.version
     parse_all(doc, server)
 end
 
@@ -104,7 +98,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(r.params.contentChanges).range)
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
-        scopepass(getroot(doc), doc)
+        StaticLint.scopepass(getroot(doc), doc)
         StaticLint.check_all(getcst(doc), server.lint_options, server)
         empty!(doc.diagnostics)
         mark_errors(doc, doc.diagnostics)
@@ -258,7 +252,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         set_doc(doc.cst, doc)
     end
     
-    scopepass(getroot(doc), doc)
+    StaticLint.scopepass(getroot(doc), doc)
     StaticLint.check_all(getcst(doc), server.lint_options, server)
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
@@ -390,56 +384,4 @@ function parse_jmd(ps, str)
     push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
     return top, ps
-end
-
-function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
-    drop<1 && return parents
-    !isdir(dir) && return parents
-    !hasreadperm(dir) && return parents
-    for f in readdir(dir)
-        if isvalidjlfile(joinpath(dir, f))
-            # Could be sped up?
-            s = read(joinpath(dir, f), String)
-            occursin(file, s) && push!(parents, joinpath(dir, f))
-        end
-    end
-    search_for_parent(splitdir(dir)[1], file, drop - 1, parents)
-    return parents
-end
-
-
-function is_parentof(parent_path, child_path, server)
-    !isvalidjlfile(parent_path) && return false
-    previous_server_docs = collect(getdocuments_key(server)) # additions to this to be removed at end
-    # load parent file
-    puri = filepath2uri(parent_path)
-    pdoc = Document(puri, read(parent_path, String), false, server)
-    setdocument!(server, URI2(puri), pdoc)
-
-    CSTParser.parse(get_text(pdoc))
-    if typof(pdoc.cst) === CSTParser.FileH
-        pdoc.cst.val = pdoc.path
-        set_doc(pdoc.cst, pdoc)
-    end
-    scopepass(getroot(pdoc), pdoc)
-    # check whether child has been included automatically
-    if any(uri2filepath(k._uri) == child_path for k in getdocuments_key(server) if !(k in previous_server_docs))
-        cdoc = getdocument(server,URI2(filepath2uri(child_path)))
-        parse_all(cdoc, server)
-        scopepass(getroot(cdoc))
-        return true
-    else
-        # clean up
-        foreach(k-> !(k in previous_server_docs) && deletedocument!(server, k), getdocuments_key(server))
-        return false
-    end
-end
-
-function try_to_load_parents(child_path, server)
-    for p in search_for_parent(splitdir(child_path)...)
-        success = is_parentof(p, child_path, server)
-        if success 
-            return try_to_load_parents(p, server)
-        end
-    end
 end

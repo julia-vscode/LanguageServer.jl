@@ -72,6 +72,7 @@ function load_folder(wf::WorkspaceFolder, server)
 end
 
 function load_folder(path::String, server)
+    docs_to_parse = []
     if load_rootpath(path)
         for (root, dirs, files) in walkdir(path, onerror = x->x)
             for file in files
@@ -85,10 +86,14 @@ function load_folder(path::String, server)
                         content = read(filepath, String)
                         doc = Document(uri, content, true, server)
                         setdocument!(server, URI2(uri), doc)
-                        parse_all(doc, server)
+                        push!(docs_to_parse, doc)                        
                     end
                 end
             end
+        end
+
+        for doc in docs_to_parse
+            parse_all(doc, server)
         end
     end
 end

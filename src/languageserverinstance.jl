@@ -230,7 +230,7 @@ function Base.run(server::LanguageServerInstance)
                 root = getroot(doc)
                 if !(root in roots)
                     push!(roots, root)
-                    scopepass(root, doc)
+                    StaticLint.scopepass(root, doc)
                 end
 
                 StaticLint.check_all(getcst(doc), server.lint_options, server)

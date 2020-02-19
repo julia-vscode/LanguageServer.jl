@@ -4,27 +4,23 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     uri = r.params.textDocument.uri
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
-        set_text!(doc, r.params.textDocument.text)
-        doc._version = r.params.textDocument.version
+
+        set_text!(doc, r.params.textDocument.text)        
         get_line_offsets(doc, true)
     else
-        try_to_load_parents(uri2filepath(uri), server)
+        is_workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
 
-        if hasdocument(server, URI2(uri))
-            doc = getdocument(server, URI2(uri))
-        else
-            doc = Document(uri, r.params.textDocument.text, false, server)
-            setdocument!(server, URI2(uri), doc)
-            doc._version = r.params.textDocument.version
-            if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-                doc._workspace_file = true
-            end
-            set_open_in_editor(doc, true)
-            if is_ignored(uri, server)
-                doc._runlinter = false
-            end
-        end
+        doc = Document(uri, r.params.textDocument.text, is_workspace_file, server)
+        doc._runlinter = !is_ignored(uri, server)
+        
+        setdocument!(server, URI2(uri), doc)
     end
+
+    doc._version = r.params.textDocument.version
+    set_open_in_editor(doc, true)
+
+    try_to_load_parents(uri2filepath(uri), server)
+
     parse_all(doc, server)
 end
 
@@ -32,12 +28,11 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = Did
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
     doc = getdocument(server, URI2(uri))
+    set_open_in_editor(doc, false)
     empty!(doc.diagnostics)
     publish_diagnostics(doc, server)
     if !is_workspace_file(doc)
         deletedocument!(server, URI2(uri))
-    else
-        set_open_in_editor(doc, false)
     end
 end
 
@@ -49,7 +44,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
     if r.params.text isa String
         if get_text(doc) != r.params.text
             error("Mismatch between server and client text for $(doc._uri).")
-            # set_text!(doc, r.params.text)
         end
     end
     parse_all(doc, server)

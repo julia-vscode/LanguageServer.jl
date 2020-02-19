@@ -52,6 +52,11 @@ function is_workspace_file(doc::Document)
     return doc._workspace_file
 end
 
+function set_is_workspace_file(doc::Document, value::Bool)
+    doc._workspace_file = value
+end
+
+
 """
     get_offset(doc, line, char)
 

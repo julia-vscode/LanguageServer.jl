@@ -7,12 +7,6 @@ function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params) end
 function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server) end
 
-JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-lint")}}, params) = TextDocumentIdentifier(params["textDocument"])
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-lint")},TextDocumentIdentifier}, server)
-    doc = getdocument(server, URI2(r.uri))
-    doc._runlinter = !doc._runlinter
-end
-
 function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params) end
 function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server) end
 

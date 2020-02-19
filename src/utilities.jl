@@ -74,14 +74,12 @@ is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 function remove_workspace_files(root, server)
     for (uri, doc) in getdocuments_pair(server)
         fpath = uri2filepath(uri._uri)
-        doc._open_in_editor && continue
-        if startswith(fpath, fpath)
-            for folder in server.workspaceFolders
-                if startswith(fpath, folder)
-                    continue
-                end
-                deletedocument!(server, uri)
+        get_open_in_editor(doc) && continue
+        for folder in server.workspaceFolders
+            if startswith(fpath, folder)
+                continue
             end
+            deletedocument!(server, uri)
         end
     end
 end

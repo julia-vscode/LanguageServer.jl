@@ -385,11 +385,15 @@ end
 
 function is_parentof(parent_path, child_path, server)
     !isvalidjlfile(parent_path) && return false
+    # TODO Could we generally find a different strategy for this?
     previous_server_docs = collect(getdocuments_key(server)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)
     pdoc = Document(puri, read(parent_path, String), false, server)
-    setdocument!(server, URI2(puri), pdoc)
+
+    if !hasdocument(URI2(puri))
+        setdocument!(server, URI2(puri), pdoc)
+    end
 
     CSTParser.parse(get_text(pdoc))
     if typof(pdoc.cst) === CSTParser.FileH

@@ -8,7 +8,14 @@ function loadfile(server::LanguageServerInstance, path::String)
     doc = Document(uri, source, true, server)
     StaticLint.setfile(server, path, doc)
 end
-setfile(server::LanguageServerInstance, path::String, x::Document) = setdocument!(server, URI2(filepath2uri(path)), x)
+function setfile(server::LanguageServerInstance, path::String, x::Document)
+    uri = URI2(filepath2uri(path))
+    if hasdocument(server, uri)
+        error("StaticLint should not try to set documents that are already tracked.")
+    end
+
+    setdocument!(server, uri, x)
+end
 getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2(filepath2uri(path)))
 getsymbolserver(server::LanguageServerInstance) = server.symbol_store
 

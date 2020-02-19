@@ -71,6 +71,9 @@ end
 
 is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
+# TODO I believe this will also remove files from documents that were added
+# not because they are part of the workspace, but by either StaticLint or
+# the include follow logic.
 function remove_workspace_files(root, server)
     for (uri, doc) in getdocuments_pair(server)
         fpath = uri2filepath(uri._uri)

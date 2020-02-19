@@ -28,31 +28,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     parse_all(doc, server)
 end
 
-
-# JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
-# function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
-#     server.isrunning = true
-#     uri = r.params.textDocument.uri
-#     if hasdocument(server, URI2(uri))
-#         doc = getdocument(server, URI2(uri))
-#         set_text!(doc, r.params.textDocument.text)
-#         doc._version = r.params.textDocument.version
-#     else
-#         doc = Document(uri, r.params.textDocument.text, false, server)
-#         setdocument!(server, URI2(uri), doc)
-#         doc._version = r.params.textDocument.version
-#         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-#             doc._workspace_file = true
-#         end
-#         set_open_in_editor(doc, true)
-#         if is_ignored(uri, server)
-#             doc._runlinter = false
-#         end
-#     end
-#     get_line_offsets(doc)
-#     parse_all(doc, server)
-# end
-
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = DidCloseTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri

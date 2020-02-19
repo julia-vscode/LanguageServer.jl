@@ -385,7 +385,7 @@ function is_parentof(parent_path, child_path, server)
     puri = filepath2uri(parent_path)
     pdoc = Document(puri, read(parent_path, String), false, server)
 
-    if !hasdocument(URI2(puri))
+    if !hasdocument(server, URI2(puri))
         setdocument!(server, URI2(puri), pdoc)
     end
 

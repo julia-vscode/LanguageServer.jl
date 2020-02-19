@@ -8,22 +8,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc._version = r.params.textDocument.version
         get_line_offsets(doc, true)
     else
-        try_to_load_parents(uri2filepath(uri), server)
-
-        if hasdocument(server, URI2(uri))
-            doc = getdocument(server, URI2(uri))
-        else
-            doc = Document(uri, r.params.textDocument.text, false, server)
-            setdocument!(server, URI2(uri), doc)
-            doc._version = r.params.textDocument.version
-            if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-                doc._workspace_file = true
-            end
-            set_open_in_editor(doc, true)
-            if is_ignored(uri, server)
-                doc._runlinter = false
-            end
+        doc = Document(uri, r.params.textDocument.text, false, server)
+        setdocument!(server, URI2(uri), doc)
+        doc._version = r.params.textDocument.version
+        if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+            doc._workspace_file = true
         end
+        set_open_in_editor(doc, true)
+        if is_ignored(uri, server)
+            doc._runlinter = false
+        end
+        try_to_load_parents(uri2filepath(uri), server)
     end
     parse_all(doc, server)
 end
@@ -413,13 +408,16 @@ function is_parentof(parent_path, child_path, server)
     previous_server_docs = collect(getdocuments_key(server)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)
-    pdoc = Document(puri, read(parent_path, String), false, server)
-    setdocument!(server, URI2(puri), pdoc)
-
-    CSTParser.parse(get_text(pdoc))
-    if typof(pdoc.cst) === CSTParser.FileH
-        pdoc.cst.val = pdoc.path
-        set_doc(pdoc.cst, pdoc)
+    if !hasdocument(server, URI2(puri))
+        pdoc = Document(puri, read(parent_path, String), false, server)
+        setdocument!(server, URI2(puri), pdoc)
+        CSTParser.parse(get_text(pdoc))
+        if typof(pdoc.cst) === CSTParser.FileH
+            pdoc.cst.val = pdoc.path
+            set_doc(pdoc.cst, pdoc)
+        end
+    else
+        pdoc = getdocument(server, URI2(puri))
     end
     scopepass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
@@ -437,6 +435,7 @@ end
 
 function try_to_load_parents(child_path, server)
     for p in search_for_parent(splitdir(child_path)...)
+        p == child_path && continue
         success = is_parentof(p, child_path, server)
         if success 
             return try_to_load_parents(p, server)

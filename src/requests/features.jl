@@ -146,17 +146,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},Docum
     return lsedits
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
-    if !hasdocument(server, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/documentLink for non-existing document.")
-    end
-    links = Tuple{String,UnitRange{Int}}[]
-
-    return links
-end
-
-
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
     doc = getdocument(server, URI2(textDocument.uri))

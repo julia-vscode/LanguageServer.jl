@@ -6,18 +6,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc = getdocument(server, URI2(uri))
         set_text!(doc, r.params.textDocument.text)
         doc._version = r.params.textDocument.version
+        set_open_in_editor(doc, true)
         get_line_offsets(doc, true)
     else
         doc = Document(uri, r.params.textDocument.text, false, server)
         setdocument!(server, URI2(uri), doc)
         doc._version = r.params.textDocument.version
-        if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-            doc._workspace_file = true
-        end
+        doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+        doc._runlinter = !is_ignored(uri, server)
         set_open_in_editor(doc, true)
-        if is_ignored(uri, server)
-            doc._runlinter = false
-        end
+        
         try_to_load_parents(uri2filepath(uri), server)
     end
     parse_all(doc, server)
@@ -54,10 +52,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
     doc = getdocument(server, URI2(uri))
     empty!(doc.diagnostics)
     publish_diagnostics(doc, server)
-    if !is_workspace_file(doc)
-        deletedocument!(server, URI2(uri))
-    else
+    if is_workspace_file(doc)
         set_open_in_editor(doc, false)
+    else
+        if any(d.root == doc.root && doc._open_in_editor for (uri, d::Document) in getdocuments_pair(server) if d != doc)
+            # If any other open document shares doc's root we just mark it as closed...
+            set_open_in_editor(doc, false)
+        else
+            # ...otherwise we delete all documents that share root with doc.
+            for (u,d) in getdocuments_pair(server)
+                if d.root == doc.root
+                    deletedocument!(server, URI2(u))
+                end
+            end
+        end
     end
 end
 
@@ -69,7 +77,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
     if r.params.text isa String
         if get_text(doc) != r.params.text
             error("Mismatch between server and client text for $(doc._uri).")
-            # set_text!(doc, r.params.text)
         end
     end
     parse_all(doc, server)
@@ -90,8 +97,6 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params) = Di
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
     doc = getdocument(server, URI2(r.params.textDocument.uri))
     if r.params.textDocument.version < doc._version
-        # send(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri), server)
-        # return
         error("The client and server have different textDocument versions for $(doc._uri).")
     end
     doc._version = r.params.textDocument.version

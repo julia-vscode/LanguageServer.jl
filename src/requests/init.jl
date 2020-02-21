@@ -80,6 +80,7 @@ function load_folder(path::String, server)
                     !isfile(filepath) && continue
                     uri = filepath2uri(filepath)
                     if hasdocument(server, URI2(uri))
+                        set_is_workspace_file(getdocument(server, URI2(uri)), true)
                         continue
                     else
                         content = read(filepath, String)

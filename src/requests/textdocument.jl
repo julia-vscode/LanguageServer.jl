@@ -62,7 +62,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
             # ...otherwise we delete all documents that share root with doc.
             for (u,d) in getdocuments_pair(server)
                 if d.root == doc.root
-                    deletedocument!(server, URI2(u))
+                    deletedocument!(server, u)
                 end
             end
         end

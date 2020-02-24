@@ -3,6 +3,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
     for change in r.params.changes
         uri = change.uri
 
+        startswith(uri, "file:") || continue
+
         if change.type == FileChangeTypes["Created"]
             if hasdocument(server, URI2(uri))
                 doc = getdocument(server, URI2(uri))

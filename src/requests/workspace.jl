@@ -13,16 +13,21 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 if get_open_in_editor(doc)
                     continue
                 else
-                    error("Received a create notification for a file we already manage.")
+                    filepath = uri2filepath(uri)
+                    content = String(read(filepath))
+        
+                    set_text!(doc, content)
+                    set_is_workspace_file(doc, true)
+                    parse_all(doc, server)    
                 end
+            else
+                filepath = uri2filepath(uri)
+                content = String(read(filepath))
+    
+                doc = Document(uri, content, true, server)
+                setdocument!(server, URI2(uri), doc)
+                parse_all(doc, server)
             end
-
-            filepath = uri2filepath(uri)
-            content = String(read(filepath))
-
-            doc = Document(uri, content, true, server)
-            setdocument!(server, URI2(uri), doc)
-            parse_all(doc, server)
         elseif change.type == FileChangeTypes["Changed"]
             doc = getdocument(server, URI2(uri))
 
@@ -31,8 +36,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 filepath = uri2filepath(uri)
                 content = String(read(filepath))
     
-                doc = Document(uri, content, true, server)
-                setdocument!(server, URI2(uri), doc)
+                set_text!(doc, content)
+                set_is_workspace_file(doc, true)
                 parse_all(doc, server)                            
             end
         elseif change.type == FileChangeTypes["Deleted"]

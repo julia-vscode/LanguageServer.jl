@@ -152,8 +152,8 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
-        for r in refof(x).refs
-            !(r isa EXPR) && continue
+        refs = find_references(refof(x))
+        for r in refs
             doc1, o = get_file_loc(r)
             if doc1 isa Document
                 push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
@@ -161,6 +161,24 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
         end
     end
     return locations
+end
+
+# If 
+function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
+    if !from_end
+        if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+            b = StaticLint.last_method(b)
+        end
+    end
+    for r in b.refs
+        !(r isa EXPR) && continue
+        push!(refs, r)
+    end
+    if b.prev isa StaticLint.Binding && (b.prev.type === StaticLint.CoreTypes.Function || b.prev.type === StaticLint.CoreTypes.DataType)
+        return find_references(b.prev, refs, true)
+    else
+        return refs
+    end
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params) = ReferenceParams(params)

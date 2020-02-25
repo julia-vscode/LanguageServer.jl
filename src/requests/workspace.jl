@@ -2,28 +2,63 @@ JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, par
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
     for change in r.params.changes
         uri = change.uri
-        # TODO DA This seems like a bug, in the case of a create we should
-        # read the file from disc and add it to documents.
-        !hasdocument(server, URI2(uri)) && continue
-        doc = getdocument(server, URI2(uri))
-        if change.type == FileChangeTypes["Created"] || (change.type == FileChangeTypes["Changed"] && !get_open_in_editor(doc))
-            filepath = uri2filepath(uri)
-            content = String(read(filepath))
-            content == get_text(doc) && return
 
-            doc = Document(uri, content, true, server)
-            setdocument!(server, URI2(uri), doc)
-            parse_all(doc, server)
+        startswith(uri, "file:") || continue
 
-        elseif change.type == FileChangeTypes["Deleted"] && !get_open_in_editor(doc)
-            deletedocument!(server, URI2(uri))
+        if change.type == FileChangeTypes["Created"]
+            if hasdocument(server, URI2(uri))
+                doc = getdocument(server, URI2(uri))
 
-            publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-            JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+                # Currently managed by the client, we don't do anything
+                if get_open_in_editor(doc)
+                    continue
+                else
+                    filepath = uri2filepath(uri)
+                    content = String(read(filepath))
+        
+                    set_text!(doc, content)
+                    set_is_workspace_file(doc, true)
+                    parse_all(doc, server)    
+                end
+            else
+                filepath = uri2filepath(uri)
+                content = String(read(filepath))
+    
+                doc = Document(uri, content, true, server)
+                setdocument!(server, URI2(uri), doc)
+                parse_all(doc, server)
+            end
+        elseif change.type == FileChangeTypes["Changed"]
+            doc = getdocument(server, URI2(uri))
+
+            # We only handle if currently not managed by client
+            if !get_open_in_editor(doc)
+                filepath = uri2filepath(uri)
+                content = String(read(filepath))
+    
+                set_text!(doc, content)
+                set_is_workspace_file(doc, true)
+                parse_all(doc, server)                            
+            end
+        elseif change.type == FileChangeTypes["Deleted"]
+            doc = getdocument(server, URI2(uri))
+
+            # We only handle if currently not managed by client
+            if !get_open_in_editor(doc)
+                deletedocument!(server, URI2(uri))
+
+                publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
+                JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+            else
+                # TODO replace with accessor function once the other PR
+                # that introduces the accessor is merged
+                doc._workspace_file = false
+            end                
+        else
+            error("Unknown change type.")
         end
     end
 end
-
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)

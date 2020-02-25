@@ -2,66 +2,70 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params) = DidO
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     server.isrunning = true
     uri = r.params.textDocument.uri
-    if URI2(uri) in keys(server.documents)
-        doc = server.documents[URI2(uri)]
+    if hasdocument(server, URI2(uri))
+        doc = getdocument(server, URI2(uri))
         set_text!(doc, r.params.textDocument.text)
         doc._version = r.params.textDocument.version
+        set_open_in_editor(doc, true)
         get_line_offsets(doc, true)
     else
-        try_to_load_parents(uri2filepath(uri), server)
-
-        if haskey(server.documents, URI2(uri))
-            doc = server.documents[URI2(uri)]
-        else
-            doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
-            doc._version = r.params.textDocument.version
-            if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-                doc._workspace_file = true
-            end
-            set_open_in_editor(doc, true)
-            if is_ignored(uri, server)
-                doc._runlinter = false
-            end
-        end
-    end
-    parse_all(doc, server)
-end
-
-
-JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
-    server.isrunning = true
-    uri = r.params.textDocument.uri
-    if URI2(uri) in keys(server.documents)
-        doc = server.documents[URI2(uri)]
-        set_text!(doc, r.params.textDocument.text)
+        doc = Document(uri, r.params.textDocument.text, false, server)
+        setdocument!(server, URI2(uri), doc)
         doc._version = r.params.textDocument.version
-    else
-        doc = server.documents[URI2(uri)] = Document(uri, r.params.textDocument.text, false, server)
-        doc._version = r.params.textDocument.version
-        if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-            doc._workspace_file = true
-        end
+        doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+        doc._runlinter = !is_ignored(uri, server)
         set_open_in_editor(doc, true)
-        if is_ignored(uri, server)
-            doc._runlinter = false
-        end
+        
+        try_to_load_parents(uri2filepath(uri), server)
     end
-    get_line_offsets(doc)
     parse_all(doc, server)
 end
+
+
+# JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
+# function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
+#     server.isrunning = true
+#     uri = r.params.textDocument.uri
+#     if hasdocument(server, URI2(uri))
+#         doc = getdocument(server, URI2(uri))
+#         set_text!(doc, r.params.textDocument.text)
+#         doc._version = r.params.textDocument.version
+#     else
+#         doc = Document(uri, r.params.textDocument.text, false, server)
+#         setdocument!(server, URI2(uri), doc)
+#         doc._version = r.params.textDocument.version
+#         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+#             doc._workspace_file = true
+#         end
+#         set_open_in_editor(doc, true)
+#         if is_ignored(uri, server)
+#             doc._runlinter = false
+#         end
+#     end
+#     get_line_offsets(doc)
+#     parse_all(doc, server)
+# end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = DidCloseTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    !haskey(server.documents, URI2(uri)) && return
-    doc = server.documents[URI2(uri)]
+    doc = getdocument(server, URI2(uri))
     empty!(doc.diagnostics)
     publish_diagnostics(doc, server)
-    if !is_workspace_file(doc)
-        delete!(server.documents, URI2(uri))
-    else
+    if is_workspace_file(doc)
         set_open_in_editor(doc, false)
+    else
+        if any(d.root == doc.root && d._open_in_editor for (uri, d::Document) in getdocuments_pair(server) if d != doc)
+            # If any other open document shares doc's root we just mark it as closed...
+            set_open_in_editor(doc, false)
+        else
+            # ...otherwise we delete all documents that share root with doc.
+            for (u,d) in getdocuments_pair(server)
+                if d.root == doc.root
+                    deletedocument!(server, u)
+                end
+            end
+        end
     end
 end
 
@@ -69,7 +73,12 @@ end
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params) = DidSaveTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
     uri = r.params.textDocument.uri
-    doc = server.documents[URI2(uri)]
+    doc = getdocument(server, URI2(uri))
+    if r.params.text isa String
+        if get_text(doc) != r.params.text
+            error("Mismatch between server and client text for $(doc._uri).")
+        end
+    end
     parse_all(doc, server)
 end
 
@@ -86,13 +95,8 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params) = DidChangeTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        server.documents[URI2(r.params.textDocument.uri)] = Document(r.params.textDocument.uri, "", true, server)
-    end
-    doc = server.documents[URI2(r.params.textDocument.uri)]
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     if r.params.textDocument.version < doc._version
-        # send(Dict("jsonrpc" => "2.0", "method" => "julia/getFullText", "params" => doc._uri), server)
-        # return
         error("The client and server have different textDocument versions for $(doc._uri).")
     end
     doc._version = r.params.textDocument.version
@@ -306,7 +310,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     return false
 end
 
-insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0)
+insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0) # OK, used to adjust EXPR spans
 
 function cst_len(x, i1 = 1, i2 = length(x.args))
     n = 0
@@ -362,15 +366,15 @@ end
 
 function edit_string(text, editrange, edit)
     if first(editrange) == last(editrange) == 0
-        string(edit, text)
-    elseif first(editrange) == 0 && last(editrange) == sizeof(text)
-        edit
+        text = string(edit, text)
+    elseif first(editrange) == 0 && last(editrange) == sizeof(text) # OK, this branch is probably not needed
+        text = edit
     elseif first(editrange) == 0
-        string(edit, text[nextind(text, last(editrange)):end])
-    elseif first(editrange) == last(editrange) == sizeof(text)
-        string(text, edit)
-    elseif last(editrange) == sizeof(text)
-        string(text[1:first(editrange)], edit)
+        text = string(edit, text[nextind(text, last(editrange)):end])
+    elseif first(editrange) == last(editrange) == sizeof(text) # OK, this branch is probably not needed
+        text = string(text, edit)
+    elseif last(editrange) == sizeof(text) # OK, this branch is probably not needed
+        text = string(text[1:first(editrange)], edit)
     else
         string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
     end
@@ -451,24 +455,24 @@ function mark_errors(doc, out = Diagnostic[])
 end
 
 function publish_diagnostics(doc::Document, server)
-    if server.runlinter && server.symbol_store_ready
-        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc.diagnostics)
+    if server.runlinter && server.symbol_store_ready && is_workspace_file(doc)
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
     else
-        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
+        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
     end
     JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end
 
 
 function clear_diagnostics(uri::URI2, server)
-    doc = server.documents[uri]
+    doc = getdocument(server, uri)
     empty!(doc.diagnostics)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, Diagnostic[])
+    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
     JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
 end 
 
 function clear_diagnostics(server)
-    for (uri, doc) in server.documents
+    for uri in getdocuments_key(server)
         clear_diagnostics(uri, server)
     end
 end
@@ -497,7 +501,7 @@ function parse_jmd(ps, str)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
-            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]) , "", CSTParser.Tokens.STRING))
+            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
@@ -508,7 +512,7 @@ function parse_jmd(ps, str)
             ps = CSTParser.ParseState(blockstr)
             CSTParser.next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
@@ -516,8 +520,9 @@ function parse_jmd(ps, str)
             currentbyte = top.fullspan + 1
         end
     end
-    prec_str_size = currentbyte:lastindex(str)
-    push!(top.args, CSTParser.mLITERAL(sizeof(str[prec_str_size]), sizeof(str[prec_str_size]), "", CSTParser.Tokens.STRING))
+
+    prec_str_size = currentbyte:sizeof(str) # OK
+    push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
 
     return top, ps
 end
@@ -540,32 +545,37 @@ end
 
 function is_parentof(parent_path, child_path, server)
     !isvalidjlfile(parent_path) && return false
-    previous_server_docs = collect(keys(server.documents)) # additions to this to be removed at end
+    previous_server_docs = collect(getdocuments_key(server)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)
-    pdoc = server.documents[URI2(puri)] = Document(puri, read(parent_path, String), false, server)
-
-    CSTParser.parse(get_text(pdoc))
-    if typof(pdoc.cst) === CSTParser.FileH
-        pdoc.cst.val = pdoc.path
-        set_doc(pdoc.cst, pdoc)
+    if !hasdocument(server, URI2(puri))
+        pdoc = Document(puri, read(parent_path, String), false, server)
+        setdocument!(server, URI2(puri), pdoc)
+        CSTParser.parse(get_text(pdoc))
+        if typof(pdoc.cst) === CSTParser.FileH
+            pdoc.cst.val = pdoc.path
+            set_doc(pdoc.cst, pdoc)
+        end
+    else
+        pdoc = getdocument(server, URI2(puri))
     end
     scopepass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
-    if any(uri2filepath(k._uri) == child_path for k in keys(server.documents) if !(k in previous_server_docs))
-        cdoc = server.documents[URI2(filepath2uri(child_path))]
+    if any(uri2filepath(k._uri) == child_path for k in getdocuments_key(server) if !(k in previous_server_docs))
+        cdoc = getdocument(server,URI2(filepath2uri(child_path)))
         parse_all(cdoc, server)
         scopepass(getroot(cdoc))
         return true
     else
         # clean up
-        foreach(k-> !(k in previous_server_docs) && delete!(server.documents, k), keys(server.documents))
+        foreach(k-> !(k in previous_server_docs) && deletedocument!(server, k), getdocuments_key(server))
         return false
     end
 end
 
 function try_to_load_parents(child_path, server)
     for p in search_for_parent(splitdir(child_path)...)
+        p == child_path && continue
         success = is_parentof(p, child_path, server)
         if success 
             return try_to_load_parents(p, server)

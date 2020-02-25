@@ -1,9 +1,6 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/hover for non-existing document.")
-    end
-    doc = server.documents[URI2(r.params.textDocument.uri)]
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, r.params.position))
     documentation = get_hover(x, "", server)
     documentation = get_fcall_position(x, documentation)

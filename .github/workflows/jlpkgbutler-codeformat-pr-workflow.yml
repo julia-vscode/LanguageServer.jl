@@ -9,15 +9,14 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
       - uses: julia-actions/julia-codeformat@releases/v1
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v1.8.0
+        uses: peter-evans/create-pull-request@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: Format files using DocumentFormat
           title: '[AUTO] Format files using DocumentFormat'
           body: '[DocumentFormat.jl](https://github.com/julia-vscode/DocumentFormat.jl) would suggest these formatting changes'
           labels: no changelog
-          branch-suffix: none

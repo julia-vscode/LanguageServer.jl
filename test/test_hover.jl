@@ -18,7 +18,7 @@ testmodule
 """
 LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/didOpen")},LanguageServer.DidOpenTextDocumentParams}(0, LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext))), server)
 
-doc = server.documents[LanguageServer.URI2("testdoc")]
+doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
 LanguageServer.parse_all(doc, server)
 
 

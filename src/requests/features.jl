@@ -21,10 +21,7 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/signatureHelp for non-existing document.")
-    end
-    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     sigs = SignatureInformation[]
     offset = get_offset(doc, r.params.position)
     rng = Range(doc, offset:offset)
@@ -74,11 +71,8 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/definition for non-existing document.")
-    end
     locations = Location[]
-    doc = server.documents[URI2(r.params.textDocument.uri)]
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     offset = get_offset(doc, r.params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
@@ -113,7 +107,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
-        if sizeof(valof(x)) < 256
+        if sizeof(valof(x)) < 256 # AUDIT: OK
             if isfile(valof(x))
                 push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
             elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
@@ -144,36 +138,22 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/formatting")}}, params) = DocumentFormattingParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server::LanguageServerInstance)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/formatting for non-existing document.")
-    end
-    doc = server.documents[URI2(r.params.textDocument.uri)]
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     newcontent = DocumentFormat.format(get_text(doc), server.format_options)
-    end_l, end_c = get_position_at(doc, sizeof(get_text(doc)))
+    end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/documentLink for non-existing document.")
-    end
-    links = Tuple{String,UnitRange{Int}}[]
-
-    return links
-end
-
-
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
-    doc = server.documents[URI2(textDocument.uri)] 
+    doc = getdocument(server, URI2(textDocument.uri))
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
-        for r in refof(x).refs
-            !(r isa EXPR) && continue
+        refs = find_references(refof(x))
+        for r in refs
             doc1, o = get_file_loc(r)
             if doc1 isa Document
                 push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
@@ -183,20 +163,32 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     return locations
 end
 
+# If 
+function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
+    if !from_end
+        if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+            b = StaticLint.last_method(b)
+        end
+    end
+    for r in b.refs
+        !(r isa EXPR) && continue
+        push!(refs, r)
+    end
+    if b.prev isa StaticLint.Binding && (b.prev.type === StaticLint.CoreTypes.Function || b.prev.type === StaticLint.CoreTypes.DataType)
+        return find_references(b.prev, refs, true)
+    else
+        return refs
+    end
+end
+
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params) = ReferenceParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/references for non-existing document.")
-    end
     locations = find_references(r.params.textDocument, r.params.position, server)
     return locations
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = RenameParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/rename for non-existing document.")
-    end
     tdes = Dict{String,TextDocumentEdit}()
     locations = find_references(r.params.textDocument, r.params.position, server)
     
@@ -204,7 +196,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, r.params.newName))
         else
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, server.documents[URI2(loc.uri)]._version), [TextEdit(loc.range, r.params.newName)])
+            doc = getdocument(server, URI2(loc.uri))
+            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, r.params.newName)])
         end
     end
     
@@ -214,12 +207,9 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/documentSymbol for non-existing document.")
-    end
     syms = SymbolInformation[]
     uri = r.params.textDocument.uri 
-    doc = server.documents[URI2(uri)]
+    doc = getdocument(server, URI2(uri))
 
     bs = collect_bindings_w_loc(getcst(doc))
     for x in bs

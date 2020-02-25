@@ -1,10 +1,7 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
-    if !haskey(server.documents, URI2(r.params.textDocument.uri))
-        error("Received 'textDocument/action for non-existing document.")
-    end
     commands = Command[]
-    doc = server.documents[URI2(r.params.textDocument.uri)] 
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
     offset = get_offset(doc, r.params.range.start)
     offset1 = get_offset(doc, r.params.range.stop)
     x = get_expr(getcst(doc), offset)
@@ -36,7 +33,7 @@ JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = 
 function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},ExecuteCommandParams}, server) 
     uri = r.params.arguments[1]
     offset = r.params.arguments[2]
-    doc = server.documents[URI2(uri)] 
+    doc = getdocument(server, URI2(uri))
     x = get_expr(getcst(doc), offset)
     if r.params.command == "ExplicitPackageVarImport"
         explicitly_import_used_variables(x, r.id + 1, server)
@@ -254,7 +251,6 @@ end
 
 function wrap_block(x, id, server, type) end
 function wrap_block(x::EXPR, id, server, type)
-    @info 2
     file, offset = get_file_loc(x) # rese
     l0, _ = get_position_at(file, offset)
     l1, _ = get_position_at(file, offset + x.span)

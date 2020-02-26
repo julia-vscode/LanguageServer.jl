@@ -150,7 +150,7 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
             x.fullspan += length(insert_text)
             update_parent_spans!(x)
             return true
-        elseif length(insert_text) == 1 && typof(x) === CSTParser.IDENTIFIER && _valid_id_edit(x, pos, insert_text)
+        elseif _valid_id_edit(x, pos, insert_text)
             newval = edit_string(x.val, pos, insert_text)
             if (!StaticLint.hasref(x) || refof(x) isa SymbolServer.SymStore) || 
                 (!StaticLint.hasbinding(x) && !_id_is_name(x) &&
@@ -230,9 +230,12 @@ function _valid_int_delete(x, pos)
 end
 
 function _valid_id_edit(x, pos, insert_text)
+    length(insert_text) == 1 &&
+    typof(x) === CSTParser.IDENTIFIER &&
     ((pos == 0 && CSTParser.Tokenize.Lexers.is_identifier_start_char(first(insert_text))) ||
-    (0 < pos <= x.span && CSTParser.Tokenize.Lexers.is_identifier_char(first(insert_text)))) &&
-    (newval = string(x.val[1:pos], insert_text, x.val[pos+1:end]);CSTParser.Tokenize.Lexers.next_token(CSTParser.Tokenize.tokenize(newval)).kind === Tokens.IDENTIFIER)
+        (0 < pos <= x.span && CSTParser.Tokenize.Lexers.is_identifier_char(first(insert_text)))) &&
+    (newval = string(x.val[1:pos], insert_text, x.val[pos+1:end]);
+        CSTParser.Tokenize.Lexers.next_token(CSTParser.Tokenize.tokenize(newval)).kind === Tokens.IDENTIFIER)
 end
 
 function _id_is_name(x)

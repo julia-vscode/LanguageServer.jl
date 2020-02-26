@@ -145,6 +145,7 @@ function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server) 
+function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server::LanguageServerInstance) 
+    server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
     exit()
 end

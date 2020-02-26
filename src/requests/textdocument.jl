@@ -104,7 +104,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(r.params.contentChanges).range)
         tdcce = first(r.params.contentChanges)
         skipscope = _partial_update(doc, tdcce) 
-        @info [round((c/sum(update_count))*100, sigdigits = 4) for c in update_count]
         if !skipscope # we've updated a teriminal expr where there's no need to run scoping.
             scopepass(getroot(doc), doc)
             StaticLint.check_all(getcst(doc), server.lint_options, server)
@@ -127,7 +126,7 @@ function update_parent_spans!(x::EXPR)
     end
 end
 
-const update_count = [0, 0]
+
 
 # checks whether we can update a terminal token with no need to run a scopepass
 # Handled states:
@@ -146,12 +145,10 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
             x.span += 1
             x.fullspan += 1
             update_parent_spans!(x)
-            update_count[1] += 1
             return true
         elseif _valid_ws_add(x, pos, insert_range, insert_text, old_text)
             x.fullspan += length(insert_text)
             update_parent_spans!(x)
-            update_count[1] += 1
             return true
         elseif length(insert_text) == 1 && typof(x) === CSTParser.IDENTIFIER && _valid_id_edit(x, pos, insert_text)
             newval = edit_string(x.val, pos, insert_text)
@@ -163,7 +160,6 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
                 x.span += 1
                 x.fullspan += 1
                 update_parent_spans!(x)
-                update_count[1] += 1
                 StaticLint.clear_ref(x)
                 StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
                 return true
@@ -175,7 +171,6 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
         if _valid_ws_delete(x, pos, insert_range, old_text)
             x.fullspan -= (length(insert_range) - 1)
             update_parent_spans!(x)
-            update_count[1] += 1
             return true
         elseif _valid_int_delete(x, pos)
             newval = string(x.val[1:first(pos)], x.val[nextind(x.val, last(pos)):end])
@@ -183,7 +178,6 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
             x.span -= length(pos) - 1
             x.fullspan -= length(pos) - 1
             update_parent_spans!(x)
-            update_count[1] += 1
             return true
         elseif typof(x) == CSTParser.IDENTIFIER && last(pos) <= x.span && length(pos) < x.span &&
                 ((!StaticLint.hasref(x) || refof(x) isa SymbolServer.SymStore) || 
@@ -196,7 +190,6 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
             x.span -= length(pos) - 1
             x.fullspan -= length(pos) - 1
             update_parent_spans!(x)
-            update_count[1] += 1
             StaticLint.clear_ref(x)
             StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
             return true
@@ -257,7 +250,6 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
 
     noimpact && return true
 
-    update_count[2] += 1
     i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
     is = insert_size(tdcce.text, insert_range)
     if isempty(updated_text)

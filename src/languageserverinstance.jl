@@ -39,6 +39,7 @@ mutable struct LanguageServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{String,SymbolServer.ModuleStore}
     symbol_store_ready::Bool
+    workspacepackages::Dict{String,StaticLint.Binding}
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
@@ -70,6 +71,7 @@ mutable struct LanguageServerInstance
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             false,
+            Dict{String,StaticLint.Binding}(),
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
             Channel{Any}(Inf),

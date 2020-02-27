@@ -30,7 +30,8 @@ Instantiate an instance of the language server with
 `LanguageServerInstance` and `run` it:
 
 ```julia
-using LanguageServer, LanguageServer.SymbolServer
+using LanguageServer
+using LanguageServer.SymbolServer
 
 server = LanguageServerInstance(stdin, stdout, false, "/path/to/environment")
 run(server)

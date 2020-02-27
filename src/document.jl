@@ -77,7 +77,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
                 character -= 1
             end
         end
-        if UInt32(c) < 0x0080
+        if Base.invalid_char(c) || UInt32(c) < 0x0080
             return position(io)
         elseif UInt32(c) < 0x0800
             return position(io) - 1

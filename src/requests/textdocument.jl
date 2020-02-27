@@ -285,14 +285,14 @@ function mark_errors(doc, out = Diagnostic[])
         while line < nlines
             seek(io, line_offsets[line])
             char = 0
-            while line_offsets[line] <= offset < line_offsets[line + 1]  
+            while line_offsets[line] <= offset < line_offsets[line + 1]
                 while offset > position(io)
                     c = read(io, Char)
-                    if UInt32(c) >= 0x010000
+                    if !Base.invalid_char(c) && UInt32(c) >= 0x010000
                         char += 1
                     end
                     char += 1
-                end                  
+                end
                 if start
                     r[1] = line
                     r[2] = char

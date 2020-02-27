@@ -266,3 +266,11 @@ function sanitize_docstring(doc::String)
     doc = replace(doc,"\n#"=>"\n###")
     return doc
 end
+
+function is_invalid_char(c)
+    u = reinterpret(UInt32, c)
+    l1 = leading_ones(u)
+    t0 = trailing_zeros(u) & 56
+    (l1 == 1) | (8l1 + t0 > 32) |
+    ((((u & 0x00c0c0c0) ⊻ 0x00808080) >> t0 != 0) | Base.is_overlong_enc(u))
+end

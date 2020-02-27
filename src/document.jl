@@ -73,11 +73,11 @@ function get_offset(doc::Document, line::Integer, character::Integer)
         while character > 0        
             c = read(io, Char)
             character -= 1
-            if !Base.invalid_char(c) && UInt32(c) >= 0x010000
+            if !is_invalid_char(c) && UInt32(c) >= 0x010000
                 character -= 1
             end
         end
-        if Base.invalid_char(c) || UInt32(c) < 0x0080
+        if is_invalid_char(c) || UInt32(c) < 0x0080
             return position(io)
         elseif UInt32(c) < 0x0800
             return position(io) - 1
@@ -174,7 +174,7 @@ function get_position_at(doc::Document, offset::Integer)
     while offset > position(io)
         c = read(io, Char)
         character += 1
-        if !Base.invalid_char(c) && UInt32(c) >= 0x010000
+        if !is_invalid_char(c) && UInt32(c) >= 0x010000
             character += 1
         end
     end

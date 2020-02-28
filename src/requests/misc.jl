@@ -28,7 +28,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},Te
     loc = 0
     p1, p2, p3 = 0, x.span, x.fullspan
     if typof(x) === CSTParser.FileH
-        (offset > x.fullspan || x.args === nothing) && break
+        (offset > x.fullspan || x.args === nothing) && return Position(get_position_at(doc, p1)...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
         for a in x.args
             if loc <= offset < loc + a.fullspan
                 if typof(a) === CSTParser.ModuleH

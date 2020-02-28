@@ -414,7 +414,9 @@ function is_parentof(parent_path, child_path, server)
     # load parent file
     puri = filepath2uri(parent_path)
     if !hasdocument(server, URI2(puri))
-        pdoc = Document(puri, read(parent_path, String), false, server)
+        new_content = read(parent_path, String)
+        isvalid(new_content) || return false
+        pdoc = Document(puri, new_content, false, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc))
         if typof(pdoc.cst) === CSTParser.FileH

@@ -4,6 +4,8 @@ hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2
 canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
 function loadfile(server::LanguageServerInstance, path::String)
     source = read(path, String)
+    # Don't load invalid files
+    isvalid(source) || return
     uri = filepath2uri(path)
     doc = Document(uri, source, true, server)
     StaticLint.setfile(server, path, doc)

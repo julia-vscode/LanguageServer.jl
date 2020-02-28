@@ -84,6 +84,7 @@ function load_folder(path::String, server)
                         continue
                     else
                         content = read(filepath, String)
+                        isvalid(content) || continue
                         doc = Document(uri, content, true, server)
                         setdocument!(server, URI2(uri), doc)
                         parse_all(doc, server)

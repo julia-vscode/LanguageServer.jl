@@ -15,6 +15,9 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 else
                     filepath = uri2filepath(uri)
                     content = String(read(filepath))
+
+                    # Don't load malformed text
+                    isvalid(content) || continue
         
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
@@ -23,6 +26,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             else
                 filepath = uri2filepath(uri)
                 content = String(read(filepath))
+
+                isvalid(content) || continue
     
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
@@ -35,10 +40,19 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             if !get_open_in_editor(doc)
                 filepath = uri2filepath(uri)
                 content = String(read(filepath))
-    
-                set_text!(doc, content)
-                set_is_workspace_file(doc, true)
-                parse_all(doc, server)                            
+
+                # Don't load malformed text
+                if isvalid(content)
+                    set_text!(doc, content)
+                    set_is_workspace_file(doc, true)
+                    parse_all(doc, server)
+                else
+                    # If the file is not a valid stringe, remove it
+                    deletedocument!(server, URI2(uri))
+
+                    publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
+                    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)                    
+                end
             end
         elseif change.type == FileChangeTypes["Deleted"]
             doc = getdocument(server, URI2(uri))

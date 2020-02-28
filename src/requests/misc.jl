@@ -60,7 +60,7 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},Te
             loc += a.fullspan
         end
     end
-    return Position(max.(get_position_at(doc, p1), 0)...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
+    return Position(get_position_at(doc, p1)...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) = params

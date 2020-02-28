@@ -2,6 +2,7 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params) = DidO
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
     server.isrunning = true
     uri = r.params.textDocument.uri
+    isvalid(r.params.textDocument.text) || error("Invalid string.")
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
         set_text!(doc, r.params.textDocument.text)
@@ -121,6 +122,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     cst = getcst(doc)
     insert_range = get_offset(doc, tdcce.range)
     updated_text = edit_string(get_text(doc), insert_range, tdcce.text)
+    isvalid(updated_text) || error("Invalid string.")
     set_text!(doc, updated_text)
     doc._line_offsets = nothing
 
@@ -221,10 +223,13 @@ end
 function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
     if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
         # No range given, replace all text
+        isvalid(tdcce.text) || error("Invalid string.")
         set_text!(doc, tdcce.text)
     else
         editrange = get_offset(doc, tdcce.range)
-        set_text!(doc, edit_string(get_text(doc), editrange, tdcce.text))
+        new_text = edit_string(get_text(doc), editrange, tdcce.text)
+        isvalid(new_text) || error("Invalid string.")
+        set_text!(doc, new_text)
     end
     doc._line_offsets = nothing
 end

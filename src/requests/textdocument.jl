@@ -76,7 +76,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
     doc = getdocument(server, URI2(uri))
     if r.params.text isa String
         if get_text(doc) != r.params.text
-            error("Mismatch between server and client text for $(doc._uri).")
+            error("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version).")
         end
     end
     parse_all(doc, server)

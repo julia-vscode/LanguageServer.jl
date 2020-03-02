@@ -14,7 +14,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     continue
                 else
                     filepath = uri2filepath(uri)
-                    content = String(read(filepath))
+                    content = try
+                        read(filepath, String)
+                    catch err
+                        continue
+                    end
         
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
@@ -22,7 +26,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 end
             else
                 filepath = uri2filepath(uri)
-                content = String(read(filepath))
+                content = try
+                    read(filepath, String)
+                catch err
+                    continue
+                end
     
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
@@ -34,7 +42,11 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
             # We only handle if currently not managed by client
             if !get_open_in_editor(doc)
                 filepath = uri2filepath(uri)
-                content = String(read(filepath))
+                content = try
+                    read(filepath, String)
+                catch err
+                    continue
+                end
     
                 set_text!(doc, content)
                 set_is_workspace_file(doc, true)

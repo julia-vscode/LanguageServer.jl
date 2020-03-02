@@ -77,13 +77,16 @@ function load_folder(path::String, server)
             for file in files
                 filepath = joinpath(root, file)
                 if isvalidjlfile(filepath)
-                    !isfile(filepath) && continue
                     uri = filepath2uri(filepath)
                     if hasdocument(server, URI2(uri))
                         set_is_workspace_file(getdocument(server, URI2(uri)), true)
                         continue
                     else
-                        content = read(filepath, String)
+                        content = try
+                            read(filepath, String)
+                        catch err
+                            continue
+                        end
                         doc = Document(uri, content, true, server)
                         setdocument!(server, URI2(uri), doc)
                         parse_all(doc, server)

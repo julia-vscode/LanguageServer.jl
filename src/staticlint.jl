@@ -3,7 +3,11 @@ import StaticLint: getpath, setpath, getroot, setroot, getcst, setcst, scopepass
 hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2(filepath2uri(path)))
 canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
 function loadfile(server::LanguageServerInstance, path::String)
-    source = read(path, String)
+    source = try
+        read(path, String)
+    catch err
+        return
+    end
     uri = filepath2uri(path)
     doc = Document(uri, source, true, server)
     StaticLint.setfile(server, path, doc)

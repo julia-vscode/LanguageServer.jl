@@ -397,9 +397,14 @@ function search_for_parent(dir::String, file::String, drop = 3, parents = String
     !isdir(dir) && return parents
     !hasreadperm(dir) && return parents
     for f in readdir(dir)
-        if isvalidjlfile(joinpath(dir, f))
-            # Could be sped up?
-            s = read(joinpath(dir, f), String)
+        filename = joinpath(dir, f)
+        if isvalidjlfile(filename)
+            # Could be sped up?            
+            s = try
+                read(filename, String)
+            catch err
+                continue
+            end
             occursin(file, s) && push!(parents, joinpath(dir, f))
         end
     end
@@ -414,7 +419,12 @@ function is_parentof(parent_path, child_path, server)
     # load parent file
     puri = filepath2uri(parent_path)
     if !hasdocument(server, URI2(puri))
-        pdoc = Document(puri, read(parent_path, String), false, server)
+        content = try
+            read(parent_path, String)
+        catch err
+            return false
+        end
+        pdoc = Document(puri, content, false, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc))
         if typof(pdoc.cst) === CSTParser.FileH

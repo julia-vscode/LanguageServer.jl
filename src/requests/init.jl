@@ -83,7 +83,12 @@ function load_folder(path::String, server)
                         continue
                     else
                         content = try
-                            read(filepath, String)
+                            s = read(filepath, String)
+                            # We throw an error in the case of an invalid
+                            # UTF-8 sequence so that the same code path
+                            # is used that handles file IO problems
+                            isvalid(s) || error()
+                            s
                         catch err
                             continue
                         end

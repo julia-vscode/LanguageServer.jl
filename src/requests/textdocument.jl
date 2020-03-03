@@ -400,12 +400,17 @@ function search_for_parent(dir::String, file::String, drop = 3, parents = String
         filename = joinpath(dir, f)
         if isvalidjlfile(filename)
             # Could be sped up?            
-            s = try
-                read(filename, String)
+            content = try
+                s = read(filename, String)
+                # We throw an error in the case of an invalid
+                # UTF-8 sequence so that the same code path
+                # is used that handles file IO problems
+                isvalid(s) || error()
+                s
             catch err
                 continue
             end
-            occursin(file, s) && push!(parents, joinpath(dir, f))
+            occursin(file, content) && push!(parents, joinpath(dir, f))
         end
     end
     search_for_parent(splitdir(dir)[1], file, drop - 1, parents)
@@ -420,7 +425,12 @@ function is_parentof(parent_path, child_path, server)
     puri = filepath2uri(parent_path)
     if !hasdocument(server, URI2(puri))
         content = try
-            read(parent_path, String)
+            s = read(parent_path, String)
+            # We throw an error in the case of an invalid
+            # UTF-8 sequence so that the same code path
+            # is used that handles file IO problems
+            isvalid(s) || error()
+            s
         catch err
             return false
         end

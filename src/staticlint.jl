@@ -4,7 +4,12 @@ hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2
 canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
 function loadfile(server::LanguageServerInstance, path::String)
     source = try
-        read(path, String)
+        s = read(path, String)
+        # We throw an error in the case of an invalid
+        # UTF-8 sequence so that the same code path
+        # is used that handles file IO problems
+        isvalid(s) || error()
+        s
     catch err
         return
     end

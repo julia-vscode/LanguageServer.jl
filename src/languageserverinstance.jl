@@ -113,7 +113,17 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    doc = getdocument(uri)
+
     delete!(server._documents, uri)
+
+    for d in getdocuments_value(server)
+        if d.root===doc
+            d.root = nothing
+            # TODO Check whether we need to do something else here as well,
+            # maybe rerun the linter or something like that?
+        end
+    end
 end
 
 function create_symserver_progress_ui(server)

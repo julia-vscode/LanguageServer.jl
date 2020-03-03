@@ -253,8 +253,17 @@ end
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a,b)[1]
     end
+    function _splitdrive(path::String)
+        m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        String(m.captures[1]), String(m.captures[2])
+    end
+    function _splitdir(path::String)
+        a, b = _splitdrive(path)
+        _splitdir_nodrive(a,b)
+    end
 else
     _dirname = dirname
+    _splitdir = splitdir
 end
 
 function valid_id(s::String)

@@ -3,7 +3,16 @@ import StaticLint: getpath, setpath, getroot, setroot, getcst, setcst, scopepass
 hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2(filepath2uri(path)))
 canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
 function loadfile(server::LanguageServerInstance, path::String)
-    source = read(path, String)
+    source = try
+        s = read(path, String)
+        # We throw an error in the case of an invalid
+        # UTF-8 sequence so that the same code path
+        # is used that handles file IO problems
+        isvalid(s) || error()
+        s
+    catch err
+        return
+    end
     uri = filepath2uri(path)
     doc = Document(uri, source, true, server)
     StaticLint.setfile(server, path, doc)

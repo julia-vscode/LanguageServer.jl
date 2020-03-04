@@ -118,22 +118,8 @@ function get_toks(doc, offset)
 end
 
 function isvalidjlfile(path)
-    hasreadperm(path) && 
-    isfile(path) &&
-    endswith(path, ".jl") &&
-    validchars(path)
+    endswith(path, ".jl")
 end
-
-function validchars(path)
-    io = open(path)
-    while !eof(io)
-        c = read(io, Char)
-        Base.ismalformed(c) && return false
-    end
-    close(io)
-    return true
-end
-
 
 function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset

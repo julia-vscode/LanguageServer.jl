@@ -5,7 +5,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
 
         startswith(uri, "file:") || continue
 
-        if change.type == FileChangeTypes["Created"]
+        if change.type == FileChangeTypes["Created"] || change.type == FileChangeTypes["Changed"]
             if hasdocument(server, URI2(uri))
                 doc = getdocument(server, URI2(uri))
 
@@ -14,7 +14,17 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     continue
                 else
                     filepath = uri2filepath(uri)
-                    content = String(read(filepath))
+                    content = try
+                        s = read(filepath, String)
+                        # We throw an error in the case of an invalid
+                        # UTF-8 sequence so that the same code path
+                        # is used that handles file IO problems
+                        isvalid(s) || error()
+                        s
+                    catch err
+                        deletedocument!(server, URI2(uri))
+                        continue
+                    end
         
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
@@ -22,23 +32,20 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 end
             else
                 filepath = uri2filepath(uri)
-                content = String(read(filepath))
+                content = try
+                    s = read(filepath, String)
+                    # We throw an error in the case of an invalid
+                    # UTF-8 sequence so that the same code path
+                    # is used that handles file IO problems
+                    isvalid(s) || error()
+                    s
+                catch err
+                    continue
+                end
     
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
                 parse_all(doc, server)
-            end
-        elseif change.type == FileChangeTypes["Changed"]
-            doc = getdocument(server, URI2(uri))
-
-            # We only handle if currently not managed by client
-            if !get_open_in_editor(doc)
-                filepath = uri2filepath(uri)
-                content = String(read(filepath))
-    
-                set_text!(doc, content)
-                set_is_workspace_file(doc, true)
-                parse_all(doc, server)                            
             end
         elseif change.type == FileChangeTypes["Deleted"]
             doc = getdocument(server, URI2(uri))

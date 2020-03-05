@@ -95,6 +95,9 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params) = DidChangeTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
+    # Diagnostic code
+    diag_response = JSONRPCEndpoints.send_request(server.jr_endpoint, "julia/getFullText", Dict("uri"=>r.params.textDocument.uri, "version"=>r.params.textDocument.version))
+
     doc = getdocument(server, URI2(r.params.textDocument.uri))
     if r.params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri).")
@@ -114,6 +117,18 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
             applytextdocumentchanges(doc, tdcce)
         end
         parse_all(doc, server)
+    end
+
+    # Diagnostic code
+    if diag_response isa String
+        if diag_response == get_text(doc)
+            # @info "MATCH"
+        else
+            # TODO include more useful diagnostics
+            throw(LSTextSyncError("Text sync failed."))
+        end
+    else
+        # @info "DIDN'T HAVE THE VERSION"
     end
 end
 

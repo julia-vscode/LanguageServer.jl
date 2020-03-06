@@ -55,6 +55,8 @@ mutable struct LanguageServerInstance
 
     clientcapability_window_workdoneprogress::Bool
 
+    didChange_diags::Dict{String,Vector{Any}}
+
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
@@ -77,7 +79,8 @@ mutable struct LanguageServerInstance
             :created,
             0,
             nothing,
-            false
+            false,
+            Dict{String,Vector{Any}}()
         )
     end
 end

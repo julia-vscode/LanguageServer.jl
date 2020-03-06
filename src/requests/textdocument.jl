@@ -99,6 +99,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     diag_response = JSONRPCEndpoints.send_request(server.jr_endpoint, "julia/getFullText", Dict("uri"=>r.params.textDocument.uri, "version"=>r.params.textDocument.version))
 
     doc = getdocument(server, URI2(r.params.textDocument.uri))
+    prev_text = deepcopy(get_text(doc)) # Diagnostic code
     if r.params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri).")
     end
@@ -120,15 +121,43 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
     end
 
     # Diagnostic code
-    if diag_response isa String
-        if diag_response == get_text(doc)
-            # @info "MATCH"
+    if !haskey(server.didChange_diags, r.params.textDocument.uri)
+        server.didChange_diags[r.params.textDocument.uri] = []
+    end
+    server_ver = TextDocumentItem(r.params.textDocument.uri, "julia", diag_response["version"], diag_response["text"])
+    if server_ver.version == doc._version
+        if server_ver.text == get_text(doc)
+            # Everything is OK
+            # @info "ver and text match"
+            empty!(server.didChange_diags[r.params.textDocument.uri]) # clear our store
+            push!(server.didChange_diags[r.params.textDocument.uri], server_ver) # keep a copy of the last document where versions matched
         else
-            # TODO include more useful diagnostics
-            throw(LSTextSyncError("Text sync failed."))
+            # Client/server texts don't match, throw an informative error
+            # Obscure error text
+            err = IOBuffer()
+            println(err, "File: ", doc._uri)
+            for x in server.didChange_diags[r.params.textDocument.uri]
+                if x isa TextDocumentItem
+                    println(err, "##### matching doc ver: ", x.version)
+                    println(err, obscure_text(x.text))
+                else
+                    println(err, "##### Edit description")
+                    println(err, "##### previous text")
+                    println(err, obscure_text(x[1]))
+                    for tdcc in x[2]
+                        println(err, "#### TDCCE, range: $(tdcce.range), range length: $(tdcce.rangeLength)")
+                        println(err, obscure_text(tdcce.text))
+                    end
+                    println(err, "##### after edit text (ver = $(x[4]))")
+                    println(err, obscure_text(x[3]))
+                end
+            end
+            throw(LSTextSyncError(server.didChange_diags[r.params.textDocument.uri]))
         end
     else
-        # @info "DIDN'T HAVE THE VERSION"
+        # Client is updating too fast for us, lets store some helpful info
+        # @info "client ahead of server by $(length(server.didChange_diags[r.params.textDocument.uri]) + 1)"
+        push!(server.didChange_diags[r.params.textDocument.uri], (prev_text, r.params.contentChanges, get_text(doc), doc._version))
     end
 end
 

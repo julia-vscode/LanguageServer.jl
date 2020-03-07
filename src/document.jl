@@ -38,6 +38,7 @@ end
 
 function set_text!(doc::Document, text)
     doc._content = text
+    doc._line_offsets = nothing
 end
 
 function set_open_in_editor(doc::Document, value::Bool)
@@ -167,7 +168,7 @@ byte offset.
 function get_position_at(doc::Document, offset::Integer)
     offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]") # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
-    line, ind = get_line_of(doc._line_offsets, offset)
+    line, ind = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))
     seek(io, line_offsets[line])
     character = 0

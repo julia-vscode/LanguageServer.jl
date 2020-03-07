@@ -122,7 +122,6 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     insert_range = get_offset(doc, tdcce.range)
     updated_text = edit_string(get_text(doc), insert_range, tdcce.text)
     set_text!(doc, updated_text)
-    doc._line_offsets = nothing
 
     i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
     is = insert_size(tdcce.text, insert_range)
@@ -226,7 +225,6 @@ function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChang
         editrange = get_offset(doc, tdcce.range)
         set_text!(doc, edit_string(get_text(doc), editrange, tdcce.text))
     end
-    doc._line_offsets = nothing
 end
 
 function edit_string(text, editrange, edit)

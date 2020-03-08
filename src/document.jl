@@ -3,6 +3,7 @@ mutable struct Document
     path::String
     _content::String
     _line_offsets::Union{Nothing,Vector{Int}}
+    _line_offsets2::Union{Nothing,Vector{Int}}
     _open_in_editor::Bool
     _workspace_file::Bool
     cst::EXPR
@@ -14,8 +15,9 @@ mutable struct Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
         path = uri2filepath(uri)
         cst = CSTParser.parse(text, true)
-        doc = new(uri, path, text, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
         get_line_offsets(doc)
+        get_line_offsets2!(doc)
         cst.val = path
         set_doc(doc.cst, doc)
         setroot(doc, doc)
@@ -38,6 +40,8 @@ end
 
 function set_text!(doc::Document, text)
     doc._content = text
+    doc._line_offsets = nothing
+    doc._line_offsets2 = nothing
 end
 
 function set_open_in_editor(doc::Document, value::Bool)
@@ -93,6 +97,37 @@ end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
+function get_offset2(doc::Document, line::Integer, character::Integer)
+    line_offsets = get_line_offsets2!(doc)
+    text = get_text(doc)
+
+    if line >= length(line_offsets)
+        error("Invalid arguments.")
+        return nextind(text, lastindex(text))
+    elseif line < 0
+        error("Invalid arguments.")
+    end
+
+    line_offset = line_offsets[line+1]
+    
+    next_line_offset = line + 1 < length(line_offsets) ? line_offsets[line + 2] : nextind(text, lastindex(text))
+
+    pos = line_offset
+
+    while character>0
+        if UInt32(text[pos]) >= 0x010000
+            character -= 2
+        else
+            character -= 1
+        end
+        pos = nextind(text, pos)        
+    end
+
+    ret = min(pos, next_line_offset)
+
+    return pos
+end
+
 # Note: to be removed
 function obscure_text(s)
     i = 1
@@ -142,6 +177,27 @@ function get_line_offsets(doc::Document, force = false)
     return doc._line_offsets
 end
 
+function get_line_offsets2!(doc::Document, force = false)
+    if force || doc._line_offsets2 === nothing
+        doc._line_offsets2 = Int[1]
+        text = get_text(doc)
+        ind = firstindex(text)
+        while ind <= lastindex(text)
+            c = text[ind]
+            if c == '\n' || c == '\r'
+                if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
+                    ind += 1
+                end
+                push!(doc._line_offsets2, ind + 1)
+            end
+            
+            ind = nextind(text, ind)
+        end
+    end
+
+    return doc._line_offsets2
+end
+
 function get_line_of(line_offsets::Vector{Int}, offset::Integer)
     nlines = length(line_offsets)
     if offset > last(line_offsets)
@@ -167,7 +223,7 @@ byte offset.
 function get_position_at(doc::Document, offset::Integer)
     offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]") # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
-    line, ind = get_line_of(doc._line_offsets, offset)
+    line, ind = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))
     seek(io, line_offsets[line])
     character = 0

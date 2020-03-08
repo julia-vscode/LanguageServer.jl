@@ -120,9 +120,10 @@ end
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     cst = getcst(doc)
     insert_range = get_offset(doc, tdcce.range)
-    updated_text = edit_string(get_text(doc), insert_range, tdcce.text)
-    set_text!(doc, updated_text)
-    doc._line_offsets = nothing
+
+    applytextdocumentchanges(doc, tdcce)
+
+    updated_text = get_text(doc)
 
     i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
     is = insert_size(tdcce.text, insert_range)
@@ -217,32 +218,31 @@ function get_update_area(cst, insert_range)
     return i1, i2, loc1, loc2
 end
 
+function convert_lsrange_to_jlrange(doc::Document, range::Range)
+    start_offset_ls = get_offset2(doc, range.start.line, range.start.character)
+    stop_offset = get_offset2(doc, range.stop.line, range.stop.character)
+
+    text = get_text(doc)
+    
+    # we use prevind for the stop value here because Julia stop values in
+    # a range are inclusive, while the stop value is exclusive in a LS
+    # range
+    return start_offset_ls:prevind(text, stop_offset)
+end
 
 function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
     if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
         # No range given, replace all text
         set_text!(doc, tdcce.text)
     else
-        editrange = get_offset(doc, tdcce.range)
-        set_text!(doc, edit_string(get_text(doc), editrange, tdcce.text))
-    end
-    doc._line_offsets = nothing
-end
+        editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
 
-function edit_string(text, editrange, edit)
-    if first(editrange) == last(editrange) == 0
-        text = string(edit, text)
-    elseif first(editrange) == 0 && last(editrange) == sizeof(text) # OK, this branch is probably not needed
-        text = edit
-    elseif first(editrange) == 0
-        text = string(edit, text[nextind(text, last(editrange)):end])
-    elseif first(editrange) == last(editrange) == sizeof(text) # OK, this branch is probably not needed
-        text = string(text, edit)
-    elseif last(editrange) == sizeof(text) # OK, this branch is probably not needed
-        text = string(text[1:first(editrange)], edit)
-    else
-        text = string(text[1:first(editrange)], edit, text[min(lastindex(text), nextind(text, last(editrange))):end])
-    end    
+        text = get_text(doc)
+
+        new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
+
+        set_text!(doc, new_text)
+    end
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)

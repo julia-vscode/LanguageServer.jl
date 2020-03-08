@@ -223,6 +223,9 @@ function convert_lsrange_to_jlrange(doc::Document, range::Range)
 
     text = get_text(doc)
     
+    # we use prevind for the stop value here because Julia stop values in
+    # a range are inclusive, while the stop value is exclusive in a LS
+    # range
     return start_offset_ls:prevind(text, stop_offset)
 end
 
@@ -232,9 +235,11 @@ function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChang
         set_text!(doc, tdcce.text)
     else
         editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
+
         text = get_text(doc)
 
         new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
+
         set_text!(doc, new_text)
     end
     doc._line_offsets = nothing

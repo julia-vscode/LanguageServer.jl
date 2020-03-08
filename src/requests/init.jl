@@ -112,7 +112,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         elseif !(r.params.rootPath isa Nothing)
             push!(server.workspaceFolders,  r.params.rootPath)
         end
-    elseif r.params.workspaceFolders !== nothing
+    elseif (r.params.workspaceFolders !== nothing) & (r.params.workspaceFolders !== missing)
         for wksp in r.params.workspaceFolders
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end

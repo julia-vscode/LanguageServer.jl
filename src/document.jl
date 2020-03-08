@@ -121,10 +121,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
         pos = nextind(text, pos)        
     end
 
-    if pos>=next_line_offset
-        error("Invalid position")
-        ret = min(pos, next_line_offset)
-    end
+    ret = min(pos, next_line_offset)
 
     return pos
 end

@@ -153,11 +153,12 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         if ssi_ret==:success
             push!(server.symbol_results_channel, payload)
         elseif ssi_ret==:failure
-            if payload===nothing
-                throw(LSSymbolServerFailure(""))
-            else
-                throw(LSSymbolServerFailure(String(take!(payload))))
-            end
+            error_payload = Dict(
+                "command"=>"symserv_crash",
+                "name"=>"LSSymbolServerFailure",
+                "message"=>payload===nothing ? "" : String(take!(payload)),
+                "stacktrace"=>"")
+                JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
         end
         server.symbol_store_ready = true
     catch err

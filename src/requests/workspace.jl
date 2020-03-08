@@ -22,6 +22,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                         isvalid(s) || error()
                         s
                     catch err
+                        isa(err, Base.IOError) || rethrow()
                         deletedocument!(server, URI2(uri))
                         continue
                     end
@@ -40,6 +41,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     isvalid(s) || error()
                     s
                 catch err
+                    isa(err, Base.IOError) || rethrow()
                     continue
                 end
     

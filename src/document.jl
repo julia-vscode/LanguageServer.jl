@@ -179,7 +179,7 @@ end
 
 function get_line_offsets2!(doc::Document, force = false)
     if force || doc._line_offsets2 === nothing
-        doc._line_offsets = Int[1]
+        doc._line_offsets2 = Int[1]
         text = get_text(doc)
         ind = firstindex(text)
         while ind <= lastindex(text)
@@ -188,14 +188,14 @@ function get_line_offsets2!(doc::Document, force = false)
                 if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
                     ind += 1
                 end
-                push!(doc._line_offsets, ind + 1)
+                push!(doc._line_offsets2, ind + 1)
             end
             
             ind = nextind(text, ind)
         end
     end
 
-    return doc._line_offsets
+    return doc._line_offsets2
 end
 
 function get_line_of(line_offsets::Vector{Int}, offset::Integer)

@@ -48,19 +48,21 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes["Deleted"]
-            doc = getdocument(server, URI2(uri))
+            if hasdocument(server, URI2(uri))
+                doc = getdocument(server, URI2(uri))
 
-            # We only handle if currently not managed by client
-            if !get_open_in_editor(doc)
-                deletedocument!(server, URI2(uri))
+                # We only handle if currently not managed by client
+                if !get_open_in_editor(doc)
+                    deletedocument!(server, URI2(uri))
 
-                publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
-            else
-                # TODO replace with accessor function once the other PR
-                # that introduces the accessor is merged
-                doc._workspace_file = false
-            end                
+                    publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
+                    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+                else
+                    # TODO replace with accessor function once the other PR
+                    # that introduces the accessor is merged
+                    doc._workspace_file = false
+                end
+            end
         else
             error("Unknown change type.")
         end

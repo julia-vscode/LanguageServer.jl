@@ -2,7 +2,8 @@ _ispath(s) = false
 function _ispath(s::String)
     try
         return ispath(s)
-    catch e
+    catch err
+        isa(err, Base.IOError) || rethrow()
         return false
     end
 end

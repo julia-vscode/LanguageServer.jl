@@ -43,17 +43,24 @@ end
 
 function has_too_many_files(path, N = 5000)
     i = 0
-    for (root, dirs, files) in walkdir(path, onerror = x->x)
-        for file in files
-            if endswith(file, ".jl")
-                i += 1
-            end
-            if i > N
-                @info "Your workspace folder has > $N Julia files, server will not try to load them."
-                return true
+
+    try
+        for (root, dirs, files) in walkdir(path, onerror = x->x)
+            for file in files
+                if endswith(file, ".jl")
+                    i += 1
+                end
+                if i > N
+                    @info "Your workspace folder has > $N Julia files, server will not try to load them."
+                    return true
+                end
             end
         end
+    catch err
+        isa(err, Base.IOError) || rethrow()
+        return false
     end
+
     return false
 end
 
@@ -73,31 +80,36 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
-            for file in files
-                filepath = joinpath(root, file)
-                if isvalidjlfile(filepath)
-                    uri = filepath2uri(filepath)
-                    if hasdocument(server, URI2(uri))
-                        set_is_workspace_file(getdocument(server, URI2(uri)), true)
-                        continue
-                    else
-                        content = try
-                            s = read(filepath, String)
-                            # We throw an error in the case of an invalid
-                            # UTF-8 sequence so that the same code path
-                            # is used that handles file IO problems
-                            isvalid(s) || error()
-                            s
-                        catch err
+        try
+            for (root, dirs, files) in walkdir(path, onerror = x->x)
+                for file in files
+                    filepath = joinpath(root, file)
+                    if isvalidjlfile(filepath)
+                        uri = filepath2uri(filepath)
+                        if hasdocument(server, URI2(uri))
+                            set_is_workspace_file(getdocument(server, URI2(uri)), true)
                             continue
+                        else
+                            content = try
+                                s = read(filepath, String)
+                                # We throw an error in the case of an invalid
+                                # UTF-8 sequence so that the same code path
+                                # is used that handles file IO problems
+                                isvalid(s) || error()
+                                s
+                            catch err
+                                isa(err, Base.IOError) || rethrow()
+                                continue
+                            end
+                            doc = Document(uri, content, true, server)
+                            setdocument!(server, URI2(uri), doc)
+                            parse_all(doc, server)
                         end
-                        doc = Document(uri, content, true, server)
-                        setdocument!(server, URI2(uri), doc)
-                        parse_all(doc, server)
                     end
                 end
             end
+        catch err
+            isa(err, Base.IOError) || rethrow()
         end
     end
 end

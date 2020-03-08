@@ -408,6 +408,7 @@ function search_for_parent(dir::String, file::String, drop = 3, parents = String
                 isvalid(s) || error()
                 s
             catch err
+                isa(err, Base.IOError) || rethrow()
                 continue
             end
             occursin(file, content) && push!(parents, joinpath(dir, f))
@@ -432,6 +433,7 @@ function is_parentof(parent_path, child_path, server)
             isvalid(s) || error()
             s
         catch err
+            isa(err, Base.IOError) || rethrow()
             return false
         end
         pdoc = Document(puri, content, false, server)

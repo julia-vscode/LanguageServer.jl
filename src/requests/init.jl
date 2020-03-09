@@ -57,7 +57,7 @@ function has_too_many_files(path, N = 5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
     end
 
@@ -95,7 +95,7 @@ function load_folder(path::String, server)
                                 isvalid(s) || continue
                                 s
                             catch err
-                                isa(err, Base.IOError) || rethrow()
+                                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                                 continue
                             end
                             doc = Document(uri, content, true, server)
@@ -106,7 +106,7 @@ function load_folder(path::String, server)
                 end
             end
         catch err
-            isa(err, Base.IOError) || rethrow()
+            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         end
     end
 end

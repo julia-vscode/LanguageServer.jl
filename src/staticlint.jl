@@ -5,7 +5,7 @@ function canloadfile(server::LanguageServerInstance, path::String)
     try
         return isfile(path)
     catch err
-        isa(err, Base.IOError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
     end
 end
@@ -15,7 +15,7 @@ function loadfile(server::LanguageServerInstance, path::String)
         isvalid(s) || return
         s
     catch err
-        isa(err, Base.IOError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return
     end
     uri = filepath2uri(path)

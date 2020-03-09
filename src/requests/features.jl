@@ -84,7 +84,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                         push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
                     end
                 catch err
-                    isa(err, Base.IOError) || rethrow()
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
             end
         elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
@@ -119,7 +119,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
-                isa(err, Base.IOError) || rethrow()
+                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
             end
         end
     end

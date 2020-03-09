@@ -3,7 +3,7 @@ function _ispath(s::String)
     try
         return ispath(s)
     catch err
-        isa(err, Base.IOError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
     end
 end

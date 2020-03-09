@@ -16,10 +16,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        # We throw an error in the case of an invalid
-                        # UTF-8 sequence so that the same code path
-                        # is used that handles file IO problems
-                        isvalid(s) || error()
+                        if !isvalid(s)
+                            deletedocument!(server, URI2(uri))
+                            continue
+                        end
                         s
                     catch err
                         isa(err, Base.IOError) || rethrow()
@@ -35,10 +35,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 filepath = uri2filepath(uri)
                 content = try
                     s = read(filepath, String)
-                    # We throw an error in the case of an invalid
-                    # UTF-8 sequence so that the same code path
-                    # is used that handles file IO problems
-                    isvalid(s) || error()
+                    isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || rethrow()

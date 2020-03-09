@@ -12,10 +12,7 @@ end
 function loadfile(server::LanguageServerInstance, path::String)
     source = try
         s = read(path, String)
-        # We throw an error in the case of an invalid
-        # UTF-8 sequence so that the same code path
-        # is used that handles file IO problems
-        isvalid(s) || error()
+        isvalid(s) || return
         s
     catch err
         isa(err, Base.IOError) || rethrow()

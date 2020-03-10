@@ -142,7 +142,12 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
 
     @async try
         # TODO Add try catch handler that links into crash reporting
-        ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
+        ssi_ret, payload = SymbolServer.getstore(
+            server.symbol_server,
+            server.env_path,
+            i-> JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i..."))),
+            server.err_handler
+        )
 
         server.number_of_outstanding_symserver_requests -= 1
 
@@ -158,7 +163,13 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 "name"=>"LSSymbolServerFailure",
                 "message"=>payload===nothing ? "" : String(take!(payload)),
                 "stacktrace"=>"")
-                JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
+        elseif ssi_ret==:package_load_crash
+            error_payload = Dict(
+                "command"=>"symserv_pkgload_crash",
+                "name"=>payload.package_name,
+                "message"=>payload.stderr===nothing ? "" : String(take!(payload.stderr)))
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
         end
         server.symbol_store_ready = true
     catch err

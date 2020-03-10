@@ -296,10 +296,14 @@ function path_completion(doc, offset, rng, t, CIs)
         fs = readdir(path)
         for f in fs
             if startswith(f, partial)
-                if isdir(joinpath(path, f))
-                    f = string(f, "/")
+                try
+                    if isdir(joinpath(path, f))
+                        f = string(f, "/")
+                    end
+                    push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
+                catch err
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
-                push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
             end
         end
     catch err

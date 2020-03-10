@@ -394,24 +394,30 @@ end
 
 function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
     drop<1 && return parents
-    !isdir(dir) && return parents
-    !hasreadperm(dir) && return parents
-    for f in readdir(dir)
-        filename = joinpath(dir, f)
-        if isvalidjlfile(filename)
-            # Could be sped up?            
-            content = try
-                s = read(filename, String)
-                isvalid(s) || continue
-                s
-            catch err
-                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                continue
+    try
+        !isdir(dir) && return parents
+        !hasreadperm(dir) && return parents
+        for f in readdir(dir)
+            filename = joinpath(dir, f)
+            if isvalidjlfile(filename)
+                # Could be sped up?            
+                content = try
+                    s = read(filename, String)
+                    isvalid(s) || continue
+                    s
+                catch err
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                    continue
+                end
+                occursin(file, content) && push!(parents, joinpath(dir, f))
             end
-            occursin(file, content) && push!(parents, joinpath(dir, f))
         end
+        search_for_parent(splitdir(dir)[1], file, drop - 1, parents)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return parents
     end
-    search_for_parent(splitdir(dir)[1], file, drop - 1, parents)
+    
     return parents
 end
 

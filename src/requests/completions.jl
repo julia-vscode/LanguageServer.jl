@@ -1,13 +1,3 @@
-_ispath(s) = false
-function _ispath(s::String)
-    try
-        return ispath(s)
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        return false
-    end
-end
-
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
     CIs = CompletionItem[]
@@ -302,16 +292,22 @@ function path_completion(doc, offset, rng, t, CIs)
     if !startswith(path, "/")
         path = joinpath(_dirname(uri2filepath(doc._uri)), path)
     end
-    if _ispath(path)
+    try
         fs = readdir(path)
         for f in fs
             if startswith(f, partial)
-                if isdir(joinpath(path, f))
-                    f = string(f, "/")
+                try
+                    if isdir(joinpath(path, f))
+                        f = string(f, "/")
+                    end
+                    push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
+                catch err
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
-                push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
             end
         end
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
     end
     if isempty(CIs)
         ind = lastindex(partial)

@@ -34,11 +34,16 @@ const serverCapabilities = ServerCapabilities(
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
 function isjuliabasedir(path)
-    fs = readdir(path)
-    if "base" in fs && isdir(joinpath(path, "base"))
-        return isjuliabasedir(joinpath(path, "base"))
+    try
+        fs = readdir(path)
+        if "base" in fs && isdir(joinpath(path, "base"))
+            return isjuliabasedir(joinpath(path, "base"))
+        end
+        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
     end
-    all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 
 function has_too_many_files(path, N = 5000)
@@ -65,12 +70,17 @@ function has_too_many_files(path, N = 5000)
 end
 
 function load_rootpath(path)
-    isdir(path) &&
-    hasreadperm(path) &&
-    path != "" &&
-    path != homedir() &&
-    !isjuliabasedir(path) &&
-    !has_too_many_files(path)
+    try
+        return isdir(path) &&
+            hasreadperm(path) &&
+            path != "" &&
+            path != homedir() &&
+            !isjuliabasedir(path) &&
+            !has_too_many_files(path)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
+    end
 end
 
 function load_folder(wf::WorkspaceFolder, server)

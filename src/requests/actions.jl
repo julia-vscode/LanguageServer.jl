@@ -192,9 +192,10 @@ function get_next_line_offset(x)
     file, offset = get_file_loc(x)
     # get next line after using_stmt
     insertpos = -1
-    for i = 1:length(file._line_offsets) - 1
-        if file._line_offsets[i] < offset + x.span <= file._line_offsets[i + 1]
-            insertpos = file._line_offsets[i + 1]
+    line_offsets = get_line_offsets(file)
+    for i = 1:length(line_offsets) - 1
+        if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
+            insertpos = line_offsets[i + 1]
         end
     end
     return insertpos

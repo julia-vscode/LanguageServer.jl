@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "1.1.0-DEV"
+version = "2.0.1-DEV"
 
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
@@ -14,14 +14,14 @@ URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
-CSTParser = "2.1"
-DocumentFormat = "2.0.1"
+CSTParser = "2.2"
+DocumentFormat = "2.1"
 JSON = "0.20, 0.21"
-StaticLint = "3.0.1"
+StaticLint = "3.1"
 Tokenize = "0.5.7"
 URIParser = "0.4.0"
 julia = "1"
-SymbolServer = "3"
+SymbolServer = "3.1"
 
 [extras]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"

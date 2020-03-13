@@ -118,22 +118,8 @@ function get_toks(doc, offset)
 end
 
 function isvalidjlfile(path)
-    hasreadperm(path) && 
-    isfile(path) &&
-    endswith(path, ".jl") &&
-    validchars(path)
+    endswith(path, ".jl")
 end
-
-function validchars(path)
-    io = open(path)
-    while !eof(io)
-        c = read(io, Char)
-        Base.ismalformed(c) && return false
-    end
-    close(io)
-    return true
-end
-
 
 function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
@@ -253,8 +239,17 @@ end
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a,b)[1]
     end
+    function _splitdrive(path::String)
+        m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        String(m.captures[1]), String(m.captures[2])
+    end
+    function _splitdir(path::String)
+        a, b = _splitdrive(path)
+        _splitdir_nodrive(a,b)
+    end
 else
     _dirname = dirname
+    _splitdir = splitdir
 end
 
 function valid_id(s::String)

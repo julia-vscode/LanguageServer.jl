@@ -1,9 +1,23 @@
 import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver
 import StaticLint: getpath, setpath, getroot, setroot, getcst, setcst, scopepass, getserver, setserver
 hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2(filepath2uri(path)))
-canloadfile(server::LanguageServerInstance, path::String) = isfile(path)
+function canloadfile(server::LanguageServerInstance, path::String)
+    try
+        return isfile(path)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
+    end
+end
 function loadfile(server::LanguageServerInstance, path::String)
-    source = read(path, String)
+    source = try
+        s = read(path, String)
+        isvalid(s) || return
+        s
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return
+    end
     uri = filepath2uri(path)
     doc = Document(uri, source, true, server)
     StaticLint.setfile(server, path, doc)

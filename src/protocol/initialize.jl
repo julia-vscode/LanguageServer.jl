@@ -177,7 +177,7 @@ end
 
 # Requires handwritten implementaiton to account for 3-part Unions
 function InitializeParams(dict::Dict)
-    InitializeParams(Int(dict["processId"]), 
+    InitializeParams(dict["processId"], 
     !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
     dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]), 
     if haskey(dict, "initializationOptions") dict["initializationOptions"] else missing end, 

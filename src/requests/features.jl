@@ -110,18 +110,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                 b = nothing
             end
         end
-    elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
-        if sizeof(valof(x)) < 256 # AUDIT: OK
-            try
-                if isfile(valof(x))
-                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
-                end
-            catch err
-                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-            end
-        end
     end
     
     return locations

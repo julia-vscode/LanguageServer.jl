@@ -334,6 +334,11 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                 end
             end
         else
+            for (n,doc1) in server.workspacepackages
+                if StaticLint.has_workspace_package(server, n)
+                    push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n)))
+                end
+            end
             for (n,m) in StaticLint.getsymbolserver(server)
                 startswith(n, ".") && continue
                 push!(CIs, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(rng, n)))
@@ -363,6 +368,11 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                     end
                 end
             else
+                for (n,doc1) in server.workspacepackages
+                    if startswith(n, t.val) && StaticLint.has_workspace_package(server, n)
+                        push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                    end
+                end
                 for (n,m) in StaticLint.getsymbolserver(server)
                     if startswith(n, t.val)
                         push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))

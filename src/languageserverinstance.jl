@@ -39,7 +39,7 @@ mutable struct LanguageServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{String,SymbolServer.ModuleStore}
     symbol_store_ready::Bool
-    workspacepackages::Dict{String,StaticLint.Binding}
+    workspacepackages::Dict{String,Document}
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
     lint_options::StaticLint.LintOptions
@@ -71,7 +71,7 @@ mutable struct LanguageServerInstance
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             false,
-            Dict{String,StaticLint.Binding}(),
+            Dict{String,Document}(),
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
             Channel{Any}(Inf),
@@ -112,6 +112,20 @@ end
 
 function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
     server._documents[uri] = doc
+    # Add possible workspace packages
+    path = uri2filepath(uri._uri)
+    for wk_folder in server.workspaceFolders
+        if startswith(path, wk_folder)
+            sub_path = splitpath(path)
+            first(sub_path) == "/" && popfirst!(sub_path)
+            length(sub_path) < 3 && continue
+            fname = splitext(last(sub_path))[1]
+            if sub_path[end-1] == "src" && sub_path[end-2] == fname
+                server.workspacepackages[fname] = doc
+            end
+        end
+    end
+    return doc
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)

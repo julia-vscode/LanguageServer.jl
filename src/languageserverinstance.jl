@@ -129,6 +129,13 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    # clear reference to doc from workspacepackages
+    for (n,d) in server.workspacepackages
+        if d._uri == uri._uri
+            delete!(server.workspacepackages, n)
+            break
+        end
+    end
     delete!(server._documents, uri)
 end
 

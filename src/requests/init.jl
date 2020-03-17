@@ -17,7 +17,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     missing,
     true,
-    missing,
+    DocumentLinkOptions(false),
     false,
     false,
     false,

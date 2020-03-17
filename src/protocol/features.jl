@@ -251,6 +251,8 @@ end
 
 @dict_readable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 struct DocumentLink <: Outbound

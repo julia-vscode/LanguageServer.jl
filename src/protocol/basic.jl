@@ -113,3 +113,5 @@ mutable struct LogMessageParams <: Outbound
     type::Integer
     message::String
 end
+
+const ProgressToken = Int

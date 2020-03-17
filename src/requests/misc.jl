@@ -69,3 +69,33 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, s
 
     trigger_symbolstore_reload(server)
 end
+
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentLink")}}, params) = DocumentLinkParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentLink")},DocumentLinkParams}, server)
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
+    links = DocumentLink[]
+    find_document_links(getcst(doc), doc, dirname(uri2filepath(doc._uri)), 0, links)
+    return links
+end
+
+function find_document_links(x, doc, cdir, offset, links)
+    if x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
+        if sizeof(valof(x)) < 256 # AUDIT: OK
+            try
+                if isfile(valof(x))
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(valof(x)), nothing))
+                elseif isfile(joinpath(cdir, valof(x)))
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(joinpath(cdir, valof(x))), nothing))
+                end
+            catch err
+                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            end
+        end
+    end
+    if x.args !== nothing
+        for i = 1:length(x.args)
+            find_document_links(x.args[i], doc, cdir, offset, links)
+            offset += x.args[i].fullspan
+        end
+    end
+end

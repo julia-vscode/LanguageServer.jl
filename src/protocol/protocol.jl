@@ -60,10 +60,17 @@ end
 
 
 include("basic.jl")
-include("initialize.jl")
 include("document.jl")
+include("completion.jl")
+include("formatting.jl")
+include("hover.jl")
+include("goto.jl")
+include("highlight.jl")
+include("signature.jl")
+include("symbols.jl")
 include("features.jl")
 include("configuration.jl")
+include("initialize.jl")
 
 
 mutable struct CancelParams

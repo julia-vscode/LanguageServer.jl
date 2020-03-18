@@ -23,7 +23,16 @@ end
 ##############################################################################
 # File watching
 const FileChangeType = Int
-const FileChangeTypes = Dict("Created" => 1, "Changed" => 2, "Deleted" => 3)
+const FileChangeTypes = (Created = 1,
+                         Changed = 2,
+                         Deleted = 3)
+
+const WatchKind = Int
+const WatchKinds = (Create = 1,
+                    Change = 2,
+                    Delete = 4)
+
+
 @dict_readable struct FileEvent
     uri::String
     type::FileChangeType
@@ -33,10 +42,6 @@ end
     changes::Vector{FileEvent}
 end
 
-const WatchKind = Int
-const WatchKinds = Dict("Create" => 1,
-                       "Change" => 2,
-                       "Delete" => 4)
 struct FileSystemWatcher <: Outbound
     globPattern::String
     kind::Union{WatchKind,Missing}
@@ -44,46 +49,6 @@ end
 
 struct DidChangeWatchedFilesRegistrationOptions <: Outbound
     watchers::Vector{FileSystemWatcher}
-end
-
-##############################################################################
-
-
-struct CreateFileOptions <: Outbound
-    overwrite::Union{Bool,Missing}
-    ignoreIfExists::Union{Bool,Missing}
-end
-
-struct CreateFile <: Outbound
-    kind::String
-    uri::DocumentUri
-    options::Union{CreateFileOptions,Missing}
-    CreateFile(uri, options=missing) = new("create", uri, options)
-end
-
-struct RenameFileOptions <: Outbound
-    overwrite::Union{Bool,Missing}
-    ignoreIfExists::Union{Bool,Missing}
-end
-
-struct RenameFile <: Outbound
-    kind::String
-    oldUri::DocumentUri
-    newUri::DocumentUri
-    options::Union{RenameFileOptions,Missing}
-    RenameFile(uri, options=missing) = new("rename", uri, options)
-end
-
-struct DeleteFileOptions <: Outbound
-    overwrite::Union{Bool,Missing}
-    ignoreIfNotExists::Union{Bool,Missing}
-end
-
-struct DeleteFile <: Outbound
-    kind::String
-    uri::DocumentUri
-    options::Union{DeleteFileOptions,Missing}
-    DeleteFile(uri, options=missing) = new("delete", uri, options)
 end
 
 

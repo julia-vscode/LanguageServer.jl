@@ -9,9 +9,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
         #latex completion
-        latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
+        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
-        latex_completions(doc, offset, join(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(ppt), CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
+        partial = is_latex_comp(t.val, offset - t.startbyte)
+        !isempty(partial) && latex_completions(doc, offset, partial, CIs)
     elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
         string_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
@@ -52,7 +55,6 @@ function get_partial_completion(doc, offset)
 end
 
 function latex_completions(doc, offset, partial, CIs)
-    partial = string("\\", partial)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
             t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
@@ -296,15 +298,7 @@ function string_completion(doc, offset, rng, t, CIs)
         content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
     end
     partial = is_latex_comp(content, relative_offset)
-    if !isempty(partial)
-        for (k, v) in REPL.REPLCompletions.latex_symbols
-            if startswith(string(k), partial)
-                t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
-                t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
-                push!(CIs, CompletionItem(k[2:end], 11, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
-            end
-        end
-    end
+    !isempty(partial) && latex_completions(doc, offset, partial, CIs)
 end
 
 function is_latex_comp(s, i)
@@ -357,16 +351,6 @@ function path_completion(doc, offset, rng, t, CIs)
             end
         catch err
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        end
-        if isempty(CIs)
-            ind = lastindex(partial)
-            while ind >= 1
-                if partial[ind] == '\\'
-                    latex_completions(doc, offset, partial[ind+1:end], CIs)
-                    break
-                end
-                ind = prevind(partial, ind)
-            end
         end
     end
 end

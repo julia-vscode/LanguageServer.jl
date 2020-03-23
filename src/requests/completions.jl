@@ -9,11 +9,14 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
         #latex completion
-        latex_completions(doc, offset, CSTParser.Tokenize.untokenize(t), CIs)
+        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
-        latex_completions(doc, offset, join(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.STRING
-        path_completion(doc, offset, rng, t, CIs)
+        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(ppt), CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
+        partial = is_latex_comp(t.val, offset - t.startbyte)
+        !isempty(partial) && latex_completions(doc, offset, partial, CIs)
+    elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
+        string_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
@@ -52,7 +55,6 @@ function get_partial_completion(doc, offset)
 end
 
 function latex_completions(doc, offset, partial, CIs)
-    partial = string("\\", partial)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
             t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
@@ -283,40 +285,72 @@ function get_import_root(x::EXPR)
     return nothing
 end
 
+function string_completion(doc, offset, rng, t, CIs)
+    path_completion(doc, offset, rng, t, CIs)
+    # Need to adjust things for quotation marks
+    if t.kind == CSTParser.Tokenize.Tokens.STRING
+        t.startbyte < offset <= t.endbyte || return
+        relative_offset = offset - t.startbyte - 1
+        content = t.val[2:prevind(t.val, lastindex(t.val))]
+    else
+        t.startbyte < offset <= t.endbyte - 2 || return
+        relative_offset = offset - t.startbyte - 3
+        content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
+    end
+    partial = is_latex_comp(content, relative_offset)
+    !isempty(partial) && latex_completions(doc, offset, partial, CIs)
+end
+
+function is_latex_comp(s, i)
+    i0 = i
+    while firstindex(s) <= i
+        s[i] == '\\' && return s[i:i0]
+        !is_latex_comp_char(s[i]) && return ""
+        i = prevind(s, i)
+    end
+    return ""
+end
+
+is_latex_comp_char(c::Char) = UInt32(c) <= typemax(UInt8) ? is_latex_comp_char(UInt8(c)) : false
+function is_latex_comp_char(u)
+    # Checks whether a Char (represented as a UInt8) is in the set of those those used to trigger
+    #latex completions.
+    # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in REPL.REPLCompletions.latex_symbols]))))
+    u === 0x28 ||
+    u === 0x29 ||
+    u === 0x2b ||
+    u === 0x2d ||
+    u === 0x2f ||
+    0x30 <= u <= 0x39 ||
+    u === 0x3d ||
+    0x41 <= u <= 0x5a ||
+    u === 0x5e ||
+    u === 0x5f ||
+    0x61 <= u <= 0x7a
+end
+
 function path_completion(doc, offset, rng, t, CIs)
     if t.kind == CSTParser.Tokenize.Tokens.STRING
         path, partial = _splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
-    else
-        path, partial = _splitdir(t.val[4:prevind(t.val, lastindex(t.val), 3)])
-    end
-    if !startswith(path, "/")
-        path = joinpath(_dirname(uri2filepath(doc._uri)), path)
-    end
-    try
-        fs = readdir(path)
-        for f in fs
-            if startswith(f, partial)
-                try
-                    if isdir(joinpath(path, f))
-                        f = string(f, "/")
+        if !startswith(path, "/")
+            path = joinpath(_dirname(uri2filepath(doc._uri)), path)
+        end
+        try
+            fs = readdir(path)
+            for f in fs
+                if startswith(f, partial)
+                    try
+                        if isdir(joinpath(path, f))
+                            f = string(f, "/")
+                        end
+                        push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
+                    catch err
+                        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     end
-                    push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
-                catch err
-                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
             end
-        end
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-    end
-    if isempty(CIs)
-        ind = lastindex(partial)
-        while ind >= 1
-            if partial[ind] == '\\'
-                latex_completions(doc, offset, partial[ind+1:end], CIs)
-                break
-            end
-            ind = prevind(partial, ind)
+        catch err
+            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         end
     end
 end

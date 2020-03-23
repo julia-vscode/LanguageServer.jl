@@ -35,7 +35,7 @@ end
 for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Hovers: $uri ")
-    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
+    for loc in 1:sizeof(LanguageServer.get_text(doc)) - 1
         line, character = LanguageServer.get_position_at(doc, loc)
         r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
@@ -46,8 +46,8 @@ end
 for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Completions: $uri ")
-    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
-        mod(loc,100)==0 && println(loc/sizeof(doc._content))
+    for loc in 1:sizeof(LanguageServer.get_text(doc)) - 1
+        mod(loc, 100) == 0 && println(loc / sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
         r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/completion","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
@@ -58,8 +58,8 @@ end
 for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Definitions: $uri ")
-    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
-        mod(loc,100)==0 && println(loc/sizeof(doc._content))
+    for loc in 1:sizeof(LanguageServer.get_text(doc)) - 1
+        mod(loc, 100) == 0 && println(loc / sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
         r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/definition","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}"""))
         process(r, server)
@@ -70,8 +70,8 @@ end
 for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("Signatures: $uri ")
-    for loc in 1:sizeof(LanguageServer.get_text(doc))-1
-        mod(loc,100)==0 && println(loc/sizeof(doc._content))
+    for loc in 1:sizeof(LanguageServer.get_text(doc)) - 1
+        mod(loc, 100) == 0 && println(loc / sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
         r = parse(Request, (LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")))
         process(r, server)
@@ -82,8 +82,8 @@ end
 for doc in LanguageServer.getdocuments_value(server)
     uri = doc._uri
     print("References: $uri ")
-    for loc in 1:sizeof(doc._content)-1
-        mod(loc,100)==0 && println(loc/sizeof(doc._content))
+    for loc in 1:sizeof(doc._content) - 1
+        mod(loc, 100) == 0 && println(loc / sizeof(doc._content))
         line, character = LanguageServer.get_position_at(doc, loc)
         r = parse(Request, (LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":2,"method":"textDocument/references","params":{"textDocument":{"uri":"$uri"},"position":{"line":$line,"character":$character}}}""")))
         process(r, server)

@@ -8,7 +8,7 @@ Position(line::Integer) = Position(line, 0)
 
 struct Range
     start::Position
-    stop::Position 
+    stop::Position
 end
 # Special case to account for use of 'end' as a fieldname in LSP
 Range(d::Dict) = Range(Position(d["start"]), Position(d["end"]))
@@ -38,7 +38,7 @@ end
 end
 
 ##############################################################################
-# Diagnostics 
+# Diagnostics
 struct DiagnosticRelatedInformation
     location::Location
     message::String
@@ -73,8 +73,8 @@ end
 const MarkupKind = ("plaintext", "markdown")
 
 mutable struct MarkupContent
-   kind::String
-   value::String
+    kind::String
+    value::String
 end
 MarkupContent(value::String) = MarkupContent("markdown", value)
 

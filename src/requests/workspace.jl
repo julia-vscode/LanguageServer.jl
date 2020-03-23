@@ -26,10 +26,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                         deletedocument!(server, URI2(uri))
                         continue
                     end
-        
+
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
-                    parse_all(doc, server)    
+                    parse_all(doc, server)
                 end
             else
                 filepath = uri2filepath(uri)
@@ -41,7 +41,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     continue
                 end
-    
+
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
                 parse_all(doc, server)
@@ -79,37 +79,37 @@ function request_julia_config(server)
         ConfigurationItem(missing, "julia.lint.run");
         (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
         ]))
-    
+
     # TODO Make sure update_julia_config can deal with the response
     if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
         server.format_options = DocumentFormat.FormatOptions(
-            response[1]===nothing ? 0 : response[1],
-            response[2]===nothing ? false : response[2],
-            response[3]===nothing ? false : response[3],
-            response[4]===nothing ? false : response[4],
-            response[5]===nothing ? false : response[5],
-            response[6]===nothing ? false : response[6],
-            response[7]===nothing ? false : response[7],
-            response[8]===nothing ? false : response[8],
-            response[9]===nothing ? false : response[9],
-            response[10]===nothing ? false : response[10],
-            response[11]===nothing ? false : response[11])
-        
+            response[1] === nothing ? 0 : response[1],
+            response[2] === nothing ? false : response[2],
+            response[3] === nothing ? false : response[3],
+            response[4] === nothing ? false : response[4],
+            response[5] === nothing ? false : response[5],
+            response[6] === nothing ? false : response[6],
+            response[7] === nothing ? false : response[7],
+            response[8] === nothing ? false : response[8],
+            response[9] === nothing ? false : response[9],
+            response[10] === nothing ? false : response[10],
+            response[11] === nothing ? false : response[11])
+
         N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
         x = response[N]
         new_lint_opts = StaticLint.LintOptions(
-            response[N + 1]===nothing ? false : response[N + 1],
-            response[N + 2]===nothing ? false : response[N + 2],
-            response[N + 3]===nothing ? false : response[N + 3],
-            response[N + 4]===nothing ? false : response[N + 4],
-            response[N + 5]===nothing ? false : response[N + 5],
-            response[N + 6]===nothing ? false : response[N + 6],
-            response[N + 7]===nothing ? false : response[N + 7],
-            response[N + 8]===nothing ? false : response[N + 8],
-            response[N + 9]===nothing ? false : response[N + 9],
+            response[N + 1] === nothing ? false : response[N + 1],
+            response[N + 2] === nothing ? false : response[N + 2],
+            response[N + 3] === nothing ? false : response[N + 3],
+            response[N + 4] === nothing ? false : response[N + 4],
+            response[N + 5] === nothing ? false : response[N + 5],
+            response[N + 6] === nothing ? false : response[N + 6],
+            response[N + 7] === nothing ? false : response[N + 7],
+            response[N + 8] === nothing ? false : response[N + 8],
+            response[N + 9] === nothing ? false : response[N + 9],
         )
-        
-        new_run_lint_value = x===nothing ? false : true
+
+        new_run_lint_value = x === nothing ? false : true
         if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
             server.lint_options = new_lint_opts
             server.runlinter = new_run_lint_value
@@ -136,8 +136,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFold
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server)
     syms = SymbolInformation[]
     for doc in getdocuments_value(server)
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)

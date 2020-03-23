@@ -10,7 +10,7 @@ mktempdir() do dir
     # LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("initialized")},Any}(0, nothing), server)
 
     function test_edit(server, text, s1, s2, insert)
-        LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/didOpen")},LanguageServer.DidOpenTextDocumentParams}(0,LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("none", "julia", 0, text))), server)
+        LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/didOpen")},LanguageServer.DidOpenTextDocumentParams}(0, LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("none", "julia", 0, text))), server)
         doc = LanguageServer.getdocument(server, LanguageServer.URI2("none"))
         LanguageServer.parse_all(doc, server)
         r = LanguageServer.JSONRPC.Request{Val{Symbol("textDocument/didChange")},LanguageServer.DidChangeTextDocumentParams}(0, LanguageServer.DidChangeTextDocumentParams(LanguageServer.VersionedTextDocumentIdentifier(doc._uri, 5),
@@ -23,7 +23,7 @@ mktempdir() do dir
         Expr(doc.cst) == Expr(new_cst), doc.cst, new_cst
     end
 
-    @testset "partial parse" begin 
+    @testset "partial parse" begin
         @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
         @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
         @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]
@@ -36,13 +36,13 @@ mktempdir() do dir
         @test test_edit(server, "bein\nend", (0, 2), (0, 2), "g")[1]
         @test test_edit(server, "a\nb\nc", (2, 0), (2, 1), "")[1]
         @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
-        @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]  
-        @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]   
+        @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
+        @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
         @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]  
-        
+
         @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
-        @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]  
-        @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]  
+        @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
+        @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
     end
 
 end

@@ -21,7 +21,7 @@ mutable struct Document
         cst.val = path
         set_doc(doc.cst, doc)
         setroot(doc, doc)
-        return doc 
+        return doc
     end
 end
 Base.display(doc::Document) = println("Doc: $(basename(doc._uri)) ")
@@ -74,7 +74,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
     io = IOBuffer(get_text(doc))
     try
         seek(io, line_offsets[line + 1])
-        while character > 0        
+        while character > 0
             c = read(io, Char)
             character -= 1
             if UInt32(c) >= 0x010000
@@ -108,19 +108,19 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
         error("Invalid arguments.")
     end
 
-    line_offset = line_offsets[line+1]
-    
+    line_offset = line_offsets[line + 1]
+
     next_line_offset = line + 1 < length(line_offsets) ? line_offsets[line + 2] : nextind(text, lastindex(text))
 
     pos = line_offset
 
-    while character>0
+    while character > 0
         if UInt32(text[pos]) >= 0x010000
             character -= 2
         else
             character -= 1
         end
-        pos = nextind(text, pos)        
+        pos = nextind(text, pos)
     end
 
     ret = min(pos, next_line_offset)
@@ -190,7 +190,7 @@ function get_line_offsets2!(doc::Document, force = false)
                 end
                 push!(doc._line_offsets2, ind + 1)
             end
-            
+
             ind = nextind(text, ind)
         end
     end

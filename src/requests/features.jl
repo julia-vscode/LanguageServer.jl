@@ -7,7 +7,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
             args = []
             if sig.args !== nothing
                 for i = 2:length(sig.args)
-                    if bindingof(sig.args[i]) !== nothing 
+                    if bindingof(sig.args[i]) !== nothing
                         push!(args, bindingof(sig.args[i]))
                     end
                 end
@@ -46,7 +46,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
                     f_binding = f_binding.prev
                 elseif refof(call_name) isa SymbolServer.FunctionStore
                     for m in refof(call_name).methods
-                        sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
+                        sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "), ")")
                         params = (a->ParameterInformation(a[1], missing)).(m.args)
                         push!(sigs, SignatureInformation(sig, "", params))
                     end
@@ -81,7 +81,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             for m in b.methods
                 try
                     if isfile(m.file)
-                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
+                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
                     end
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -123,7 +123,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     end
-    
+
     return locations
 end
 
@@ -171,7 +171,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     return locations
 end
 
-# If 
+# If
 function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
     if !from_end
         if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
@@ -199,7 +199,7 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = Renam
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
     tdes = Dict{String,TextDocumentEdit}()
     locations = find_references(r.params.textDocument, r.params.position, server)
-    
+
     for loc in locations
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, r.params.newName))
@@ -208,20 +208,20 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
             tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, r.params.newName)])
         end
     end
-    
+
     return WorkspaceEdit(nothing, collect(values(tdes)))
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
+JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server)
     syms = SymbolInformation[]
-    uri = r.params.textDocument.uri 
+    uri = r.params.textDocument.uri
     doc = getdocument(server, URI2(uri))
 
     bs = collect_bindings_w_loc(getcst(doc))
     for x in bs
-        p,b = x[1], x[2]
+        p, b = x[1], x[2]
         !(b.val isa EXPR) && continue
         (valof(b.name) === nothing || isempty(valof(b.name))) && typof(b.name) !== CSTParser.OPERATOR && continue
         push!(syms, SymbolInformation(typof(b.name) === CSTParser.OPERATOR ? string(Expr(b.name)) : valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), nothing))
@@ -259,7 +259,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{Unit
     return bindings
 end
 
-function _binding_kind(b ,server)
+function _binding_kind(b, server)
     if b isa StaticLint.Binding
         if b.type == nothing
             return 13
@@ -273,18 +273,18 @@ function _binding_kind(b ,server)
             return 16
         elseif b.type == StaticLint.CoreTypes.DataType
             return 23
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore
         return 2
     elseif b isa SymbolServer.MethodStore
-        return 6        
+        return 6
     elseif b isa SymbolServer.FunctionStore
         return 12
     elseif b isa SymbolServer.DataTypeStore
         return 23
-    else 
+    else
         return 13
     end
 end

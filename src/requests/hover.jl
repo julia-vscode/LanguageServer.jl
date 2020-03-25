@@ -78,13 +78,13 @@ function get_fcall_position(x::EXPR, documentation)
             if StaticLint.hasref(fname) && 
                 (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
                 dt_ex = refof(fname).val
-
                 args = CSTParser.defines_mutable(dt_ex) ? dt_ex.args[4] : dt_ex.args[3]
+                args.args === nothing || arg_i > length(args.args) && return documentation
                 _fieldname = CSTParser.str_value(CSTParser.get_arg_name(args.args[arg_i]))
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
             elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
                 dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
-                if length(dts.fields) == call_counts[1]
+                if length(dts.fields) == call_counts[1] && arg_i <= length(dts.fields)
                     documentation = string("Datatype field `$(dts.fields[arg_i])`", "\n", documentation)
                 end
             else

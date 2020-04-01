@@ -64,7 +64,7 @@ mutable struct LanguageServerInstance
             true, 
             Set{String}(), 
             false, 
-            env_path, 
+            setup_env(env_path), 
             depot_path, 
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
@@ -180,6 +180,25 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             Base.display_error(stderr, err, bt)
         end
     end
+end
+
+function setup_env(env_path, tmpdir = mktempdir())
+    if endswith(env_path, "Project.toml")
+        env_path = splitdir(env_path)[1]
+    end
+    if !isempty(env_path) && isdir(joinpath(env_path, "src")) && isfile(joinpath(env_path, "src", string(last(splitpath(env_path)), ".jl")))
+        pf = Pkg.Types.read_project(joinpath(env_path, "Project.toml"))
+        # Add self to deps...
+        push!(pf.deps, pf.name => pf.uuid)
+        # Add extras
+        for (n, u) in pf.extras
+            push!(pf.deps, n => u)
+        end
+        tmpdir = mktempdir()
+        Pkg.Types.write_project(pf, joinpath(tmpdir, "Project.toml"))
+        env_path = tmpdir
+    end
+    return env_path
 end
 
 """

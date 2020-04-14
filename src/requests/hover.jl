@@ -113,8 +113,8 @@ function get_closer_hover(x::EXPR, documentation)
         if kindof(x) === CSTParser.Tokens.END
             if typof(parentof(x)) === CSTParser.FunctionDef
                 documentation = string(documentation, "Closes function definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
-            elseif typof(parentof(x)) === CSTParser.ModuleH || typof(parentof(x)) === CSTParser.ModuleH
-                    documentation = string(documentation, "Closes module definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
+            elseif (typof(parentof(x)) === CSTParser.ModuleH || typof(parentof(x)) === CSTParser.ModuleH) && length(parentof(x).args) > 1
+                    documentation = string(documentation, "Closes module definition for `", Expr(parentof(x).args[2]), "`\n")
             elseif typof(parentof(x)) === CSTParser.Struct
                 documentation = string(documentation, "Closes struct definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
             elseif typof(parentof(x)) === CSTParser.Mutable

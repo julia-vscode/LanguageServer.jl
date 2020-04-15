@@ -48,7 +48,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
             reexport_package(x, r.id + 1, server)
         end
     elseif r.params.command == "WrapIfBlock"
-        @info 1
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
     end
 end
@@ -192,9 +191,10 @@ function get_next_line_offset(x)
     file, offset = get_file_loc(x)
     # get next line after using_stmt
     insertpos = -1
-    for i = 1:length(file._line_offsets) - 1
-        if file._line_offsets[i] < offset + x.span <= file._line_offsets[i + 1]
-            insertpos = file._line_offsets[i + 1]
+    line_offsets = get_line_offsets(file)
+    for i = 1:length(line_offsets) - 1
+        if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
+            insertpos = line_offsets[i + 1]
         end
     end
     return insertpos

@@ -23,10 +23,10 @@ LanguageServer.parse_all(doc, server)
 
 
 res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":3,"character":11}}}""")), server)
-@test res.contents.value == LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc)
+@test res.contents.value == string(LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc), "\n```julia\nCore.Float64 <: Core.AbstractFloat\n```")
 
 res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":7,"character":12}}}""")), server)
 @test occursin(r"c::testtype", res.contents.value)
 
 res = LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, JSON.parse("""{"jsonrpc":"2.0","id":1,"method":"textDocument/hover","params":{"textDocument":{"uri":"testdoc"},"position":{"line":9,"character":1}}}""")), server)
-@test res.contents.value == "Closes `ModuleH` expression."
+@test res.contents.value == "Closes module definition for `testmodule`\n"

@@ -37,7 +37,8 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::Dict{String,SymbolServer.ModuleStore}
+    symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
+    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
@@ -69,6 +70,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
+            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
@@ -152,7 +154,13 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
 
     @async try
         # TODO Add try catch handler that links into crash reporting
-        ssi_ret, payload = SymbolServer.getstore(server.symbol_server, server.env_path)
+        ssi_ret, payload = SymbolServer.getstore(
+            server.symbol_server,
+            server.env_path,
+            i-> JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i..."))),
+            server.err_handler
+        )
+        server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
 
         server.number_of_outstanding_symserver_requests -= 1
 
@@ -163,11 +171,18 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         if ssi_ret==:success
             push!(server.symbol_results_channel, payload)
         elseif ssi_ret==:failure
-            if payload===nothing
-                throw(LSSymbolServerFailure(""))
-            else
-                throw(LSSymbolServerFailure(String(take!(payload))))
-            end
+            error_payload = Dict(
+                "command"=>"symserv_crash",
+                "name"=>"LSSymbolServerFailure",
+                "message"=>payload===nothing ? "" : String(take!(payload)),
+                "stacktrace"=>"")
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
+        elseif ssi_ret==:package_load_crash
+            error_payload = Dict(
+                "command"=>"symserv_pkgload_crash",
+                "name"=>payload.package_name,
+                "message"=>payload.stderr===nothing ? "" : String(take!(payload.stderr)))
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
         end
         server.symbol_store_ready = true
     catch err

@@ -16,12 +16,13 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        # We throw an error in the case of an invalid
-                        # UTF-8 sequence so that the same code path
-                        # is used that handles file IO problems
-                        isvalid(s) || error()
+                        if !isvalid(s)
+                            deletedocument!(server, URI2(uri))
+                            continue
+                        end
                         s
                     catch err
+                        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                         deletedocument!(server, URI2(uri))
                         continue
                     end
@@ -34,12 +35,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 filepath = uri2filepath(uri)
                 content = try
                     s = read(filepath, String)
-                    # We throw an error in the case of an invalid
-                    # UTF-8 sequence so that the same code path
-                    # is used that handles file IO problems
-                    isvalid(s) || error()
+                    isvalid(s) || continue
                     s
                 catch err
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     continue
                 end
     
@@ -48,19 +47,21 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes["Deleted"]
-            doc = getdocument(server, URI2(uri))
+            if hasdocument(server, URI2(uri))
+                doc = getdocument(server, URI2(uri))
 
-            # We only handle if currently not managed by client
-            if !get_open_in_editor(doc)
-                deletedocument!(server, URI2(uri))
+                # We only handle if currently not managed by client
+                if !get_open_in_editor(doc)
+                    deletedocument!(server, URI2(uri))
 
-                publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
-            else
-                # TODO replace with accessor function once the other PR
-                # that introduces the accessor is merged
-                doc._workspace_file = false
-            end                
+                    publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
+                    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+                else
+                    # TODO replace with accessor function once the other PR
+                    # that introduces the accessor is merged
+                    doc._workspace_file = false
+                end
+            end
         else
             error("Unknown change type.")
         end

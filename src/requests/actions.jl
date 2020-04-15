@@ -48,7 +48,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
             reexport_package(x, r.id + 1, server)
         end
     elseif r.params.command == "WrapIfBlock"
-        @info 1
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
     end
 end

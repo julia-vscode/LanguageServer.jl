@@ -37,7 +37,8 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::Dict{String,SymbolServer.ModuleStore}
+    symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
+    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
@@ -69,6 +70,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
+            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
@@ -148,6 +150,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             i-> JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i..."))),
             server.err_handler
         )
+        server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
 
         server.number_of_outstanding_symserver_requests -= 1
 

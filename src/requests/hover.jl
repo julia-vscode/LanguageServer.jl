@@ -2,6 +2,7 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params) = TextDo
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     doc = getdocument(server, URI2(r.params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, r.params.position))
+    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x)
     documentation = get_hover(x, "", server)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
@@ -13,7 +14,7 @@ end
 function get_hover(x, documentation::String, server) documentation end
 
 function get_hover(x::EXPR, documentation::String, server)
-    if CSTParser.isidentifier(x) && StaticLint.hasref(x)
+    if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
         if refof(x) isa StaticLint.Binding
             documentation = get_hover(refof(x), documentation, server)
         elseif refof(x) isa SymbolServer.SymStore

@@ -118,22 +118,8 @@ function get_toks(doc, offset)
 end
 
 function isvalidjlfile(path)
-    hasreadperm(path) && 
-    isfile(path) &&
-    endswith(path, ".jl") &&
-    validchars(path)
+    endswith(path, ".jl")
 end
-
-function validchars(path)
-    io = open(path)
-    while !eof(io)
-        c = read(io, Char)
-        Base.ismalformed(c) && return false
-    end
-    close(io)
-    return true
-end
-
 
 function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     if pos > offset
@@ -253,8 +239,17 @@ end
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a,b)[1]
     end
+    function _splitdrive(path::String)
+        m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        String(m.captures[1]), String(m.captures[2])
+    end
+    function _splitdir(path::String)
+        a, b = _splitdrive(path)
+        _splitdir_nodrive(a,b)
+    end
 else
     _dirname = dirname
+    _splitdir = splitdir
 end
 
 function valid_id(s::String)
@@ -265,4 +260,41 @@ function sanitize_docstring(doc::String)
     doc = replace(doc, "```jldoctest"=>"```julia")
     doc = replace(doc,"\n#"=>"\n###")
     return doc
+end
+
+function parent_file(x::EXPR)
+    if parentof(x) isa EXPR
+        return parent_file(parentof(x))
+    elseif parentof(x) === nothing && StaticLint.haserror(x) && StaticLint.errorof(x) isa Document
+        return x.meta.error
+    else
+        return nothing
+    end
+end
+
+function resolve_op_ref(x::EXPR)
+    StaticLint.hasref(x) && return true
+    typof(x) !== CSTParser.OPERATOR && return false
+    pf = parent_file(x)
+    pf === nothing && return false
+    scope = StaticLint.retrieve_scope(x)
+    scope === nothing && return false
+
+    mn = CSTParser.str_value(x)
+    while scope isa StaticLint.Scope
+        
+        if StaticLint.scopehasbinding(scope, mn)
+            StaticLint.setref!(x, scope.names[mn])
+            return true
+        elseif scope.modules isa Dict && length(scope.modules) > 0
+            for (_,m) in scope.modules
+                if StaticLint.isexportedby(Symbol(mn), m)
+                    StaticLint.setref!(x, m[Symbol(mn)])
+                    return true
+                end
+            end
+        end
+        scope.ismodule && return false
+        scope = StaticLint.parentof(scope)
+    end
 end

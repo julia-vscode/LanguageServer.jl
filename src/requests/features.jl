@@ -40,15 +40,13 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
         end
         if call_name !== nothing && StaticLint.hasref(call_name)
             f_binding = refof(call_name)
-            while f_binding isa StaticLint.Binding || f_binding isa SymbolServer.FunctionStore
+            while f_binding isa StaticLint.Binding || f_binding isa SymbolServer.FunctionStore || f_binding isa SymbolServer.DataTypeStore
                 if f_binding isa StaticLint.Binding && f_binding.type == StaticLint.CoreTypes.Function
                     get_signatures(f_binding, sigs, server)
                     f_binding = f_binding.prev
-                elseif refof(call_name) isa SymbolServer.FunctionStore
+                elseif refof(call_name) isa SymbolServer.FunctionStore || refof(call_name) isa SymbolServer.DataTypeStore
                     for m in refof(call_name).methods
-                        sig = string(call_name.val, "(", join([a[2] for a in m.args], ", "),")")
-                        params = (a->ParameterInformation(a[1], missing)).(m.args)
-                        push!(sigs, SignatureInformation(sig, "", params))
+                        push!(sigs, SignatureInformation(string(m), "", (a->ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
                     end
                     break
                 else
@@ -76,11 +74,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     offset = get_offset(doc, r.params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
+        # Replace with own function to retrieve references (with loop saftey-breaker)
         b = refof(x)
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
             for m in b.methods
-                if isfile(m.file)
-                    push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
+                try
+                    if isfile(m.file)
+                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
+                    end
+                catch err
+                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
             end
         elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
@@ -100,6 +103,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
                 end
             end
+            # TODO: replace with method iterator
             if b.type == StaticLint.CoreTypes.Function && b.prev isa StaticLint.Binding && (b.prev.type == Function || b.prev.type == StaticLint.CoreTypes.DataType)
                 b = b.prev
             else
@@ -107,11 +111,16 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
             end
         end
     elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
+        # TODO: move to its own function
         if sizeof(valof(x)) < 256 # AUDIT: OK
-            if isfile(valof(x))
-                push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-            elseif isfile(joinpath(dirname(uri2filepath(doc._uri)), valof(x)))
-                push!(locations, Location(filepath2uri(joinpath(dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
+            try
+                if isfile(valof(x))
+                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
+                elseif isfile(joinpath(_dirname(uri2filepath(doc._uri)), valof(x)))
+                    push!(locations, Location(filepath2uri(joinpath(_dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
+                end
+            catch err
+                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
             end
         end
     end
@@ -129,7 +138,6 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     if parentof(x) !== nothing
         return get_file_loc(parentof(x), offset, x)
     elseif typof(x) === CSTParser.FileH && StaticLint.hasmeta(x)
-        # return x.ref, offset
         return x.meta.error, offset
     else
         return nothing, offset
@@ -165,14 +173,11 @@ end
 
 # If 
 function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
-    if !from_end
-        if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
-            b = StaticLint.last_method(b)
-        end
+    if !from_end && b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+        b = StaticLint.last_method(b)
     end
     for r in b.refs
-        !(r isa EXPR) && continue
-        push!(refs, r)
+        r isa EXPR && push!(refs, r)
     end
     if b.prev isa StaticLint.Binding && (b.prev.type === StaticLint.CoreTypes.Function || b.prev.type === StaticLint.CoreTypes.DataType)
         return find_references(b.prev, refs, true)
@@ -183,15 +188,14 @@ end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params) = ReferenceParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
-    locations = find_references(r.params.textDocument, r.params.position, server)
-    return locations
+    return find_references(r.params.textDocument, r.params.position, server)
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = RenameParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
     tdes = Dict{String,TextDocumentEdit}()
     locations = find_references(r.params.textDocument, r.params.position, server)
-    
+
     for loc in locations
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, r.params.newName))
@@ -235,7 +239,6 @@ function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int
 end
 
 function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},StaticLint.Binding}[]; query = "")
-    # if bindingof(x) isa StaticLint.Binding && !isempty(valof(bindingof(x).name)) && bindingof(x).val isa EXPR && startswith(valof(bindingof(x).name), query)
     if bindingof(x) isa StaticLint.Binding && valof(bindingof(x).name) isa String && bindingof(x).val isa EXPR && startswith(valof(bindingof(x).name), query)
         push!(bindings, (pos .+ (0:x.span), bindingof(x)))
     end

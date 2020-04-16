@@ -34,36 +34,53 @@ const serverCapabilities = ServerCapabilities(
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
 function isjuliabasedir(path)
-    fs = readdir(path)
-    if "base" in fs && isdir(joinpath(path, "base"))
-        return isjuliabasedir(joinpath(path, "base"))
+    try
+        fs = readdir(path)
+        if "base" in fs && isdir(joinpath(path, "base"))
+            return isjuliabasedir(joinpath(path, "base"))
+        end
+        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
     end
-    all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
 end
 
 function has_too_many_files(path, N = 5000)
     i = 0
-    for (root, dirs, files) in walkdir(path, onerror = x->x)
-        for file in files
-            if endswith(file, ".jl")
-                i += 1
-            end
-            if i > N
-                @info "Your workspace folder has > $N Julia files, server will not try to load them."
-                return true
+
+    try
+        for (root, dirs, files) in walkdir(path, onerror = x->x)
+            for file in files
+                if endswith(file, ".jl")
+                    i += 1
+                end
+                if i > N
+                    @info "Your workspace folder has > $N Julia files, server will not try to load them."
+                    return true
+                end
             end
         end
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
     end
+
     return false
 end
 
 function load_rootpath(path)
-    isdir(path) &&
-    hasreadperm(path) &&
-    path != "" &&
-    path != homedir() &&
-    !isjuliabasedir(path) &&
-    !has_too_many_files(path)
+    try
+        return isdir(path) &&
+            hasreadperm(path) &&
+            path != "" &&
+            path != homedir() &&
+            !isjuliabasedir(path) &&
+            !has_too_many_files(path)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        return false
+    end
 end
 
 function load_folder(wf::WorkspaceFolder, server)
@@ -73,23 +90,33 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
-            for file in files
-                filepath = joinpath(root, file)
-                if isvalidjlfile(filepath)
-                    !isfile(filepath) && continue
-                    uri = filepath2uri(filepath)
-                    if hasdocument(server, URI2(uri))
-                        set_is_workspace_file(getdocument(server, URI2(uri)), true)
-                        continue
-                    else
-                        content = read(filepath, String)
-                        doc = Document(uri, content, true, server)
-                        setdocument!(server, URI2(uri), doc)
-                        parse_all(doc, server)
+        try
+            for (root, dirs, files) in walkdir(path, onerror = x->x)
+                for file in files
+                    filepath = joinpath(root, file)
+                    if isvalidjlfile(filepath)
+                        uri = filepath2uri(filepath)
+                        if hasdocument(server, URI2(uri))
+                            set_is_workspace_file(getdocument(server, URI2(uri)), true)
+                            continue
+                        else
+                            content = try
+                                s = read(filepath, String)
+                                isvalid(s) || continue
+                                s
+                            catch err
+                                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                                continue
+                            end
+                            doc = Document(uri, content, true, server)
+                            setdocument!(server, URI2(uri), doc)
+                            parse_all(doc, server)
+                        end
                     end
                 end
             end
+        catch err
+            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         end
     end
 end
@@ -104,7 +131,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         elseif !(r.params.rootPath isa Nothing)
             push!(server.workspaceFolders,  r.params.rootPath)
         end
-    elseif r.params.workspaceFolders !== nothing
+    elseif (r.params.workspaceFolders !== nothing) & (r.params.workspaceFolders !== missing)
         for wksp in r.params.workspaceFolders
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
@@ -131,8 +158,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     end
     request_julia_config(server)
     
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
-
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)
     end

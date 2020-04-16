@@ -6,6 +6,7 @@ using StaticLint: refof, scopeof, bindingof
 using UUIDs
 export LanguageServerInstance
 
+include("exception_types.jl")
 include("jsonrpcendpoint.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")

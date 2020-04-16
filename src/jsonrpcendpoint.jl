@@ -4,6 +4,49 @@ import JSON, UUIDs
 
 export JSONRPCEndpoint, send_notification, send_request, send_success_response, send_error_response
 
+struct JSONRPCError <: Exception
+    code::Int
+    msg::AbstractString
+    data::Any
+end
+
+function Base.showerror(io::IO, ex::JSONRPCError)
+    error_code_as_string = if ex.code==-32700
+        "ParseError"
+    elseif ex.code==-32600
+        "InvalidRequest"
+    elseif ex.code==-32601
+        "MethodNotFound"
+    elseif ex.code==-32602
+        "InvalidParams"
+    elseif ex.code==-32603
+        "InternalError"
+    elseif ex.code==-32099
+        "serverErrorStart"
+    elseif ex.code==-32000
+        "serverErrorEnd"
+    elseif ex.code==-32002
+        "ServerNotInitialized"
+    elseif ex.code==-32001
+        "UnknownErrorCode"
+    elseif ex.code==-32800
+        "RequestCancelled"
+	elseif ex.code==-32801
+        "ContentModified"
+    else
+        "Unkonwn"
+    end
+
+    print(io, error_code_as_string)
+    print(io, ": ")
+    print(io, ex.msg)
+    if ex.data!==nothing
+        print(io, " (")
+        print(io, ex.data)
+        print(io, ")")
+    end
+end
+
 mutable struct JSONRPCEndpoint
     pipe_in
     pipe_out
@@ -111,9 +154,13 @@ function send_request(x::JSONRPCEndpoint, method::AbstractString, params)
 
     if haskey(response, "result")
         return response["result"]
+    elseif haskey(response, "error")
+        error_code = response["error"]["code"]
+        error_msg = response["error"]["message"]
+        error_data = haskey(response["error"], "data") ? response["error"]["code"] : nothing
+        throw(JSONRPCError(error_code, error_msg, error_data))
     else
-        @info "We recieved an error response: $response"
-        # error("Throw a better error here.")
+        throw(JSONRPCError(0, "ERROR AT THE TRANSPORT LEVEL", nothing))
     end
 end
 

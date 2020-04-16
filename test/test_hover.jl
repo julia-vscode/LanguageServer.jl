@@ -1,7 +1,7 @@
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.runlinter = true
 
-LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, Dict("jsonrpc"=>"2.0","id"=>0,"method"=>"initialize","params"=>init_request)), server)
+LanguageServer.process(LanguageServer.parse(LanguageServer.JSONRPC.Request, Dict("jsonrpc" => "2.0", "id" => 0, "method" => "initialize", "params" => init_request)), server)
 
 testtext = """
 module testmodule

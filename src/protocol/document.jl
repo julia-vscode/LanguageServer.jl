@@ -41,7 +41,7 @@ end
     textDocument::TextDocumentItem
 end
 
-@dict_readable struct TextDocumentContentChangeEvent 
+@dict_readable struct TextDocumentContentChangeEvent
     range::Union{Range,Missing}
     rangeLength::Union{Int,Missing}
     text::String

@@ -11,27 +11,27 @@ struct JSONRPCError <: Exception
 end
 
 function Base.showerror(io::IO, ex::JSONRPCError)
-    error_code_as_string = if ex.code==-32700
+    error_code_as_string = if ex.code == -32700
         "ParseError"
-    elseif ex.code==-32600
+    elseif ex.code == -32600
         "InvalidRequest"
-    elseif ex.code==-32601
+    elseif ex.code == -32601
         "MethodNotFound"
-    elseif ex.code==-32602
+    elseif ex.code == -32602
         "InvalidParams"
-    elseif ex.code==-32603
+    elseif ex.code == -32603
         "InternalError"
-    elseif ex.code==-32099
+    elseif ex.code == -32099
         "serverErrorStart"
-    elseif ex.code==-32000
+    elseif ex.code == -32000
         "serverErrorEnd"
-    elseif ex.code==-32002
+    elseif ex.code == -32002
         "ServerNotInitialized"
-    elseif ex.code==-32001
+    elseif ex.code == -32001
         "UnknownErrorCode"
-    elseif ex.code==-32800
+    elseif ex.code == -32800
         "RequestCancelled"
-	elseif ex.code==-32801
+	elseif ex.code == -32801
         "ContentModified"
     else
         "Unkonwn"
@@ -40,7 +40,7 @@ function Base.showerror(io::IO, ex::JSONRPCError)
     print(io, error_code_as_string)
     print(io, ": ")
     print(io, ex.msg)
-    if ex.data!==nothing
+    if ex.data !== nothing
         print(io, " (")
         print(io, ex.data)
         print(io, ")")
@@ -54,12 +54,12 @@ mutable struct JSONRPCEndpoint
     out_msg_queue::Channel{Any}
     in_msg_queue::Channel{Any}
 
-    outstanding_requests::Dict{String, Channel{Any}}
+    outstanding_requests::Dict{String,Channel{Any}}
 
     err_handler::Union{Nothing,Function}
 
-    function JSONRPCEndpoint(pipe_in, pipe_out, err_handler=nothing)
-        return new(pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String, Channel{Any}}(), err_handler)
+    function JSONRPCEndpoint(pipe_in, pipe_out, err_handler = nothing)
+        return new(pipe_in, pipe_out, Channel{Any}(Inf), Channel{Any}(Inf), Dict{String,Channel{Any}}(), err_handler)
     end
 end
 
@@ -94,7 +94,7 @@ function Base.run(x::JSONRPCEndpoint)
         end
     catch err
         bt = catch_backtrace()
-        if x.err_handler!==nothing
+        if x.err_handler !== nothing
             x.err_handler(err, bt)
         else
             Base.display_error(stderr, err, bt)
@@ -105,7 +105,7 @@ function Base.run(x::JSONRPCEndpoint)
         while true
             message = read_transport_layer(x.pipe_in)
 
-            if message===nothing
+            if message === nothing
                 break
             end
 
@@ -123,7 +123,7 @@ function Base.run(x::JSONRPCEndpoint)
         end
     catch err
         bt = catch_backtrace()
-        if x.err_handler!==nothing
+        if x.err_handler !== nothing
             x.err_handler(err, bt)
         else
             Base.display_error(stderr, err, bt)
@@ -132,7 +132,7 @@ function Base.run(x::JSONRPCEndpoint)
 end
 
 function send_notification(x::JSONRPCEndpoint, method::AbstractString, params)
-    message = Dict("jsonrpc"=>"2.0", "method"=>method, "params"=>params)
+    message = Dict("jsonrpc" => "2.0", "method" => method, "params" => params)
 
     message_json = JSON.json(message)
 
@@ -141,7 +141,7 @@ end
 
 function send_request(x::JSONRPCEndpoint, method::AbstractString, params)
     id = string(UUIDs.uuid4())
-    message = Dict("jsonrpc"=>"2.0", "method"=>method, "params"=>params, "id"=>id)
+    message = Dict("jsonrpc" => "2.0", "method" => method, "params" => params, "id" => id)
 
     response_channel = Channel{Any}(1)
     x.outstanding_requests[id] = response_channel
@@ -171,7 +171,7 @@ function get_next_message(endpoint::JSONRPCEndpoint)
 end
 
 function send_success_response(endpoint, original_request, result)
-    response = Dict("jsonrpc"=>"2.0", "id"=>original_request["id"], "result"=>result)
+    response = Dict("jsonrpc" => "2.0", "id" => original_request["id"], "result" => result)
 
     response_json = JSON.json(response)
 
@@ -179,7 +179,7 @@ function send_success_response(endpoint, original_request, result)
 end
 
 function send_error_response(endpoint, original_request, code, message, data)
-    response = Dict("jsonrpc"=>"2.0", "id"=>original_request["id"], "error"=>Dict("code"=>code, "message"=>message, "data"=>data))
+    response = Dict("jsonrpc" => "2.0", "id" => original_request["id"], "error" => Dict("code" => code, "message" => message, "data" => data))
 
     response_json = JSON.json(response)
 

@@ -7,8 +7,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     x = get_expr(getcst(doc), offset)
 
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
-        #latex completion
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
+        # latex completion
         latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
         latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(ppt), CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
@@ -18,17 +18,17 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
         string_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
-        import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
-        #getfield completion, no partial
+        import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
+        # getfield completion, no partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
         _get_dot_completion(px, "", rng, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
-        #getfield completion, partial
+        # getfield completion, partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
         _get_dot_completion(px, t.val, rng, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
-        #token completion
+        # token completion
         if is_at_end && x !== nothing
             if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.AT_SIGN
                 spartial = string("@", t.val)
@@ -57,8 +57,8 @@ end
 function latex_completions(doc, offset, partial, CIs)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
-            t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
+            t1 = TextEdit(Range(doc, offset - sizeof(partial) + 1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
+            t2 = TextEdit(Range(doc, offset - sizeof(partial):offset - sizeof(partial) + 1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
             push!(CIs, CompletionItem(k[2:end], 11, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
         end
     end
@@ -170,9 +170,9 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
         startswith(n, ".") && continue
         # v isa String && continue
         !startswith(n, spartial) && continue
-        if v isa SymbolServer.VarRef 
+        if v isa SymbolServer.VarRef
             v = SymbolServer._lookup(v, getsymbolserver(server), true)
-            v === nothing && return 
+            v === nothing && return
         end
         if v.exported || inclexported
             # if v isa SymbolServer.VarRef
@@ -180,11 +180,11 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             #     !(prv isa SymbolServer.SymStore) && continue
             #     push!(CIs, CompletionItem(n, _completion_kind(prv, server), MarkupContent(sanitize_docstring(prv.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end])))
             # else
-                push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n, sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
             # end
         elseif dotcomps
-            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact 
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
+            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n))))
         end
     end
 end
@@ -214,7 +214,7 @@ function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, in
                     documentation = get_hover(n[2], documentation, server)
                     sanitize_docstring(documentation)
                 end
-                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1], sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
             end
         end
     end
@@ -231,14 +231,14 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
                 for a in refof(px).type.fieldnames
                     a = String(a)
                     if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a, sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fieldnames
                     a = String(a)
                     if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a, sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
@@ -250,7 +250,7 @@ function _get_dot_completion(px, spartial, rng, CIs, server)
     end
 end
 
-function _completion_kind(b ,server)
+function _completion_kind(b, server)
     if b isa StaticLint.Binding
         if b.type == StaticLint.CoreTypes.String
             return 1
@@ -262,18 +262,18 @@ function _completion_kind(b ,server)
             return 12
         elseif b.type == StaticLint.CoreTypes.DataType
             return 22
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.VarRef
         return 9
     elseif b isa SymbolServer.MethodStore
-        return 2        
+        return 2
     elseif b isa SymbolServer.FunctionStore
         return 3
     elseif b isa SymbolServer.DataTypeStore
         return 22
-    else 
+    else
         return 6
     end
 end
@@ -281,7 +281,7 @@ end
 function get_import_root(x::EXPR)
     for i = 1:length(x.args)
         if typof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
-            return x.args[i-1]
+            return x.args[i - 1]
         end
     end
     return nothing
@@ -316,7 +316,7 @@ end
 is_latex_comp_char(c::Char) = UInt32(c) <= typemax(UInt8) ? is_latex_comp_char(UInt8(c)) : false
 function is_latex_comp_char(u)
     # Checks whether a Char (represented as a UInt8) is in the set of those those used to trigger
-    #latex completions.
+    # latex completions.
     # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in REPL.REPLCompletions.latex_symbols]))))
     u === 0x28 ||
     u === 0x29 ||
@@ -357,37 +357,37 @@ function path_completion(doc, offset, rng, t, CIs)
     end
 end
 
-function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
+function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
     import_statement = parentof(x)
     import_root = get_import_root(import_statement)
-    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
-        (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
-        #no partial, no dot
+    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
+        (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
+        # no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-            for (n,m) in refof(import_root).vals
+            for (n, m) in refof(import_root).vals
                 n = String(n)
                 if startswith(n, t.val)
                     push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                 end
             end
         else
-            for (n,m) in StaticLint.getsymbolserver(server)
+            for (n, m) in StaticLint.getsymbolserver(server)
                 n = String(n)
                 startswith(n, ".") && continue
                 push!(CIs, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(rng, n)))
             end
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
-        #no partial, dot
+        # no partial, dot
         if haskey(getsymbolserver(server), Symbol(pt.val))
             collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
         end
-    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
-        #partial
+    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
+        # partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
             if haskey(StaticLint.getsymbolserver(server), Symbol(ppt.val))
                 rootmod = StaticLint.getsymbolserver(server)[Symbol(ppt.val)]
-                for (n,m) in rootmod.vals
+                for (n, m) in rootmod.vals
                     n = String(n)
                     if startswith(n, t.val)
                         push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
@@ -396,17 +396,17 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
             end
         else
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-                for (n,m) in refof(import_root).vals
+                for (n, m) in refof(import_root).vals
                     n = String(n)
                     if startswith(n, t.val)
                         push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                     end
                 end
             else
-                for (n,m) in StaticLint.getsymbolserver(server)
+                for (n, m) in StaticLint.getsymbolserver(server)
                     n = String(n)
                     if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n, sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
             end

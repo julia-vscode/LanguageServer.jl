@@ -50,7 +50,7 @@ function parse(::Type{Request}, message_dict::Dict)
     return ret
 end
 
-function JSON.json(request::Request{method,Tparams}) where {method, Tparams}
+function JSON.json(request::Request{method,Tparams}) where {method,Tparams}
     request_dict = Dict()
     request_dict["jsonrpc"] = "2.0"
     request_dict["method"] = string(method.parameters[1])
@@ -75,7 +75,7 @@ function JSON.json(response::Response{TResult}) where {TResult}
     return JSON.json(response_dict)
 end
 
-function JSON.json(response::Notification{method,Tparams}) where {method, Tparams}
+function JSON.json(response::Notification{method,Tparams}) where {method,Tparams}
     notification_dict = Dict()
     notification_dict["jsonrpc"] = "2.0"
     notification_dict["method"] = string(method.parameters[1])

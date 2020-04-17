@@ -288,14 +288,16 @@ function resolve_op_ref(x::EXPR)
 
     mn = CSTParser.str_value(x)
     while scope isa StaticLint.Scope
-        
         if StaticLint.scopehasbinding(scope, mn)
             StaticLint.setref!(x, scope.names[mn])
             return true
         elseif scope.modules isa Dict && length(scope.modules) > 0
             for (_,m) in scope.modules
-                if StaticLint.isexportedby(Symbol(mn), m)
+                if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
                     StaticLint.setref!(x, m[Symbol(mn)])
+                    return true
+                elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
+                    StaticLint.setref!(x, m.names[mn])
                     return true
                 end
             end

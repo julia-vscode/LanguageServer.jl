@@ -1,5 +1,11 @@
 function uri2filepath(uri::AbstractString)
-    uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
+    parsed_uri = try
+        URIParser.URI(uri)
+    catch err
+        throw(LSUriConversionFailure("Cannot parse `$uri`."))
+    end
+
+    uri_path = normpath(URIParser.unescape(parsed_uri.path))
 
     if Sys.iswindows()
         if uri_path[1] == '\\' || uri_path[1] == '/'

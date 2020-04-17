@@ -1,3 +1,45 @@
+
+##############################################################################
+
+
+struct CreateFileOptions <: Outbound
+    overwrite::Union{Bool,Missing}
+    ignoreIfExists::Union{Bool,Missing}
+end
+
+struct CreateFile <: Outbound
+    kind::String
+    uri::DocumentUri
+    options::Union{CreateFileOptions,Missing}
+    CreateFile(uri, options=missing) = new("create", uri, options)
+end
+
+struct RenameFileOptions <: Outbound
+    overwrite::Union{Bool,Missing}
+    ignoreIfExists::Union{Bool,Missing}
+end
+
+struct RenameFile <: Outbound
+    kind::String
+    oldUri::DocumentUri
+    newUri::DocumentUri
+    options::Union{RenameFileOptions,Missing}
+    RenameFile(uri, options=missing) = new("rename", uri, options)
+end
+
+struct DeleteFileOptions <: Outbound
+    recursive::Union{Bool,Missing}
+    ignoreIfNotExists::Union{Bool,Missing}
+end
+
+struct DeleteFile <: Outbound
+    kind::String
+    uri::DocumentUri
+    options::Union{DeleteFileOptions,Missing}
+    DeleteFile(uri, options=missing) = new("delete", uri, options)
+end
+
+
 @dict_readable struct TextDocumentIdentifier
     uri::DocumentUri
 end
@@ -19,13 +61,6 @@ end
     position::Position
 end
 
-mutable struct DocumentFilter
-    language::Union{String,Missing}
-    scheme::Union{String,Missing}
-    pattern::Union{String,Missing}
-end
-
-const DocumentSelector = Vector{DocumentFilter}
 
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
@@ -35,6 +70,7 @@ end
 mutable struct WorkspaceEdit
     changes::Union{Any,Missing}
     documentChanges::Union{Vector{TextDocumentEdit},Missing}
+    # documentChanges::Union{Vector{TextDocumentEdit},Vector{Union{TextDocumentEdit,CreateFile,RenameFile,DeleteFile}}}
 end
 
 @dict_readable struct DidOpenTextDocumentParams
@@ -62,7 +98,9 @@ end
 end
 
 const TextDocumentSaveReason = Int
-const TextDocumentSaveReasons = Dict(1 => "Manual", 2 => "AfterDelay", 3 => "FocusOut")
+const TextDocumentSaveReasons = (Manual = 1,
+                                 AfterDelay = 2,
+                                 FocusOut = 3)
 
 @dict_readable struct WillSaveTextDocumentParams
     textDocument::TextDocumentIdentifier

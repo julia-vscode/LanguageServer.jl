@@ -1,189 +1,122 @@
 ##############################################################################
 # From client
-@dict_readable struct Capabilities
-    dynamicRegistration::Union{Bool,Missing}
-end
+const FailureHandlingKind = String
+const FailureHandlingKinds = (Abort = "abort",
+                              Transactional = "transactional",
+                              TextOnlyTransactional = "textOnlyTransactional",
+                              Undo = "undo")
 
 const ResourceOperationKind = String
-const ResourceOperationKinds = ("create", "rename", "delete")
-const FailureHandlingKind = String
-const FailureHandlingKinds = ("abort", "transactional", "undo", "textOnlyTransactional")
+const ResourceOperationKinds = (Create = "create",
+                                Rename = "rename",
+                                Delete = "delete")
 
-@dict_readable struct WorkspaceEditCapabilities
+@dict_readable struct WorkspaceEditClientCapabilities
     documentChanges::Union{Bool,Missing}
     resourceOperations::Union{Vector{ResourceOperationKind},Missing}
     failureHandling::Union{FailureHandlingKind,Missing}
 end
 
-@dict_readable struct SymbolKindCapabilities
-    valueSet::Union{Vector{Int},Missing}
+@dict_readable struct DidChangeConfigurationClientCapabilities
+    dynamicRegistration::Union{Bool,Missing}
 end
 
-@dict_readable mutable struct SymbolCapabilities
+@dict_readable struct DidChangeWatchedFilesClientCapabilities
     dynamicRegistration::Union{Bool,Missing}
-    symbolKind::Union{SymbolKindCapabilities,Missing}
 end
 
 @dict_readable struct WorkspaceClientCapabilities
     applyEdit::Union{Bool,Missing}
-    workspaceEdit::Union{WorkspaceEditCapabilities,Missing}
-    didChangeConfiguration::Union{Capabilities,Missing}
-    didChangeWatchedFiles::Union{Capabilities,Missing}
-    symbol::Union{SymbolCapabilities,Missing}
-    executeCommand::Union{Capabilities,Missing}
+    workspaceEdit::Union{WorkspaceEditClientCapabilities,Missing}
+    didChangeConfiguration::Union{DidChangeConfigurationClientCapabilities,Missing}
+    didChangeWatchedFiles::Union{DidChangeWatchedFilesClientCapabilities,Missing}
+    symbol::Union{WorkspaceSymbolClientCapabilities,Missing}
+    executeCommand::Union{ExecuteCommandClientCapabilities,Missing}
     workspaceFolders::Union{Bool,Missing}
     configuration::Union{Bool,Missing}
 end
 
-@dict_readable struct SynchronizationCapabilities
+@dict_readable struct TextDocumentSyncClientCapabilities
     dynamicRegistration::Union{Bool,Missing}
     willSave::Union{Bool,Missing}
     willSaveWaitUntil::Union{Bool,Missing}
     didSave::Union{Bool,Missing}
 end
 
-@dict_readable struct CompletionItemCapabilities
-    snippetSupport::Union{Bool,Missing}
-    commitCharactersSupport::Union{Bool,Missing}
-    documentationFormat::Union{Vector{String},Missing}
-    deprecatedSupport::Union{Bool,Missing}
-    preselectSupport::Union{Bool,Missing}
+
+@dict_readable struct TagClientCapabilities
+    valueSet::Vector{DiagnosticTag}
 end
 
-@dict_readable struct CompletionItemKindCapabilities
-    valueSet::Union{Vector{Int},Missing}
-end
-
-@dict_readable struct CompletionCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    completionItem::Union{CompletionItemCapabilities,Missing}
-    completionItemKind::Union{CompletionItemKindCapabilities,Missing}
-    contextSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct HoverCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    contentFormat::Union{Vector{String},Missing}
-end
-
-@dict_readable struct ParameterInformationCapabilities
-    labelOffsetSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct SignatureInformationCapabilities
-    documentationFormat::Union{Vector{String},Missing}
-    parameterInformation::Union{ParameterInformationCapabilities,Missing}
-end
-
-@dict_readable struct SignatureCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    signatureInformation::Union{SignatureInformationCapabilities,Missing}
-end
-
-@dict_readable struct DocumentSymbolCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    symbolKind::Union{SymbolKindCapabilities,Missing}
-    hierarchicalDocumentSymbolSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct DeclarationCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    linkSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct DefinitionCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    linkSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct TypeDefinitionCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    linkSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct ImplementationCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    linkSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct CodeActionKindCapabilities
-    valueSet::Vector{String}
-end
-
-@dict_readable struct CodeActionLiteralCapabilities
-    codeActionKind::CodeActionKindCapabilities
-end
-
-@dict_readable struct CodeActionCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    codeActionLiteralSupport::Union{CodeActionLiteralCapabilities,Missing}
-end
-
-@dict_readable struct RenameCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    prepareSupport::Union{Bool,Missing}
-end
-
-@dict_readable struct PublishDiagnosticsCapabilities
+@dict_readable struct PublishDiagnosticsClientCapabilities
     relatedInformation::Union{Bool,Missing}
-end
-
-@dict_readable struct FoldingRangeCapabilities
-    dynamicRegistration::Union{Bool,Missing}
-    rangeLimit::Union{Int,Missing}
-    lineFoldingOnly::Union{Bool,Missing}
+    tagSupport::Union{TagClientCapabilities,Missing}
+    versionSupport::Union{Bool,Missing}
 end
 
 @dict_readable struct TextDocumentClientCapabilities
-    synchronization::Union{SynchronizationCapabilities,Missing}
-    completion::Union{CompletionCapabilities,Missing}
-    hover::Union{HoverCapabilities,Missing}
-    signatureHelp::Union{SignatureCapabilities,Missing}
-    references::Union{Capabilities,Missing}
-    documentHighlight::Union{Capabilities,Missing}
-    documentSymbol::Union{DocumentSymbolCapabilities,Missing}
-    formatting::Union{Capabilities,Missing}
-    rangeFormatting::Union{Capabilities,Missing}
-    onTypeFormatting::Union{Capabilities,Missing}
-    declaration::Union{DeclarationCapabilities,Missing}
-    definition::Union{DefinitionCapabilities,Missing}
-    typeDefinition::Union{TypeDefinitionCapabilities,Missing}
-    implementation::Union{ImplementationCapabilities,Missing}
-    codeAction::Union{CodeActionCapabilities,Missing}
-    codeLens::Union{Capabilities,Missing}
-    documentLink::Union{Capabilities,Missing}
-    colorProvider::Union{Capabilities,Missing}
-    rename::Union{RenameCapabilities,Missing}
-    publishDiagnostics::Union{PublishDiagnosticsCapabilities,Missing}
-    foldingRange::Union{FoldingRangeCapabilities,Missing}
+    synchronization::Union{TextDocumentSyncClientCapabilities,Missing}
+    completion::Union{CompletionClientCapabilities,Missing}
+    hover::Union{HoverClientCapabilities,Missing}
+    signatureHelp::Union{SignatureHelpClientCapabilities,Missing}
+    declaration::Union{DeclarationClientCapabilities,Missing}
+    definition::Union{DefinitionClientCapabilities,Missing}
+    typeDefinition::Union{TypeDefinitionClientCapabilities,Missing}
+    implementation::Union{ImplementationClientCapabilities,Missing}
+    references::Union{ReferenceClientCapabilities,Missing}
+    documentHighlight::Union{DocumentHighlightClientCapabilities,Missing}
+    documentSymbol::Union{DocumentSymbolClientCapabilities,Missing}
+    codeAction::Union{CodeActionClientCapabilities,Missing}
+    codeLens::Union{CodeLensClientCapabilities,Missing}
+    documentLink::Union{DocumentLinkClientCapabilities,Missing}
+    colorProvider::Union{DocumentColorClientCapabilities,Missing}
+    formatting::Union{DocumentFormattingClientCapabilities,Missing}
+    rangeFormatting::Union{DocumentRangeFormattingClientCapabilities,Missing}
+    onTypeFormatting::Union{DocumentOnTypeFormattingClientCapabilities,Missing}
+    rename::Union{RenameClientCapabilities,Missing}
+    publishDiagnostics::Union{PublishDiagnosticsClientCapabilities,Missing}
+    foldingRange::Union{FoldingRangeClientCapabilities,Missing}
+    selectionRange::Union{SelectionRangeClientCapabilities,Missing}
+end
+
+@dict_readable struct WindowClientCapabilities
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct ClientCapabilities
     workspace::Union{WorkspaceClientCapabilities,Missing}
     textDocument::Union{TextDocumentClientCapabilities,Missing}
-    window::Union{Any,Missing}
+    window::Union{WindowClientCapabilities,Missing}
     experimental::Union{Any,Missing}
+end
+@dict_readable struct InfoParams
+    name::String
+    version::Union{String,Missing}
 end
 
 struct InitializeParams
     processId::Union{Int,Nothing}
+    clientInfo::Union{InfoParams,Missing}
     rootPath::Union{DocumentUri,Nothing,Missing}
     rootUri::Union{DocumentUri,Nothing}
     initializationOptions::Union{Any,Missing}
     capabilities::ClientCapabilities
     trace::Union{String,Missing}
     workspaceFolders::Union{Vector{WorkspaceFolder},Nothing,Missing}
+    workDoneToken::Union{ProgressToken,Missing}
 end
 
 # Requires handwritten implementaiton to account for 3-part Unions
 function InitializeParams(dict::Dict)
-    InitializeParams(dict["processId"], 
+    InitializeParams(dict["processId"],
+    haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
     !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
     dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]), 
-    if haskey(dict, "initializationOptions") dict["initializationOptions"] else missing end, 
+    haskey(dict, "initializationOptions") ? dict["initializationOptions"] : missing , 
     ClientCapabilities(dict["capabilities"]), 
-    if haskey(dict, "trace") String(dict["trace"]) else missing end,
-    !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]))
+    haskey(dict, "trace") ? String(dict["trace"]) : missing ,
+    !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]),
+    haskey(dict, "workDoneToken") ? ProgressToken(dict["workDoneToken"]) : missing)
 end
 ##############################################################################
 
@@ -192,53 +125,16 @@ end
 
 ##############################################################################
 # Server Response
-struct CompletionOptions <: Outbound
-    resolveProvider::Union{Bool,Missing}
-    triggerCharacters::Union{Vector{String},Missing}
-end
-
-struct SignatureHelpOptions <: Outbound
-    triggerCharacters::Union{Vector{String},Missing}
-end
-
-const CodeActionKind = String
-const CodeActionKinds = ("", "quickfix", "refactor", "refactor.extract", "refactor.inline", "source", "source.organiseImports")
-
-struct CodeActionOptions <: Outbound
-    codeActionKinds::Union{Vector{CodeActionKind},Missing}
-end
-
-struct CodeLensOptions <: Outbound
-    resolveProvider::Union{Bool,Missing}
-end
-
-struct DocumentOnTypeFormattingOptions <: Outbound
-    firstTriggerCharacter::String
-    moreTriggerCharacters::Union{Vector{String},Missing}
-end
-
-struct RenameOptions <: Outbound
-    prepareProvider::Union{Bool,Missing}
-end
-
-struct DocumentLinkOptions <: Outbound
-    resolveProvider::Union{Bool,Missing}
-end
-
-struct ExecuteCommandOptions <: Outbound
-    commands::Vector{String}
-end
-
 struct SaveOptions <: Outbound
     includeText::Union{Bool,Missing}
 end
 
 struct ColorProviderOptions <: Outbound end
 
-struct FoldingRangeProviderOptions <: Outbound end
-
 const TextDocumentSyncKind = Int
-const TextDocumentSyncKinds = Dict("None" => 0, "Full" => 1, "Incremental" => 2)
+const TextDocumentSyncKinds = (None = 0,
+                               Full = 1,
+                               Incremental = 2)
 
 struct TextDocumentSyncOptions <: Outbound
     openClose::Union{Bool,Missing}
@@ -257,36 +153,42 @@ struct WorkspaceOptions <: Outbound
     workspaceFolders::Union{WorkspaceFoldersOptions,Missing}
 end
 
+struct WorkspaceFoldersServerCapabilities <: Outbound
+    supported::Union{Bool,Missing}
+    changeNotifications::Union{String,Bool,Missing}
+end
 
 struct ServerCapabilities <: Outbound
-    textDocumentSync::Union{TextDocumentSyncOptions,TextDocumentSyncKind,Missing}
-    hoverProvider::Union{Bool,Missing}
+    textDocumentSync::Union{TextDocumentSyncOptions,Int,Missing}
     completionProvider::Union{CompletionOptions,Missing}
+    hoverProvider::Union{Bool,HoverOptions,Missing}
     signatureHelpProvider::Union{SignatureHelpOptions,Missing}
-    definitionProvider::Union{Bool,Missing}
-    typeDefinitionProvider::Union{Bool,Missing}
-    implementationProvider::Union{Bool,Missing}
-    referencesProvider::Union{Bool,Missing}
-    documentHighlightProvider::Union{Bool,Missing}
-    documentSymbolProvider::Union{Bool,Missing}
-    workspaceSymbolProvider::Union{Bool,Missing}
+    declarationProvider::Union{Bool,DeclarationOptions,DeclarationRegistrationOptions,Missing}
+    definitionProvider::Union{Bool,DefinitionOptions,Missing}
+    typeDefinitionProvider::Union{Bool,TypeDefinitionOptions,TypeDefinitionRegistrationOptions,Missing}
+    implementationProvider::Union{Bool,ImplementationOptions,ImplementationRegistrationOptions,Missing}
+    referencesProvider::Union{Bool,ReferenceOptions,Missing}
+    documentHighlightProvider::Union{Bool,DocumentHighlightOptions,Missing}
+    documentSymbolProvider::Union{Bool,DocumentSymbolOptions,Missing}
     codeActionProvider::Union{Bool,CodeActionOptions,Missing}
     codeLensProvider::Union{CodeLensOptions,Missing}
-    documentFormattingProvider::Union{Bool,Missing}
-    documentRangeFormattingProvider::Union{Bool,Missing}
+    documentLinkProvider::Union{DocumentLinkOptions,Missing}
+    colorProvider::Union{Bool,DocumentColorOptions,DocumentColorRegistrationOptions,Missing}
+    documentFormattingProvider::Union{Bool,DocumentFormattingOptions,Missing}
+    documentRangeFormattingProvider::Union{Bool,DocumentRangeFormattingOptions,Missing}
     documentOnTypeFormattingProvider::Union{DocumentOnTypeFormattingOptions,Missing}
     renameProvider::Union{Bool,RenameOptions,Missing}
-    documentLinkProvider::Union{DocumentLinkOptions,Missing}
-    colorProvider::Union{Bool,ColorProviderOptions,Missing}
-    foldingRangeProvider::Union{Bool,FoldingRangeProviderOptions,Missing}
-    declarationProvider::Union{Bool,Missing}
+    foldingRangeProvider::Union{Bool,FoldingRangeOptions,FoldingRangeRegistrationOptions,Missing}
     executeCommandProvider::Union{ExecuteCommandOptions,Missing}
+    selectionRangeProvider::Union{Bool,SelectionRangeOptions,SelectionRangeRegistrationOptions,Missing}
+    workspaceSymbolProvider::Union{Bool,Missing}
     workspace::Union{WorkspaceOptions,Missing}
     experimental::Union{Any,Missing}
 end
 
 struct InitializeResult <: Outbound
     capabilities::ServerCapabilities
+    serverInfo::Union{InfoParams,Missing}
 end
 
 ##############################################################################

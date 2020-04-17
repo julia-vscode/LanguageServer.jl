@@ -5,7 +5,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
 
         startswith(uri, "file:") || continue
 
-        if change.type == FileChangeTypes["Created"] || change.type == FileChangeTypes["Changed"]
+        if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             if hasdocument(server, URI2(uri))
                 doc = getdocument(server, URI2(uri))
 
@@ -46,7 +46,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                 setdocument!(server, URI2(uri), doc)
                 parse_all(doc, server)
             end
-        elseif change.type == FileChangeTypes["Deleted"]
+        elseif change.type == FileChangeTypes.Deleted
             if hasdocument(server, URI2(uri))
                 doc = getdocument(server, URI2(uri))
 
@@ -143,7 +143,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSym
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
         for x in bs
             p, b = x[1], x[2]
-            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), nothing))
+            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))
         end
     end
 

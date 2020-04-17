@@ -220,7 +220,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
         p,b = x[1], x[2]
         !(b.val isa EXPR) && continue
         (valof(b.name) === nothing || isempty(valof(b.name))) && typof(b.name) !== CSTParser.OPERATOR && continue
-        push!(syms, SymbolInformation(typof(b.name) === CSTParser.OPERATOR ? string(Expr(b.name)) : valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), nothing))
+        push!(syms, SymbolInformation(typof(b.name) === CSTParser.OPERATOR ? string(Expr(b.name)) : valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
     end
     return syms
 end

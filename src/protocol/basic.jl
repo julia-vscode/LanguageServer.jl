@@ -1,3 +1,15 @@
+const ProgressToken = Union{Int, String}
+struct ProgressParams{T}
+    token::ProgressToken
+    value::T
+end
+
+mutable struct DocumentFilter
+    language::Union{String,Missing}
+    scheme::Union{String,Missing}
+    pattern::Union{String,Missing}
+end
+const DocumentSelector = Vector{DocumentFilter}
 const DocumentUri = String
 
 @dict_readable struct Position
@@ -39,6 +51,18 @@ end
 
 ##############################################################################
 # Diagnostics 
+const DiagnosticSeverity = Int
+const DiagnosticSeverities = (Error = 1,
+                              Warning = 2,
+                              Information = 3,
+                              Hint = 4)
+
+const DiagnosticTag = Int
+const DiagnosticTags = (Error = 1,
+                        Warning = 2,
+                        Information = 3,
+                        Hint = 4)
+
 struct DiagnosticRelatedInformation
     location::Location
     message::String
@@ -46,18 +70,18 @@ end
 
 @dict_readable struct Diagnostic <: Outbound
     range::Range
-    severity::Union{Int,Missing}
+    severity::Union{DiagnosticSeverity,Missing}
     code::Union{String,Missing}
     source::Union{String,Missing}
     message::String
+    tags::Union{Vector{DiagnosticTag},Missing}
     relatedInformation::Union{Vector{DiagnosticRelatedInformation},Missing}
 end
 
-const DiagnosticSeverity = Dict("Error" => 1, "Warning" => 2, "Information" => 3, "Hint" => 4)
 
 ##############################################################################
 
-struct Command <: HasMissingFields
+struct Command <: HasMissingFields # Use traits for this?
     title::String
     command::String
     arguments::Union{Vector{Any},Missing}
@@ -70,13 +94,15 @@ end
 
 ##############################################################################
 # Markup
-const MarkupKind = ("plaintext", "markdown")
+const MarkupKind = String
+const MarkupKinds = (PlainText = "plaintext",
+                     Markdown = "markdown")
 
 mutable struct MarkupContent
-   kind::String
+   kind::MarkupKind
    value::String
 end
-MarkupContent(value::String) = MarkupContent("markdown", value)
+MarkupContent(value::String) = MarkupContent(MarkupKinds.Markdown, value)
 
 mutable struct MarkedString
     language::String
@@ -90,9 +116,11 @@ Base.hash(x::MarkedString) = hash(x.value) # for unique
 
 ##############################################################################
 # Window
-
 const MessageType = Int
-const MessageTypes = Dict("Error" => 1, "Warning" => 2, "Info" => 3, "Log" => 4)
+const MessageTypes = (Error = 1,
+                      Warning = 2,
+                      Info = 3,
+                      Log = 4)
 
 struct ShowMessageParams <: Outbound
     type::MessageType
@@ -112,4 +140,58 @@ end
 mutable struct LogMessageParams <: Outbound
     type::Integer
     message::String
+end
+
+##############################################################################
+# Progress
+struct WorkDoneProgressCreateParams <: Outbound
+    token::ProgressToken
+end
+
+@dict_readable struct WorkDoneProgressCancelParams
+    token::ProgressToken
+end
+
+struct WorkDoneProgressBegin
+    kind::String
+    title::String
+    cancellable::Union{Bool,Missing}
+    message::Union{String,Missing}
+    percentage::Union{Int,Missing}
+    function WorkDoneProgressBegin(title, cancellable, message, percentage)
+        new("begin", title, cancellable, message, percentage)
+    end
+end
+
+struct WorkDoneProgressReport
+    kind::String
+    cancellable::Union{Bool,Missing}
+    message::Union{String,Missing}
+    percentage::Union{Int,Missing}
+    function WorkDoneProgressReport(cancellable, message, percentage)
+        new("report", cancellable, message, percentage)
+    end
+end
+
+struct WorkDoneProgressEnd
+    kind::String
+    message::Union{String,Missing}
+    function WorkDoneProgressEnd(message)
+        new("end", message)
+    end
+end
+
+struct WorkDoneProgressParams
+    workDoneToken::Union{ProgressToken,Missing}
+end
+
+struct WorkDoneProgressOptions
+    workDoneProgress::Union{Bool,Missing}
+end
+
+##############################################################################
+# Partial
+
+struct PartialResultParams
+    partialResultToken::Union{ProgressToken,Missing}
 end

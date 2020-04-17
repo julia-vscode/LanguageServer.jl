@@ -161,7 +161,7 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
                 x.fullspan += 1
                 update_parent_spans!(x)
                 StaticLint.clear_ref(x)
-                StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
+                StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server), [])
                 return true
             end
         end
@@ -191,7 +191,7 @@ function _noimpact_partial_update(cst, insert_range, insert_text, old_text)
             x.fullspan -= length(pos) - 1
             update_parent_spans!(x)
             StaticLint.clear_ref(x)
-            StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server))
+            StaticLint.resolve_ref(x, StaticLint.retrieve_scope(x), StaticLint.State(nothing, nothing, String[], scopeof(cst), false, EXPR[], cst.meta.error.server), [])
             return true
         end
     end

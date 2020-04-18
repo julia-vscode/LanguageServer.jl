@@ -380,7 +380,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
         #no partial, dot
         if haskey(getsymbolserver(server), Symbol(pt.val))
-            collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
+            collect_completions(getsymbolserver(server)[Symbol(pt.val)], "", rng, CIs, server)
         end
     elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
         #partial

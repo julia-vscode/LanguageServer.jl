@@ -84,29 +84,12 @@ function request_julia_config(server)
     if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
         server.format_options = DocumentFormat.FormatOptions(
             response[1]===nothing ? 0 : response[1],
-            response[2]===nothing ? false : response[2],
-            response[3]===nothing ? false : response[3],
-            response[4]===nothing ? false : response[4],
-            response[5]===nothing ? false : response[5],
-            response[6]===nothing ? false : response[6],
-            response[7]===nothing ? false : response[7],
-            response[8]===nothing ? false : response[8],
-            response[9]===nothing ? false : response[9],
-            response[10]===nothing ? false : response[10],
-            response[11]===nothing ? false : response[11])
+            [response[i]===nothing ? false : response[i] for i = 2:length(fieldnames(DocumentFormat.FormatOptions))]...)
         
         N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
         x = response[N]
         new_lint_opts = StaticLint.LintOptions(
-            response[N + 1]===nothing ? false : response[N + 1],
-            response[N + 2]===nothing ? false : response[N + 2],
-            response[N + 3]===nothing ? false : response[N + 3],
-            response[N + 4]===nothing ? false : response[N + 4],
-            response[N + 5]===nothing ? false : response[N + 5],
-            response[N + 6]===nothing ? false : response[N + 6],
-            response[N + 7]===nothing ? false : response[N + 7],
-            response[N + 8]===nothing ? false : response[N + 8],
-            response[N + 9]===nothing ? false : response[N + 9],
+            [response[N + i]===nothing ? false : response[N + i] for i = 1:length(fieldnames(StaticLint.LintOptions))]...
         )
         
         new_run_lint_value = x===nothing ? false : true

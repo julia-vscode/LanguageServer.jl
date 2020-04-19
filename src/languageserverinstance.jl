@@ -39,6 +39,7 @@ mutable struct LanguageServerInstance
     symbol_results_channel::Channel{Any}
     symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
+    symbol_fieldtypemap::Dict{Symbol, Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
     # ss_task::Union{Nothing,Future}
     format_options::DocumentFormat.FormatOptions
@@ -71,6 +72,7 @@ mutable struct LanguageServerInstance
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
+            StaticLint.fieldname_type_map(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
             StaticLint.LintOptions(),
@@ -151,7 +153,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             server.err_handler
         )
         server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
-
+        server.symbol_fieldtypemap = StaticLint.fieldname_type_map(server.symbol_store)
         server.number_of_outstanding_symserver_requests -= 1
 
         if server.number_of_outstanding_symserver_requests==0

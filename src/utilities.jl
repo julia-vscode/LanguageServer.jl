@@ -24,11 +24,11 @@ function uri2filepath(uri::AbstractString)
         value = path_unescaped
     end
 
-    value = normpath(value)
-
     if Sys.iswindows()
         value = replace(value, '/' => '\\')
     end
+
+    value = normpath(value)
 
     return value
 end

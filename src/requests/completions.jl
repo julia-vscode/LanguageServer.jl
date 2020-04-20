@@ -59,7 +59,7 @@ function latex_completions(doc, offset, partial, CIs)
         if startswith(string(k), partial)
             t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
             t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
-            push!(CIs, CompletionItem(k[2:end], 11, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
+            push!(CIs, CompletionItem(k[2:end], 11, missing, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
         end
     end
 end
@@ -391,7 +391,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
         #no partial, dot
         if haskey(getsymbolserver(server), Symbol(pt.val))
-            collect_completions(getsymbolserver(server)[pt.val], "", rng, CIs, server)
+            collect_completions(getsymbolserver(server)[Symbol(pt.val)], "", rng, CIs, server)
         end
     elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
         #partial

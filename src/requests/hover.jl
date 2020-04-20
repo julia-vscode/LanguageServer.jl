@@ -2,18 +2,19 @@ JSONRPC.parse_params(::Type{Val{Symbol("textDocument/hover")}}, params) = TextDo
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/hover")},TextDocumentPositionParams}, server)
     doc = getdocument(server, URI2(r.params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, r.params.position))
+    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x)
     documentation = get_hover(x, "", server)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
     documentation = sanitize_docstring(documentation)
 
-    return Hover(MarkupContent(documentation), missing)
+    return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
 end
 
 function get_hover(x, documentation::String, server) documentation end
 
 function get_hover(x::EXPR, documentation::String, server)
-    if CSTParser.isidentifier(x) && StaticLint.hasref(x)
+    if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
         if refof(x) isa StaticLint.Binding
             documentation = get_hover(refof(x), documentation, server)
         elseif refof(x) isa SymbolServer.SymStore
@@ -93,8 +94,8 @@ function get_fcall_position(x::EXPR, documentation)
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
             elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
                 dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
-                if length(dts.fields) == call_counts[1] && arg_i <= length(dts.fields)
-                    documentation = string("Datatype field `$(dts.fields[arg_i])`", "\n", documentation)
+                if length(dts.fieldnames) == call_counts[1] && arg_i <= length(dts.fieldnames)
+                    documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
             else
                 documentation = string("Argument $arg_i of $(call_counts[1]) in call to `", CSTParser.str_value(fname), "`\n", documentation)

@@ -209,6 +209,24 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
 end
 
 
+is_valid_binding_name(name) = false
+function is_valid_binding_name(name::EXPR)
+    (typof(name) === CSTParser.IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
+    (typof(name) === CSTParser.OPERATOR) ||
+    (typof(name) === CSTParser.NONSTDIDENTIFIER && length(name) == 2 && valof(name[2]) isa String && !isempty(valof(name[2])))
+end
+function get_name_of_binding(name::EXPR) 
+    if typof(name) === CSTParser.IDENTIFIER
+        valof(name)
+    elseif typof(name) === CSTParser.OPERATOR
+        string(Expr(name))
+    elseif typof(name) === CSTParser.NONSTDIDENTIFIER
+        valof(name[2])
+    else
+        ""
+    end
+end
+
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     syms = SymbolInformation[]
@@ -219,8 +237,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     for x in bs
         p,b = x[1], x[2]
         !(b.val isa EXPR) && continue
-        (valof(b.name) === nothing || isempty(valof(b.name))) && typof(b.name) !== CSTParser.OPERATOR && continue
-        push!(syms, SymbolInformation(typof(b.name) === CSTParser.OPERATOR ? string(Expr(b.name)) : valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), nothing))
+        !is_valid_binding_name(b.name) && continue
+        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
     end
     return syms
 end

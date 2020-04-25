@@ -19,6 +19,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         try_to_load_parents(uri2filepath(uri), server)
     end
     parse_all(doc, server)
+    debug_decorations(doc, server)
 end
 
 
@@ -115,6 +116,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         end
         parse_all(doc, server)
     end
+    debug_decorations(doc, server)
 end
 
 function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
@@ -468,4 +470,32 @@ function try_to_load_parents(child_path, server)
             return try_to_load_parents(p, server)
         end
     end
+end
+
+function debug_decorations(doc, server)
+    function collect_decorations(x::EXPR, offset = 0, norefs = UnitRange{Int}[], notype = UnitRange{Int}[], typed = UnitRange{Int}[])
+        if typof(x) === CSTParser.IDENTIFIER 
+            if !StaticLint.hasref(x)
+                push!(norefs, offset .+ (0:x.span))
+            else
+                if refof(x) isa StaticLint.Binding && refof(x).type === nothing && !(refof(x).val isa SymbolServer.SymStore)
+                    push!(notype, offset .+ (0:x.span))
+                else
+                    push!(typed, offset .+ (0:x.span))
+                end
+            end
+        end
+        if x.args !== nothing
+            for a in x.args
+                collect_decorations(a, offset, norefs, notype, typed)
+                offset += a.fullspan
+            end
+        end
+        return norefs, notype, typed
+    end
+    norefs, notype, typed = collect_decorations(doc.cst)
+    JSONRPCEndpoints.send_notification(server.jr_endpoint, "julia/decorate", Dict("uri" => doc._uri, 
+    "noref" => Range[Range(doc, r) for r in norefs], 
+    "notype" => Range[Range(doc, r) for r in notype], 
+    "typed" => Range[Range(doc, r) for r in typed]))
 end

@@ -174,7 +174,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
             v = SymbolServer._lookup(v, getsymbolserver(server), true)
             v === nothing && return 
         end
-        if v.exported || inclexported
+        if StaticLint.isexportedby(n, m) || inclexported
             # if v isa SymbolServer.VarRef
             #     prv = SymbolServer._lookup(getsymbolserver(server), v)
             #     !(prv isa SymbolServer.SymStore) && continue

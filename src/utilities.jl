@@ -5,14 +5,32 @@ function uri2filepath(uri::AbstractString)
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
-    uri_path = normpath(URIParser.unescape(parsed_uri.path))
+    path_unescaped = URIParser.unescape(parsed_uri.path)
+    host_unescaped = URIParser.unescape(parsed_uri.host)
+
+    value = ""
+
+    if host_unescaped!="" && length(path_unescaped)>1 && parsed_uri.scheme=="file"
+        # unc path: file://shares/c$/far/boo
+        value = "//$host_unescaped$path_unescaped"
+    elseif length(path_unescaped)>=3 &&
+            path_unescaped[1]=='/' &&
+            isascii(path_unescaped[2]) && isletter(path_unescaped[2]) &&
+            path_unescaped[3]==':'
+        # windows drive letter: file:///c:/far/boo
+        value = lowercase(path_unescaped[2]) * path_unescaped[3:end]
+    else
+        # other path
+        value = path_unescaped
+    end
 
     if Sys.iswindows()
-        if uri_path[1] == '\\' || uri_path[1] == '/'
-            uri_path = uri_path[2:end]
-        end
+        value = replace(value, '/' => '\\')
     end
-    return uri_path
+
+    value = normpath(value)
+
+    return value
 end
 
 function filepath2uri(file::String)
@@ -21,7 +39,13 @@ function filepath2uri(file::String)
         file = replace(file, "\\" => "/")
         file = URIParser.escape(file)
         file = replace(file, "%2F" => "/")
-        return string("file:///", file)
+        if startswith(file, "//")
+            # UNC path \\foo\bar\foobar
+            return string("file://",file[3:end])
+        else
+            # windows drive letter path
+            return string("file:///", file)
+        end
     else
         file = normpath(file)
         file = URIParser.escape(file)

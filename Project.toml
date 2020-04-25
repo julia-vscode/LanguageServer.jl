@@ -29,7 +29,7 @@ DocumentFormat = "2.1"
 StaticLint = "4"
 Tokenize = "0.5.7"
 SymbolServer = "4"
-URIParser = "0.4.0"
+URIParser = "0.4.1"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

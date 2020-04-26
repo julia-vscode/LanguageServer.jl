@@ -29,3 +29,11 @@ end
 function Base.showerror(io::IO, ex::LSSyncMismatch)
     print(io, ex.msg)
 end
+
+struct LSNonFileUri2PathConversionError <: Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSNonFileUri2PathConversionError)
+    print(io, ex.msg)
+end

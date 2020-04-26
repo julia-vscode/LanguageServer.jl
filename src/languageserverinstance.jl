@@ -130,7 +130,7 @@ function create_symserver_progress_ui(server)
 end
 
 function destroy_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress
+    if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
         progress_token = server.current_symserver_progress_token
         server.current_symserver_progress_token = nothing
         JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))
@@ -149,7 +149,9 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            i-> JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i..."))),
+            i-> if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
+                JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i...")))
+            end,
             server.err_handler
         )
         server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)

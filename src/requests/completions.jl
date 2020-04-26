@@ -356,7 +356,7 @@ function path_completion(doc, offset, rng, t, CIs)
                         if isdir(joinpath(path, f))
                             f = string(f, "/")
                         end
-                        push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[length(partial) + 1:end])))
+                        push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[nextind(f, lastindex(partial)):end])))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     end

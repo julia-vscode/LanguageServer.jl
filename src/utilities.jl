@@ -6,7 +6,7 @@ function uri2filepath(uri::AbstractString)
     end
 
     if parsed_uri.scheme!=="file"
-        throw(LSNonFileUri2PathConversionError("Cannot convert `$uri` to a path."))
+        return nothing
     end
 
     path_unescaped = URIParser.unescape(parsed_uri.path)

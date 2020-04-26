@@ -34,7 +34,7 @@ getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2
 getsymbolserver(server::LanguageServerInstance) = server.symbol_store
 getsymbolextendeds(server::LanguageServerInstance) = server.symbol_extends
 
-getpath(d::Document) = uri2filepath(d.uri)
+getpath(d::Document) = d._path
 
 getroot(d::Document) = d.root
 function setroot(d::Document, root::Document)

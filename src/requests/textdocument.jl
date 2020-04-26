@@ -171,7 +171,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     CSTParser.update_span!(cst)
     doc.cst = cst
     if typof(doc.cst) === CSTParser.FileH
-        doc.cst.val = getpath(doc)
+        doc.cst.val = doc.path
         set_doc(doc.cst, doc)
     end
 end
@@ -254,7 +254,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst, ps = CSTParser.parse(ps, true)
     end
     if typof(doc.cst) === CSTParser.FileH
-        doc.cst.val = getpath(doc)
+        doc.cst.val = doc.path
         set_doc(doc.cst, doc)
     end
     
@@ -440,7 +440,7 @@ function is_parentof(parent_path, child_path, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc))
         if typof(pdoc.cst) === CSTParser.FileH
-            pdoc.cst.val = getpath(pdoc)
+            pdoc.cst.val = pdoc.path
             set_doc(pdoc.cst, pdoc)
         end
     else

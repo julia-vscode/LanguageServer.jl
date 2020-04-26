@@ -1,5 +1,6 @@
 mutable struct Document
     _uri::String
+    path::String
     _content::String
     _line_offsets::Union{Nothing,Vector{Int}}
     _line_offsets2::Union{Nothing,Vector{Int}}
@@ -14,7 +15,7 @@ mutable struct Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
         path = uri2filepath(uri)
         cst = CSTParser.parse(text, true)
-        doc = new(uri, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
         get_line_offsets(doc)
         get_line_offsets2!(doc)
         cst.val = path

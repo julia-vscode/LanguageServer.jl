@@ -64,7 +64,7 @@ function should_file_be_linted(uri, server)
 
     uri_path = uri2filepath(uri)
 
-    if length(server.workspaceFolders)==0
+    if length(server.workspaceFolders)==0 || uri_path===nothing
         return false
     else
         return any(i->startswith(uri_path, i), server.workspaceFolders)
@@ -92,6 +92,7 @@ end
 
 function is_ignored(uri, server)
     fpath = uri2filepath(uri)
+    fpath===nothing && return true
     fpath in server.ignorelist && return true
     for ig in server.ignorelist
         if !endswith(ig, ".jl")
@@ -110,7 +111,8 @@ is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 # the include follow logic.
 function remove_workspace_files(root, server)
     for (uri, doc) in getdocuments_pair(server)
-        fpath = uri2filepath(uri._uri)
+        fpath = getpath(doc)
+        fpath===nothing && continue
         get_open_in_editor(doc) && continue
         for folder in server.workspaceFolders
             if startswith(fpath, folder)

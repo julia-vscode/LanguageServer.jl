@@ -16,7 +16,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         doc._runlinter = !is_ignored(uri, server)
         set_open_in_editor(doc, true)
         
-        try_to_load_parents(uri2filepath(uri), server)
+        fpath = getpath(doc)
+
+        fpath!==nothing && try_to_load_parents(fpath, server)
     end
     parse_all(doc, server)
 end
@@ -448,7 +450,7 @@ function is_parentof(parent_path, child_path, server)
     end
     scopepass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
-    if any(uri2filepath(k._uri) == child_path for k in getdocuments_key(server) if !(k in previous_server_docs))
+    if any(getpath(d) == child_path for (k,d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server,URI2(filepath2uri(child_path)))
         parse_all(cdoc, server)
         scopepass(getroot(cdoc))

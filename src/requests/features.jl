@@ -173,7 +173,7 @@ end
 
 # If 
 function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
-    if !from_end && b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+    if !from_end && (b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType)
         b = StaticLint.last_method(b)
     end
     for r in b.refs

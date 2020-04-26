@@ -5,12 +5,16 @@ function uri2filepath(uri::AbstractString)
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
+    if parsed_uri.scheme!=="file"
+        throw(LSNonFileUri2PathConversionError("Cannot convert `$uri` to a path."))
+    end
+
     path_unescaped = URIParser.unescape(parsed_uri.path)
     host_unescaped = URIParser.unescape(parsed_uri.host)
 
     value = ""
 
-    if host_unescaped!="" && length(path_unescaped)>1 && parsed_uri.scheme=="file"
+    if host_unescaped!="" && length(path_unescaped)>1
         # unc path: file://shares/c$/far/boo
         value = "//$host_unescaped$path_unescaped"
     elseif length(path_unescaped)>=3 &&

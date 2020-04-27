@@ -220,13 +220,24 @@ function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, in
     end
 end
 
-function _get_dot_completion(px, spartial, rng, CIs, server)
+
+function is_rebinding_of_module(x)
+    x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
+    refof(x).val isa EXPR && typof(refof(x).val) === CSTParser.BinaryOpCall && kindof(refof(x).val.args[2]) === CSTParser.Tokens.EQ && # binding expr is an assignment
+    StaticLint.hasref(refof(x).val.args[3]) && refof(refof(x).val.args[3]).type === StaticLint.CoreTypes.Module &&
+    refof(refof(x).val.args[3]).val isa EXPR && typof(refof(refof(x).val.args[3]).val) === CSTParser.ModuleH# double check the rhs points to a module
+end
+
+function _get_dot_completion(px, spartial, rng, CIs, server) end
+function _get_dot_completion(px::EXPR, spartial, rng, CIs, server)
     if px !== nothing
         if refof(px) isa StaticLint.Binding
             if refof(px).val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(refof(px).val, spartial, rng, CIs, server, true)
             elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
+            elseif is_rebinding_of_module(px)
+                collect_completions(scopeof(refof(refof(px).val.args[3]).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fieldnames
                     a = String(a)

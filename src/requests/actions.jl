@@ -48,7 +48,6 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
             reexport_package(x, r.id + 1, server)
         end
     elseif r.params.command == "WrapIfBlock"
-        @info 1
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
     end
 end
@@ -202,13 +201,14 @@ function get_next_line_offset(x)
 end
 
 function reexport_package(x::EXPR, id, server)
+    mod::SymbolServer.ModuleStore = refof(x).val
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return 
     
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n,v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))

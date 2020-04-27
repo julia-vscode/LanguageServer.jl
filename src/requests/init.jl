@@ -1,33 +1,31 @@
 const serverCapabilities = ServerCapabilities(
-    # TextDocumentSyncKinds["Incremental"],
-    TextDocumentSyncOptions(true, TextDocumentSyncKinds["Incremental"], false, false, SaveOptions(true)),
+    TextDocumentSyncOptions(true,
+    TextDocumentSyncKinds.Incremental,
+    false,
+    false,
+    SaveOptions(true)),
+    CompletionOptions(false, ["."], missing),
     true,
-    CompletionOptions(false, ["."]),
-    SignatureHelpOptions(["(", ","]),
+    SignatureHelpOptions(["(", ","], missing),
+    false,
     true,
     false,
     false,
     true,
     false,
-    true,
     true,
     true,
     missing,
+    missing,
+    false,
     true,
     false,
     missing,
     true,
-    missing,
     false,
+    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule"]),
     false,
-    false,
-    ExecuteCommandOptions(String[
-        "ExplicitPackageVarImport",
-        "ExpandFunction",
-        "AddDefaultConstructor",
-        "ReexportModule",
-        # "WrapIfBlock"
-        ]),
+    true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
 
@@ -137,13 +135,13 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         end
     end
     
-    if !ismissing(r.params.capabilities.window) && get(r.params.capabilities.window, "workDoneProgress", false)
+    if !ismissing(r.params.capabilities.window) && r.params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
         server.clientcapability_window_workdoneprogress = false
     end
 
-    return InitializeResult(serverCapabilities)
+    return InitializeResult(serverCapabilities, missing)
 end
 
 
@@ -158,8 +156,6 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     end
     request_julia_config(server)
     
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "client/registerCapability", Dict("registrations" => [Dict("id"=>"28c6550c-bd7b-11e7-abc4-cec278b6b50a", "method"=>"workspace/didChangeWorkspaceFolders")]))
-
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)
     end

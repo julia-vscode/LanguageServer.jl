@@ -52,7 +52,11 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 end
             end
         else
-            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            try
+                documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            catch err
+                throw(LSHoverError(string("get_hover failed to convert the following to `Expr`: ", b.val)))
+            end
         end
     elseif b.val isa SymbolServer.SymStore
         documentation = get_hover(b.val, documentation, server)

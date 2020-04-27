@@ -29,3 +29,11 @@ end
 function Base.showerror(io::IO, ex::LSSyncMismatch)
     print(io, ex.msg)
 end
+
+struct LSHoverError <: Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSHoverError)
+    print(io, ex.msg)
+end

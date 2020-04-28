@@ -227,33 +227,35 @@ function is_rebinding_of_module(x)
     StaticLint.hasref(refof(x).val.args[3]) && refof(refof(x).val.args[3]).type === StaticLint.CoreTypes.Module &&
     refof(refof(x).val.args[3]).val isa EXPR && typof(refof(refof(x).val.args[3]).val) === CSTParser.ModuleH# double check the rhs points to a module
 end
+get_overlapped_binding(b::StaticLint.Binding) = b.val isa StaticLint.Binding ? get_overlapped_binding(b.val) : b
 
 function _get_dot_completion(px, spartial, rng, CIs, server) end
 function _get_dot_completion(px::EXPR, spartial, rng, CIs, server)
     if px !== nothing
         if refof(px) isa StaticLint.Binding
-            if refof(px).val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(refof(px).val, spartial, rng, CIs, server, true)
-            elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
+            binding = get_overlapped_binding(refof(px))
+            if binding.val isa StaticLint.SymbolServer.ModuleStore
+                collect_completions(binding.val, spartial, rng, CIs, server, true)
+            elseif binding.val isa EXPR && typof(binding.val) === CSTParser.ModuleH && scopeof(binding.val) isa StaticLint.Scope
+                collect_completions(scopeof(binding.val), spartial, rng, CIs, server, true)
             elseif is_rebinding_of_module(px)
                 collect_completions(scopeof(refof(refof(px).val.args[3]).val), spartial, rng, CIs, server, true)
-            elseif refof(px).type isa SymbolServer.DataTypeStore
-                for a in refof(px).type.fieldnames
+            elseif binding.type isa SymbolServer.DataTypeStore
+                for a in binding.type.fieldnames
                     a = String(a)
                     if startswith(a, spartial)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
-                for a in refof(px).type.val.fieldnames
+            elseif binding.type isa StaticLint.Binding && binding.type.val isa SymbolServer.DataTypeStore
+                for a in binding.type.val.fieldnames
                     a = String(a)
                     if startswith(a, spartial)
                         push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).type.val), spartial, rng, CIs, server, true)
+            elseif binding.type isa StaticLint.Binding && binding.type.val isa EXPR && CSTParser.defines_struct(binding.type.val) && scopeof(binding.type.val) isa StaticLint.Scope
+                collect_completions(scopeof(binding.type.val), spartial, rng, CIs, server, true)
             end
         elseif refof(px) isa StaticLint.SymbolServer.ModuleStore
             collect_completions(refof(px), spartial, rng, CIs, server, true)

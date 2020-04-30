@@ -55,6 +55,7 @@ mutable struct LanguageServerInstance
     current_symserver_progress_token::Union{Nothing,String}
 
     clientcapability_window_workdoneprogress::Bool
+    clientcapability_workspace_didChangeConfiguration::Bool
 
     function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
         new(
@@ -79,6 +80,7 @@ mutable struct LanguageServerInstance
             :created,
             0,
             nothing,
+            false,
             false
         )
     end

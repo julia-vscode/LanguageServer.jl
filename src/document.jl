@@ -221,7 +221,7 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]") # OK, offset comes from EXPR spans
+    offset > sizeof(get_text(doc)) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")) # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))

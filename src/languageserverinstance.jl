@@ -56,7 +56,7 @@ mutable struct LanguageServerInstance
 
     clientcapability_window_workdoneprogress::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
@@ -67,7 +67,7 @@ mutable struct LanguageServerInstance
             false, 
             env_path, 
             depot_path, 
-            SymbolServer.SymbolServerInstance(depot_path), 
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),

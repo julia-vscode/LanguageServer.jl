@@ -141,6 +141,13 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
         server.clientcapability_window_workdoneprogress = false
     end
 
+    if !ismissing(r.params.capabilities.workspace.didChangeConfiguration) &&
+        !ismissing(r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
+        r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
+
+        server.clientcapability_workspace_didChangeConfiguration = true
+    end
+
     return InitializeResult(serverCapabilities, missing)
 end
 
@@ -148,6 +155,14 @@ end
 JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
     server.status=:running
+
+    if server.clientcapability_workspace_didChangeConfiguration
+        JSONRPCEndpoints.send_request(
+            server.jr_endpoint,
+            "client/registerCapability",
+            RegistrationParams([Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)])
+        )
+    end
 
     if server.workspaceFolders !== nothing
         for wkspc in server.workspaceFolders

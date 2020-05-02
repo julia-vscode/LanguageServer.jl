@@ -37,3 +37,11 @@ end
 function Base.showerror(io::IO, ex::LSHoverError)
     print(io, ex.msg)
 end
+
+struct LSPositionToOffsetException <: Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSPositionToOffsetException)
+    print(io, ex.msg)
+end

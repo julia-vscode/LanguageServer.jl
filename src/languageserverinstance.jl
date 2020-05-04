@@ -119,12 +119,13 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
     # Add possible workspace packages
     path = uri2filepath(uri._uri)
     for wk_folder in server.workspaceFolders
-        if startswith(path, wk_folder)
+        if startswith(path, wk_folder) && normpath(wk_folder) == normpath(server.env_path)
             sub_path = splitpath(path)
             first(sub_path) == "/" && popfirst!(sub_path)
             length(sub_path) < 3 && continue
             fname = splitext(last(sub_path))[1]
             if sub_path[end-1] == "src" && sub_path[end-2] == fname
+                @info "Setting $path as source of 'live' package"
                 server.workspacepackages[fname] = doc
             end
         end

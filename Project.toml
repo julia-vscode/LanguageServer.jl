@@ -28,7 +28,7 @@ CSTParser = "2.2"
 DocumentFormat = "2.1"
 StaticLint = "4"
 Tokenize = "0.5.7"
-SymbolServer = "4"
+SymbolServer = "4.2"
 URIParser = "0.4.1"
 
 [targets]

@@ -1,7 +1,6 @@
 abstract type Outbound end
-abstract type HasMissingFields end
 
-function JSON.Writer.CompositeTypeWrapper(t::HasMissingFields)
+function JSON.Writer.CompositeTypeWrapper(t::Outbound)
     fns = collect(fieldnames(typeof(t)))
     dels = Int[]
     for i = 1:length(fns)

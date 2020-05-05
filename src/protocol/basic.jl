@@ -81,7 +81,7 @@ end
 
 ##############################################################################
 
-struct Command <: HasMissingFields # Use traits for this?
+struct Command <: Outbound # Use traits for this?
     title::String
     command::String
     arguments::Union{Vector{Any},Missing}

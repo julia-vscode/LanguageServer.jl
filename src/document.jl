@@ -91,7 +91,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
             return position(io) - 3
         end
     catch err
-        error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
+        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))"))
     end
 end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
@@ -221,7 +221,7 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]") # OK, offset comes from EXPR spans
+    offset > sizeof(get_text(doc)) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")) # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))

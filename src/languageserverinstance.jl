@@ -25,7 +25,7 @@ For normal usage, the language server can be instantiated with
 - `err_handler::Union{Nothing,Function}`: If not `nothing`, catch all errors and pass them to an error handler
   function with signature `err_handler(err, bt)`. Mostly used for the VS Code crash reporting implementation.
 - `symserver_store_path::Union{Nothing,String}`: if `nothing` is passed, the symbol server cash is stored in
-  a folder in the package. If an absolute path is passed, the symbol server will store the cash files in that
+  a folder in the package. If an absolute path is passed, the symbol server will store the cache files in that
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
@@ -269,6 +269,5 @@ function Base.run(server::LanguageServerInstance)
         end
     end
 end
-
 
 

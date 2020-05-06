@@ -39,7 +39,7 @@ function parse(::Type{Request}, message_dict::Dict)
     if message_dict["jsonrpc"] != "2.0"
         error("Invalid JSON-RPC version")
     end
-    id = haskey(message_dict, "id") ? message_dict["id"] : nothing
+    id = get(message_dict, "id", nothing)
     method = Val{Symbol(message_dict["method"])}
     params = message_dict["params"]
 

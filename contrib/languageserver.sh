@@ -1,7 +1,6 @@
 #!/bin/bash
 
 JULIABIN="julia"
-DEBUG="false"
 
 while [[ $# -gt 0 ]]
     do
@@ -12,9 +11,6 @@ while [[ $# -gt 0 ]]
             JULIABIN="$2"
             shift
         ;;
-        --debug)
-            DEBUG="true"
-        ;;
         *)
             echo "unknown option: $key" >&2
             exit
@@ -24,7 +20,7 @@ while [[ $# -gt 0 ]]
 done
 
 $JULIABIN --startup-file=no --history-file=no -e \
-    "using LanguageServer; import SymbolServer; server = LanguageServer.LanguageServerInstance(stdin, stdout, $DEBUG); server.runlinter = true; run(server);" \
+    "using LanguageServer; import SymbolServer; server = LanguageServer.LanguageServerInstance(stdin, stdout); server.runlinter = true; run(server);" \
     <&0 >&1 &
 
 PID=$!

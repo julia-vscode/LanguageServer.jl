@@ -1,7 +1,7 @@
 using LanguageServer, Pkg
 import LanguageServer.JSONRPC: Request, parse
 import LanguageServer: process
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.symbol_server = LanguageServer.SymbolServer.SymbolServerProcess()
 init_request = """
 {
@@ -17,7 +17,6 @@ init_request = """
 
 process(LanguageServer.parse(Request, LanguageServer.JSON.parse(init_request)), server)
 process(LanguageServer.parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","method":"initialized","params":{}}""")), server)
-server.debug_mode = false
 
 # Workspace Symbols
 r = parse(Request, LanguageServer.JSON.parse("""{"jsonrpc":"2.0","id":59,"method":"workspace/symbol","params":{"query":""}}"""))

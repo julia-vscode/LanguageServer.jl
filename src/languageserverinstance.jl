@@ -1,7 +1,7 @@
 T = 0.0
 
 """
-    LanguageServerInstance(pipe_in, pipe_out, debug=false, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
+    LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
 Construct an instance of the language server.
 
@@ -14,7 +14,6 @@ For normal usage, the language server can be instantiated with
 # Arguments
 - `pipe_in::IO`: Pipe to read JSON-RPC from.
 - `pipe_out::IO`: Pipe to write JSON-RPC to.
-- `debug::Bool`: Whether to log debugging information with `Base.CoreLogging`.
 - `env::String`: Path to the
   [environment](https://docs.julialang.org/en/v1.2/manual/code-loading/#Environments-1)
   for which the language server is running. An empty string uses julia's
@@ -33,7 +32,6 @@ mutable struct LanguageServerInstance
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
 
-    debug_mode::Bool
     runlinter::Bool
     ignorelist::Set{String}
     isrunning::Bool
@@ -62,12 +60,11 @@ mutable struct LanguageServerInstance
     clientcapability_window_workdoneprogress::Bool
     clientcapability_workspace_didChangeConfiguration::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
-            debug_mode,
             true, 
             Set{String}(), 
             false, 

@@ -13,11 +13,6 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}
 JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params) = params
 function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server) end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/toggle-log")}}, params) end
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggle-log")},Nothing}, server)
-    server.debug_mode = !server.debug_mode
-end
-
 
 JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockRange")}}, params) = TextDocumentPositionParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},TextDocumentPositionParams}, server)

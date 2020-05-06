@@ -119,7 +119,16 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    doc = getdocument(uri)
+
     delete!(server._documents, uri)
+
+    for d in getdocuments_value(server)
+        if d.root===doc
+            d.root = nothing
+            scopepass(d, d)
+        end
+    end
 end
 
 function create_symserver_progress_ui(server)

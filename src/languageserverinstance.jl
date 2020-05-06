@@ -119,7 +119,7 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
-    doc = getdocument(uri)
+    doc = getdocument(server, uri)
 
     delete!(server._documents, uri)
 

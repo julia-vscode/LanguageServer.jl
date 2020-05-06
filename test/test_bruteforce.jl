@@ -1,7 +1,7 @@
 using LanguageServer, Pkg
 import LanguageServer.JSONRPC: Request, parse
 import LanguageServer: process
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.symbol_server = LanguageServer.SymbolServer.SymbolServerProcess()
 init_request = """
 {

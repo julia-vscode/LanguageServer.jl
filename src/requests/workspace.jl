@@ -81,35 +81,13 @@ function request_julia_config(server)
         ]))
     
     # TODO Make sure update_julia_config can deal with the response
-    if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
-        server.format_options = DocumentFormat.FormatOptions(
-            response[1]===nothing ? 0 : response[1],
-            response[2]===nothing ? false : response[2],
-            response[3]===nothing ? false : response[3],
-            response[4]===nothing ? false : response[4],
-            response[5]===nothing ? false : response[5],
-            response[6]===nothing ? false : response[6],
-            response[7]===nothing ? false : response[7],
-            response[8]===nothing ? false : response[8],
-            response[9]===nothing ? false : response[9],
-            response[10]===nothing ? false : response[10],
-            response[11]===nothing ? false : response[11])
-        
-        N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
-        x = response[N]
-        new_lint_opts = StaticLint.LintOptions(
-            response[N + 1]===nothing ? false : response[N + 1],
-            response[N + 2]===nothing ? false : response[N + 2],
-            response[N + 3]===nothing ? false : response[N + 3],
-            response[N + 4]===nothing ? false : response[N + 4],
-            response[N + 5]===nothing ? false : response[N + 5],
-            response[N + 6]===nothing ? false : response[N + 6],
-            response[N + 7]===nothing ? false : response[N + 7],
-            response[N + 8]===nothing ? false : response[N + 8],
-            response[N + 9]===nothing ? false : response[N + 9],
-        )
-        
-        new_run_lint_value = x===nothing ? false : true
+    if length(response) == 21
+        # Any element of the response that is nothing will be replaced
+        # with the default value for that field.
+        server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
+        new_lint_opts = StaticLint.LintOptions(response[13:21]...)
+        new_run_lint_value = something(response[12], false)
+
         if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
             server.lint_options = new_lint_opts
             server.runlinter = new_run_lint_value

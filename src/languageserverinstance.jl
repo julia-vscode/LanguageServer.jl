@@ -125,8 +125,8 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
 
     for d in getdocuments_value(server)
         if d.root===doc
-            d.root = nothing
-            scopepass(d, d)
+            d.root = d
+            scopepass(getroot(d), d)
         end
     end
 end

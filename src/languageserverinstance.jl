@@ -129,8 +129,7 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     for d in getdocuments_value(server)
         if d.root===doc
             d.root = nothing
-            # TODO Check whether we need to do something else here as well,
-            # maybe rerun the linter or something like that?
+            scopepass(d, d)
         end
     end
 end

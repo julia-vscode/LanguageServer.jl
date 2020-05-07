@@ -11,11 +11,11 @@ mutable struct Document
     _version::Int
     _runlinter::Bool
     server
-    root::Union{Nothing,Document}
+    root::Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
         path = uri2filepath(uri)
         cst = CSTParser.parse(text, true)
-        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server)
         get_line_offsets(doc)
         get_line_offsets2!(doc)
         cst.val = path

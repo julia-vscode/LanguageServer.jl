@@ -76,6 +76,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     if x isa EXPR && StaticLint.hasref(x)
         # Replace with own function to retrieve references (with loop saftey-breaker)
         b = refof(x)
+        while  b isa StaticLint.Binding && b.val isa StaticLint.Binding # TODO: replace with function from StaticLint
+            b = b.val
+        end
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
             for m in b.methods
                 try
@@ -86,8 +89,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
             end
-        elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
-            b = b.val
         end
 
         while b isa StaticLint.Binding
@@ -96,7 +97,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                 if doc1 isa Document
                     push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
                 end
-            elseif b.val isa SymbolServer.FunctionStore
+            elseif b.val isa SymbolServer.FunctionStore || b.val isa SymbolServer.DataTypeStore
                 for m in b.val.methods
                     file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
                     ((file, m.line) == DefaultTypeConstructorLoc || file == nothing) && continue

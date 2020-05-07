@@ -269,7 +269,7 @@ end
 
 function mark_errors(doc, out = Diagnostic[])
     line_offsets = get_line_offsets(doc)
-    errs = StaticLint.collect_hints(getcst(doc))
+    errs = StaticLint.collect_hints(getcst(doc), doc.server)
     n = length(errs)
     n == 0 && return out
     i = 1

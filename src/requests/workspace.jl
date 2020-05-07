@@ -107,6 +107,7 @@ function request_julia_config(server)
             response[N + 7]===nothing ? false : response[N + 7],
             response[N + 8]===nothing ? false : response[N + 8],
             response[N + 9]===nothing ? false : response[N + 9],
+            response[N + 10]===nothing ? false : response[N + 10],
         )
         
         new_run_lint_value = x===nothing ? false : true

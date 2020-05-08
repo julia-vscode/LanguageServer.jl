@@ -1,6 +1,5 @@
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params) = DidOpenTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    server.isrunning = true
     uri = r.params.textDocument.uri
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
@@ -13,7 +12,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         setdocument!(server, URI2(uri), doc)
         doc._version = r.params.textDocument.version
         doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-        doc._runlinter = !is_ignored(uri, server)
         set_open_in_editor(doc, true)
         
         try_to_load_parents(uri2filepath(uri), server)
@@ -21,30 +19,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
     parse_all(doc, server)
 end
 
-
-# JSONRPC.parse_params(::Type{Val{Symbol("julia/reloadText")}}, params) = DidOpenTextDocumentParams(params)
-# function process(r::JSONRPC.Request{Val{Symbol("julia/reloadText")},DidOpenTextDocumentParams}, server)
-#     server.isrunning = true
-#     uri = r.params.textDocument.uri
-#     if hasdocument(server, URI2(uri))
-#         doc = getdocument(server, URI2(uri))
-#         set_text!(doc, r.params.textDocument.text)
-#         doc._version = r.params.textDocument.version
-#     else
-#         doc = Document(uri, r.params.textDocument.text, false, server)
-#         setdocument!(server, URI2(uri), doc)
-#         doc._version = r.params.textDocument.version
-#         if any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
-#             doc._workspace_file = true
-#         end
-#         set_open_in_editor(doc, true)
-#         if is_ignored(uri, server)
-#             doc._runlinter = false
-#         end
-#     end
-#     get_line_offsets(doc)
-#     parse_all(doc, server)
-# end
 
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = DidCloseTextDocumentParams(params)
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
@@ -55,7 +29,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
     else
-        if any(d.root == doc.root && d._open_in_editor for (uri, d::Document) in getdocuments_pair(server) if d != doc)
+        if any(d.root == doc.root && (d._open_in_editor || is_workspace_file(d)) for (uri, d::Document) in getdocuments_pair(server) if d != doc)
             # If any other open document shares doc's root we just mark it as closed...
             set_open_in_editor(doc, false)
         else
@@ -76,6 +50,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
     doc = getdocument(server, URI2(uri))
     if r.params.text isa String
         if get_text(doc) != r.params.text
+            JSONRPCEndpoints.send_notification(server.jr_endpoint, "window/showMessage", ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version)."))
         end
     end
@@ -268,7 +243,7 @@ end
 
 function mark_errors(doc, out = Diagnostic[])
     line_offsets = get_line_offsets(doc)
-    errs = StaticLint.collect_hints(getcst(doc))
+    errs = StaticLint.collect_hints(getcst(doc), doc.server, doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
     i = 1
@@ -298,12 +273,17 @@ function mark_errors(doc, out = Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
+                    DiagnosticSeverities
                     if typof(errs[i][2]) === CSTParser.ErrorToken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 1, "Julia", "Julia", "Parsing error", missing, missing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, "Julia", "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 2, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), 3, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                        if  StaticLint.errorof(errs[i][2]) === StaticLint.UnusedFunctionArgument
+                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
+                        else
+                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                        end
                     end
                     i += 1
                     i>n && break

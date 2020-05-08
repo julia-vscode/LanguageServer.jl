@@ -157,7 +157,7 @@ function send_request(x::JSONRPCEndpoint, method::AbstractString, params)
     elseif haskey(response, "error")
         error_code = response["error"]["code"]
         error_msg = response["error"]["message"]
-        error_data = haskey(response["error"], "data") ? response["error"]["code"] : nothing
+        error_data = get(response["error"], "data", nothing)
         throw(JSONRPCError(error_code, error_msg, error_data))
     else
         throw(JSONRPCError(0, "ERROR AT THE TRANSPORT LEVEL", nothing))

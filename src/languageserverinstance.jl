@@ -31,10 +31,6 @@ mutable struct LanguageServerInstance
     jr_endpoint::JSONRPCEndpoints.JSONRPCEndpoint
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
-
-    runlinter::Bool
-    ignorelist::Set{String}
-    isrunning::Bool
     
     env_path::String
     depot_path::String
@@ -43,9 +39,11 @@ mutable struct LanguageServerInstance
     symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
-    # ss_task::Union{Nothing,Future}
+    
     format_options::DocumentFormat.FormatOptions
+    runlinter::Bool
     lint_options::StaticLint.LintOptions
+    lint_missingrefs::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -65,9 +63,6 @@ mutable struct LanguageServerInstance
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
-            true, 
-            Set{String}(), 
-            false, 
             env_path, 
             depot_path, 
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path), 
@@ -76,7 +71,9 @@ mutable struct LanguageServerInstance
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
+            true, 
             StaticLint.LintOptions(),
+            :all,
             Channel{Any}(Inf),
             err_handler,
             :created,

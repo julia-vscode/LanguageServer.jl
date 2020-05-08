@@ -86,20 +86,6 @@ const DefaultTypeConstructorLoc= let def = first(methods(Int))
     Base.find_source_file(string(def.file)), def.line
 end
 
-function is_ignored(uri, server)
-    fpath = uri2filepath(uri)
-    fpath in server.ignorelist && return true
-    for ig in server.ignorelist
-        if !endswith(ig, ".jl")
-            if startswith(fpath, ig)
-                return true
-            end
-        end
-    end
-    return false
-end
-
-is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or

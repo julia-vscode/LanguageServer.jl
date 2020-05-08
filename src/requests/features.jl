@@ -121,7 +121,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(joinpath(_dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
-                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                isa(err, Base.IOError) || 
+                    isa(err, Base.SystemError) || 
+                    (VERSION==v"1.2.0" && isa(err, ErrorException) && err.msg=="type Nothing has no field captures ") ||
+                    rethrow()
             end
         end
     end

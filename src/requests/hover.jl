@@ -52,7 +52,11 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 end
             end
         else
-            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            try
+                documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            catch err
+                throw(LSHoverError(string("get_hover failed to convert the following to `Expr`: ", b.val)))
+            end
         end
     elseif b.val isa SymbolServer.SymStore
         documentation = get_hover(b.val, documentation, server)
@@ -94,8 +98,8 @@ function get_fcall_position(x::EXPR, documentation)
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
             elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
                 dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
-                if length(dts.fields) == call_counts[1] && arg_i <= length(dts.fields)
-                    documentation = string("Datatype field `$(dts.fields[arg_i])`", "\n", documentation)
+                if length(dts.fieldnames) == call_counts[1] && arg_i <= length(dts.fieldnames)
+                    documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
             else
                 documentation = string("Argument $arg_i of $(call_counts[1]) in call to `", CSTParser.str_value(fname), "`\n", documentation)

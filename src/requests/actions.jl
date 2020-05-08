@@ -119,23 +119,24 @@ is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser
 
 function expand_inline_func(x, id, server)
     func = _get_parent_fexpr(x, is_single_line_func)
-    sig = func.args[1]
-    op = func.args[2]
-    body = func.args[3]
-    if typof(body) == CSTParser.Block && body.args !== nothing length(body.args) == 1
+    length(func) < 3 && return 
+    sig = func[1]
+    op = func[2]
+    body = func[3]
+    if typof(body) == CSTParser.Block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
         JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
-    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && body.args isa Vector{EXPR} && length(body.args) == 3 &&
-        typof(body.args[2]) === CSTParser.Block && body.args[2].args isa Vector{EXPR}
+    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && length(body) == 3 &&
+        typof(body[2]) === CSTParser.Block && length(body[2]) > 0
         file, offset = get_file_loc(func)
         newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
-        blockoffset = offset + sig.fullspan + op.fullspan + body.args[1].fullspan
-        for i = 1:length(body.args[2].args)
-            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[2].args[i].span)])
-            blockoffset += body.args[2].args[i].fullspan
+        blockoffset = offset + sig.fullspan + op.fullspan + body[1].fullspan
+        for i = 1:length(body[2])
+            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body[2][i].span)])
+            blockoffset += body[2][i].fullspan
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
@@ -201,13 +202,14 @@ function get_next_line_offset(x)
 end
 
 function reexport_package(x::EXPR, id, server)
+    mod::SymbolServer.ModuleStore = refof(x).val
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return 
     
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(collect(refof(x).val.exported)), ", "), "\n"))
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n,v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))

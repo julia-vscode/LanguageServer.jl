@@ -26,10 +26,10 @@ JSON = "0.20, 0.21"
 julia = "1"
 CSTParser = "2.2"
 DocumentFormat = "2.1"
-StaticLint = "4"
+StaticLint = "4.2"
 Tokenize = "0.5.7"
-SymbolServer = "4"
-URIParser = "0.4.0"
+SymbolServer = "4.2"
+URIParser = "0.4.1"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

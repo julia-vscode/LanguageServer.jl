@@ -1,12 +1,36 @@
 function uri2filepath(uri::AbstractString)
-    uri_path = normpath(URIParser.unescape(URIParser.URI(uri).path))
+    parsed_uri = try
+        URIParser.URI(uri)
+    catch err
+        throw(LSUriConversionFailure("Cannot parse `$uri`."))
+    end
+
+    path_unescaped = URIParser.unescape(parsed_uri.path)
+    host_unescaped = URIParser.unescape(parsed_uri.host)
+
+    value = ""
+
+    if host_unescaped!="" && length(path_unescaped)>1 && parsed_uri.scheme=="file"
+        # unc path: file://shares/c$/far/boo
+        value = "//$host_unescaped$path_unescaped"
+    elseif length(path_unescaped)>=3 &&
+            path_unescaped[1]=='/' &&
+            isascii(path_unescaped[2]) && isletter(path_unescaped[2]) &&
+            path_unescaped[3]==':'
+        # windows drive letter: file:///c:/far/boo
+        value = lowercase(path_unescaped[2]) * path_unescaped[3:end]
+    else
+        # other path
+        value = path_unescaped
+    end
 
     if Sys.iswindows()
-        if uri_path[1] == '\\' || uri_path[1] == '/'
-            uri_path = uri_path[2:end]
-        end
+        value = replace(value, '/' => '\\')
     end
-    return uri_path
+
+    value = normpath(value)
+
+    return value
 end
 
 function filepath2uri(file::String)
@@ -15,7 +39,13 @@ function filepath2uri(file::String)
         file = replace(file, "\\" => "/")
         file = URIParser.escape(file)
         file = replace(file, "%2F" => "/")
-        return string("file:///", file)
+        if startswith(file, "//")
+            # UNC path \\foo\bar\foobar
+            return string("file://",file[3:end])
+        else
+            # windows drive letter path
+            return string("file:///", file)
+        end
     else
         file = normpath(file)
         file = URIParser.escape(file)
@@ -56,20 +86,6 @@ const DefaultTypeConstructorLoc= let def = first(methods(Int))
     Base.find_source_file(string(def.file)), def.line
 end
 
-function is_ignored(uri, server)
-    fpath = uri2filepath(uri)
-    fpath in server.ignorelist && return true
-    for ig in server.ignorelist
-        if !endswith(ig, ".jl")
-            if startswith(fpath, ig)
-                return true
-            end
-        end
-    end
-    return false
-end
-
-is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or
@@ -282,14 +298,16 @@ function resolve_op_ref(x::EXPR)
 
     mn = CSTParser.str_value(x)
     while scope isa StaticLint.Scope
-        
         if StaticLint.scopehasbinding(scope, mn)
             StaticLint.setref!(x, scope.names[mn])
             return true
         elseif scope.modules isa Dict && length(scope.modules) > 0
             for (_,m) in scope.modules
-                if StaticLint.isexportedby(Symbol(mn), m)
+                if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
                     StaticLint.setref!(x, m[Symbol(mn)])
+                    return true
+                elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
+                    StaticLint.setref!(x, m.names[mn])
                     return true
                 end
             end

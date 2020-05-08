@@ -76,6 +76,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
     if x isa EXPR && StaticLint.hasref(x)
         # Replace with own function to retrieve references (with loop saftey-breaker)
         b = refof(x)
+        while  b isa StaticLint.Binding && b.val isa StaticLint.Binding # TODO: replace with function from StaticLint
+            b = b.val
+        end
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
             for m in b.methods
                 try
@@ -86,8 +89,6 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                 end
             end
-        elseif b isa StaticLint.Binding && b.val isa StaticLint.Binding
-            b = b.val
         end
 
         while b isa StaticLint.Binding
@@ -96,7 +97,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                 if doc1 isa Document
                     push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
                 end
-            elseif b.val isa SymbolServer.FunctionStore
+            elseif b.val isa SymbolServer.FunctionStore || b.val isa SymbolServer.DataTypeStore
                 for m in b.val.methods
                     file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
                     ((file, m.line) == DefaultTypeConstructorLoc || file == nothing) && continue
@@ -120,7 +121,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextD
                     push!(locations, Location(filepath2uri(joinpath(_dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
-                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                isa(err, Base.IOError) || 
+                    isa(err, Base.SystemError) || 
+                    (VERSION==v"1.2.0" && isa(err, ErrorException) && err.msg=="type Nothing has no field captures ") ||
+                    rethrow()
             end
         end
     end
@@ -173,7 +177,7 @@ end
 
 # If 
 function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
-    if !from_end && b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+    if !from_end && (b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType)
         b = StaticLint.last_method(b)
     end
     for r in b.refs
@@ -209,6 +213,24 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenamePar
 end
 
 
+is_valid_binding_name(name) = false
+function is_valid_binding_name(name::EXPR)
+    (typof(name) === CSTParser.IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
+    (typof(name) === CSTParser.OPERATOR) ||
+    (typof(name) === CSTParser.NONSTDIDENTIFIER && length(name) == 2 && valof(name[2]) isa String && !isempty(valof(name[2])))
+end
+function get_name_of_binding(name::EXPR) 
+    if typof(name) === CSTParser.IDENTIFIER
+        valof(name)
+    elseif typof(name) === CSTParser.OPERATOR
+        string(Expr(name))
+    elseif typof(name) === CSTParser.NONSTDIDENTIFIER
+        valof(name[2])
+    else
+        ""
+    end
+end
+
 JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
 function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
     syms = SymbolInformation[]
@@ -219,8 +241,8 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},D
     for x in bs
         p,b = x[1], x[2]
         !(b.val isa EXPR) && continue
-        (valof(b.name) === nothing || isempty(valof(b.name))) && typof(b.name) !== CSTParser.OPERATOR && continue
-        push!(syms, SymbolInformation(typof(b.name) === CSTParser.OPERATOR ? string(Expr(b.name)) : valof(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
+        !is_valid_binding_name(b.name) && continue
+        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
     end
     return syms
 end

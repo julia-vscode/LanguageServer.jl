@@ -1,7 +1,7 @@
 T = 0.0
 
 """
-    LanguageServerInstance(pipe_in, pipe_out, debug=false, env="", depot="")
+    LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
 Construct an instance of the language server.
 
@@ -14,7 +14,6 @@ For normal usage, the language server can be instantiated with
 # Arguments
 - `pipe_in::IO`: Pipe to read JSON-RPC from.
 - `pipe_out::IO`: Pipe to write JSON-RPC to.
-- `debug::Bool`: Whether to log debugging information with `Base.CoreLogging`.
 - `env::String`: Path to the
   [environment](https://docs.julialang.org/en/v1.2/manual/code-loading/#Environments-1)
   for which the language server is running. An empty string uses julia's
@@ -22,16 +21,16 @@ For normal usage, the language server can be instantiated with
 - `depot::String`: Sets the
   [`JULIA_DEPOT_PATH`](https://docs.julialang.org/en/v1.2/manual/environment-variables/#JULIA_DEPOT_PATH-1)
   where the language server looks for packages required in `env`.
+- `err_handler::Union{Nothing,Function}`: If not `nothing`, catch all errors and pass them to an error handler
+  function with signature `err_handler(err, bt)`. Mostly used for the VS Code crash reporting implementation.
+- `symserver_store_path::Union{Nothing,String}`: if `nothing` is passed, the symbol server cash is stored in
+  a folder in the package. If an absolute path is passed, the symbol server will store the cache files in that
+  path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
     jr_endpoint::JSONRPCEndpoints.JSONRPCEndpoint
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
-
-    debug_mode::Bool
-    runlinter::Bool
-    ignorelist::Set{String}
-    isrunning::Bool
     
     env_path::String
     depot_path::String
@@ -40,9 +39,11 @@ mutable struct LanguageServerInstance
     symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
-    # ss_task::Union{Nothing,Future}
+    
     format_options::DocumentFormat.FormatOptions
+    runlinter::Bool
     lint_options::StaticLint.LintOptions
+    lint_missingrefs::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -55,30 +56,30 @@ mutable struct LanguageServerInstance
     current_symserver_progress_token::Union{Nothing,String}
 
     clientcapability_window_workdoneprogress::Bool
+    clientcapability_workspace_didChangeConfiguration::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, debug_mode::Bool = false, env_path = "", depot_path = "", err_handler=nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
             JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
-            debug_mode,
-            true, 
-            Set{String}(), 
-            false, 
             env_path, 
             depot_path, 
-            SymbolServer.SymbolServerInstance(depot_path), 
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path), 
             Channel(Inf),
             deepcopy(SymbolServer.stdlibs),
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
+            true, 
             StaticLint.LintOptions(),
+            :all,
             Channel{Any}(Inf),
             err_handler,
             :created,
             0,
             nothing,
+            false,
             false
         )
     end
@@ -115,7 +116,16 @@ function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    doc = getdocument(server, uri)
+
     delete!(server._documents, uri)
+
+    for d in getdocuments_value(server)
+        if d.root===doc
+            d.root = d
+            scopepass(getroot(d), d)
+        end
+    end
 end
 
 function create_symserver_progress_ui(server)
@@ -128,7 +138,7 @@ function create_symserver_progress_ui(server)
 end
 
 function destroy_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress
+    if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
         progress_token = server.current_symserver_progress_token
         server.current_symserver_progress_token = nothing
         JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))
@@ -147,7 +157,9 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            i-> JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i..."))),
+            i-> if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
+                JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i...")))
+            end,
             server.err_handler
         )
         server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
@@ -260,7 +272,5 @@ function Base.run(server::LanguageServerInstance)
         end
     end
 end
-
-
 
 

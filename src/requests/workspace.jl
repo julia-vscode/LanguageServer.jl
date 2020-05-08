@@ -73,54 +73,53 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
     request_julia_config(server)
 end
 
-function request_julia_config(server)
+function request_julia_config(server::LanguageServerInstance)
     response = JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
-        (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
-        ConfigurationItem(missing, "julia.lint.run");
-        (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
+        ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
+        ConfigurationItem(missing, "julia.format.indents"),
+        ConfigurationItem(missing, "julia.format.ops"),
+        ConfigurationItem(missing, "julia.format.tuples"),
+        ConfigurationItem(missing, "julia.format.curly"), 
+        ConfigurationItem(missing, "julia.format.call"),
+        ConfigurationItem(missing, "julia.format.iterOps"),
+        ConfigurationItem(missing, "julia.format.comments"),
+        ConfigurationItem(missing, "julia.format.docs"),
+        ConfigurationItem(missing, "julia.format.lineends"),
+        ConfigurationItem(missing, "julia.format.kw"),
+        ConfigurationItem(missing, "julia.lint.call"), # LintOptions
+        ConfigurationItem(missing, "julia.lint.iter"),
+        ConfigurationItem(missing, "julia.lint.nothingcomp"),
+        ConfigurationItem(missing, "julia.lint.constif"),
+        ConfigurationItem(missing, "julia.lint.lazyif"),
+        ConfigurationItem(missing, "julia.lint.datadecl"),
+        ConfigurationItem(missing, "julia.lint.typeparam"),
+        ConfigurationItem(missing, "julia.lint.modname"),
+        ConfigurationItem(missing, "julia.lint.pirates"),
+        ConfigurationItem(missing, "julia.lint.useoffuncargs"),
+        ConfigurationItem(missing, "julia.lint.run"),
+        ConfigurationItem(missing, "julia.lint.missingrefs")
         ]))
+
+    new_DF_opts = DocumentFormat.FormatOptions([isnothing(opt) ? DocumentFormat.default_options[i] : opt for (i,opt) in enumerate(response[1:11])]...)
+    new_SL_opts = StaticLint.LintOptions([isnothing(opt) ? StaticLint.default_options[i] : opt for (i,opt) in enumerate(response[12:21])]...)
+    new_lintrun = isnothing(response[22]) ? true : response[22]
+    new_missingref = isnothing(response[23]) ? :all : Symbol(response[23])
     
-    # TODO Make sure update_julia_config can deal with the response
-    if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
-        server.format_options = DocumentFormat.FormatOptions(
-            response[1]===nothing ? 0 : response[1],
-            response[2]===nothing ? false : response[2],
-            response[3]===nothing ? false : response[3],
-            response[4]===nothing ? false : response[4],
-            response[5]===nothing ? false : response[5],
-            response[6]===nothing ? false : response[6],
-            response[7]===nothing ? false : response[7],
-            response[8]===nothing ? false : response[8],
-            response[9]===nothing ? false : response[9],
-            response[10]===nothing ? false : response[10],
-            response[11]===nothing ? false : response[11])
-        
-        N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
-        x = response[N]
-        new_lint_opts = StaticLint.LintOptions(
-            response[N + 1]===nothing ? false : response[N + 1],
-            response[N + 2]===nothing ? false : response[N + 2],
-            response[N + 3]===nothing ? false : response[N + 3],
-            response[N + 4]===nothing ? false : response[N + 4],
-            response[N + 5]===nothing ? false : response[N + 5],
-            response[N + 6]===nothing ? false : response[N + 6],
-            response[N + 7]===nothing ? false : response[N + 7],
-            response[N + 8]===nothing ? false : response[N + 8],
-            response[N + 9]===nothing ? false : response[N + 9],
-        )
-        
-        new_run_lint_value = x===nothing ? false : true
-        if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
-            server.lint_options = new_lint_opts
-            server.runlinter = new_run_lint_value
-            for doc in getdocuments_value(server)
-                StaticLint.check_all(getcst(doc), server.lint_options, server)
-                empty!(doc.diagnostics)
-                mark_errors(doc, doc.diagnostics)
-                publish_diagnostics(doc, server)
-            end
+    rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions))
+    server.format_options = new_DF_opts
+    server.lint_options = new_SL_opts
+    server.runlinter = new_lintrun
+    server.lint_missingrefs = new_missingref
+
+    if rerun_lint
+        for doc in getdocuments_value(server)
+            StaticLint.check_all(getcst(doc), server.lint_options, server)
+            empty!(doc.diagnostics)
+            mark_errors(doc, doc.diagnostics)
+            publish_diagnostics(doc, server)
         end
     end
+
 end
 
 JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)

@@ -9,13 +9,12 @@ mutable struct Document
     cst::EXPR
     diagnostics::Vector{Diagnostic}
     _version::Int
-    _runlinter::Bool
     server
-    root::Union{Nothing,Document}
+    root::Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
         path = uri2filepath(uri)
         cst = CSTParser.parse(text, true)
-        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, true, server, nothing)
+        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
         get_line_offsets(doc)
         get_line_offsets2!(doc)
         cst.val = path
@@ -91,7 +90,7 @@ function get_offset(doc::Document, line::Integer, character::Integer)
             return position(io) - 3
         end
     catch err
-        error("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))")
+        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))"))
     end
 end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
@@ -221,7 +220,7 @@ Returns the 0-based line and character position within a document of a given
 byte offset.
 """
 function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(get_text(doc)) && error("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]") # OK, offset comes from EXPR spans
+    offset > sizeof(get_text(doc)) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")) # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
     line, ind = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))

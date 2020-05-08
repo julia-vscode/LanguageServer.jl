@@ -39,6 +39,6 @@ Instantiate an instance of the language server with
 ```julia
 using LanguageServer
 
-server = LanguageServerInstance(stdin, stdout, false, "/path/to/environment")
+server = LanguageServerInstance(stdin, stdout, "/path/to/environment")
 run(server)
 ```

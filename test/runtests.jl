@@ -17,5 +17,8 @@ end
 @testset "edit" begin
 include("text_edit.jl")
 end
+@testset "reparse" begin
+include("test_reparse.jl")
+end
 
 end

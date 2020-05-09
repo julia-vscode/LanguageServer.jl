@@ -1,4 +1,5 @@
 const ProgressToken = Union{Int, String}
+ProgressToken(x::ProgressToken) = x
 struct ProgressParams{T}
     token::ProgressToken
     value::T

@@ -111,11 +111,7 @@ function request_julia_config(server::LanguageServerInstance)
 
     if rerun_lint
         for doc in getdocuments_value(server)
-            # TODO: wrap next 4 lines in function since it's repeated throughout project
-            StaticLint.check_all(getcst(doc), server.lint_options, server)
-            empty!(doc.diagnostics)
-            mark_errors(doc, doc.diagnostics)
-            publish_diagnostics(doc, server)
+            lint!(doc, server)
         end
     end
 

@@ -17,5 +17,8 @@ end
 @testset "edit" begin
 include("text_edit.jl")
 end
+@testset "actions" begin
+include("test_actions.jl")
+end
 
 end

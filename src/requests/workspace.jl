@@ -100,19 +100,18 @@ function request_julia_config(server::LanguageServerInstance)
         ConfigurationItem(missing, "julia.lint.missingrefs")
         ]))
 
-    new_DF_opts = DocumentFormat.FormatOptions([isnothing(opt) ? DocumentFormat.default_options[i] : opt for (i,opt) in enumerate(response[1:11])]...)
-    new_SL_opts = StaticLint.LintOptions([isnothing(opt) ? StaticLint.default_options[i] : opt for (i,opt) in enumerate(response[12:21])]...)
-    new_lintrun = isnothing(response[22]) ? true : response[22]
-    new_missingref = isnothing(response[23]) ? :all : Symbol(response[23])
-    
+    server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
+    server.runlinter = something(response[22], true)
+    server.lint_missingrefs = Symbol(something(response[23], :all))
+
+    new_SL_opts = StaticLint.LintOptions(response[12:21]...)
+    # TODO: implement == for StaticLint.LintOptions
     rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions))
-    server.format_options = new_DF_opts
     server.lint_options = new_SL_opts
-    server.runlinter = new_lintrun
-    server.lint_missingrefs = new_missingref
 
     if rerun_lint
         for doc in getdocuments_value(server)
+            # TODO: wrap next 4 lines in function since it's repeated throughout project
             StaticLint.check_all(getcst(doc), server.lint_options, server)
             empty!(doc.diagnostics)
             mark_errors(doc, doc.diagnostics)

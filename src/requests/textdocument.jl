@@ -295,7 +295,7 @@ end
 isunsavedfile(doc::Document) = startswith(doc._uri, "untitled:") # Not clear if this is consistent across editors.
 
 function publish_diagnostics(doc::Document, server)
-    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || (server.lint_nonwsfiles && isunsavedfile(doc)))
+    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])

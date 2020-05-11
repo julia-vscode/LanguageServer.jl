@@ -97,8 +97,7 @@ function request_julia_config(server::LanguageServerInstance)
         ConfigurationItem(missing, "julia.lint.pirates"),
         ConfigurationItem(missing, "julia.lint.useoffuncargs"),
         ConfigurationItem(missing, "julia.lint.run"),
-        ConfigurationItem(missing, "julia.lint.missingrefs"),
-        ConfigurationItem(missing, "julia.lint.nonwsfiles")
+        ConfigurationItem(missing, "julia.lint.missingrefs")
         ]))
 
     server.format_options = DocumentFormat.FormatOptions(response[1:11]...)

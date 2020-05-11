@@ -42,7 +42,6 @@ mutable struct LanguageServerInstance
     
     format_options::DocumentFormat.FormatOptions
     runlinter::Bool
-    lint_nonwsfiles::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
 
@@ -73,7 +72,6 @@ mutable struct LanguageServerInstance
             false,
             DocumentFormat.FormatOptions(), 
             true,
-            false,
             StaticLint.LintOptions(),
             :all,
             Channel{Any}(Inf),

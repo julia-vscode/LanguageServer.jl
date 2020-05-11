@@ -80,10 +80,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidCha
         tdcce = first(r.params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
         scopepass(getroot(doc), doc)
-        StaticLint.check_all(getcst(doc), server.lint_options, server)
-        empty!(doc.diagnostics)
-        mark_errors(doc, doc.diagnostics)
-        publish_diagnostics(doc, server)
+        lint!(doc, server)
     else
         for tdcce in r.params.contentChanges
             applytextdocumentchanges(doc, tdcce)
@@ -234,11 +231,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     end
     
     scopepass(getroot(doc), doc)
-    StaticLint.check_all(getcst(doc), server.lint_options, server)
-    empty!(doc.diagnostics)
-    mark_errors(doc, doc.diagnostics)
-    
-    publish_diagnostics(doc, server)
+    lint!(doc, server)
 end
 
 function mark_errors(doc, out = Diagnostic[])

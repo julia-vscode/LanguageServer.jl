@@ -101,25 +101,18 @@ function request_julia_config(server::LanguageServerInstance)
         ConfigurationItem(missing, "julia.lint.nonwsfiles")
         ]))
 
-    new_DF_opts = DocumentFormat.FormatOptions([isnothing(opt) ? DocumentFormat.default_options[i] : opt for (i,opt) in enumerate(response[1:11])]...)
-    new_SL_opts = StaticLint.LintOptions([isnothing(opt) ? StaticLint.default_options[i] : opt for (i,opt) in enumerate(response[12:21])]...)
-    new_lintrun = isnothing(response[22]) ? true : response[22]
-    new_missingref = isnothing(response[23]) ? :all : Symbol(response[23])
-    new_nonwsfiles = isnothing(response[24]) ? true : response[24]
-    
+    server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
+    server.runlinter = something(response[22], true)
+    server.lint_missingrefs = Symbol(something(response[23], :all))
+
+    new_SL_opts = StaticLint.LintOptions(response[12:21]...)
+    # TODO: implement == for StaticLint.LintOptions
     rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions))
-    server.format_options = new_DF_opts
     server.lint_options = new_SL_opts
-    server.runlinter = new_lintrun
-    server.lint_missingrefs = new_missingref
-    server.lint_nonwsfiles = new_nonwsfiles
 
     if rerun_lint
         for doc in getdocuments_value(server)
-            StaticLint.check_all(getcst(doc), server.lint_options, server)
-            empty!(doc.diagnostics)
-            mark_errors(doc, doc.diagnostics)
-            publish_diagnostics(doc, server)
+            lint!(doc, server)
         end
     end
 

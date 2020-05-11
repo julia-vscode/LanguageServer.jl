@@ -266,10 +266,7 @@ function Base.run(server::LanguageServerInstance)
                     scopepass(root, doc)
                 end
 
-                StaticLint.check_all(getcst(doc), server.lint_options, server)
-                empty!(doc.diagnostics)
-                mark_errors(doc, doc.diagnostics)
-                publish_diagnostics(doc, server)
+                lint!(doc, server)
             end
         end
     end

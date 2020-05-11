@@ -21,6 +21,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if is_in_fexpr(x, CSTParser.defines_struct)
             push!(commands, Command("Add default constructor", "AddDefaultConstructor", arguments))
         end
+        if is_fixable_missing_ref(x, r.params.context)
+            push!(commands, Command("Fix missing reference", "FixMissingRef", arguments))
+        end
         # if r.params.range.start.line != r.params.range.stop.line # selection across _line_offsets
         #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
         # end
@@ -49,6 +52,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
         end
     elseif r.params.command == "WrapIfBlock"
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
+    elseif r.params.command == "FixMissingRef"
+        applymissingreffix(x, server)
     end
 end
 
@@ -264,4 +269,37 @@ function wrap_block(x::EXPR, id, server, type)
     end
 
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+end
+
+
+function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
+    if !isempty(cac.diagnostics) && any(startswith(d.message, "Missing reference") for d::Diagnostic in cac.diagnostics) && CSTParser.isidentifier(x)
+        xname = StaticLint.valofid(x)
+        tls = StaticLint.retrieve_toplevel_scope(x)
+        if tls.modules !== nothing
+            for (n,m) in tls.modules
+                if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+function applymissingreffix(x, server)
+    xname = StaticLint.valofid(x)
+    file, offset = get_file_loc(x)
+    l, c = get_position_at(file, offset)
+    tls = StaticLint.retrieve_toplevel_scope(x)
+    if tls.modules !== nothing
+        for (n,m) in tls.modules
+            if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
+                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                    TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
+                ])
+                JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+            end
+        end
+    end
 end

@@ -71,7 +71,7 @@ mutable struct LanguageServerInstance
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
             DocumentFormat.FormatOptions(), 
-            true, 
+            true,
             StaticLint.LintOptions(),
             :all,
             Channel{Any}(Inf),

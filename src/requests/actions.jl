@@ -24,6 +24,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if is_fixable_missing_ref(x, r.params.context)
             push!(commands, Command("Fix missing reference", "FixMissingRef", arguments))
         end
+        if (fex = _get_parent_fexpr(x, CSTParser.defines_function)) !== nothing && !has_doc_prefixed(fex)
+            push!(commands, Command("Add function documentation.", "AddDocumentation", arguments))
+        end
         # if r.params.range.start.line != r.params.range.stop.line # selection across _line_offsets
         #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
         # end
@@ -54,6 +57,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
     elseif r.params.command == "FixMissingRef"
         applymissingreffix(x, server)
+    elseif r.params.command == "AddDocumentation"
+        add_docs(x, server)
     end
 end
 
@@ -302,4 +307,16 @@ function applymissingreffix(x, server)
             end
         end
     end
+end
+
+has_doc_prefixed(x::EXPR) = parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.MacroCall && length(parentof(x)) == 3 && typof(parentof(x)[1]) === CSTParser.GlobalRefDoc
+function add_docs(x::EXPR, server)
+    (fex = _get_parent_fexpr(x, CSTParser.defines_function)) === nothing && return
+    (sig = CSTParser.get_sig(fex)) === nothing && return 
+    file, offset = get_file_loc(fex)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+            TextEdit(Range(file, offset .+ (0:0)), string("\"\"\"\n    ", Expr(sig), "\n\n\"\"\"\n"))
+            ])
+    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", 
+        ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end

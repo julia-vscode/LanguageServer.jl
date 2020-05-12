@@ -74,6 +74,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration
 end
 
 function request_julia_config(server::LanguageServerInstance)
+    server.clientCapabilities.workspace.configuration === false && return # Or !== true?
+    
     response = JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
         ConfigurationItem(missing, "julia.format.indents"),

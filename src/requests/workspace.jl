@@ -102,10 +102,10 @@ function request_julia_config(server::LanguageServerInstance)
         ConfigurationItem(missing, "julia.lint.missingrefs")
         ]))
 
-    server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
-    server.runlinter = something(response[22], false)
+    server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? false : DocumentFormat.default_options[i] for (i,a) in enumerate(response[1:11])]...)
+    server.runlinter = isnothing(response[22]) ? false : true
     server.lint_missingrefs = Symbol(something(response[23], :all))
-    new_SL_opts = StaticLint.LintOptions(response[12:21]...)
+    new_SL_opts = StaticLint.LintOptions([isnothing(a) ? false : StaticLint.default_options[i] for (i,a) in enumerate(response[12:21])]...)
     # TODO: implement == for StaticLint.LintOptions
     rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions))
     server.lint_options = new_SL_opts

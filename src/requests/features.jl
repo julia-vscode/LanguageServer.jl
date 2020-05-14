@@ -305,3 +305,22 @@ function _binding_kind(b ,server)
         return 13
     end
 end
+
+JSONRPC.parse_params(::Type{Val{Symbol("julia/getModuleAt")}}, params) = TextDocumentPositionParams(params)
+function process(r::JSONRPC.Request{Val{Symbol("julia/getModuleAt")},TextDocumentPositionParams}, server)
+    doc = getdocument(server, URI2(r.params.textDocument.uri))
+    offset = get_offset(doc, r.params.position)
+    x = get_expr1(getcst(doc), offset)
+    return get_module_of(StaticLint.retrieve_scope(x))
+end
+
+function get_module_of(s::StaticLint.Scope, ms = [])
+    if CSTParser.defines_module(s.expr) && CSTParser.isidentifier(s.expr[2])
+        pushfirst!(ms, StaticLint.valofid(s.expr[2]))
+    end
+    if parentof(s) isa StaticLint.Scope
+        return get_module_of(parentof(s), ms)
+    else
+        return isempty(ms) ? "Main" : join(ms, ".")
+    end
+end

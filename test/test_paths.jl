@@ -11,7 +11,7 @@ if Sys.iswindows()
 
     @test LanguageServer.filepath2uri("\\\\SERVER\\foo\\bar") == "file://SERVER/foo/bar"
     @test LanguageServer.filepath2uri("\\\\wsl\$\\foo\\bar") == "file://wsl%24/foo/bar"
-    @test LanguageServer.filepath2uri("d:\\foo\\bar") == "file:///d:/foo/bar"
+    @test LanguageServer.filepath2uri("d:\\foo\\bar") == "file:///d%3A/foo/bar"
 else
     @test LanguageServer.uri2filepath("file:///foo/bar") == "/foo/bar"
 

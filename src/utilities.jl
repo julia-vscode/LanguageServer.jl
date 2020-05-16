@@ -39,6 +39,7 @@ function filepath2uri(file::String)
         file = replace(file, "\\" => "/")
         file = URIParser.escape(file)
         file = replace(file, "%2F" => "/")
+        file = replace(file, "%3A" => ":")
         if startswith(file, "//")
             # UNC path \\foo\bar\foobar
             return string("file://",file[3:end])

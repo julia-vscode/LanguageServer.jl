@@ -19,11 +19,10 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/signatureHelp")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},TextDocumentPositionParams}, server)
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
+function textDocument_signatureHelp_request(conn, params::TextDocumentPositionParams, server)
+    doc = getdocument(server, URI2(params.textDocument.uri))
     sigs = SignatureInformation[]
-    offset = get_offset(doc, r.params.position)
+    offset = get_offset(doc, params.position)
     rng = Range(doc, offset:offset)
     x = get_expr(getcst(doc), offset)
     arg = 0
@@ -67,11 +66,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/signatureHelp")},Te
     return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/definition")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/definition")},TextDocumentPositionParams}, server)
+function textDocument_definition_request(conn, params::TextDocumentPositionParams, server)
     locations = Location[]
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.position)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
         # Replace with own function to retrieve references (with loop saftey-breaker)
@@ -148,9 +146,8 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/formatting")}}, params) = DocumentFormattingParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/formatting")},DocumentFormattingParams}, server::LanguageServerInstance)
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
+function textDocument_formatting_request(conn, params::DocumentFormattingParams, server::LanguageServerInstance)
+    doc = getdocument(server, URI2(params.textDocument.uri))
     newcontent = DocumentFormat.format(get_text(doc), server.format_options)
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
@@ -190,22 +187,21 @@ function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/references")}}, params) = ReferenceParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/references")},ReferenceParams}, server)
-    return find_references(r.params.textDocument, r.params.position, server)
+function textDocument_references_request(conn, params::ReferenceParams, server)
+    # TODO The reference to `textDocument` here is a bug
+    return find_references(textDocument, params.position, server)
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/rename")}}, params) = RenameParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/rename")},RenameParams}, server)
+function textDocument_rename_request(conn, params::RenameParams, server)
     tdes = Dict{String,TextDocumentEdit}()
-    locations = find_references(r.params.textDocument, r.params.position, server)
+    locations = find_references(params.textDocument, params.position, server)
 
     for loc in locations
         if loc.uri in keys(tdes)
-            push!(tdes[loc.uri].edits, TextEdit(loc.range, r.params.newName))
+            push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
         else
             doc = getdocument(server, URI2(loc.uri))
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, r.params.newName)])
+            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
         end
     end
     
@@ -231,10 +227,9 @@ function get_name_of_binding(name::EXPR)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/documentSymbol")}}, params) = DocumentSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/documentSymbol")},DocumentSymbolParams}, server) 
+function textDocument_documentSymbol_request(conn, params::DocumentSymbolParams, server) 
     syms = SymbolInformation[]
-    uri = r.params.textDocument.uri 
+    uri = params.textDocument.uri 
     doc = getdocument(server, URI2(uri))
 
     bs = collect_bindings_w_loc(getcst(doc))
@@ -306,10 +301,9 @@ function _binding_kind(b ,server)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("julia/getModuleAt")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/getModuleAt")},TextDocumentPositionParams}, server)
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.position)
+function julia_getModuleAt_request(conn, params::TextDocumentPositionParams, server)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)
     return get_module_of(StaticLint.retrieve_scope(x))
 end

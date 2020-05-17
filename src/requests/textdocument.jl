@@ -1,16 +1,15 @@
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didOpen")}}, params) = DidOpenTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenTextDocumentParams}, server)
-    uri = r.params.textDocument.uri
+function textDocument_didOpen_notification(conn, params::DidOpenTextDocumentParams, server)
+    uri = params.textDocument.uri
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
-        set_text!(doc, r.params.textDocument.text)
-        doc._version = r.params.textDocument.version
+        set_text!(doc,params.textDocument.text)
+        doc._version = params.textDocument.version
         set_open_in_editor(doc, true)
         get_line_offsets(doc, true)
     else
-        doc = Document(uri, r.params.textDocument.text, false, server)
+        doc = Document(uri, params.textDocument.text, false, server)
         setdocument!(server, URI2(uri), doc)
-        doc._version = r.params.textDocument.version
+        doc._version = params.textDocument.version
         doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
         set_open_in_editor(doc, true)
         
@@ -20,12 +19,11 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didClose")}}, params) = DidCloseTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidCloseTextDocumentParams}, server)
-    uri = r.params.textDocument.uri
+function textDocument_didClose_notification(conn, params::DidCloseTextDocumentParams, server)
+    uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
     empty!(doc.diagnostics)
-    publish_diagnostics(doc, server)
+    publish_diagnostics(doc, server, conn)
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
     else
@@ -44,13 +42,12 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didClose")},DidClos
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didSave")}}, params) = DidSaveTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveTextDocumentParams}, server)
-    uri = r.params.textDocument.uri
+function textDocument_didSave_notification(conn, params::DidSaveTextDocumentParams, server)
+    uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
-    if r.params.text isa String
-        if get_text(doc) != r.params.text
-            JSONRPCEndpoints.send_notification(server.jr_endpoint, "window/showMessage", ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
+    if params.text isa String
+        if get_text(doc) != params.text
+            JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version)."))
         end
     end
@@ -58,31 +55,29 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didSave")},DidSaveT
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSave")}}, params) = WillSaveTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSave")},WillSaveTextDocumentParams}, server) end
+function textDocument_willSave_notification(conn, params::WillSaveTextDocumentParams, server)
+end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/willSaveWaitUntil")}}, params) = WillSaveTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/willSaveWaitUntil")},WillSaveTextDocumentParams}, server)
+function textDocument_willSaveWaitUntil_request(conn, params::WillSaveTextDocumentParams, server)
     return TextEdit[]
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/didChange")}}, params) = DidChangeTextDocumentParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/didChange")},DidChangeTextDocumentParams}, server::LanguageServerInstance)
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    if r.params.textDocument.version < doc._version
+function textDocument_didChange_notification(conn, params::DidChangeTextDocumentParams, server::LanguageServerInstance)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    if params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri).")
     end
-    doc._version = r.params.textDocument.version
+    doc._version = params.textDocument.version
     
-    if length(r.params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(r.params.contentChanges).range)
-        tdcce = first(r.params.contentChanges)
+    if length(params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(params.contentChanges).range)
+        tdcce = first(params.contentChanges)
         new_cst = _partial_update(doc, tdcce) 
         scopepass(getroot(doc), doc)
         lint!(doc, server)
     else
-        for tdcce in r.params.contentChanges
+        for tdcce in params.contentChanges
             applytextdocumentchanges(doc, tdcce)
         end
         parse_all(doc, server)
@@ -294,26 +289,26 @@ end
 
 isunsavedfile(doc::Document) = startswith(doc._uri, "untitled:") # Not clear if this is consistent across editors.
 
-function publish_diagnostics(doc::Document, server)
+function publish_diagnostics(doc::Document, server, conn)
     if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
     end
-    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
 end
 
 
-function clear_diagnostics(uri::URI2, server)
+function clear_diagnostics(uri::URI2, server, conn)
     doc = getdocument(server, uri)
     empty!(doc.diagnostics)
     publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
-    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
 end 
 
-function clear_diagnostics(server)
+function clear_diagnostics(server, conn)
     for uri in getdocuments_key(server)
-        clear_diagnostics(uri, server)
+        clear_diagnostics(uri, server, conn)
     end
 end
 

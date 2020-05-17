@@ -120,32 +120,31 @@ function load_folder(path::String, server)
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params) = InitializeParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
+function initialize_request(conn, params::InitializeParams, server)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if ismissing(r.params.capabilities.workspace.workspaceFolders) || r.params.capabilities.workspace.workspaceFolders == false
-        if !(r.params.rootUri isa Nothing)
-            push!(server.workspaceFolders, uri2filepath(r.params.rootUri))
-        elseif !(r.params.rootPath isa Nothing)
-            push!(server.workspaceFolders,  r.params.rootPath)
+    if ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false
+        if !(params.rootUri isa Nothing)
+            push!(server.workspaceFolders, uri2filepath(params.rootUri))
+        elseif !(params.rootPath isa Nothing)
+            push!(server.workspaceFolders,  params.rootPath)
         end
-    elseif (r.params.workspaceFolders !== nothing) & (r.params.workspaceFolders !== missing)
-        for wksp in r.params.workspaceFolders
+    elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
+        for wksp in params.workspaceFolders
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
     end
 
-    server.clientCapabilities = r.params.capabilities
+    server.clientCapabilities = params.capabilities
     
-    if !ismissing(r.params.capabilities.window) && r.params.capabilities.window.workDoneProgress
+    if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
         server.clientcapability_window_workdoneprogress = false
     end
 
-    if !ismissing(r.params.capabilities.workspace.didChangeConfiguration) &&
-        !ismissing(r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
-        r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
+    if !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
+        params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 
         server.clientcapability_workspace_didChangeConfiguration = true
     end
@@ -154,14 +153,13 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
+function initialized_notification(conn, params::InitializedParams, server)
     server.status=:running
 
     if server.clientcapability_workspace_didChangeConfiguration
-        JSONRPCEndpoints.send_request(
-            server.jr_endpoint,
-            "client/registerCapability",
+        JSONRPC.send(
+            conn,
+            client_registerCapability_request_type,
             RegistrationParams([Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)])
         )
     end
@@ -171,21 +169,18 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             load_folder(wkspc, server)
         end
     end
-    request_julia_config(server)
+    request_julia_config(server, conn)
     
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)
     end
 end
 
-
-JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
+function shutdown_request(conn, params, server)
     return nothing
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server::LanguageServerInstance) 
+function exit_notification(conn, params, server)
     server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
     exit()
 end

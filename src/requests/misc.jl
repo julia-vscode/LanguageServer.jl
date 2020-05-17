@@ -1,22 +1,11 @@
-JSONRPC.parse_params(::Type{Val{Symbol("\$/cancelRequest")}}, params) = CancelParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("\$/cancelRequest")},CancelParams}, server) end
+function cancel_notification(conn, params::CancelParams, server)
+end
 
-JSONRPC.parse_params(::Type{Val{Symbol("\$/setTraceNotification")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("\$/setTraceNotification")},Dict{String,Any}}, server) end
+function setTraceNotification_notification(conn, params, server)
+end
 
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/lint-package")}}, params) end
-function process(r::JSONRPC.Request{Val{Symbol("julia/lint-package")},Nothing}, server) end
-
-function JSONRPC.parse_params(::Type{Val{Symbol("julia/reload-modules")}}, params) end
-function process(r::JSONRPC.Request{Val{Symbol("julia/reload-modules")},Nothing}, server) end
-
-JSONRPC.parse_params(::Type{Val{Symbol("julia/toggleFileLint")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("julia/toggleFileLint")}}, server) end
-
-
-JSONRPC.parse_params(::Type{Val{Symbol("julia/getCurrentBlockRange")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},TextDocumentPositionParams}, server)
-    tdpp = r.params
+function julia_getCurrentBlockRange_request(conn, params::TextDocumentPositionParams, server)
+    tdpp = params
     doc = getdocument(server, URI2(tdpp.textDocument.uri))
     offset = get_offset(doc, tdpp.position)
     x = getcst(doc)
@@ -58,9 +47,8 @@ function process(r::JSONRPC.Request{Val{Symbol("julia/getCurrentBlockRange")},Te
     return Position(get_position_at(doc, p1)...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("julia/activateenvironment")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("julia/activateenvironment")}}, server)
-    server.env_path = r.params
+function julia_activateenvironment_notification(conn, params::String, server)
+    server.env_path = params
 
     trigger_symbolstore_reload(server)
 end

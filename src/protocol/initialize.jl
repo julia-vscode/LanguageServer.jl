@@ -192,4 +192,5 @@ struct InitializeResult <: Outbound
 end
 
 ##############################################################################
-struct InitializedParams end
+@dict_readable struct InitializedParams
+end

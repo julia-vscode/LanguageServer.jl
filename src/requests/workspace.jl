@@ -1,6 +1,5 @@
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, params) = DidChangeWatchedFilesParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
-    for change in r.params.changes
+function workspace_didChangeWatchedFiles_notification(conn, params::DidChangeWatchedFilesParams, server)
+    for change in params.changes
         uri = change.uri
 
         startswith(uri, "file:") || continue
@@ -55,7 +54,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     deletedocument!(server, URI2(uri))
 
                     publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+                    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
                 else
                     # TODO replace with accessor function once the other PR
                     # that introduces the accessor is merged
@@ -68,15 +67,14 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
-    request_julia_config(server)
+function workspace_didChangeConfiguration_notification(conn, params::DidChangeConfigurationParams, server::LanguageServerInstance)
+    request_julia_config(server, conn)
 end
 
-function request_julia_config(server::LanguageServerInstance)
+function request_julia_config(server::LanguageServerInstance, conn)
     server.clientCapabilities.workspace.configuration === false && return # Or !== true?
     
-    response = JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
+    response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
         ConfigurationItem(missing, "julia.format.indents"),
         ConfigurationItem(missing, "julia.format.ops"),
@@ -119,24 +117,21 @@ function request_julia_config(server::LanguageServerInstance)
 
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
-    for wksp in r.params.event.added
+function workspace_didChangeWorkspaceFolders_notification(conn, params::DidChangeWorkspaceFoldersParams, server)
+    for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
     end
-    for wksp in r.params.event.removed
+    for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
     end
 end
 
-
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+function workspace_symbol_request(conn, params::WorkspaceSymbolParams, server) 
     syms = SymbolInformation[]
     for doc in getdocuments_value(server)
-        bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
+        bs = collect_toplevel_bindings_w_loc(getcst(doc), query = params.query)
         for x in bs
             p, b = x[1], x[2]
             push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))

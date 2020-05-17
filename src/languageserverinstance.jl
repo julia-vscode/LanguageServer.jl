@@ -28,7 +28,7 @@ For normal usage, the language server can be instantiated with
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
-    jr_endpoint::JSONRPCEndpoints.JSONRPCEndpoint
+    _jr_endpoint::JSONRPC.JSONRPCEndpoint
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
     
@@ -62,7 +62,7 @@ mutable struct LanguageServerInstance
 
     function LanguageServerInstance(pipe_in, pipe_out, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
-            JSONRPCEndpoints.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
+            JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
             env_path, 
@@ -134,9 +134,13 @@ end
 function create_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress
         server.current_symserver_progress_token = string(uuid4())
-        response = JSONRPCEndpoints.send_request(server.jr_endpoint, "window/workDoneProgress/create", Dict("token" => server.current_symserver_progress_token))
+        response = JSONRPC.send(server._jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(server.current_symserver_progress_token))
 
-        JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"begin", "title"=>"Julia Language Server", "message"=>"Indexing packages...")))
+        JSONRPC.send(
+            server._jr_endpoint,
+            progress_notification_type, 
+            ProgressParams(server.current_symserver_progress_token, WorkDoneProgressBegin("Julia Language Server", missing, "Indexing packages...", missing))
+        )
     end
 end
 
@@ -144,7 +148,11 @@ function destroy_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
         progress_token = server.current_symserver_progress_token
         server.current_symserver_progress_token = nothing
-        JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => progress_token, "value" => Dict("kind"=>"end")))
+        JSONRPC.send(
+            server._jr_endpoint,
+            progress_notification_type,
+            ProgressParams(progress_token, WorkDoneProgressEnd(missing))
+        )
     end
 end
 
@@ -161,7 +169,11 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             server.symbol_server,
             server.env_path,
             i-> if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
-                JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i...")))
+                JSONRPC.send(
+                    server._jr_endpoint,
+                    progress_notification_type,
+                    ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
+                )
             end,
             server.err_handler
         )
@@ -181,13 +193,21 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 "name"=>"LSSymbolServerFailure",
                 "message"=>payload===nothing ? "" : String(take!(payload)),
                 "stacktrace"=>"")
-            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
+            JSONRPC.send(
+                server._jr_endpoint,
+                telemetry_event_notification_type,
+                error_payload
+            )
         elseif ssi_ret==:package_load_crash
             error_payload = Dict(
                 "command"=>"symserv_pkgload_crash",
                 "name"=>payload.package_name,
                 "message"=>payload.stderr===nothing ? "" : String(take!(payload.stderr)))
-            JSONRPCEndpoints.send_notification(server.jr_endpoint, "telemetry/event", error_payload)
+            JSONRPC.send(
+                server._jr_endpoint,
+                telemetry_event_notification_type,
+                error_payload
+            )
         end
         server.symbol_store_ready = true
     catch err
@@ -208,13 +228,13 @@ Run the language `server`.
 function Base.run(server::LanguageServerInstance)
     server.status=:started
 
-    run(server.jr_endpoint)
+    run(server._jr_endpoint)
 
     trigger_symbolstore_reload(server)
 
     @async try
         while true
-            msg = JSONRPCEndpoints.get_next_message(server.jr_endpoint)
+            msg = JSONRPC.get_next_message(server._jr_endpoint)
             put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
@@ -239,20 +259,45 @@ function Base.run(server::LanguageServerInstance)
             Base.display_error(stderr, err, bt)
         end
     end
+
+    msg_dispatcher = JSONRPC.MsgDispatcher()
+    msg_dispatcher[textDocument_codeAction_request_type] = (ep, params) -> textDocument_codeAction_request(ep, params, server)
+    msg_dispatcher[workspace_executeCommand_request_type] = (ep, params) -> workspace_executeCommand_request(ep, params, server)
+    msg_dispatcher[textDocument_completion_request_type] = (ep, params) -> textDocument_completion_request(ep, params, server)
+    msg_dispatcher[textDocument_signatureHelp_request_type] = (ep, params) -> textDocument_signatureHelp_request(ep, params, server)
+    msg_dispatcher[textDocument_definition_request_type] = (ep, params) -> textDocument_definition_request(ep, params, server)
+    msg_dispatcher[textDocument_formatting_request_type] = (ep, params) -> textDocument_formatting_request(ep, params, server)
+    msg_dispatcher[textDocument_references_request_type] = (ep, params) -> textDocument_references_request(ep, params, server)
+    msg_dispatcher[textDocument_rename_request_type] = (ep, params) -> textDocument_rename_request(ep, params, server)
+    msg_dispatcher[textDocument_documentSymbol_request_type] = (ep, params) -> textDocument_documentSymbol_request(ep, params, server)
+    msg_dispatcher[julia_getModuleAt_request_type] = (ep, params) -> julia_getModuleAt_request(ep, params, server)
+    msg_dispatcher[textDocument_hover_request_type] = (ep, params) -> textDocument_hover_request(ep, params, server)
+    msg_dispatcher[initialize_request_type] = (ep, params) -> initialize_request(ep, params, server)
+    msg_dispatcher[initialized_notification_type] = (ep, params) -> initialized_notification(ep, params, server)
+    msg_dispatcher[shutdown_request_type] = (ep, params) -> shutdown_request(ep, params, server)
+    msg_dispatcher[exit_notification_type] = (ep, params) -> exit_notification(ep, params, server)
+    msg_dispatcher[cancel_notification_type] = (ep, params) -> cancel_notification(ep, params, server)
+    msg_dispatcher[setTraceNotification_notification_type] = (ep, params) -> setTraceNotification_notification(ep, params, server)
+    msg_dispatcher[julia_getCurrentBlockRange_request_type] = (ep, params) -> julia_getCurrentBlockRange_request(ep, params, server)
+    msg_dispatcher[julia_activateenvironment_notification_type] = (ep, params) -> julia_activateenvironment_notification(ep, params, server)
+    msg_dispatcher[textDocument_didOpen_notification_type] = (ep, params) -> textDocument_didOpen_notification(ep, params, server)
+    msg_dispatcher[textDocument_didClose_notification_type] = (ep, params) -> textDocument_didClose_notification(ep, params, server)
+    msg_dispatcher[textDocument_didSave_notification_type] = (ep, params) -> textDocument_didSave_notification(ep, params, server)
+    msg_dispatcher[textDocument_willSave_notification_type] = (ep, params) -> textDocument_willSave_notification(ep, params, server)
+    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = (ep, params) -> textDocument_willSaveWaitUntil_request(ep, params, server)
+    msg_dispatcher[textDocument_didChange_notification_type] = (ep, params) -> textDocument_didChange_notification(ep, params, server)
+    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = (ep, params) -> workspace_didChangeWatchedFiles_notification(ep, params, server)
+    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = (ep, params) -> workspace_didChangeConfiguration_notification(ep, params, server)
+    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = (ep, params) -> workspace_didChangeWorkspaceFolders_notification(ep, params, server)
+    msg_dispatcher[workspace_symbol_request_type] = (ep, params) -> workspace_symbol_request(ep, params, server)
         
     while true
         message = take!(server.combined_msg_queue)
 
         if message.type==:clientmsg
-            msg = message.msg                
+            msg = message.msg
 
-            request = parse(JSONRPC.Request, msg)
-
-            res = process(request, server)
-
-            if request.id!=nothing
-                JSONRPCEndpoints.send_success_response(server.jr_endpoint, msg, res)
-            end
+            JSONRPC.dispatch_msg(server._jr_endpoint, msg_dispatcher, msg)
         elseif message.type==:symservmsg
             @info "Received new data from Julia Symbol Server."
             msg = message.msg

@@ -34,6 +34,7 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
+    isabspath(file) || throw(LSRelativePath("Relative path `$file` is not valid."))
     if Sys.iswindows()
         file = normpath(file)
         file = replace(file, "\\" => "/")

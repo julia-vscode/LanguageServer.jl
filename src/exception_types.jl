@@ -45,3 +45,11 @@ end
 function Base.showerror(io::IO, ex::LSPositionToOffsetException)
     print(io, ex.msg)
 end
+
+struct LSRelativePath <:Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSRelativePath)
+    print(io, ex.msg)
+end

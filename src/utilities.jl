@@ -55,6 +55,13 @@ function filepath2uri(file::String)
     end
 end
 
+function escape_uri(uri::AbstractString)
+    if !startswith(uri, "file://") # escaping only file URI
+        return uri
+    end
+    escaped_uri = uri[8:end] |> URIParser.unescape |> URIParser.escape
+    return string("file://", replace(escaped_uri, "%2F" => "/"))
+end
 
 function should_file_be_linted(uri, server)
     !server.runlinter && return false

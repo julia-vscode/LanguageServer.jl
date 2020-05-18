@@ -11,23 +11,23 @@ import Base.==
 function ==(a::URI2, b::URI2)
     @static if Sys.iswindows()
         if startswith(a._uri, "file://")
-            return lowercase(a._uri) == lowercase(b._uri)
+            return lowercase(escape_uri(a._uri)) == lowercase(escape_uri(b._uri))
         else
             return a._uri == b._uri
         end
     else
-        return a._uri == b._uri
+        return escape_uri(a._uri) == escape_uri(b._uri)
     end
 end
 
 function Base.hash(a::URI2, h::UInt)
     @static if Sys.iswindows()
         if startswith(a._uri, "file://")
-            return hash(lowercase(a._uri), h)
+            return hash(lowercase(escape_uri(a._uri)), h)
         else
             return hash(a._uri)
         end
     else
-        return hash(a._uri)
+        return hash(escape_uri(a._uri))
     end
 end

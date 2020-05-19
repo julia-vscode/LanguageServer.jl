@@ -111,9 +111,9 @@ function InitializeParams(dict::Dict)
     InitializeParams(dict["processId"],
     haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
     !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
-    dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]), 
+    dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]),
     get(dict, "initializationOptions", missing),
-    ClientCapabilities(dict["capabilities"]), 
+    ClientCapabilities(dict["capabilities"]),
     haskey(dict, "trace") ? String(dict["trace"]) : missing ,
     !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]),
     haskey(dict, "workDoneToken") ? ProgressToken(dict["workDoneToken"]) : missing)

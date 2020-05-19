@@ -7,7 +7,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     x = get_expr(getcst(doc), offset)
 
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         #latex completion
         latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
@@ -19,7 +19,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},Compl
         string_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         #getfield completion, no partial
         px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
         _get_dot_completion(px, "", rng, CIs, server)
@@ -64,103 +64,15 @@ function latex_completions(doc, offset, partial, CIs)
     end
 end
 
-function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-    length(spartial) == 0 && return
-    fc = first(spartial)
-    if startswith("abstract", spartial)
-        push!(CIs, CompletionItem("abstract", 14, "abstract", TextEdit(Range(doc, offset:offset), "abstract type \$0 end"[length(spartial) + 1:end])))
-    elseif fc == 'b'
-        if startswith("baremodule", spartial)
-            push!(CIs, CompletionItem("baremodule", 14, "baremodule", TextEdit(Range(doc, offset:offset), "baremodule \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("begin", spartial)
-            push!(CIs, CompletionItem("begin", 14, "begin", TextEdit(Range(doc, offset:offset), "begin\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("break", spartial)
-            push!(CIs, CompletionItem("break", 14, "break", TextEdit(Range(doc, offset:offset), "break"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'c'
-        if startswith("catch", spartial)
-            push!(CIs, CompletionItem("catch", 14, "catch", TextEdit(Range(doc, offset:offset), "catch"[length(spartial) + 1:end])))
-        end
-        if startswith("const", spartial)
-            push!(CIs, CompletionItem("const", 14, "const", TextEdit(Range(doc, offset:offset), "const \$0"[length(spartial) + 1:end])))
-        end
-        if startswith("continue", spartial)
-            push!(CIs, CompletionItem("continue", 14, "continue", TextEdit(Range(doc, offset:offset), "continue"[length(spartial) + 1:end])))
-        end
-    elseif startswith("do", spartial)
-        push!(CIs, CompletionItem("do", 14, "do", TextEdit(Range(doc, offset:offset), "do \$0\n end"[length(spartial) + 1:end])))
-    elseif fc == 'e'
-        if startswith("else", spartial)
-            push!(CIs, CompletionItem("else", 14, "else", TextEdit(Range(doc, offset:offset), "else"[length(spartial) + 1:end])))
-        end
-        if startswith("elseif", spartial)
-            push!(CIs, CompletionItem("elseif", 14, "elseif", TextEdit(Range(doc, offset:offset), "elseif"[length(spartial) + 1:end])))
-        end
-        if startswith("end", spartial)
-            push!(CIs, CompletionItem("end", 14, "end", TextEdit(Range(doc, offset:offset), "end"[length(spartial) + 1:end])))
-        end
-        if startswith("export", spartial)
-            push!(CIs, CompletionItem("export", 14, "export", TextEdit(Range(doc, offset:offset), "export \$0"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'f'
-        if startswith("finally", spartial)
-            push!(CIs, CompletionItem("finally", 14, "finally", TextEdit(Range(doc, offset:offset), "finally"[length(spartial) + 1:end])))
-        end
-        if startswith("for", spartial)
-            push!(CIs, CompletionItem("for", 14, "for", TextEdit(Range(doc, offset:offset), "for \$1 in \$2\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("function", spartial)
-            push!(CIs, CompletionItem("function", 14, "function", TextEdit(Range(doc, offset:offset), "function \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("global", spartial)
-        push!(CIs, CompletionItem("global", 14, "global", TextEdit(Range(doc, offset:offset), "global \$0\n"[length(spartial) + 1:end])))
-    elseif fc == 'i'
-        if startswith("if", spartial)
-            push!(CIs, CompletionItem("if", 14, "if", TextEdit(Range(doc, offset:offset), "if \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("import", spartial)
-            push!(CIs, CompletionItem("import", 14, "import", TextEdit(Range(doc, offset:offset), "import \$0\n"[length(spartial) + 1:end])))
-        end
-        if startswith("importall", spartial)
-            push!(CIs, CompletionItem("importall", 14, "importall", TextEdit(Range(doc, offset:offset), "importall \$0\n"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'l'
-        if startswith("let", spartial)
-            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("local", spartial)
-            push!(CIs, CompletionItem("local", 14, "local", TextEdit(Range(doc, offset:offset), "local \$0\n"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'm'
-        if startswith("macro", spartial)
-            push!(CIs, CompletionItem("macro", 14, "macro", TextEdit(Range(doc, offset:offset), "macro \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("module", spartial)
-            push!(CIs, CompletionItem("module", 14, "module", TextEdit(Range(doc, offset:offset), "module \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("mutable", spartial)
-            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("outer", spartial)
-        push!(CIs, CompletionItem("outer", 14, "outer", TextEdit(Range(doc, offset:offset), "outer"[length(spartial) + 1:end])))
-    elseif startswith("primitive", spartial)
-        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("quote", spartial)
-        push!(CIs, CompletionItem("quote", 14, "quote", TextEdit(Range(doc, offset:offset), "quote\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("return", spartial)
-        push!(CIs, CompletionItem("return", 14, "return", TextEdit(Range(doc, offset:offset), "return \$0"[length(spartial) + 1:end])))
-    elseif startswith("struct", spartial)
-        push!(CIs, CompletionItem("struct", 14, "struct", TextEdit(Range(doc, offset:offset), "struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif fc == 't'
-        if startswith("try", spartial)
-            push!(CIs, CompletionItem("try", 14, "try", TextEdit(Range(doc, offset:offset), "try \$1\n    \$0\ncatch\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("using", spartial)
-        push!(CIs, CompletionItem("using", 14, "using", TextEdit(Range(doc, offset:offset), "using \$0\n"[length(spartial) + 1:end])))
-    elseif startswith("while", spartial)
-        push!(CIs, CompletionItem("while", 14, "while", TextEdit(Range(doc, offset:offset), "while \$1\n    \$0\nend"[length(spartial) + 1:end])))
+using REPL.REPLCompletions: sorted_keywords
+
+@inbounds function kw_completion(doc, s, ppt, pt, t, CIs, offset)
+    i = first(searchsorted(sorted_keywords, s))
+    n = length(sorted_keywords)
+    while i ≤ n && startswith(sorted_keywords[i], s)
+        keyword = sorted_keywords[i]
+        push!(CIs, CompletionItem(keyword, 13, keyword, TextEdit(Range(doc, offset:offset), keyword[length(s)+1:end])))
+        i += 1
     end
 end
 
@@ -170,9 +82,9 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
         startswith(n, ".") && continue
         # v isa String && continue
         !startswith(n, spartial) && continue
-        if v isa SymbolServer.VarRef 
+        if v isa SymbolServer.VarRef
             v = SymbolServer._lookup(v, getsymbolserver(server), true)
-            v === nothing && return 
+            v === nothing && return
         end
         if StaticLint.isexportedby(n, m) || inclexported
             # if v isa SymbolServer.VarRef
@@ -183,8 +95,8 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
                 push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
             # end
         elseif dotcomps
-            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact 
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
+            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact
+            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n))))
         end
     end
 end
@@ -273,18 +185,18 @@ function _completion_kind(b ,server)
             return 12
         elseif b.type == StaticLint.CoreTypes.DataType
             return 22
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.VarRef
         return 9
     elseif b isa SymbolServer.MethodStore
-        return 2        
+        return 2
     elseif b isa SymbolServer.FunctionStore
         return 3
     elseif b isa SymbolServer.DataTypeStore
         return 22
-    else 
+    else
         return 6
     end
 end
@@ -371,7 +283,7 @@ end
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
     import_statement = parentof(x)
     import_root = get_import_root(import_statement)
-    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
+    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
         #no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
@@ -393,7 +305,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
         if haskey(getsymbolserver(server), Symbol(pt.val))
             collect_completions(getsymbolserver(server)[Symbol(pt.val)], "", rng, CIs, server)
         end
-    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
+    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
         #partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
             if haskey(StaticLint.getsymbolserver(server), Symbol(ppt.val))

@@ -31,7 +31,7 @@ StaticLint = "4.3"
 Tokenize = "0.5.7"
 SymbolServer = "4.2"
 URIParser = "0.4.1"
-JSONRPC = "0.1"
+JSONRPC = "1"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

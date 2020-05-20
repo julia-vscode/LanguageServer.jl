@@ -94,7 +94,7 @@ end
     version::Union{String,Missing}
 end
 
-struct InitializeParams
+struct InitializeParams <: Outbound
     processId::Union{Int,Nothing}
     clientInfo::Union{InfoParams,Missing}
     rootPath::Union{DocumentUri,Nothing,Missing}

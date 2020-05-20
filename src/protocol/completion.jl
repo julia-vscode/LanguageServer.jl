@@ -41,7 +41,7 @@ const InsertTextFormats = (PlainText = 1,
     valueSet::Vector{CompletionItemTag}
 end
 
-@dict_readable struct CompletionItemClientCapabilities
+@dict_readable struct CompletionItemClientCapabilities <: Outbound
     snippetSupport::Union{Bool,Missing}
     commitCharactersSupport::Union{Bool,Missing}
     documentationFormat::Union{Vector{String},Missing}
@@ -50,11 +50,11 @@ end
     tagSupport::Union{CompletionTagClientCapabilities,Missing}
 end
 
-@dict_readable struct CompletionItemKindCapabilities
+@dict_readable struct CompletionItemKindCapabilities <: Outbound
     valueSet::Union{Vector{CompletionItemKind},Missing}
 end
 
-@dict_readable struct CompletionClientCapabilities
+@dict_readable struct CompletionClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     completionItem::Union{CompletionItemClientCapabilities,Missing}
     completionItemKind::Union{CompletionItemKindCapabilities,Missing}
@@ -74,12 +74,12 @@ struct CompletionRegistrationOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
 end
 
-@dict_readable struct CompletionContext
+@dict_readable struct CompletionContext <: Outbound
     triggerKind::CompletionTriggerKind
     triggerCharacter::Union{String,Missing}
 end
 
-@dict_readable struct CompletionParams
+@dict_readable struct CompletionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
     context::Union{CompletionContext,Missing}

@@ -51,7 +51,7 @@ end
     text::String
 end
 
-@dict_readable struct VersionedTextDocumentIdentifier
+@dict_readable struct VersionedTextDocumentIdentifier <: Outbound
     uri::DocumentUri
     version::Union{Int,Nothing}
 end
@@ -67,7 +67,7 @@ mutable struct TextDocumentEdit
     edits::Vector{TextEdit}
 end
 
-mutable struct WorkspaceEdit
+mutable struct WorkspaceEdit <: Outbound
     changes::Union{Any,Missing}
     documentChanges::Union{Vector{TextDocumentEdit},Missing}
     # documentChanges::Union{Vector{TextDocumentEdit},Vector{Union{TextDocumentEdit,CreateFile,RenameFile,DeleteFile}}}
@@ -77,7 +77,7 @@ end
     textDocument::TextDocumentItem
 end
 
-@dict_readable struct TextDocumentContentChangeEvent 
+@dict_readable struct TextDocumentContentChangeEvent  <: Outbound
     range::Union{Range,Missing}
     rangeLength::Union{Int,Missing}
     text::String
@@ -88,7 +88,7 @@ end
     contentChanges::Vector{TextDocumentContentChangeEvent}
 end
 
-@dict_readable struct DidSaveTextDocumentParams
+@dict_readable struct DidSaveTextDocumentParams <: Outbound
     textDocument::TextDocumentIdentifier
     text::Union{String,Missing}
 end

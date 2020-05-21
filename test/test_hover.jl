@@ -16,7 +16,7 @@ end
 end
 testmodule
 """
-LanguageServer.textDocument_didOpen_request(nothing, DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext)), server)
+LanguageServer.textDocument_didOpen_notification(nothing, LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext)), server)
 
 doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
 LanguageServer.parse_all(doc, server)

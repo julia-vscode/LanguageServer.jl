@@ -36,7 +36,7 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::Dict{Symbol,SymbolServer.ModuleStore}
+    symbol_store::SymbolServer.EnvStore
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
     
@@ -165,7 +165,6 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             end,
             server.err_handler
         )
-        server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
 
         server.number_of_outstanding_symserver_requests -= 1
 
@@ -258,6 +257,7 @@ function Base.run(server::LanguageServerInstance)
             msg = message.msg
 
             server.symbol_store = msg
+            server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
             roots = Document[]
             for doc in getdocuments_value(server)
                 # only do a pass on documents once

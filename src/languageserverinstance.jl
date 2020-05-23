@@ -28,7 +28,7 @@ For normal usage, the language server can be instantiated with
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
-    _jr_endpoint::JSONRPC.JSONRPCEndpoint
+    jr_endpoint::JSONRPC.JSONRPCEndpoint
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
     
@@ -134,10 +134,10 @@ end
 function create_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress
         server.current_symserver_progress_token = string(uuid4())
-        response = JSONRPC.send(server._jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(server.current_symserver_progress_token))
+        response = JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(server.current_symserver_progress_token))
 
         JSONRPC.send(
-            server._jr_endpoint,
+            server.jr_endpoint,
             progress_notification_type, 
             ProgressParams(server.current_symserver_progress_token, WorkDoneProgressBegin("Julia Language Server", missing, "Indexing packages...", missing))
         )
@@ -149,7 +149,7 @@ function destroy_symserver_progress_ui(server)
         progress_token = server.current_symserver_progress_token
         server.current_symserver_progress_token = nothing
         JSONRPC.send(
-            server._jr_endpoint,
+            server.jr_endpoint,
             progress_notification_type,
             ProgressParams(progress_token, WorkDoneProgressEnd(missing))
         )
@@ -170,7 +170,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             server.env_path,
             i-> if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
                 JSONRPC.send(
-                    server._jr_endpoint,
+                    server.jr_endpoint,
                     progress_notification_type,
                     ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
                 )
@@ -194,7 +194,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 "message"=>payload===nothing ? "" : String(take!(payload)),
                 "stacktrace"=>"")
             JSONRPC.send(
-                server._jr_endpoint,
+                server.jr_endpoint,
                 telemetry_event_notification_type,
                 error_payload
             )
@@ -204,7 +204,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 "name"=>payload.package_name,
                 "message"=>payload.stderr===nothing ? "" : String(take!(payload.stderr)))
             JSONRPC.send(
-                server._jr_endpoint,
+                server.jr_endpoint,
                 telemetry_event_notification_type,
                 error_payload
             )
@@ -228,13 +228,13 @@ Run the language `server`.
 function Base.run(server::LanguageServerInstance)
     server.status=:started
 
-    run(server._jr_endpoint)
+    run(server.jr_endpoint)
 
     trigger_symbolstore_reload(server)
 
     @async try
         while true
-            msg = JSONRPC.get_next_message(server._jr_endpoint)
+            msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
@@ -297,7 +297,7 @@ function Base.run(server::LanguageServerInstance)
         if message.type==:clientmsg
             msg = message.msg
 
-            JSONRPC.dispatch_msg(server._jr_endpoint, msg_dispatcher, msg)
+            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type==:symservmsg
             @info "Received new data from Julia Symbol Server."
             msg = message.msg

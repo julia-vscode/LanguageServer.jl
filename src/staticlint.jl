@@ -62,6 +62,6 @@ function lint!(doc, server)
     StaticLint.check_all(getcst(doc), server.lint_options, server)
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
-    # TODO Ideally we would not want to acces _jr_endpoint here
-    publish_diagnostics(doc, server, server._jr_endpoint)
+    # TODO Ideally we would not want to acces jr_endpoint here
+    publish_diagnostics(doc, server, server.jr_endpoint)
 end

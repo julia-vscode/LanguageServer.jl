@@ -1,10 +1,11 @@
-function cancel_notification(conn, params::CancelParams, server)
+function cancel_notification(params::CancelParams, server::LanguageServerInstance, conn)
 end
 
-function setTraceNotification_notification(conn, params, server)
+# TODO Provide type for params
+function setTraceNotification_notification(params, server::LanguageServerInstance, conn)
 end
 
-function julia_getCurrentBlockRange_request(conn, params::TextDocumentPositionParams, server)
+function julia_getCurrentBlockRange_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     tdpp = params
     doc = getdocument(server, URI2(tdpp.textDocument.uri))
     offset = get_offset(doc, tdpp.position)
@@ -47,7 +48,7 @@ function julia_getCurrentBlockRange_request(conn, params::TextDocumentPositionPa
     return Position(get_position_at(doc, p1)...), Position(get_position_at(doc, p2)...), Position(get_position_at(doc, p3)...)
 end
 
-function julia_activateenvironment_notification(conn, params::String, server)
+function julia_activateenvironment_notification(params::String, server::LanguageServerInstance, conn)
     server.env_path = params
 
     trigger_symbolstore_reload(server)

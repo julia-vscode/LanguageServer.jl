@@ -1,4 +1,4 @@
-function textDocument_codeAction_request(conn, params::CodeActionParams, server)
+function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     commands = Command[]
     doc = getdocument(server, URI2(params.textDocument.uri))
     offset = get_offset(doc, params.range.start)
@@ -31,7 +31,7 @@ function textDocument_codeAction_request(conn, params::CodeActionParams, server)
     return commands
 end
 
-function workspace_executeCommand_request(conn, params::ExecuteCommandParams, server) 
+function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
     uri = params.arguments[1]
     offset = params.arguments[2]
     doc = getdocument(server, URI2(uri))

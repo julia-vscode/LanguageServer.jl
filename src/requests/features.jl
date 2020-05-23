@@ -19,7 +19,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
 end
 
 
-function textDocument_signatureHelp_request(conn, params::TextDocumentPositionParams, server)
+function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     sigs = SignatureInformation[]
     offset = get_offset(doc, params.position)
@@ -66,7 +66,7 @@ function textDocument_signatureHelp_request(conn, params::TextDocumentPositionPa
     return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
 end
 
-function textDocument_definition_request(conn, params::TextDocumentPositionParams, server)
+function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
     doc = getdocument(server, URI2(params.textDocument.uri))
     offset = get_offset(doc, params.position)
@@ -146,7 +146,7 @@ function get_file_loc(x::EXPR, offset = 0, c  = nothing)
     end
 end
 
-function textDocument_formatting_request(conn, params::DocumentFormattingParams, server::LanguageServerInstance)
+function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     newcontent = DocumentFormat.format(get_text(doc), server.format_options)
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
@@ -187,11 +187,11 @@ function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
     end
 end
 
-function textDocument_references_request(conn, params::ReferenceParams, server)
+function textDocument_references_request(params::ReferenceParams, server::LanguageServerInstance, conn)
     return find_references(params.textDocument, params.position, server)
 end
 
-function textDocument_rename_request(conn, params::RenameParams, server)
+function textDocument_rename_request(params::RenameParams, server::LanguageServerInstance, conn)
     tdes = Dict{String,TextDocumentEdit}()
     locations = find_references(params.textDocument, params.position, server)
 
@@ -226,7 +226,7 @@ function get_name_of_binding(name::EXPR)
     end
 end
 
-function textDocument_documentSymbol_request(conn, params::DocumentSymbolParams, server) 
+function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     syms = SymbolInformation[]
     uri = params.textDocument.uri 
     doc = getdocument(server, URI2(uri))
@@ -300,7 +300,7 @@ function _binding_kind(b ,server)
     end
 end
 
-function julia_getModuleAt_request(conn, params::TextDocumentPositionParams, server)
+function julia_getModuleAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)

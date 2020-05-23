@@ -1,4 +1,4 @@
-function workspace_didChangeWatchedFiles_notification(conn, params::DidChangeWatchedFilesParams, server)
+function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
     for change in params.changes
         uri = change.uri
 
@@ -67,7 +67,7 @@ function workspace_didChangeWatchedFiles_notification(conn, params::DidChangeWat
     end
 end
 
-function workspace_didChangeConfiguration_notification(conn, params::DidChangeConfigurationParams, server::LanguageServerInstance)
+function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
     request_julia_config(server, conn)
 end
 
@@ -117,7 +117,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
 
 end
 
-function workspace_didChangeWorkspaceFolders_notification(conn, params::DidChangeWorkspaceFoldersParams, server)
+function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
@@ -128,7 +128,7 @@ function workspace_didChangeWorkspaceFolders_notification(conn, params::DidChang
     end
 end
 
-function workspace_symbol_request(conn, params::WorkspaceSymbolParams, server) 
+function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)
     syms = SymbolInformation[]
     for doc in getdocuments_value(server)
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query = params.query)

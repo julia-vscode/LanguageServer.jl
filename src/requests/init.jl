@@ -120,7 +120,7 @@ function load_folder(path::String, server)
 end
 
 
-function initialize_request(conn, params::InitializeParams, server)
+function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
     if ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false
         if !(params.rootUri isa Nothing)
@@ -153,7 +153,7 @@ function initialize_request(conn, params::InitializeParams, server)
 end
 
 
-function initialized_notification(conn, params::InitializedParams, server)
+function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
     server.status=:running
 
     if server.clientcapability_workspace_didChangeConfiguration
@@ -176,11 +176,13 @@ function initialized_notification(conn, params::InitializedParams, server)
     end
 end
 
-function shutdown_request(conn, params, server)
+# TODO provide type for params
+function shutdown_request(params, server::LanguageServerInstance, conn)
     return nothing
 end
 
-function exit_notification(conn, params, server)
+# TODO provide type for params
+function exit_notification(params, server::LanguageServerInstance, conn)
     server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
     exit()
 end

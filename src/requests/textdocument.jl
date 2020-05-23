@@ -1,4 +1,4 @@
-function textDocument_didOpen_notification(conn, params::DidOpenTextDocumentParams, server)
+function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     if hasdocument(server, URI2(uri))
         doc = getdocument(server, URI2(uri))
@@ -19,7 +19,7 @@ function textDocument_didOpen_notification(conn, params::DidOpenTextDocumentPara
 end
 
 
-function textDocument_didClose_notification(conn, params::DidCloseTextDocumentParams, server)
+function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
     empty!(doc.diagnostics)
@@ -42,7 +42,7 @@ function textDocument_didClose_notification(conn, params::DidCloseTextDocumentPa
 end
 
 
-function textDocument_didSave_notification(conn, params::DidSaveTextDocumentParams, server)
+function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
     if params.text isa String
@@ -55,16 +55,16 @@ function textDocument_didSave_notification(conn, params::DidSaveTextDocumentPara
 end
 
 
-function textDocument_willSave_notification(conn, params::WillSaveTextDocumentParams, server)
+function textDocument_willSave_notification(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
 end
 
 
-function textDocument_willSaveWaitUntil_request(conn, params::WillSaveTextDocumentParams, server)
+function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
     return TextEdit[]
 end
 
 
-function textDocument_didChange_notification(conn, params::DidChangeTextDocumentParams, server::LanguageServerInstance)
+function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     if params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri).")

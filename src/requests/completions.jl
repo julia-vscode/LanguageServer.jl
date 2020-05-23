@@ -1,4 +1,4 @@
-function textDocument_completion_request(conn, params::CompletionParams, server)
+function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     CIs = CompletionItem[]
     doc = getdocument(server, URI2(params.textDocument.uri))
     offset = get_offset(doc, params.position)

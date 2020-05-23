@@ -19,3 +19,29 @@ else
 end
 
 end
+
+@testset "URI comparison" begin
+
+if Sys.iswindows()
+    @test LanguageServer.escape_uri("file:///c:/foo/bar") == "file:///c%3A/foo/bar"
+    @test LanguageServer.escape_uri("file://wsl%24/foo/bar") == "file://wsl%24/foo/bar"
+    @test LanguageServer.escape_uri("file:///D:/FOO/bar") == "file:///D%3A/FOO/bar"
+
+    @test hash(LanguageServer.URI2("file:///D:/FOO/bar")) == hash(LanguageServer.URI2("file:///d%3A/FOO/bar"))
+    @test hash(LanguageServer.URI2("file:///C:/foo/space bar")) == hash(LanguageServer.URI2("file:///c%3A/foo/space%20bar"))
+    @test hash(LanguageServer.URI2("file://wsl\$/foo/bar")) == hash(LanguageServer.URI2("file://wsl%24/foo/bar"))
+
+    @test LanguageServer.URI2("file:///D:/FOO/bar") == LanguageServer.URI2("file:///d%3A/FOO/bar")
+    @test LanguageServer.URI2("file:///C:/foo/space bar") == LanguageServer.URI2("file:///c%3A/foo/space%20bar")
+    @test LanguageServer.URI2("file://wsl\$/foo/bar") == LanguageServer.URI2("file://wsl%24/foo/bar")
+else
+    @test LanguageServer.escape_uri("file:///foo/bar") == "file:///foo/bar"
+
+    @test hash(LanguageServer.URI2("file:///foo/bar")) == hash(LanguageServer.URI2("file:///foo/bar"))
+    @test hash(LanguageServer.URI2("file:///foo/space bar")) == hash(LanguageServer.URI2("file:///foo/space%20bar"))
+
+    @test LanguageServer.URI2("file:///foo/bar") == LanguageServer.URI2("file:///foo/bar")
+    @test LanguageServer.URI2("file:///foo/space bar") == LanguageServer.URI2("file:///foo/space%20bar")
+end
+
+end

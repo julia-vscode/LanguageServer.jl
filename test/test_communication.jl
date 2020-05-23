@@ -127,7 +127,7 @@ try
     endpoint = JSONRPC.JSONRPCEndpoint(client, client)
     run(endpoint)
 
-    response = JSONRPC.send_request("initialize", init_request, endpoint)
+    response = JSONRPC.send_request(endpoint, "initialize", init_request)
 
     @test_broken init_response == response
     @test response["capabilities"]["typeDefinitionProvider"] == false

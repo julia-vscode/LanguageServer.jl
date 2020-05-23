@@ -188,8 +188,7 @@ function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
 end
 
 function textDocument_references_request(conn, params::ReferenceParams, server)
-    # TODO The reference to `textDocument` here is a bug
-    return find_references(textDocument, params.position, server)
+    return find_references(params.textDocument, params.position, server)
 end
 
 function textDocument_rename_request(conn, params::RenameParams, server)

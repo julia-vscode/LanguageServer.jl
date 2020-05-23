@@ -1,7 +1,7 @@
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.runlinter = true
 
-LanguageServer.initialize_request(nothing, init_request, server)
+LanguageServer.initialize_request(init_request, server, nothing)
 
 testtext = """
 module testmodule
@@ -16,17 +16,17 @@ end
 end
 testmodule
 """
-LanguageServer.textDocument_didOpen_notification(nothing, LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext)), server)
+LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext)), server, nothing)
 
 doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
 LanguageServer.parse_all(doc, server)
 
 
-res = LanguageServer.textDocument_hover_request(nothing, LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(3, 11)), server)
+res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(3, 11)), server, nothing)
 @test res.contents.value == string(LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc), "\n```julia\nCore.Float64 <: Core.AbstractFloat\n```")
 
-res = LanguageServer.textDocument_hover_request(nothing, LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(7, 12)), server)
+res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(7, 12)), server, nothing)
 @test occursin(r"c::testtype", res.contents.value)
 
-res = LanguageServer.textDocument_hover_request(nothing, LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(9, 1)), server)
+res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(9, 1)), server, nothing)
 @test res.contents.value == "Closes module definition for `testmodule`\n"

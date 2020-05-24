@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "2.0.2-DEV"
+version = "3.0.1-DEV"
 
 [deps]
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
@@ -25,8 +25,8 @@ Sockets = "6462fe0b-24de-5631-8697-dd941f90decc"
 JSON = "0.20, 0.21"
 julia = "1"
 CSTParser = "2.2"
-DocumentFormat = "2.1"
-StaticLint = "4"
+DocumentFormat = "2.2"
+StaticLint = "4.3"
 Tokenize = "0.5.7"
 SymbolServer = "4.2"
 URIParser = "0.4.1"

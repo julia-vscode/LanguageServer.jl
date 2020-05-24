@@ -38,6 +38,7 @@ function uri2filepath(uri::AbstractString)
 end
 
 function filepath2uri(file::String)
+    isabspath(file) || throw(LSRelativePath("Relative path `$file` is not valid."))
     if Sys.iswindows()
         file = normpath(file)
         file = replace(file, "\\" => "/")
@@ -58,6 +59,13 @@ function filepath2uri(file::String)
     end
 end
 
+function escape_uri(uri::AbstractString)
+    if !startswith(uri, "file://") # escaping only file URI
+        return uri
+    end
+    escaped_uri = uri[8:end] |> URIParser.unescape |> URIParser.escape
+    return string("file://", replace(escaped_uri, "%2F" => "/"))
+end
 
 function should_file_be_linted(uri, server)
     !server.runlinter && return false
@@ -89,22 +97,6 @@ end
 const DefaultTypeConstructorLoc= let def = first(methods(Int))
     Base.find_source_file(string(def.file)), def.line
 end
-
-function is_ignored(uri, server)
-    fpath = uri2filepath(uri)
-    fpath===nothing && return true
-    fpath in server.ignorelist && return true
-    for ig in server.ignorelist
-        if !endswith(ig, ".jl")
-            if startswith(fpath, ig)
-                return true
-            end
-        end
-    end
-    return false
-end
-
-is_ignored(uri::URI2, server) = is_ignored(uri._uri, server)
 
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or

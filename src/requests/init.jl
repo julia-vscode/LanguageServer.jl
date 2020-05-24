@@ -23,7 +23,7 @@ const serverCapabilities = ServerCapabilities(
     missing,
     true,
     false,
-    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule"]),
+    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule", "FixMissingRef"]),
     false,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
@@ -134,6 +134,8 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
             push!(server.workspaceFolders, uri2filepath(wksp.uri))
         end
     end
+
+    server.clientCapabilities = r.params.capabilities
     
     if !ismissing(r.params.capabilities.window) && r.params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true

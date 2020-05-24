@@ -1,9 +1,9 @@
 import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver, getsymbolextendeds
 import StaticLint: getpath, getroot, setroot, getcst, setcst, scopepass, getserver, setserver
-hasfile(server::LanguageServerInstance, path::String) = hasdocument(server, URI2(filepath2uri(path)))
+hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, URI2(filepath2uri(path)))
 function canloadfile(server::LanguageServerInstance, path::String)
     try
-        return isfile(path)
+        return !isempty(path) && isfile(path)
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
@@ -52,4 +52,11 @@ getserver(file::Document) = file.server
 function setserver(file::Document, server::LanguageServerInstance)
     file.server = server
     return file
+end
+
+function lint!(doc, server)
+    StaticLint.check_all(getcst(doc), server.lint_options, server)
+    empty!(doc.diagnostics)
+    mark_errors(doc, doc.diagnostics)
+    publish_diagnostics(doc, server)
 end

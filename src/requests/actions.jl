@@ -21,6 +21,9 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if is_in_fexpr(x, CSTParser.defines_struct)
             push!(commands, Command("Add default constructor", "AddDefaultConstructor", arguments))
         end
+        if is_fixable_missing_ref(x, r.params.context)
+            push!(commands, Command("Fix missing reference", "FixMissingRef", arguments))
+        end
         # if r.params.range.start.line != r.params.range.stop.line # selection across _line_offsets
         #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
         # end
@@ -49,6 +52,8 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},Exec
         end
     elseif r.params.command == "WrapIfBlock"
         wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
+    elseif r.params.command == "FixMissingRef"
+        applymissingreffix(x, server)
     end
 end
 
@@ -119,23 +124,24 @@ is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser
 
 function expand_inline_func(x, id, server)
     func = _get_parent_fexpr(x, is_single_line_func)
-    sig = func.args[1]
-    op = func.args[2]
-    body = func.args[3]
-    if typof(body) == CSTParser.Block && body.args !== nothing length(body.args) == 1
+    length(func) < 3 && return 
+    sig = func[1]
+    op = func[2]
+    body = func[3]
+    if typof(body) == CSTParser.Block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
         JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
-    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && body.args isa Vector{EXPR} && length(body.args) == 3 &&
-        typof(body.args[2]) === CSTParser.Block && body.args[2].args isa Vector{EXPR}
+    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && length(body) == 3 &&
+        typof(body[2]) === CSTParser.Block && length(body[2]) > 0
         file, offset = get_file_loc(func)
         newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
-        blockoffset = offset + sig.fullspan + op.fullspan + body.args[1].fullspan
-        for i = 1:length(body.args[2].args)
-            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[2].args[i].span)])
-            blockoffset += body.args[2].args[i].fullspan
+        blockoffset = offset + sig.fullspan + op.fullspan + body[1].fullspan
+        for i = 1:length(body[2])
+            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body[2][i].span)])
+            blockoffset += body[2][i].fullspan
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
@@ -263,4 +269,37 @@ function wrap_block(x::EXPR, id, server, type)
     end
 
     JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+end
+
+
+function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
+    if !isempty(cac.diagnostics) && any(startswith(d.message, "Missing reference") for d::Diagnostic in cac.diagnostics) && CSTParser.isidentifier(x)
+        xname = StaticLint.valofid(x)
+        tls = StaticLint.retrieve_toplevel_scope(x)
+        if tls.modules !== nothing
+            for (n,m) in tls.modules
+                if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+function applymissingreffix(x, server)
+    xname = StaticLint.valofid(x)
+    file, offset = get_file_loc(x)
+    l, c = get_position_at(file, offset)
+    tls = StaticLint.retrieve_toplevel_scope(x)
+    if tls.modules !== nothing
+        for (n,m) in tls.modules
+            if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
+                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                    TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
+                ])
+                JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+            end
+        end
+    end
 end

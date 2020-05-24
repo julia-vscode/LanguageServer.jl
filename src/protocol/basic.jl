@@ -58,10 +58,8 @@ const DiagnosticSeverities = (Error = 1,
                               Hint = 4)
 
 const DiagnosticTag = Int
-const DiagnosticTags = (Error = 1,
-                        Warning = 2,
-                        Information = 3,
-                        Hint = 4)
+const DiagnosticTags = (Unnecessary = 1,
+                        Deprecated = 2)
 
 struct DiagnosticRelatedInformation
     location::Location
@@ -81,7 +79,7 @@ end
 
 ##############################################################################
 
-struct Command <: HasMissingFields # Use traits for this?
+struct Command <: Outbound # Use traits for this?
     title::String
     command::String
     arguments::Union{Vector{Any},Missing}

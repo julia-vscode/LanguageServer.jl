@@ -18,7 +18,7 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/didOpen")},DidOpenT
         
         fpath = getpath(doc)
 
-        fpath!==nothing && try_to_load_parents(fpath, server)
+        !isempty(fpath) && try_to_load_parents(fpath, server)
     end
     parse_all(doc, server)
 end

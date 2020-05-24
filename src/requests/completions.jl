@@ -347,7 +347,7 @@ function path_completion(doc, offset, rng, t, CIs)
         path, partial = _splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
         if !startswith(path, "/")
             doc_path = getpath(doc)
-            doc_path===nothing && return
+            isempty(doc_path) && return
             path = joinpath(_dirname(doc_path), path)
         end
         try

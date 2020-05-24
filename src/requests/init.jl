@@ -121,7 +121,7 @@ end
 
 
 JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params) = InitializeParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
+function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server::LanguageServerInstance)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
     if ismissing(r.params.capabilities.workspace.workspaceFolders) || r.params.capabilities.workspace.workspaceFolders == false
         if !(r.params.rootUri isa Nothing)
@@ -136,6 +136,7 @@ function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams},
     end
 
     server.clientCapabilities = r.params.capabilities
+    server.clientInfo = r.params.clientInfo
     
     if !ismissing(r.params.capabilities.window) && r.params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true

@@ -59,6 +59,7 @@ mutable struct LanguageServerInstance
     clientcapability_workspace_didChangeConfiguration::Bool
     # Can probably drop the above 2 and use the below.
     clientCapabilities::Union{ClientCapabilities,Missing}
+    clientInfo::Union{InfoParams,Missing}
 
     function LanguageServerInstance(pipe_in, pipe_out, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
@@ -83,6 +84,7 @@ mutable struct LanguageServerInstance
             nothing,
             false,
             false,
+            missing,
             missing
         )
     end

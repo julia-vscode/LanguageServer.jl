@@ -13,7 +13,9 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
         set_open_in_editor(doc, true)
         
-        try_to_load_parents(uri2filepath(uri), server)
+        fpath = getpath(doc)
+
+        !isempty(fpath) && try_to_load_parents(fpath, server)
     end
     parse_all(doc, server)
 end
@@ -138,7 +140,7 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
     CSTParser.update_span!(cst)
     doc.cst = cst
     if typof(doc.cst) === CSTParser.FileH
-        doc.cst.val = doc.path
+        doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
 end
@@ -221,7 +223,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst, ps = CSTParser.parse(ps, true)
     end
     if typof(doc.cst) === CSTParser.FileH
-        doc.cst.val = doc.path
+        doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
     
@@ -410,7 +412,7 @@ function is_parentof(parent_path, child_path, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc))
         if typof(pdoc.cst) === CSTParser.FileH
-            pdoc.cst.val = pdoc.path
+            pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)
         end
     else
@@ -418,7 +420,7 @@ function is_parentof(parent_path, child_path, server)
     end
     scopepass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
-    if any(uri2filepath(k._uri) == child_path for k in getdocuments_key(server) if !(k in previous_server_docs))
+    if any(getpath(d) == child_path for (k,d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server,URI2(filepath2uri(child_path)))
         parse_all(cdoc, server)
         scopepass(getroot(cdoc))

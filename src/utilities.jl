@@ -5,12 +5,16 @@ function uri2filepath(uri::AbstractString)
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
+    if parsed_uri.scheme!=="file"
+        return nothing
+    end
+
     path_unescaped = URIParser.unescape(parsed_uri.path)
     host_unescaped = URIParser.unescape(parsed_uri.host)
 
     value = ""
 
-    if host_unescaped!="" && length(path_unescaped)>1 && parsed_uri.scheme=="file"
+    if host_unescaped!="" && length(path_unescaped)>1
         # unc path: file://shares/c$/far/boo
         value = "//$host_unescaped$path_unescaped"
     elseif length(path_unescaped)>=3 &&
@@ -68,7 +72,7 @@ function should_file_be_linted(uri, server)
 
     uri_path = uri2filepath(uri)
 
-    if length(server.workspaceFolders)==0
+    if length(server.workspaceFolders)==0 || uri_path===nothing
         return false
     else
         return any(i->startswith(uri_path, i), server.workspaceFolders)
@@ -94,13 +98,13 @@ const DefaultTypeConstructorLoc= let def = first(methods(Int))
     Base.find_source_file(string(def.file)), def.line
 end
 
-
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or
 # the include follow logic.
 function remove_workspace_files(root, server)
     for (uri, doc) in getdocuments_pair(server)
-        fpath = uri2filepath(uri._uri)
+        fpath = getpath(doc)
+        isempty(fpath) && continue
         get_open_in_editor(doc) && continue
         for folder in server.workspaceFolders
             if startswith(fpath, folder)

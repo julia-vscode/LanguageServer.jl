@@ -115,8 +115,8 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
             try
                 if isfile(valof(x))
                     push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif isfile(joinpath(_dirname(uri2filepath(doc._uri)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(_dirname(uri2filepath(doc._uri)), valof(x))), Range(0, 0, 0, 0)))
+                elseif !isempty(getpath(doc)) && isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                    push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
                 isa(err, Base.IOError) || 

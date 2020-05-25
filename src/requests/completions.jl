@@ -346,7 +346,9 @@ function path_completion(doc, offset, rng, t, CIs)
     if t.kind == CSTParser.Tokenize.Tokens.STRING
         path, partial = _splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
         if !startswith(path, "/")
-            path = joinpath(_dirname(uri2filepath(doc._uri)), path)
+            doc_path = getpath(doc)
+            isempty(doc_path) && return
+            path = joinpath(_dirname(doc_path), path)
         end
         try
             fs = readdir(path)

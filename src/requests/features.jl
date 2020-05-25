@@ -303,8 +303,8 @@ end
 function julia_getModuleAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     offset = get_offset(doc, params.position)
-    x = get_expr1(getcst(doc), offset)
-    return get_module_of(StaticLint.retrieve_scope(x))
+    x = get_expr(getcst(doc), offset)
+    return x isa EXPR ? get_module_of(StaticLint.retrieve_scope(x)) : "Main"
 end
 
 function get_module_of(s::StaticLint.Scope, ms = [])

@@ -59,6 +59,7 @@ mutable struct LanguageServerInstance
     clientcapability_workspace_didChangeConfiguration::Bool
     # Can probably drop the above 2 and use the below.
     clientCapabilities::Union{ClientCapabilities,Missing}
+    clientInfo::Union{InfoParams,Missing}
 
     function LanguageServerInstance(pipe_in, pipe_out, env_path = "", depot_path = "", err_handler=nothing, symserver_store_path=nothing)
         new(
@@ -83,6 +84,7 @@ mutable struct LanguageServerInstance
             nothing,
             false,
             false,
+            missing,
             missing
         )
     end
@@ -162,6 +164,8 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             server.env_path,
             i-> if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token!==nothing
                 JSONRPCEndpoints.send_notification(server.jr_endpoint, "\$/progress", Dict("token" => server.current_symserver_progress_token, "value" => Dict("kind"=>"report", "message"=>"Indexing $i...")))
+            else
+                @info "Indexing $i..."
             end,
             server.err_handler
         )

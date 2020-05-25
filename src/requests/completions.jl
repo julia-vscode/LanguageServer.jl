@@ -1,8 +1,7 @@
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
+function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     CIs = CompletionItem[]
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.position)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    offset = get_offset(doc, params.position)
     rng = Range(doc, offset:offset)
     ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
     x = get_expr(getcst(doc), offset)

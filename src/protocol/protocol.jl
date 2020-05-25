@@ -58,6 +58,11 @@ macro dict_readable(arg)
 end
 
 
+mutable struct CancelParams
+    id::Union{String,Int64}
+end
+CancelParams(d::Dict) = CancelParams(d["id"])
+
 include("basic.jl")
 include("document.jl")
 include("completion.jl")
@@ -70,9 +75,5 @@ include("symbols.jl")
 include("features.jl")
 include("configuration.jl")
 include("initialize.jl")
+include("messagedefs.jl")
 
-
-mutable struct CancelParams
-    id::Union{String,Int64}
-end
-CancelParams(d::Dict) = CancelParams(d["id"])

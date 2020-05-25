@@ -11,21 +11,21 @@ const ResourceOperationKinds = (Create = "create",
                                 Rename = "rename",
                                 Delete = "delete")
 
-@dict_readable struct WorkspaceEditClientCapabilities
+@dict_readable struct WorkspaceEditClientCapabilities <: Outbound
     documentChanges::Union{Bool,Missing}
     resourceOperations::Union{Vector{ResourceOperationKind},Missing}
     failureHandling::Union{FailureHandlingKind,Missing}
 end
 
-@dict_readable struct DidChangeConfigurationClientCapabilities
+@dict_readable struct DidChangeConfigurationClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
-@dict_readable struct DidChangeWatchedFilesClientCapabilities
+@dict_readable struct DidChangeWatchedFilesClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
-@dict_readable struct WorkspaceClientCapabilities
+@dict_readable struct WorkspaceClientCapabilities <: Outbound
     applyEdit::Union{Bool,Missing}
     workspaceEdit::Union{WorkspaceEditClientCapabilities,Missing}
     didChangeConfiguration::Union{DidChangeConfigurationClientCapabilities,Missing}
@@ -36,7 +36,7 @@ end
     configuration::Union{Bool,Missing}
 end
 
-@dict_readable struct TextDocumentSyncClientCapabilities
+@dict_readable struct TextDocumentSyncClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     willSave::Union{Bool,Missing}
     willSaveWaitUntil::Union{Bool,Missing}
@@ -48,13 +48,13 @@ end
     valueSet::Vector{DiagnosticTag}
 end
 
-@dict_readable struct PublishDiagnosticsClientCapabilities
+@dict_readable struct PublishDiagnosticsClientCapabilities <: Outbound
     relatedInformation::Union{Bool,Missing}
     tagSupport::Union{TagClientCapabilities,Missing}
     versionSupport::Union{Bool,Missing}
 end
 
-@dict_readable struct TextDocumentClientCapabilities
+@dict_readable struct TextDocumentClientCapabilities <: Outbound
     synchronization::Union{TextDocumentSyncClientCapabilities,Missing}
     completion::Union{CompletionClientCapabilities,Missing}
     hover::Union{HoverClientCapabilities,Missing}
@@ -79,22 +79,22 @@ end
     selectionRange::Union{SelectionRangeClientCapabilities,Missing}
 end
 
-@dict_readable struct WindowClientCapabilities
+@dict_readable struct WindowClientCapabilities <: Outbound
     workDoneProgress::Union{Bool,Missing}
 end
 
-@dict_readable struct ClientCapabilities
+@dict_readable struct ClientCapabilities <: Outbound
     workspace::Union{WorkspaceClientCapabilities,Missing}
     textDocument::Union{TextDocumentClientCapabilities,Missing}
     window::Union{WindowClientCapabilities,Missing}
     experimental::Union{Any,Missing}
 end
-@dict_readable struct InfoParams
+@dict_readable struct InfoParams <: Outbound
     name::String
     version::Union{String,Missing}
 end
 
-struct InitializeParams
+struct InitializeParams <: Outbound
     processId::Union{Int,Nothing}
     clientInfo::Union{InfoParams,Missing}
     rootPath::Union{DocumentUri,Nothing,Missing}
@@ -192,4 +192,5 @@ struct InitializeResult <: Outbound
 end
 
 ##############################################################################
-struct InitializedParams end
+@dict_readable struct InitializedParams
+end

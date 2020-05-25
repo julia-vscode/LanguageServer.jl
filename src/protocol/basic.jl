@@ -4,7 +4,7 @@ struct ProgressParams{T}
     value::T
 end
 
-mutable struct DocumentFilter
+mutable struct DocumentFilter <: Outbound
     language::Union{String,Missing}
     scheme::Union{String,Missing}
     pattern::Union{String,Missing}
@@ -150,7 +150,7 @@ end
     token::ProgressToken
 end
 
-struct WorkDoneProgressBegin
+struct WorkDoneProgressBegin <: Outbound
     kind::String
     title::String
     cancellable::Union{Bool,Missing}
@@ -161,7 +161,7 @@ struct WorkDoneProgressBegin
     end
 end
 
-struct WorkDoneProgressReport
+struct WorkDoneProgressReport <: Outbound
     kind::String
     cancellable::Union{Bool,Missing}
     message::Union{String,Missing}
@@ -171,7 +171,7 @@ struct WorkDoneProgressReport
     end
 end
 
-struct WorkDoneProgressEnd
+struct WorkDoneProgressEnd <: Outbound
     kind::String
     message::Union{String,Missing}
     function WorkDoneProgressEnd(message)
@@ -179,17 +179,17 @@ struct WorkDoneProgressEnd
     end
 end
 
-struct WorkDoneProgressParams
+struct WorkDoneProgressParams <: Outbound
     workDoneToken::Union{ProgressToken,Missing}
 end
 
-struct WorkDoneProgressOptions
+struct WorkDoneProgressOptions <: Outbound
     workDoneProgress::Union{Bool,Missing}
 end
 
 ##############################################################################
 # Partial
 
-struct PartialResultParams
+struct PartialResultParams <: Outbound
     partialResultToken::Union{ProgressToken,Missing}
 end

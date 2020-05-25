@@ -3,7 +3,7 @@ const DocumentHighlightKinds = (Text = 1,
                                 Read = 2,
                                 Write = 3)
 
-@dict_readable struct DocumentHighlightClientCapabilities
+@dict_readable struct DocumentHighlightClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
@@ -16,7 +16,7 @@ struct DocumentHighlightRegistrationOptions <: Outbound
     workDoneProgress::Union{Bool, Missing}
 end
 
-@dict_readable struct DocumentHighlightParams
+@dict_readable struct DocumentHighlightParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
     workDoneToken::Union{ProgressToken, Missing}

@@ -300,10 +300,9 @@ function _binding_kind(b ,server)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("julia/getModuleAt")}}, params) = TextDocumentPositionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("julia/getModuleAt")},TextDocumentPositionParams}, server)
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.position)
+function julia_getModuleAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    offset = get_offset(doc, params.position)
     x = get_expr(getcst(doc), offset)
     return x isa EXPR ? get_module_of(StaticLint.retrieve_scope(x)) : "Main"
 end

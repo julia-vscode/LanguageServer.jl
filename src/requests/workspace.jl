@@ -72,7 +72,7 @@ function workspace_didChangeConfiguration_notification(params::DidChangeConfigur
 end
 
 function request_julia_config(server::LanguageServerInstance, conn)
-    server.clientCapabilities.workspace.configuration === false && return # Or !== true?
+    server.clientCapabilities.workspace.configuration !== true && return
     
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions

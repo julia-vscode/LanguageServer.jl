@@ -1,11 +1,10 @@
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/codeAction")}}, params) = CodeActionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeActionParams}, server)
+function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     commands = Command[]
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.range.start)
-    offset1 = get_offset(doc, r.params.range.stop)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    offset = get_offset(doc, params.range.start)
+    offset1 = get_offset(doc, params.range.stop)
     x = get_expr(getcst(doc), offset)
-    arguments = Any[r.params.textDocument.uri, offset, offset1] # use the same arguments for all commands 
+    arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands 
     if x isa EXPR
         if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
             push!(commands, Command("Explicitly import used package variables.", "ExplicitPackageVarImport", arguments))
@@ -21,10 +20,10 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
         if is_in_fexpr(x, CSTParser.defines_struct)
             push!(commands, Command("Add default constructor", "AddDefaultConstructor", arguments))
         end
-        if is_fixable_missing_ref(x, r.params.context)
+        if is_fixable_missing_ref(x, params.context)
             push!(commands, Command("Fix missing reference", "FixMissingRef", arguments))
         end
-        # if r.params.range.start.line != r.params.range.stop.line # selection across _line_offsets
+        # if params.range.start.line != params.range.stop.line # selection across _line_offsets
         #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
         # end
     end
@@ -32,28 +31,27 @@ function process(r::JSONRPC.Request{Val{Symbol("textDocument/codeAction")},CodeA
     return commands
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/executeCommand")}}, params) = ExecuteCommandParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/executeCommand")},ExecuteCommandParams}, server) 
-    uri = r.params.arguments[1]
-    offset = r.params.arguments[2]
+function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
+    uri = params.arguments[1]
+    offset = params.arguments[2]
     doc = getdocument(server, URI2(uri))
     x = get_expr(getcst(doc), offset)
-    if r.params.command == "ExplicitPackageVarImport"
-        explicitly_import_used_variables(x, r.id + 1, server)
-    elseif r.params.command == "ExpandFunction"
-        expand_inline_func(x, r.id + 1, server)
-    elseif r.params.command == "AddDefaultConstructor"
-        add_default_constructor(x, r.id + 1, server)
-    elseif r.params.command == "ReexportModule"
+    if params.command == "ExplicitPackageVarImport"
+        explicitly_import_used_variables(x, server, conn)
+    elseif params.command == "ExpandFunction"
+        expand_inline_func(x, server, conn)
+    elseif params.command == "AddDefaultConstructor"
+        add_default_constructor(x, server, conn)
+    elseif params.command == "ReexportModule"
         if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)
-            reexport_module(x, r.id + 1, server)
+            reexport_module(x, server, conn)
         elseif refof(x).val isa SymbolServer.ModuleStore 
-            reexport_package(x, r.id + 1, server)
+            reexport_package(x, server, conn)
         end
-    elseif r.params.command == "WrapIfBlock"
-        wrap_block(get_expr(getcst(doc), r.params.arguments[2]:r.params.arguments[3]), r.id + 1, server, :if)
-    elseif r.params.command == "FixMissingRef"
-        applymissingreffix(x, server)
+    elseif params.command == "WrapIfBlock"
+        wrap_block(get_expr(getcst(doc), params.arguments[2]:params.arguments[3]), server, :if, conn)
+    elseif params.command == "FixMissingRef"
+        applymissingreffix(x, server, conn)
     end
 end
 
@@ -67,7 +65,7 @@ function find_using_statement(x::EXPR)
     return nothing
 end
 
-function explicitly_import_used_variables(x::EXPR, id, server)
+function explicitly_import_used_variables(x::EXPR, server, conn)
     !(refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore) && return
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
@@ -117,12 +115,12 @@ function explicitly_import_used_variables(x::EXPR, id, server)
         return
     end
   
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
 end
 
 is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
 
-function expand_inline_func(x, id, server)
+function expand_inline_func(x, server, conn)
     func = _get_parent_fexpr(x, is_single_line_func)
     length(func) < 3 && return 
     sig = func[1]
@@ -133,7 +131,7 @@ function expand_inline_func(x, id, server)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
-        JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+        JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
     elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && length(body) == 3 &&
         typof(body[2]) === CSTParser.Block && length(body[2]) > 0
         file, offset = get_file_loc(func)
@@ -145,12 +143,12 @@ function expand_inline_func(x, id, server)
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
-        JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+        JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
     end
 end
 
 
-function add_default_constructor(x::EXPR, id, server)
+function add_default_constructor(x::EXPR, server, conn)
     sexpr = _get_parent_fexpr(x, CSTParser.defines_struct)
     !(sexpr.args isa Vector{EXPR}) && return
     ismutable = length(sexpr.args) == 5
@@ -173,7 +171,7 @@ function add_default_constructor(x::EXPR, id, server)
     offset += last(block.args).span
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
 
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 function is_in_fexpr(x::EXPR, f)
@@ -206,7 +204,7 @@ function get_next_line_offset(x)
     return insertpos
 end
 
-function reexport_package(x::EXPR, id, server)
+function reexport_package(x::EXPR, server, conn)
     mod::SymbolServer.ModuleStore = refof(x).val
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
@@ -217,7 +215,7 @@ function reexport_package(x::EXPR, id, server)
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n,v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 # TODO move to StaticLint
@@ -237,7 +235,7 @@ function find_exported_names(x::EXPR)
     return exported_vars
 end
 
-function reexport_module(x::EXPR, id, server)
+function reexport_module(x::EXPR, server, conn)
     using_stmt = parentof(x)
     mod_expr = refof(x).val isa StaticLint.Binding ? refof(x).val.val : refof(x).val
     (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
@@ -253,11 +251,11 @@ function reexport_module(x::EXPR, id, server)
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])
 
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
-function wrap_block(x, id, server, type) end
-function wrap_block(x::EXPR, id, server, type)
+function wrap_block(x, server, type, conn) end
+function wrap_block(x::EXPR, server, type, conn)
     file, offset = get_file_loc(x) # rese
     l0, _ = get_position_at(file, offset)
     l1, _ = get_position_at(file, offset + x.span)
@@ -268,7 +266,7 @@ function wrap_block(x::EXPR, id, server, type)
         ])
     end
 
-    JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 
@@ -287,7 +285,7 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
     return false
 end
 
-function applymissingreffix(x, server)
+function applymissingreffix(x, server, conn)
     xname = StaticLint.valofid(x)
     file, offset = get_file_loc(x)
     l, c = get_position_at(file, offset)
@@ -298,7 +296,7 @@ function applymissingreffix(x, server)
                 tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
                     TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
                 ])
-                JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/applyEdit", ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
+                JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
             end
         end
     end

@@ -4,15 +4,14 @@ using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
+import JSONRPC
 export LanguageServerInstance
 
 include("exception_types.jl")
-include("jsonrpcendpoint.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")
-include("jsonrpc.jl")
 include("staticlint.jl")
 
 include("requests/init.jl")

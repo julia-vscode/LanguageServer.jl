@@ -12,6 +12,7 @@ UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
 SymbolServer = "cf896787-08d5-524d-9de7-132aaa0cb996"
 URIParser = "30578b45-9adc-5946-b283-645ec420af67"
+JSONRPC = "b9b8584e-8fd3-41f9-ad0c-7255d428e418"
 
 [extras]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
@@ -30,6 +31,7 @@ StaticLint = "4.3"
 Tokenize = "0.5.7"
 SymbolServer = "4.2"
 URIParser = "0.4.1"
+JSONRPC = "1"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

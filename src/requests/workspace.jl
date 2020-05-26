@@ -101,17 +101,22 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ]))
     
     if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
-        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? false : DocumentFormat.default_options[i] for (i,a) in enumerate(response[1:11])]...)
-        server.runlinter = isnothing(response[22]) ? false : true
-        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? false : StaticLint.default_options[i] for (i,a) in enumerate(response[12:21])]...)
+        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i,a) in enumerate(response[1:11])]...)
+        new_runlinter = isnothing(response[22]) ? false : true
+        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i,a) in enumerate(response[12:21])]...)
     else
-        server.format_options = DocumentFormat.FormatOptions(response[1:11]...)	    
-        server.runlinter = something(response[22], true)
+        server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
+        new_runlinter = something(response[22], true)
         new_SL_opts = StaticLint.LintOptions(response[12:21]...)
     end
-    server.lint_missingrefs = Symbol(something(response[23], :all))
+    new_lint_missingrefs = Symbol(something(response[23], :all))
+
+    rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
+        server.runlinter != new_runlinter || server.lint_missingrefs != new_lint_missingrefs
+
     server.lint_options = new_SL_opts
-    rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions))
+    server.runlinter = new_runlinter
+    server.lint_missingrefs = new_lint_missingrefs
 
     if rerun_lint
         for doc in getdocuments_value(server)

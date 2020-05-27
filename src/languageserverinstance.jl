@@ -122,7 +122,7 @@ end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
     doc = getdocument(server, uri)
-
+    StaticLint.clear_meta(getcst(doc))
     delete!(server._documents, uri)
 
     for d in getdocuments_value(server)

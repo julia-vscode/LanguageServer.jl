@@ -7,7 +7,7 @@ function get_signatures(b::StaticLint.Binding, sigs, server)
             args = []
             if sig.args !== nothing
                 for i = 2:length(sig.args)
-                    if bindingof(sig.args[i]) !== nothing 
+                    if bindingof(sig.args[i]) !== nothing
                         push!(args, bindingof(sig.args[i]))
                     end
                 end
@@ -74,14 +74,14 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     if x isa EXPR && StaticLint.hasref(x)
         # Replace with own function to retrieve references (with loop saftey-breaker)
         b = refof(x)
-        while  b isa StaticLint.Binding && b.val isa StaticLint.Binding # TODO: replace with function from StaticLint
+        while b isa StaticLint.Binding && b.val isa StaticLint.Binding # TODO: replace with function from StaticLint
             b = b.val
         end
         if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
             for m in b.methods
                 try
                     if isfile(m.file)
-                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line -1, 0)))
+                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
                     end
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -119,14 +119,14 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
                     push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
-                isa(err, Base.IOError) || 
-                    isa(err, Base.SystemError) || 
-                    (VERSION==v"1.2.0" && isa(err, ErrorException) && err.msg=="type Nothing has no field captures ") ||
+                isa(err, Base.IOError) ||
+                    isa(err, Base.SystemError) ||
+                    (VERSION == v"1.2.0" && isa(err, ErrorException) && err.msg == "type Nothing has no field captures ") ||
                     rethrow()
             end
         end
     end
-    
+
     return locations
 end
 
@@ -172,7 +172,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     return locations
 end
 
-# If 
+# If
 function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
     if !from_end && (b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType)
         b = StaticLint.last_method(b)
@@ -203,7 +203,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
             tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
         end
     end
-    
+
     return WorkspaceEdit(nothing, collect(values(tdes)))
 end
 
@@ -214,7 +214,7 @@ function is_valid_binding_name(name::EXPR)
     (typof(name) === CSTParser.OPERATOR) ||
     (typof(name) === CSTParser.NONSTDIDENTIFIER && length(name) == 2 && valof(name[2]) isa String && !isempty(valof(name[2])))
 end
-function get_name_of_binding(name::EXPR) 
+function get_name_of_binding(name::EXPR)
     if typof(name) === CSTParser.IDENTIFIER
         valof(name)
     elseif typof(name) === CSTParser.OPERATOR
@@ -228,12 +228,12 @@ end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     syms = SymbolInformation[]
-    uri = params.textDocument.uri 
+    uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
 
     bs = collect_bindings_w_loc(getcst(doc))
     for x in bs
-        p,b = x[1], x[2]
+        p, b = x[1], x[2]
         !(b.val isa EXPR) && continue
         !is_valid_binding_name(b.name) && continue
         push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
@@ -270,7 +270,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{Unit
     return bindings
 end
 
-function _binding_kind(b ,server)
+function _binding_kind(b, server)
     if b isa StaticLint.Binding
         if b.type == nothing
             return 13
@@ -284,18 +284,18 @@ function _binding_kind(b ,server)
             return 16
         elseif b.type == StaticLint.CoreTypes.DataType
             return 23
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore
         return 2
     elseif b isa SymbolServer.MethodStore
-        return 6        
+        return 6
     elseif b isa SymbolServer.FunctionStore
         return 12
     elseif b isa SymbolServer.DataTypeStore
         return 23
-    else 
+    else
         return 13
     end
 end

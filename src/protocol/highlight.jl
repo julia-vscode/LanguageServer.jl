@@ -8,22 +8,22 @@ const DocumentHighlightKinds = (Text = 1,
 end
 
 struct DocumentHighlightOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentHighlightRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentHighlightParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
     partialResultToken::Union{ProgressToken,Missing}
 end
 
 struct DocumentHighlight <: Outbound
     range::Range
-    kind::Union{DocumentHighlightKind, Missing}
+    kind::Union{DocumentHighlightKind,Missing}
 end

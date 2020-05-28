@@ -24,8 +24,7 @@ end
 function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
-    empty!(doc.diagnostics)
-    publish_diagnostics(doc, server, conn)
+    
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
     else
@@ -37,6 +36,8 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
             for (u,d) in getdocuments_pair(server)
                 if d.root == doc.root
                     deletedocument!(server, u)
+                    empty!(doc.diagnostics)
+                    publish_diagnostics(doc, server, conn)
                 end
             end
         end

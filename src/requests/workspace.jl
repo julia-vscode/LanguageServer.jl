@@ -71,6 +71,11 @@ function workspace_didChangeConfiguration_notification(params::DidChangeConfigur
     request_julia_config(server, conn)
 end
 
+@static if VERSION<v"1.1"
+    isnothing(::Any) = false
+    isnothing(::Nothing) = true
+end
+
 function request_julia_config(server::LanguageServerInstance, conn)
     server.clientCapabilities.workspace.configuration !== true && return
     

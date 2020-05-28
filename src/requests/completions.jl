@@ -394,7 +394,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                 rootmod = StaticLint.getsymbolserver(server)[Symbol(ppt.val)]
                 for (n,m) in rootmod.vals
                     n = String(n)
-                    if startswith(n, t.val)
+                    if startswith(n, t.val) && !startswith(n, "#")
                         push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                     end
                 end
@@ -403,7 +403,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
                 for (n,m) in refof(import_root).vals
                     n = String(n)
-                    if startswith(n, t.val)
+                    if startswith(n, t.val) && !startswith(n, "#")
                         push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
                     end
                 end

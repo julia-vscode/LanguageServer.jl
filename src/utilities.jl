@@ -324,7 +324,7 @@ function resolve_op_ref(x::EXPR)
                 end
             end
         end
-        scope.ismodule && return false
+        CSTParser.defines_module(scope.expr) && return false
         scope = StaticLint.parentof(scope)
     end
 end

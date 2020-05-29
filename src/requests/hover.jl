@@ -54,7 +54,8 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
             try
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
             catch err
-                throw(LSHoverError(string("get_hover failed to convert the following to `Expr`: ", b.val)))
+                doc1, offset1 = get_file_loc(b.val)
+                throw(LSHoverError(string("get_hover failed to convert the following to coode: ", String(codeunits(get_text(doc1))[offset1 .+ (1:b.val.span)]))))
             end
         end
     elseif b.val isa SymbolServer.SymStore

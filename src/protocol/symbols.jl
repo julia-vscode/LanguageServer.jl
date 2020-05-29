@@ -42,12 +42,12 @@ end
 end
 
 struct DocumentSymbolOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentSymbolRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct WorkspaceSymbolOptions <: Outbound
@@ -63,19 +63,19 @@ end
     textDocument::TextDocumentIdentifier
     workDoneToken::Union{ProgressToken,Missing}
     partialResultToken::Union{ProgressToken,Missing}
-end 
+end
 
 @dict_readable struct WorkspaceSymbolParams <: Outbound
-    query::String 
+    query::String
     workDoneToken::Union{ProgressToken,Missing}
     partialResultToken::Union{ProgressToken,Missing}
-end 
+end
 
 struct SymbolInformation <: Outbound
-    name::String 
+    name::String
     kind::SymbolKind
     deprecated::Union{Bool,Missing}
-    location::Location 
+    location::Location
     containerName::Union{String,Missing}
 end
 

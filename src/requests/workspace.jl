@@ -25,10 +25,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                         deletedocument!(server, URI2(uri))
                         continue
                     end
-        
+
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
-                    parse_all(doc, server)    
+                    parse_all(doc, server)
                 end
             else
                 filepath = uri2filepath(uri)
@@ -40,7 +40,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     continue
                 end
-    
+
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
                 parse_all(doc, server)
@@ -71,20 +71,20 @@ function workspace_didChangeConfiguration_notification(params::DidChangeConfigur
     request_julia_config(server, conn)
 end
 
-@static if VERSION<v"1.1"
+@static if VERSION < v"1.1"
     isnothing(::Any) = false
     isnothing(::Nothing) = true
 end
 
 function request_julia_config(server::LanguageServerInstance, conn)
     server.clientCapabilities.workspace.configuration !== true && return
-    
+
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
         ConfigurationItem(missing, "julia.format.indents"),
         ConfigurationItem(missing, "julia.format.ops"),
         ConfigurationItem(missing, "julia.format.tuples"),
-        ConfigurationItem(missing, "julia.format.curly"), 
+        ConfigurationItem(missing, "julia.format.curly"),
         ConfigurationItem(missing, "julia.format.calls"),
         ConfigurationItem(missing, "julia.format.iterOps"),
         ConfigurationItem(missing, "julia.format.comments"),
@@ -104,11 +104,11 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.run"),
         ConfigurationItem(missing, "julia.lint.missingrefs")
         ]))
-    
+
     if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
-        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i,a) in enumerate(response[1:11])]...)
+        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:11])]...)
         new_runlinter = isnothing(response[22]) ? false : true
-        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i,a) in enumerate(response[12:21])]...)
+        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[12:21])]...)
     else
         server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
         new_runlinter = something(response[22], true)

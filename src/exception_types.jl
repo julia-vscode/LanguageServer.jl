@@ -46,7 +46,7 @@ function Base.showerror(io::IO, ex::LSPositionToOffsetException)
     print(io, ex.msg)
 end
 
-struct LSRelativePath <:Exception
+struct LSRelativePath <: Exception
     msg::AbstractString
 end
 

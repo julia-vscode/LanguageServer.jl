@@ -30,7 +30,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 if b isa SymbolServer.SymStore
                     documentation = get_hover(b, documentation, server)
                     break
-                elseif b.val isa EXPR 
+                elseif b.val isa EXPR
                     if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
                         # Binding has preceding docs so use them..
                         documentation = string(documentation, Expr(parentof(b.val).args[2]))
@@ -84,12 +84,12 @@ function get_fcall_position(x::EXPR, documentation)
             for i = 1:length(parentof(x).args)
                 arg = parentof(x).args[i]
                 if arg == x
-                    arg_i = div(i-1, 2)
+                    arg_i = div(i - 1, 2)
                 end
             end
             arg_i == 0 && return documentation
             fname = CSTParser.get_name(parentof(x))
-            if StaticLint.hasref(fname) && 
+            if StaticLint.hasref(fname) &&
                 (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
                 dt_ex = refof(fname).val
                 args = CSTParser.defines_mutable(dt_ex) ? dt_ex.args[4] : dt_ex.args[3]
@@ -114,12 +114,12 @@ end
 # info on what expression the current token (e.g. a ], ), `end`, etc.)
 get_closer_hover(x, documentation) = documentation
 function get_closer_hover(x::EXPR, documentation)
-    if parentof(x) isa EXPR 
+    if parentof(x) isa EXPR
         if kindof(x) === CSTParser.Tokens.END
             if typof(parentof(x)) === CSTParser.FunctionDef
                 documentation = string(documentation, "Closes function definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
             elseif (typof(parentof(x)) === CSTParser.ModuleH || typof(parentof(x)) === CSTParser.ModuleH) && length(parentof(x).args) > 1
-                    documentation = string(documentation, "Closes module definition for `", Expr(parentof(x).args[2]), "`\n")
+                documentation = string(documentation, "Closes module definition for `", Expr(parentof(x).args[2]), "`\n")
             elseif typof(parentof(x)) === CSTParser.Struct
                 documentation = string(documentation, "Closes struct definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
             elseif typof(parentof(x)) === CSTParser.Mutable

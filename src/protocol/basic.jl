@@ -1,4 +1,4 @@
-const ProgressToken = Union{Int, String}
+const ProgressToken = Union{Int,String}
 struct ProgressParams{T}
     token::ProgressToken
     value::T
@@ -20,7 +20,7 @@ Position(line::Integer) = Position(line, 0)
 
 struct Range
     start::Position
-    stop::Position 
+    stop::Position
 end
 # Special case to account for use of 'end' as a fieldname in LSP
 Range(d::Dict) = Range(Position(d["start"]), Position(d["end"]))
@@ -50,7 +50,7 @@ end
 end
 
 ##############################################################################
-# Diagnostics 
+# Diagnostics
 const DiagnosticSeverity = Int
 const DiagnosticSeverities = (Error = 1,
                               Warning = 2,
@@ -97,8 +97,8 @@ const MarkupKinds = (PlainText = "plaintext",
                      Markdown = "markdown")
 
 mutable struct MarkupContent
-   kind::MarkupKind
-   value::String
+    kind::MarkupKind
+    value::String
 end
 MarkupContent(value::String) = MarkupContent(MarkupKinds.Markdown, value)
 

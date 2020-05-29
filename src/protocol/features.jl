@@ -4,7 +4,7 @@ struct PublishDiagnosticsParams <: Outbound
     diagnostics::Vector{Diagnostic}
 end
 
-import Base.==  
+import Base.==
 ==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 ==(m1::MarkedString, m2::MarkedString) = m1.language == m2.language && m1.value == m2.value
 
@@ -36,18 +36,18 @@ end
 
 struct CodeActionOptions <: Outbound
     codeActionKinds::Union{Vector{CodeActionKind},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CodeActionRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     codeActionKinds::Union{Vector{CodeActionKind},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct CodeActionContext <: Outbound
     diagnostics::Vector{Diagnostic}
-    only::Union{Vector{CodeActionKind}, Missing}
+    only::Union{Vector{CodeActionKind},Missing}
 end
 
 @dict_readable struct CodeActionParams
@@ -74,13 +74,13 @@ end
 
 struct CodeLensOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CodeLensRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct CodeLensParams
@@ -103,13 +103,13 @@ end
 
 struct DocumentLinkOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentLinkRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentLinkParams
@@ -131,19 +131,19 @@ end
 end
 
 struct DocumentColorOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentColorRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentColorParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 struct Color <: Outbound
@@ -183,20 +183,20 @@ end
 end
 
 struct RenameOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     prepareProvider::Union{Bool,Missing}
 end
 
 struct RenameRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     prepareProvider::Union{Bool,Missing}
 end
 
 @dict_readable struct RenameParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
     newName::String
 end
 
@@ -220,19 +220,19 @@ const FoldingRangeKinds = (Comment = "comment",
 end
 
 struct FoldingRangeOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct FoldingRangeRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     id::Union{String,Missing}
 end
 
 @dict_readable struct FoldingRangeParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 struct FoldingRange <: Outbound
@@ -250,18 +250,18 @@ end
 end
 
 struct SelectionRangeOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct SelectionRangeRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
 end
 
 @dict_readable struct SelectionRangeParams <: Outbound
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
     textDocument::TextDocumentIdentifier
     positions::Vector{Position}
 end
@@ -284,12 +284,12 @@ struct ExecuteCommandOptions <: Outbound
 end
 
 mutable struct ExecuteCommandRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     commands::Vector{String}
 end
 
 @dict_readable struct ExecuteCommandParams <: Outbound
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
     command::String
     arguments::Union{Vector{Any},Missing}
 end

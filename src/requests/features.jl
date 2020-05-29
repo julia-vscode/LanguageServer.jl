@@ -61,7 +61,7 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     if typof(x) === CSTParser.Tokens.LPAREN
         arg = 0
     else
-        arg = sum(!(typof(a) === CSTParser.PUNCTUATION) for a in parentof(x).args) - 1
+        arg = sum(CSTParser.is_comma(a) for a in parentof(x).args)
     end
     return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
 end

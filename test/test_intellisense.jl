@@ -15,6 +15,10 @@ function testfunction(a, b::Float64, c::testtype)
 end
 end
 testmodule
+f(a,b,c) = 1
+f()
+f(1,)
+f(1,2,)
 """
 LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, testtext)), server, nothing)
 
@@ -30,3 +34,12 @@ res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPosit
 
 res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(9, 1)), server, nothing)
 @test res.contents.value == "Closes module definition for `testmodule`\n"
+
+res = LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(12, 2)), server, nothing)
+@test res.activeParameter == 0
+
+res = LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(13, 4)), server, nothing)
+@test res.activeParameter == 1
+
+res = LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(14, 6)), server, nothing)
+@test res.activeParameter == 2

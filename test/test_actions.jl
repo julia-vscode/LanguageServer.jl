@@ -10,5 +10,5 @@ LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocum
 
 doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
 
-@test !isempty(LanguageServer.textDocument_codeAction_request(LanguageServer.CodeActionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Range(LanguageServer.Position(0,1),LanguageServer.Position(0,1)), LanguageServer.CodeActionContext(LanguageServer.Diagnostic[doc.diagnostics[1]], missing)), server, nothing))
+@test !isempty(LanguageServer.textDocument_codeAction_request(LanguageServer.CodeActionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Range(LanguageServer.Position(0, 1), LanguageServer.Position(0, 1)), LanguageServer.CodeActionContext(LanguageServer.Diagnostic[doc.diagnostics[1]], missing)), server, nothing))
 

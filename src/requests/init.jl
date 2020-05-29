@@ -37,7 +37,7 @@ function isjuliabasedir(path)
         if "base" in fs && isdir(joinpath(path, "base"))
             return isjuliabasedir(joinpath(path, "base"))
         end
-        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
+        return all(f->f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
@@ -136,7 +136,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
 
     server.clientCapabilities = params.capabilities
     server.clientInfo = params.clientInfo
-    
+
     if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
@@ -155,7 +155,7 @@ end
 
 
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
-    server.status=:running
+    server.status = :running
 
     if server.clientcapability_workspace_didChangeConfiguration
         JSONRPC.send(
@@ -171,7 +171,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
     request_julia_config(server, conn)
-    
+
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)
     end

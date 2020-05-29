@@ -5,7 +5,7 @@ function uri2filepath(uri::AbstractString)
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
-    if parsed_uri.scheme!=="file"
+    if parsed_uri.scheme !== "file"
         return nothing
     end
 
@@ -14,13 +14,13 @@ function uri2filepath(uri::AbstractString)
 
     value = ""
 
-    if host_unescaped!="" && length(path_unescaped)>1
+    if host_unescaped != "" && length(path_unescaped) > 1
         # unc path: file://shares/c$/far/boo
         value = "//$host_unescaped$path_unescaped"
-    elseif length(path_unescaped)>=3 &&
-            path_unescaped[1]=='/' &&
+    elseif length(path_unescaped) >= 3 &&
+            path_unescaped[1] == '/' &&
             isascii(path_unescaped[2]) && isletter(path_unescaped[2]) &&
-            path_unescaped[3]==':'
+            path_unescaped[3] == ':'
         # windows drive letter: file:///c:/far/boo
         value = lowercase(path_unescaped[2]) * path_unescaped[3:end]
     else
@@ -46,7 +46,7 @@ function filepath2uri(file::String)
         file = replace(file, "%2F" => "/")
         if startswith(file, "//")
             # UNC path \\foo\bar\foobar
-            return string("file://",file[3:end])
+            return string("file://", file[3:end])
         else
             # windows drive letter path
             return string("file:///", file)
@@ -72,7 +72,7 @@ function should_file_be_linted(uri, server)
 
     uri_path = uri2filepath(uri)
 
-    if length(server.workspaceFolders)==0 || uri_path===nothing
+    if length(server.workspaceFolders) == 0 || uri_path === nothing
         return false
     else
         return any(i->startswith(uri_path, i), server.workspaceFolders)
@@ -94,7 +94,7 @@ end
 
 
 # Find location of default datatype constructor
-const DefaultTypeConstructorLoc= let def = first(methods(Int))
+const DefaultTypeConstructorLoc = let def = first(methods(Int))
     Base.find_source_file(string(def.file)), def.line
 end
 
@@ -118,20 +118,20 @@ end
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)
     out = []
-    for (uri,doc) in getdocuments_pair(server)
+    for (uri, doc) in getdocuments_pair(server)
         occursin(r, uri._uri) && push!(out, doc)
     end
     return out
 end
 
 function _offset_unitrange(r::UnitRange{Int}, first = true)
-    return r.start-1:r.stop
+    return r.start - 1:r.stop
 end
 
 function get_toks(doc, offset)
     ts = CSTParser.Tokenize.tokenize(get_text(doc))
-    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
-    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0,0), (0,0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
+    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
+    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
 
     while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
@@ -208,8 +208,8 @@ function get_expr1(x, offset, pos = 0)
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i-1], offset, pos)
+                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
@@ -220,15 +220,15 @@ function get_expr1(x, offset, pos = 0)
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i-1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i-1], offset, pos)
+                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
+                        return get_expr1(x.args[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
                 elseif offset == pos + arg.span
                     return get_expr1(arg, offset, pos)
                 elseif offset == pos + arg.fullspan
-                elseif pos+arg.span < offset < pos + arg.fullspan
+                elseif pos + arg.span < offset < pos + arg.fullspan
                     return nothing
                 end
             end
@@ -257,15 +257,15 @@ end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
     function _splitdir_nodrive(a::String, b::String)
-        m = match(r"^(.*?)([/\\]+)([^/\\]*)$",b)
-        m === nothing && return (a,b)
+        m = match(r"^(.*?)([/\\]+)([^/\\]*)$", b)
+        m === nothing && return (a, b)
         a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
         a, String(m.captures[3])
     end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
         a, b = String(m.captures[1]), String(m.captures[2])
-        _splitdir_nodrive(a,b)[1]
+        _splitdir_nodrive(a, b)[1]
     end
     function _splitdrive(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
@@ -273,7 +273,7 @@ end
     end
     function _splitdir(path::String)
         a, b = _splitdrive(path)
-        _splitdir_nodrive(a,b)
+        _splitdir_nodrive(a, b)
     end
 else
     _dirname = dirname
@@ -281,12 +281,12 @@ else
 end
 
 function valid_id(s::String)
-    !isempty(s) && all(i == 1 ? Base.is_id_start_char(c) : Base.is_id_char(c) for (i,c) in enumerate(s))
+    !isempty(s) && all(i == 1 ? Base.is_id_start_char(c) : Base.is_id_char(c) for (i, c) in enumerate(s))
 end
 
 function sanitize_docstring(doc::String)
-    doc = replace(doc, "```jldoctest"=>"```julia")
-    doc = replace(doc,"\n#"=>"\n###")
+    doc = replace(doc, "```jldoctest" => "```julia")
+    doc = replace(doc, "\n#" => "\n###")
     return doc
 end
 
@@ -314,7 +314,7 @@ function resolve_op_ref(x::EXPR)
             StaticLint.setref!(x, scope.names[mn])
             return true
         elseif scope.modules isa Dict && length(scope.modules) > 0
-            for (_,m) in scope.modules
+            for (_, m) in scope.modules
                 if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
                     StaticLint.setref!(x, m[Symbol(mn)])
                     return true

@@ -5,11 +5,11 @@
 end
 
 struct DeclarationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DeclarationRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
 end
@@ -17,8 +17,8 @@ end
 @dict_readable struct DeclarationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 ##############################################################################
@@ -29,19 +29,19 @@ end
 end
 
 struct DefinitionOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DefinitionRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 ##############################################################################
@@ -52,20 +52,20 @@ end
 end
 
 struct TypeDefinitionOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct TypeDefinitionRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
-    id::Union{String, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
+    id::Union{String,Missing}
 end
 
 @dict_readable struct TypeDefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 ##############################################################################
@@ -76,20 +76,20 @@ end
 end
 
 struct ImplementationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct ImplementationRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
-    id::Union{String, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
+    id::Union{String,Missing}
 end
 
 @dict_readable struct ImplementationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
 end
 
 ##############################################################################
@@ -99,12 +99,12 @@ end
 end
 
 struct ReferenceOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct ReferenceRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct ReferenceContext
@@ -114,7 +114,7 @@ end
 @dict_readable struct ReferenceParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{ProgressToken,Missing}
     context::ReferenceContext
 end

@@ -48,7 +48,7 @@ macro dict_readable(arg)
                 f = :(dict[$fieldname])
             end
             if field_allows_missing(field)
-                f = :(haskey(dict,$fieldname) ? $f : missing)
+                f = :(haskey(dict, $fieldname) ? $f : missing)
             end
             push!(fex.args, f)
         end

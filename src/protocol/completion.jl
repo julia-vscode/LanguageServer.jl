@@ -64,7 +64,7 @@ end
 struct CompletionOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
     triggerCharacters::Union{Vector{String},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CompletionRegistrationOptions <: Outbound

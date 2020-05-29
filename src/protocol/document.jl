@@ -11,7 +11,7 @@ struct CreateFile <: Outbound
     kind::String
     uri::DocumentUri
     options::Union{CreateFileOptions,Missing}
-    CreateFile(uri, options=missing) = new("create", uri, options)
+    CreateFile(uri, options = missing) = new("create", uri, options)
 end
 
 struct RenameFileOptions <: Outbound
@@ -24,7 +24,7 @@ struct RenameFile <: Outbound
     oldUri::DocumentUri
     newUri::DocumentUri
     options::Union{RenameFileOptions,Missing}
-    RenameFile(uri, options=missing) = new("rename", uri, options)
+    RenameFile(uri, options = missing) = new("rename", uri, options)
 end
 
 struct DeleteFileOptions <: Outbound
@@ -36,7 +36,7 @@ struct DeleteFile <: Outbound
     kind::String
     uri::DocumentUri
     options::Union{DeleteFileOptions,Missing}
-    DeleteFile(uri, options=missing) = new("delete", uri, options)
+    DeleteFile(uri, options = missing) = new("delete", uri, options)
 end
 
 

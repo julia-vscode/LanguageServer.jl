@@ -4,13 +4,13 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
     offset = get_offset(doc, params.range.start)
     offset1 = get_offset(doc, params.range.stop)
     x = get_expr(getcst(doc), offset)
-    arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands 
+    arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands
     if x isa EXPR
-        if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore 
+        if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore
             push!(commands, Command("Explicitly import used package variables.", "ExplicitPackageVarImport", arguments))
         end
         if parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding
-            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore 
+            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore
                 push!(commands, Command("Re-export package variables.", "ReexportModule", arguments))
             end
         end
@@ -45,7 +45,7 @@ function workspace_executeCommand_request(params::ExecuteCommandParams, server::
     elseif params.command == "ReexportModule"
         if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)
             reexport_module(x, server, conn)
-        elseif refof(x).val isa SymbolServer.ModuleStore 
+        elseif refof(x).val isa SymbolServer.ModuleStore
             reexport_package(x, server, conn)
         end
     elseif params.command == "WrapIfBlock"
@@ -69,7 +69,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     !(refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore) && return
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
-    
+
     tdes = Dict{String,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
 
@@ -80,7 +80,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
             childname = parentof(ref).args[3].args[1]
             StaticLint.hasref(childname) && refof(childname) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
             !haskey(refof(x).val.vals, valof(childname)) && continue # skip, perhaps mark as missing ref ?
-            
+
             file, offset = get_file_loc(ref)
             if !haskey(tdes, file._uri)
                 tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
@@ -90,7 +90,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
         end
     end
     isempty(tdes) && return
-    
+
     # Add `using x: vars...` statement
     if parentof(using_stmt) isa EXPR && (typof(parentof(using_stmt)) === CSTParser.Block || typof(parentof(using_stmt)) === CSTParser.FileH)
         # this should cover all cases
@@ -102,10 +102,10 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
             end
         end
         i1 == 0 && return WorkspaceEdit(missing, missing)
-        
+
         file, offset = get_file_loc(using_stmt)
         insertpos = get_next_line_offset(using_stmt)
-        insertpos == -1 && return 
+        insertpos == -1 && return
 
         if !haskey(tdes, file._uri)
             tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
@@ -114,7 +114,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     else
         return
     end
-  
+
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
 end
 
@@ -122,7 +122,7 @@ is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser
 
 function expand_inline_func(x, server, conn)
     func = _get_parent_fexpr(x, is_single_line_func)
-    length(func) < 3 && return 
+    length(func) < 3 && return
     sig = func[1]
     op = func[2]
     body = func[3]
@@ -210,21 +210,21 @@ function reexport_package(x::EXPR, server, conn)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return 
-    
+
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n,v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
+        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n, v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, TextDocumentEdit[tde])))
 end
 
 # TODO move to StaticLint
-# to be called where typof(x) === CSTParser.ModuleH/BareModule 
+# to be called where typof(x) === CSTParser.ModuleH/BareModule
 function find_exported_names(x::EXPR)
     exported_vars = EXPR[]
     for i in 1:length(x.args[3].args)
         expr = x.args[3].args[i]
-        if typof(expr) == CSTParser.Export && 
+        if typof(expr) == CSTParser.Export &&
             for j = 2:length(expr)
                 if CSTParser.isidentifier(expr.args[j]) && StaticLint.hasref(expr.args[j])
                     push!(exported_vars, expr.args[j])
@@ -241,11 +241,11 @@ function reexport_module(x::EXPR, server, conn)
     (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
     # find export EXPR
     exported_names = find_exported_names(mod_expr)
-    
+
     isempty(exported_names) && return
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
-    insertpos == -1 && return 
+    insertpos == -1 && return
     names = filter!(s->!isempty(s), collect(CSTParser.str_value.(exported_names)))
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
@@ -275,7 +275,7 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
         xname = StaticLint.valofid(x)
         tls = StaticLint.retrieve_toplevel_scope(x)
         if tls.modules !== nothing
-            for (n,m) in tls.modules
+            for (n, m) in tls.modules
                 if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
                     return true
                 end
@@ -291,7 +291,7 @@ function applymissingreffix(x, server, conn)
     l, c = get_position_at(file, offset)
     tls = StaticLint.retrieve_toplevel_scope(x)
     if tls.modules !== nothing
-        for (n,m) in tls.modules
+        for (n, m) in tls.modules
             if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
                 tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
                     TextEdit(Range(file, offset .+ (0:0)), string(n, "."))

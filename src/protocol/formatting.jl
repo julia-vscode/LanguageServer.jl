@@ -4,12 +4,12 @@
 end
 
 struct DocumentFormattingOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentFormattingRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct FormattingOptions <: Outbound
@@ -32,12 +32,12 @@ end
 end
 
 struct DocumentRangeFormattingOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentRangeFormattingRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentRangeFormattingParams

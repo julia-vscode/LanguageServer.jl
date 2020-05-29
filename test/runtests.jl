@@ -11,8 +11,8 @@ end
 @testset "communication" begin
 include("test_communication.jl")
 end
-@testset "hover" begin
-include("test_hover.jl")
+@testset "intellisense" begin
+include("test_intellisense.jl")
 end
 @testset "edit" begin
 include("test_edit.jl")

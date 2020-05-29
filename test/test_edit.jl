@@ -43,7 +43,7 @@ mktempdir() do dir
         @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
         @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
         @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
-        @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]  
+        @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]
 
         @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
         @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]

@@ -43,7 +43,11 @@ macro dict_readable(arg)
             if fieldtype isa Expr && fieldtype.head == :curly && fieldtype.args[2] != :Any
                 f = :($(fieldtype.args[2]).(dict[$fieldname]))
             elseif fieldtype != :Any
-                f = :($(fieldtype)(dict[$fieldname]))
+                f = if field_allows_missing(field)
+                    :($fieldtype(dict[$fieldname] isa Nothing ? missing : dict[$fieldname]))
+                else
+                    :($fieldtype(dict[$fieldname]))
+                end
             else
                 f = :(dict[$fieldname])
             end

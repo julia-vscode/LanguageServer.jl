@@ -1,7 +1,7 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x)
+    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)

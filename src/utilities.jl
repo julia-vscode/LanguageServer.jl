@@ -300,7 +300,7 @@ function parent_file(x::EXPR)
     end
 end
 
-function resolve_op_ref(x::EXPR)
+function resolve_op_ref(x::EXPR, server)
     StaticLint.hasref(x) && return true
     typof(x) !== CSTParser.OPERATOR && return false
     pf = parent_file(x)
@@ -308,23 +308,26 @@ function resolve_op_ref(x::EXPR)
     scope = StaticLint.retrieve_scope(x)
     scope === nothing && return false
 
-    mn = CSTParser.str_value(x)
-    while scope isa StaticLint.Scope
-        if StaticLint.scopehasbinding(scope, mn)
-            StaticLint.setref!(x, scope.names[mn])
-            return true
-        elseif scope.modules isa Dict && length(scope.modules) > 0
-            for (_, m) in scope.modules
-                if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                    StaticLint.setref!(x, m[Symbol(mn)])
-                    return true
-                elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                    StaticLint.setref!(x, m.names[mn])
-                    return true
-                end
+    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, server)
+end
+
+function op_resolve_up_scopes(x, mn, scope, server)
+    if StaticLint.scopehasbinding(scope, mn)
+        StaticLint.setref!(x, scope.names[mn])
+        return true
+    elseif scope.modules isa Dict && length(scope.modules) > 0
+        for (_, m) in scope.modules
+            if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
+                StaticLint.setref!(x, maybe_lookup(m[Symbol(mn)], server))
+                return true
+            elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
+                StaticLint.setref!(x, maybe_lookup(m.names[mn], server))
+                return true
             end
         end
-        CSTParser.defines_module(scope.expr) && return false
-        scope = StaticLint.parentof(scope)
     end
+    CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
+    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), server)
 end
+
+maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbolserver(server), true) : x # TODO: needs to go to SymbolServer

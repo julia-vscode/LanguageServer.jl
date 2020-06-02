@@ -170,7 +170,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function(i)
+            function (i)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
                     JSONRPC.send(
                         server.jr_endpoint,

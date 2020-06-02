@@ -274,7 +274,7 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
     if !isempty(cac.diagnostics) && any(startswith(d.message, "Missing reference") for d::Diagnostic in cac.diagnostics) && CSTParser.isidentifier(x)
         xname = StaticLint.valofid(x)
         tls = StaticLint.retrieve_toplevel_scope(x)
-        if tls.modules !== nothing
+        if tls isa StaticLint.Scope && tls.modules !== nothing
             for (n, m) in tls.modules
                 if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
                     return true

@@ -63,103 +63,87 @@ function latex_completions(doc, offset, partial, CIs)
     end
 end
 
-function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-    length(spartial) == 0 && return
-    fc = first(spartial)
-    if startswith("abstract", spartial)
-        push!(CIs, CompletionItem("abstract", 14, "abstract", TextEdit(Range(doc, offset:offset), "abstract type \$0 end"[length(spartial) + 1:end])))
+macro snippet!(word, snippet)
+    esc(:(@inbounds push!(CIs, CompletionItem($word, 14, $word, TextEdit(Range(doc, offset:offset), $snippet[length(s) + 1:end])))))
+end
+
+function kw_completion(doc, s, ppt, pt, t, CIs, offset)
+    isempty(s) && return
+    fc = first(s)
+    if startswith("abstract", s)
+        @snippet!("abstract", "abstract type \$0 end")
     elseif fc == 'b'
-        if startswith("baremodule", spartial)
-            push!(CIs, CompletionItem("baremodule", 14, "baremodule", TextEdit(Range(doc, offset:offset), "baremodule \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("begin", spartial)
-            push!(CIs, CompletionItem("begin", 14, "begin", TextEdit(Range(doc, offset:offset), "begin\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("break", spartial)
-            push!(CIs, CompletionItem("break", 14, "break", TextEdit(Range(doc, offset:offset), "break"[length(spartial) + 1:end])))
+        if startswith("baremodule", s)
+            @snippet!("baremodule", "baremodule \$0\nend")
+        elseif startswith("begin", s)
+            @snippet!("begin", "begin\n\t\$0\nend")
+        elseif startswith("break", s)
+            @snippet!("break", "break")
         end
     elseif fc == 'c'
-        if startswith("catch", spartial)
-            push!(CIs, CompletionItem("catch", 14, "catch", TextEdit(Range(doc, offset:offset), "catch"[length(spartial) + 1:end])))
+        if startswith("catch", s)
+            @snippet!("catch", "catch")
+        elseif startswith("const", s)
+            @snippet!("const", "const \$0")
+        elseif startswith("continue", s)
+            @snippet!("continue", "continue")
         end
-        if startswith("const", spartial)
-            push!(CIs, CompletionItem("const", 14, "const", TextEdit(Range(doc, offset:offset), "const \$0"[length(spartial) + 1:end])))
-        end
-        if startswith("continue", spartial)
-            push!(CIs, CompletionItem("continue", 14, "continue", TextEdit(Range(doc, offset:offset), "continue"[length(spartial) + 1:end])))
-        end
-    elseif startswith("do", spartial)
-        push!(CIs, CompletionItem("do", 14, "do", TextEdit(Range(doc, offset:offset), "do \$0\n end"[length(spartial) + 1:end])))
+    elseif startswith("do", s)
+        @snippet!("do", "do \$1\n\t\$0\nend")
     elseif fc == 'e'
-        if startswith("else", spartial)
-            push!(CIs, CompletionItem("else", 14, "else", TextEdit(Range(doc, offset:offset), "else"[length(spartial) + 1:end])))
-        end
-        if startswith("elseif", spartial)
-            push!(CIs, CompletionItem("elseif", 14, "elseif", TextEdit(Range(doc, offset:offset), "elseif"[length(spartial) + 1:end])))
-        end
-        if startswith("end", spartial)
-            push!(CIs, CompletionItem("end", 14, "end", TextEdit(Range(doc, offset:offset), "end"[length(spartial) + 1:end])))
-        end
-        if startswith("export", spartial)
-            push!(CIs, CompletionItem("export", 14, "export", TextEdit(Range(doc, offset:offset), "export \$0"[length(spartial) + 1:end])))
+        if startswith("else", s)
+            @snippet!("else", "else")
+        elseif startswith("elseif", s)
+            @snippet!("elseif", "elseif")
+        elseif startswith("end", s)
+            @snippet!("end", "end")
+        elseif startswith("export", s)
+            @snippet!("export", "export \$0")
         end
     elseif fc == 'f'
-        if startswith("finally", spartial)
-            push!(CIs, CompletionItem("finally", 14, "finally", TextEdit(Range(doc, offset:offset), "finally"[length(spartial) + 1:end])))
+        if startswith("finally", s)
+            @snippet!("finally", "finally")
+        elseif startswith("for", s)
+            @snippet!("for", "for \$1 in \$2\n\t\$0\nend")
+        elseif startswith("function", s)
+            @snippet!("function", "function \$1(\$2)\n\t\$0\nend")
         end
-        if startswith("for", spartial)
-            push!(CIs, CompletionItem("for", 14, "for", TextEdit(Range(doc, offset:offset), "for \$1 in \$2\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("function", spartial)
-            push!(CIs, CompletionItem("function", 14, "function", TextEdit(Range(doc, offset:offset), "function \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("global", spartial)
-        push!(CIs, CompletionItem("global", 14, "global", TextEdit(Range(doc, offset:offset), "global \$0\n"[length(spartial) + 1:end])))
+    elseif startswith("global", s)
+        @snippet!("global", "global \$0")
     elseif fc == 'i'
-        if startswith("if", spartial)
-            push!(CIs, CompletionItem("if", 14, "if", TextEdit(Range(doc, offset:offset), "if \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("import", spartial)
-            push!(CIs, CompletionItem("import", 14, "import", TextEdit(Range(doc, offset:offset), "import \$0\n"[length(spartial) + 1:end])))
-        end
-        if startswith("importall", spartial)
-            push!(CIs, CompletionItem("importall", 14, "importall", TextEdit(Range(doc, offset:offset), "importall \$0\n"[length(spartial) + 1:end])))
+        if startswith("if", s)
+            @snippet!("if", "if \$0\nend")
+        elseif startswith("import", s)
+            @snippet!("import", "import \$0")
         end
     elseif fc == 'l'
-        if startswith("let", spartial)
-            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("local", spartial)
-            push!(CIs, CompletionItem("local", 14, "local", TextEdit(Range(doc, offset:offset), "local \$0\n"[length(spartial) + 1:end])))
+        if startswith("let", s)
+            @snippet!("let", "let \$1\n\t\$0\nend")
+        elseif startswith("local", s)
+            @snippet!("local", "local \$0")
         end
     elseif fc == 'm'
-        if startswith("macro", spartial)
-            push!(CIs, CompletionItem("macro", 14, "macro", TextEdit(Range(doc, offset:offset), "macro \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
+        if startswith("macro", s)
+            @snippet!("macro", "macro \$1(\$2)\n\t\$0\nend")
+        elseif startswith("module", s)
+            @snippet!("module", "module \$0\nend")
+        elseif startswith("mutable", s)
+            @snippet!("mutable", "mutable struct \$1\n\t\$0\nend")
         end
-        if startswith("module", spartial)
-            push!(CIs, CompletionItem("module", 14, "module", TextEdit(Range(doc, offset:offset), "module \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("mutable", spartial)
-            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("outer", spartial)
-        push!(CIs, CompletionItem("outer", 14, "outer", TextEdit(Range(doc, offset:offset), "outer"[length(spartial) + 1:end])))
-    elseif startswith("primitive", spartial)
-        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("quote", spartial)
-        push!(CIs, CompletionItem("quote", 14, "quote", TextEdit(Range(doc, offset:offset), "quote\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("return", spartial)
-        push!(CIs, CompletionItem("return", 14, "return", TextEdit(Range(doc, offset:offset), "return \$0"[length(spartial) + 1:end])))
-    elseif startswith("struct", spartial)
-        push!(CIs, CompletionItem("struct", 14, "struct", TextEdit(Range(doc, offset:offset), "struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif fc == 't'
-        if startswith("try", spartial)
-            push!(CIs, CompletionItem("try", 14, "try", TextEdit(Range(doc, offset:offset), "try \$1\n    \$0\ncatch\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("using", spartial)
-        push!(CIs, CompletionItem("using", 14, "using", TextEdit(Range(doc, offset:offset), "using \$0\n"[length(spartial) + 1:end])))
-    elseif startswith("while", spartial)
-        push!(CIs, CompletionItem("while", 14, "while", TextEdit(Range(doc, offset:offset), "while \$1\n    \$0\nend"[length(spartial) + 1:end])))
+    elseif startswith("primitive", s)
+        @snippet!("primitive", "primitive type \$0 end")
+    elseif startswith("quote", s)
+        @snippet!("quote", "quote\n\t\$0\nend")
+    elseif startswith("return", s)
+        @snippet!("return", "return \$0")
+    elseif startswith("struct", s)
+        @snippet!("struct", "struct \$1\n\t\$0\nend")
+    elseif startswith("try", s)
+        @snippet!("try", "try \$1\n\t\$0\ncatch\nend")
+    elseif startswith("using", s)
+        @snippet!("using", "using \$0")
+    elseif startswith("while", s)
+        @snippet!("while", "while \$1\n\t\$0\nend")
     end
 end
 

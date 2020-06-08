@@ -75,22 +75,33 @@ function get_hover(b::SymbolServer.SymStore, documentation::String, server)
 end
 
 const JULIA_DIR = normpath(joinpath(Sys.BINDIR, Base.DATAROOTDIR, "julia"))
-const METHOD_REGEX = r"\[(?<num>\d+)\] (?<sig>.+) in (?<mod>.+) at (?<file>.+):(?<line>\d+)$"
 
-function get_hover(fs::SymbolServer.FunctionStore, documentation::String, server)
-    if !isempty(fs.doc)
-        documentation = string(documentation, fs.doc, "\n")
+function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
+    if !isempty(f.doc)
+        documentation = string(documentation, f.doc, "\n")
     end
-    for line in split(sprint(print, fs), '\n')
-        if (m = match(METHOD_REGEX, line)) !== nothing
-            text = string(replace(m[:file], JULIA_DIR => ""), ':', m[:line])
-            # VSCode markdown doesn't seem to be able to handle line number in links
-            # link = string(m[:file], ':', m[:line])
-            link = m[:file]
-            documentation = string(documentation, "- [$(m[:num])] `$(m[:sig])` in `$(m[:mod])` at [$(text)]($(link))", '\n')
-        else
-            documentation = string(documentation, line, '\n')
+
+    documentation = string(documentation, "`$(f.name)` is a `Function`.\n")
+    nm = length(f.methods)
+    documentation = string(documentation, "**$(nm)** method", nm == 1 ? "" : "s", " for function ", '`', f.name, '`', '\n')
+    for (i, m) in enumerate(f.methods)
+        io = IOBuffer()
+        print(io, m.name, "(")
+        for i = 1:length(m.sig)
+            if m.sig[i][1] != Symbol("#unused#")
+                print(io, m.sig[i][1])
+            end
+            print(io, "::", m.sig[i][2])
+            i ≠ length(m.sig) && print(io, ", ")
         end
+        print(io, ")")
+        sig = String(take!(io))
+        mod = m.mod
+        text = string(replace(normpath(m.file), JULIA_DIR => ""), ':', m.line)
+        # VSCode markdown doesn't seem to be able to handle line number in links
+        # link = string(normpath(m.file), ':', m.line)
+        link = normpath(m.file)
+        documentation = string(documentation, "$(i). `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
     end
     return documentation
 end

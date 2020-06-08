@@ -66,12 +66,33 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
     return documentation
 end
 
+# print(io, x::SymStore) methods are defined in SymbolServer
 function get_hover(b::SymbolServer.SymStore, documentation::String, server)
     if !isempty(b.doc)
         documentation = string(documentation, b.doc, "\n")
     end
     documentation = string(documentation, "```julia\n", b, "\n```")
-    # print(io, x::SymStore) methods are defined in SymbolServer
+end
+
+const JULIA_DIR = normpath(joinpath(Sys.BINDIR, Base.DATAROOTDIR, "julia"))
+const METHOD_REGEX = r"\[(?<num>\d+)\] (?<sig>.+) in (?<mod>.+) at (?<file>.+):(?<line>\d+)$"
+
+function get_hover(fs::SymbolServer.FunctionStore, documentation::String, server)
+    if !isempty(fs.doc)
+        documentation = string(documentation, fs.doc, "\n")
+    end
+    for line in split(sprint(print, fs), '\n')
+        if (m = match(METHOD_REGEX, line)) !== nothing
+            text = string(replace(m[:file], JULIA_DIR => ""), ':', m[:line])
+            # VSCode markdown doesn't seem to be able to handle line number in links
+            # link = string(m[:file], ':', m[:line])
+            link = m[:file]
+            documentation = string(documentation, "- [$(m[:num])] `$(m[:sig])` in `$(m[:mod])` at [$(text)]($(link))", '\n')
+        else
+            documentation = string(documentation, line, '\n')
+        end
+    end
+    return documentation
 end
 
 get_fcall_position(x, documentation) = documentation

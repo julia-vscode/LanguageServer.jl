@@ -90,7 +90,8 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.format.comments"),
         ConfigurationItem(missing, "julia.format.docs"),
         ConfigurationItem(missing, "julia.format.lineends"),
-        ConfigurationItem(missing, "julia.format.kw"),
+        ConfigurationItem(missing, "julia.format.keywords"),
+        ConfigurationItem(missing, "julia.format.kwspacing"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),
@@ -106,15 +107,15 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ]))
 
     if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
-        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:11])]...)
-        new_runlinter = isnothing(response[22]) ? false : true
-        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[12:21])]...)
+        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:12])]...)
+        new_runlinter = isnothing(response[23]) ? false : true
+        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[13:22])]...)
     else
-        server.format_options = DocumentFormat.FormatOptions(response[1:11]...)
-        new_runlinter = something(response[22], true)
-        new_SL_opts = StaticLint.LintOptions(response[12:21]...)
+        server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
+        new_runlinter = something(response[23], true)
+        new_SL_opts = StaticLint.LintOptions(response[13:22]...)
     end
-    new_lint_missingrefs = Symbol(something(response[23], :all))
+    new_lint_missingrefs = Symbol(something(response[24], :all))
 
     rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
         server.runlinter != new_runlinter || server.lint_missingrefs != new_lint_missingrefs

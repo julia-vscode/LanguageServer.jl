@@ -97,7 +97,7 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         print(io, ")")
         sig = String(take!(io))
         mod = m.mod
-        text = string(replace(normpath(m.file), JULIA_DIR => ""), ':', m.line)
+        text = string(replace(m.file, SymbolServer.JULIA_DIR => ""), ':', m.line)
         # VSCode markdown doesn't seem to be able to handle line number in links
         # link = string(normpath(m.file), ':', m.line)
         link = normpath(m.file)

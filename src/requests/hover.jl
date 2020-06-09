@@ -84,15 +84,16 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
     documentation = string(documentation, "`$(f.name)` is a `Function`.\n")
     nm = length(f.methods)
     documentation = string(documentation, "**$(nm)** method", nm == 1 ? "" : "s", " for function ", '`', f.name, '`', '\n')
-    for (i, m) in enumerate(f.methods)
+    for m in f.methods
         io = IOBuffer()
         print(io, m.name, "(")
-        for i = 1:length(m.sig)
-            if m.sig[i][1] != Symbol("#unused#")
-                print(io, m.sig[i][1])
+        nsig = length(m.sig)
+        for (i,sig) = enumerate(m.sig)
+            if sig[1] ≠ Symbol("#unused#")
+                print(io, sig[1])
             end
-            print(io, "::", m.sig[i][2])
-            i ≠ length(m.sig) && print(io, ", ")
+            print(io, "::", sig[2])
+            i ≠ nsig && print(io, ", ")
         end
         print(io, ")")
         sig = String(take!(io))
@@ -101,7 +102,7 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         # VSCode markdown doesn't seem to be able to handle line number in links
         # link = string(normpath(m.file), ':', m.line)
         link = normpath(m.file)
-        documentation = string(documentation, "$(i). `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
+        documentation = string(documentation, "- `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
     end
     return documentation
 end

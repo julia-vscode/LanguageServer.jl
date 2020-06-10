@@ -74,8 +74,6 @@ function get_hover(b::SymbolServer.SymStore, documentation::String, server)
     documentation = string(documentation, "```julia\n", b, "\n```")
 end
 
-const JULIA_DIR = normpath(joinpath(Sys.BINDIR, Base.DATAROOTDIR, "julia"))
-
 function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
     if !isempty(f.doc)
         documentation = string(documentation, f.doc, "\n")

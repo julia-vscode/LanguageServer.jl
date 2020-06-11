@@ -86,7 +86,7 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         io = IOBuffer()
         print(io, m.name, "(")
         nsig = length(m.sig)
-        for (i,sig) = enumerate(m.sig)
+        for (i, sig) = enumerate(m.sig)
             if sig[1] ≠ Symbol("#unused#")
                 print(io, sig[1])
             end

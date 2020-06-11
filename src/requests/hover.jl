@@ -66,12 +66,43 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
     return documentation
 end
 
+# print(io, x::SymStore) methods are defined in SymbolServer
 function get_hover(b::SymbolServer.SymStore, documentation::String, server)
     if !isempty(b.doc)
         documentation = string(documentation, b.doc, "\n")
     end
     documentation = string(documentation, "```julia\n", b, "\n```")
-    # print(io, x::SymStore) methods are defined in SymbolServer
+end
+
+function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
+    if !isempty(f.doc)
+        documentation = string(documentation, f.doc, "\n")
+    end
+
+    documentation = string(documentation, "`$(f.name)` is a `Function`.\n")
+    nm = length(f.methods)
+    documentation = string(documentation, "**$(nm)** method", nm == 1 ? "" : "s", " for function ", '`', f.name, '`', '\n')
+    for m in f.methods
+        io = IOBuffer()
+        print(io, m.name, "(")
+        nsig = length(m.sig)
+        for (i,sig) = enumerate(m.sig)
+            if sig[1] ≠ Symbol("#unused#")
+                print(io, sig[1])
+            end
+            print(io, "::", sig[2])
+            i ≠ nsig && print(io, ", ")
+        end
+        print(io, ")")
+        sig = String(take!(io))
+        mod = m.mod
+        text = string(m.file, ':', m.line)
+        # VSCode markdown doesn't seem to be able to handle line number in links
+        # link = string(normpath(m.file), ':', m.line)
+        link = normpath(m.file)
+        documentation = string(documentation, "- `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
+    end
+    return documentation
 end
 
 get_fcall_position(x, documentation) = documentation

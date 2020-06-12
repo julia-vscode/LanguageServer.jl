@@ -24,6 +24,7 @@ const workspace_applyEdit_request_type = JSONRPC.RequestType("workspace/applyEdi
 const workspace_configuration_request_type = JSONRPC.RequestType("workspace/configuration", ConfigurationParams, Vector{Any})
 
 const julia_getModuleAt_request_type = JSONRPC.RequestType("julia/getModuleAt", TextDocumentPositionParams, String)
+const julia_getDocAt_request_type = JSONRPC.RequestType("julia/getDocAt", TextDocumentPositionParams, String)
 const julia_getCurrentBlockRange_request_type = JSONRPC.RequestType("julia/getCurrentBlockRange", TextDocumentPositionParams, Position)
 const julia_activateenvironment_notification_type = JSONRPC.NotificationType("julia/activateenvironment", String)
 

@@ -276,6 +276,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_rename_request_type] = (conn, params)->textDocument_rename_request(params, server, conn)
     msg_dispatcher[textDocument_documentSymbol_request_type] = (conn, params)->textDocument_documentSymbol_request(params, server, conn)
     msg_dispatcher[julia_getModuleAt_request_type] = (conn, params)->julia_getModuleAt_request(params, server, conn)
+    msg_dispatcher[julia_getDocAt_request_type] = (conn, params)->julia_getDocAt_request(params, server, conn)
     msg_dispatcher[textDocument_hover_request_type] = (conn, params)->textDocument_hover_request(params, server, conn)
     msg_dispatcher[initialize_request_type] = (conn, params)->initialize_request(params, server, conn)
     msg_dispatcher[initialized_notification_type] = (conn, params)->initialized_notification(params, server, conn)
@@ -323,5 +324,3 @@ function Base.run(server::LanguageServerInstance)
         end
     end
 end
-
-

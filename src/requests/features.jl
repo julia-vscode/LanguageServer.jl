@@ -317,3 +317,38 @@ function get_module_of(s::StaticLint.Scope, ms = [])
         return isempty(ms) ? "Main" : join(ms, ".")
     end
 end
+
+using Base.Docs, Markdown
+using Markdown: MD, HorizontalRule
+
+function julia_getDocAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    x = get_expr1(getcst(doc), get_offset(doc, params.position))
+    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
+    documentation = get_hover(x, "", server)
+    md = Markdown.parse(documentation)
+    return webview_html(md)
+end
+
+const CODE_LANG_REGEX = r"\<code class\=\"language-(?<lang>(?!\>).+)\"\>"
+
+function webview_html(md)
+    # HACK goes on ...
+    s = html(md)
+    if haskey(md.meta, :module)
+        mod = md.meta[:module]
+        newhref = string("julia-vscode", '/', mod)
+        s = replace(s, "<a href=\"@ref\"" => "<a href=\"$newhref\"")
+    end
+    s = replace(s, CODE_LANG_REGEX => annotate_highlight_js)
+    return s
+end
+
+function annotate_highlight_js(s)
+    m::RegexMatch = match(CODE_LANG_REGEX, s)
+    lang = m[:lang]
+    if lang == "jldoctest"
+        lang = "julia-repl"
+    end
+    return "<code class=\"language-$(lang) hljs\">"
+end

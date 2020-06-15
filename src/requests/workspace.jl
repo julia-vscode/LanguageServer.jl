@@ -91,7 +91,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.format.docs"),
         ConfigurationItem(missing, "julia.format.lineends"),
         ConfigurationItem(missing, "julia.format.keywords"),
-        ConfigurationItem(missing, "julia.format.kwspacing"),
+        ConfigurationItem(missing, "julia.format.kwarg"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),

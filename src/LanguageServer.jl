@@ -1,6 +1,6 @@
 module LanguageServer
 import URIParser
-using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
+using JSON, REPL, CSTParser, JuliaFormatter, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
@@ -11,6 +11,7 @@ include("exception_types.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")
 include("document.jl")
+include("formatoptions.jl")
 include("languageserverinstance.jl")
 include("staticlint.jl")
 

@@ -40,7 +40,7 @@ mutable struct LanguageServerInstance
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
 
-    format_options::DocumentFormat.FormatOptions
+    format_options::FormatOptions
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
@@ -73,7 +73,7 @@ mutable struct LanguageServerInstance
             deepcopy(SymbolServer.stdlibs),
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
-            DocumentFormat.FormatOptions(),
+            FormatOptions(),
             true,
             StaticLint.LintOptions(),
             :all,

@@ -204,7 +204,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
         end
     end
 
-    return WorkspaceEdit(nothing, collect(values(tdes)))
+    return WorkspaceEdit(missing, collect(values(tdes)))
 end
 
 

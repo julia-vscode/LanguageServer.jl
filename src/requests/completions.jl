@@ -68,7 +68,7 @@ end
 function kw_completion(doc, spartial, CIs, offset)
     length(spartial) == 0 && return
     fc = first(spartial)
-    for (kw,comp) in snippet_completions
+    for (kw, comp) in snippet_completions
         if startswith(kw, spartial)
             push!(CIs, CompletionItem(kw, 14, kw, TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end])))
         end
@@ -78,7 +78,7 @@ end
 const snippet_completions = Dict{String,String}(
     "abstract" => "abstract type \$0 end",
     "baremodule" => "baremodule \$1\n\t\$0\nend",
-    "begin" => "begin\n\t\$0\nend", 
+    "begin" => "begin\n\t\$0\nend",
     "break" => "break",
     "catch" => "catch",
     "const" => "const ",

@@ -7,8 +7,15 @@ end
     event::WorkspaceFoldersChangeEvent
 end
 
-@dict_readable struct DidChangeConfigurationParams
+struct DidChangeConfigurationParams
     settings::Any
+    function DidChangeConfigurationParams(d)
+        if d isa Dict && length(d) == 1 && haskey(d, "settings")
+            new(d["settings"])
+        else
+            new(d)
+        end
+    end
 end
 
 struct ConfigurationItem <: Outbound

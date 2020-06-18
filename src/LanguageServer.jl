@@ -5,6 +5,7 @@ using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
 import JSONRPC
+using JSONRPC: Outbound, @dict_readable
 export LanguageServerInstance
 
 include("exception_types.jl")

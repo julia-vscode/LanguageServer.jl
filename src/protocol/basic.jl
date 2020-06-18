@@ -1,3 +1,8 @@
+mutable struct CancelParams
+    id::Union{String,Int64}
+end
+CancelParams(d::Dict) = CancelParams(d["id"])
+
 const ProgressToken = Union{Int,String}
 struct ProgressParams{T}
     token::ProgressToken

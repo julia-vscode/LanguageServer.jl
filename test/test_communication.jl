@@ -107,8 +107,7 @@ end
     try
         sock = accept(server)
         try
-            ls = LanguageServerInstance(sock, sock, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-            run(ls)
+            runserver(sock, sock, Pkg.Types.Context().env.project_file, first(DEPOT_PATH))
         finally
             close(sock)
         end

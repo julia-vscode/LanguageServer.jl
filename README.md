@@ -21,17 +21,22 @@ make use of the Julia Language Server for various code editing features:
 ## Installation and Usage
 **Documentation**: [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://www.julia-vscode.org/LanguageServer.jl/dev)
 
+To install LanguageServer.jl into the current environment:
+
 ```julia
 using Pkg
 Pkg.add("LanguageServer")
 ```
 
-Instantiate an instance of the language server with
-`LanguageServerInstance` and `run` it:
+To run an instance of LanguageServer.jl on `env_path`, you can run
+Julia as follows:
 
-```julia
-using LanguageServer
-
-server = LanguageServerInstance(stdin, stdout, "/path/to/environment")
-run(server)
+```sh
+julia --project=/path/to/LanguageServer.jl/environment \
+  -e "using LanguageServer, LanguageServer.SymbolServer; runserver()" \
+  <env_path>
 ```
+
+If `env_path` is not specified, the language server will run on the
+parent project of `pwd` or on the default `.julia/environments/v#.#`
+if there is no parent project.

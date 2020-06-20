@@ -115,7 +115,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
         return
     end
 
-    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(nothing, collect(values(tdes)))))
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, collect(values(tdes)))))
 end
 
 is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef

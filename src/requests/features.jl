@@ -306,7 +306,7 @@ function julia_getModuleAt_request(params::TextDocumentPositionParams, server::L
     x = get_expr(getcst(doc), offset)
     if x isa EXPR
         scope = StaticLint.retrieve_scope(x)
-        if x !== nothing
+        if scope !== nothing
             return get_module_of(scope)
         end
     end

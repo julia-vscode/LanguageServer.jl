@@ -334,13 +334,9 @@ maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, ge
 
 function is_in_test_dir_of_package(path::String)
     try # Safe failure - attempts to read disc.
-        if VERSION < v"1.1"
-            return false
-        else
-            spaths = splitpath(path)
-            if (i = findfirst(==("test"), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i-1]...))
-                return true
-            end
+        spaths = splitpath(path)
+        if (i = findfirst(==("test"), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i-1]...))
+            return true
         end
         return false
     catch

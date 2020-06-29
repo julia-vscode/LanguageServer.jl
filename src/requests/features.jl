@@ -130,7 +130,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return locations
 end
 
-function get_file_loc(x::EXPR, offset = 0, c  = nothing)
+function get_file_loc(x::EXPR, offset = 0, c = nothing)
     if c !== nothing
         for a in x.args
             a == c && break
@@ -300,14 +300,23 @@ function _binding_kind(b, server)
     end
 end
 
-function julia_getModuleAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
-    offset = get_offset(doc, params.position)
-    x = get_expr(getcst(doc), offset)
-    if x isa EXPR
-        scope = StaticLint.retrieve_scope(x)
-        if scope !== nothing
-            return get_module_of(scope)
+function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
+    uri = URI2(params.textDocument.uri)
+
+    if hasdocument(server, uri)
+        doc = getdocument(server, uri)
+        if doc._version == params.version
+            offset = get_offset(doc, params.position)
+            x = get_expr(getcst(doc), offset)
+            if x isa EXPR
+                scope = StaticLint.retrieve_scope(x)
+                if scope !== nothing
+                    return get_module_of(scope)
+                end
+            end
+        else
+            @warn "version mismatch in getModuleAt for $(uri): internal $(doc._version), in vscode: $(params.version)"
+            return nothing
         end
     end
     return "Main"

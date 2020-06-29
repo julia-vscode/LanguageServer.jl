@@ -61,6 +61,12 @@ end
     position::Position
 end
 
+@dict_readable struct VersionedTextDocumentPositionParams
+    textDocument::TextDocumentIdentifier
+    version::Union{Int,Nothing}
+    position::Position
+end
+
 
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
@@ -106,6 +112,3 @@ const TextDocumentSaveReasons = (Manual = 1,
     textDocument::TextDocumentIdentifier
     reason::TextDocumentSaveReason
 end
-
-
-

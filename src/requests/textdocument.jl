@@ -111,7 +111,13 @@ function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
         else
             push!(args, CSTParser.parse(ps)[1])
         end
+        prev_pos = -1
         while ps.nt.startbyte < old_span + loc1 + is && !ps.done
+            if ps.nt.startbyte <= prev_pos
+                throw(LSInfiniteLoop("Loop not progressing as it should."))
+            else
+                prev_pos = ps.nt.startbyte
+            end
             push!(args, CSTParser.parse(ps)[1])
         end
         new_span = 0

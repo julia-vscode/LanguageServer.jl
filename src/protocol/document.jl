@@ -63,10 +63,9 @@ end
 
 @dict_readable struct VersionedTextDocumentPositionParams
     textDocument::TextDocumentIdentifier
-    version::Union{Int,Nothing}
+    version::Int
     position::Position
 end
-
 
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier

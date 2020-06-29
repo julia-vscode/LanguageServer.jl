@@ -14,8 +14,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     doc = getdocument(server, uri)
 
     if doc._version !== tdpp.version
-        @warn "version mismatch in getCurrentBlockRange for $(uri): internal $(doc._version), in vscode: $(tdpp.version)"
-        return fallback
+        return JSONRPC.JSONRPCError(-32099, "version mismatch in getCurrentBlockRange for $(uri): JLS $(doc._version), client: $(tdpp.version)", nothing)
     end
 
     offset = get_offset(doc, tdpp.position)

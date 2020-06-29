@@ -315,9 +315,10 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
                 end
             end
         else
-            @warn "version mismatch in getModuleAt for $(uri): internal $(doc._version), in vscode: $(params.version)"
-            return nothing
+            return JSONRPC.JSONRPCError(-32099, "version mismatch in getModuleAt for $(uri): JLS $(doc._version), client: $(params.version)", nothing)
         end
+    else
+        return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
     end
     return "Main"
 end

@@ -96,14 +96,16 @@ struct CompletionItem <: Outbound
     sortText::Union{String,Missing}
     filterText::Union{String,Missing}
     insertText::Union{String,Missing}
-    insertTextFormat::Union{Int,Missing}
+    insertTextFormat::Union{InsertTextFormat,Missing}
     textEdit::Union{TextEdit,Missing}
     additionalTextEdits::Union{Vector{TextEdit},Missing}
     commitCharacters::Union{Vector{String},Missing}
     command::Union{Command,Missing}
     data::Union{Any,Missing}
 end
-CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, 2, textEdit, missing, missing, missing, missing)
+CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
+
+
 
 struct CompletionList <: Outbound
     isIncomplete::Bool

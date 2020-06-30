@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "3.0.1-DEV"
+version = "3.1.1-DEV"
 
 [deps]
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
@@ -10,6 +10,7 @@ DocumentFormat = "ffa9a821-9c82-50df-894e-fbcef3ed31cd"
 StaticLint = "b3cc710f-9c33-5bdb-a03d-a94903873e97"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
+JSONRPC = "b9b8584e-8fd3-41f9-ad0c-7255d428e418"
 SymbolServer = "cf896787-08d5-524d-9de7-132aaa0cb996"
 URIParser = "30578b45-9adc-5946-b283-645ec420af67"
 JSONRPC = "b9b8584e-8fd3-41f9-ad0c-7255d428e418"
@@ -30,9 +31,9 @@ CSTParser = "2.2"
 DocumentFormat = "3"
 StaticLint = "4.3"
 Tokenize = "0.5.7"
+JSONRPC = "1"
 SymbolServer = "4.2"
 URIParser = "0.4.1"
-JSONRPC = "1"
 
 [targets]
 test = ["Test", "Sockets", "Pkg", "LibGit2", "Serialization", "SHA"]

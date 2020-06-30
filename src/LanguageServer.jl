@@ -5,13 +5,16 @@ using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
 import JSONRPC
-export LanguageServerInstance
+using JSONRPC: Outbound, @dict_readable
+
+export LanguageServerInstance, runserver
 
 include("exception_types.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")
 include("document.jl")
 include("languageserverinstance.jl")
+include("runserver.jl")
 include("staticlint.jl")
 
 include("requests/init.jl")

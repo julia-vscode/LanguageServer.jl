@@ -325,7 +325,6 @@ function get_module_of(s::StaticLint.Scope, ms = [])
 end
 
 using Base.Docs, Markdown
-using Markdown: MD, HorizontalRule
 
 function julia_getDocAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))

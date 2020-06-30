@@ -53,3 +53,11 @@ end
 function Base.showerror(io::IO, ex::LSRelativePath)
     print(io, ex.msg)
 end
+
+struct LSInfiniteLoop <: Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSInfiniteLoop)
+    print(io, ex.msg)
+end

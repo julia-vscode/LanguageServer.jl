@@ -26,30 +26,7 @@ end
 function get_hover(b::StaticLint.Binding, documentation::String, server)
     if b.val isa EXPR
         if CSTParser.defines_function(b.val)
-            while true
-                if b isa SymbolServer.SymStore
-                    documentation = get_hover(b, documentation, server)
-                    break
-                elseif b.val isa EXPR
-                    if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
-                        # Binding has preceding docs so use them..
-                        documentation = string(documentation, Expr(parentof(b.val).args[2]))
-                    elseif CSTParser.defines_function(b.val)
-                        documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
-                    elseif CSTParser.defines_datatype(b.val)
-                        documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
-                    end
-                elseif b.val isa SymbolServer.SymStore
-                    documentation = get_hover(b.val, documentation, server)
-                else
-                    break
-                end
-                if b.prev isa StaticLint.Binding && b.prev != b && (b.prev.type == StaticLint.CoreTypes.Function || b.prev.type == StaticLint.CoreTypes.DataType || b.prev.val isa Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}) || (b.prev isa SymbolServer.FunctionStore || b.prev isa SymbolServer.DataTypeStore)
-                    b = b.prev
-                else
-                    break
-                end
-            end
+            documentation = get_func_hover(b, documentation, server)
         else
             try
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
@@ -105,9 +82,44 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
     return documentation
 end
 
-get_fcall_position(x, documentation) = documentation
-function get_fcall_position(x::EXPR, documentation)
-    while parentof(x) isa EXPR
+
+get_func_hover(x, documentation, server, visited = nothing) = documentation
+get_func_hover(x::SymbolServer.SymStore, documentation, server, visited = nothing) = get_hover(x, documentation, server)
+
+function get_func_hover(b::StaticLint.Binding, documentation, server, visited = Base.IdSet{StaticLint.Binding}())
+    if b in visited                                      # TODO: remove
+        throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+    else                                                 # TODO: remove
+        push!(visited, b)                                # TODO: remove
+    end                                                  # TODO: remove
+    if b.val isa EXPR
+        if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
+            # Binding has preceding docs so use them..
+            documentation = string(documentation, Expr(parentof(b.val).args[2]))
+        elseif CSTParser.defines_function(b.val)
+            documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
+        elseif CSTParser.defines_datatype(b.val)
+            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+        end
+    elseif b.val isa SymbolServer.SymStore
+        return get_hover(b.val, documentation, server)
+    end
+    if b.prev isa StaticLint.Binding && (b.prev.type == StaticLint.CoreTypes.Function || b.prev.type == StaticLint.CoreTypes.DataType || b.prev.val isa Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}) || (b.prev isa SymbolServer.FunctionStore || b.prev isa SymbolServer.DataTypeStore)
+        return get_func_hover(b.prev, documentation, server, visited)
+    end
+    return documentation
+end
+
+
+get_fcall_position(x, documentation, visited = nothing) = documentation
+
+function get_fcall_position(x::EXPR, documentation, visited = Base.IdSet{EXPR}())
+    if xor in visited                                      # TODO: remove
+        throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+    else                                                 # TODO: remove
+        push!(visited, x)                                # TODO: remove
+    end                                                  # TODO: remove
+    if parentof(x) isa EXPR
         if typof(parentof(x)) === CSTParser.Call
             call_counts = StaticLint.call_nargs(parentof(x))
             call_counts[1] < 5 && return documentation
@@ -136,8 +148,9 @@ function get_fcall_position(x::EXPR, documentation)
                 documentation = string("Argument $arg_i of $(call_counts[1]) in call to `", CSTParser.str_value(fname), "`\n", documentation)
             end
             return documentation
+        else
+            return get_fcall_position(parentof(x), documentation, visited)
         end
-        x = parentof(x)
     end
     return documentation
 end

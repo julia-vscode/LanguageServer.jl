@@ -1,23 +1,61 @@
-function get_signatures(b, sigs, server) end
+function get_signatures(b, tls, sigs, server, visited = nothing) end # Fallback
 
-function get_signatures(b::StaticLint.Binding, sigs, server)
-    if b.type == StaticLint.CoreTypes.Function
-        if b.val isa EXPR && CSTParser.defines_function(b.val)
-            sig = CSTParser.rem_where_decl(CSTParser.get_sig(b.val))
-            args = []
-            if sig.args !== nothing
-                for i = 2:length(sig.args)
-                    if bindingof(sig.args[i]) !== nothing
-                        push!(args, bindingof(sig.args[i]))
-                    end
+function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = Base.IdSet{StaticLint.Binding}())
+    if b in visited                                      # TODO: remove
+        throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+    else                                                 # TODO: remove
+        push!(visited, b)                                # TODO: remove
+    end                                                  # TODO: remove
+
+    if b.type == StaticLint.CoreTypes.Function && b.val isa EXPR && CSTParser.defines_function(b.val)
+        get_siginfo_from_call(b.val, sigs)
+    elseif b.val isa EXPR && CSTParser.defines_struct(b.val)
+        args = CSTParser.defines_mutable(b.val) ? b.val[4] : b.val[3]
+        if length(args) > 0
+            inner_constructor_i = findfirst(a->CSTParser.defines_function(a), args.args)
+            if inner_constructor_i !== nothing
+                get_siginfo_from_call(args[inner_constructor_i], sigs)
+            else
+                params = ParameterInformation[]
+                for field in args.args
+                    field_name = CSTParser.rem_decl(field)
+                    push!(params, ParameterInformation(field_name isa EXPR && CSTParser.isidentifier(field_name) ? valof(field_name) : "", missing))
                 end
+                push!(sigs, SignatureInformation(string(Expr(b.val)), "", params))
             end
-            params = (a->ParameterInformation(valof(a.name) isa String ? valof(a.name) : "", missing)).(args)
-            push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
         end
+        return
+    elseif b.val isa SymbolServer.SymStore
+        return get_signatures(b.val, tls, sigs, server)
+    else
+        return
     end
+
+    get_signatures(b.prev, tls, sigs, server, visited)
 end
 
+function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+    StaticLint.iterate_over_ss_methods(b, tls, server, function (m)
+        push!(sigs, SignatureInformation(string(m), "", (a->ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
+        return false
+    end)
+end
+
+
+function get_siginfo_from_call(call, sigs) end # Fallback
+
+function get_siginfo_from_call(call::EXPR, sigs)
+    sig = CSTParser.rem_where_decl(CSTParser.get_sig(call))
+    params = ParameterInformation[]
+    if sig isa EXPR && sig.args !== nothing
+        for i = 2:length(sig.args)
+            if (argbinding = bindingof(sig.args[i])) !== nothing
+                push!(params, ParameterInformation(valof(argbinding.name) isa String ? valof(argbinding.name) : "", missing))
+            end
+        end
+        push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
+    end
+end
 
 function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -27,31 +65,18 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     x = get_expr(getcst(doc), offset)
     arg = 0
 
-    if x isa EXPR && parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Call
-        if typof(parentof(x).args[1]) === CSTParser.IDENTIFIER
+    if x isa EXPR && parentof(x) isa EXPR && StaticLint.is_call(parentof(x))
+        if CSTParser.isidentifier(parentof(x).args[1])
             call_name = parentof(x).args[1]
-        elseif typof(parentof(x).args[1]) === CSTParser.Curly && typof(parentof(x).args[1].args[1]) === CSTParser.IDENTIFIER
+        elseif StaticLint.is_curly(parentof(x).args[1]) && CSTParser.isidentifier(parentof(x).args[1].args[1])
             call_name = parentof(x).args[1].args[1]
-        elseif typof(parentof(x).args[1]) === CSTParser.BinaryOpCall && kindof(parentof(x).args[1].args[2]) === CSTParser.Tokens.DOT && length(parentof(x).args[1].args) == 3 && length(parentof(x).args[1].args[3]) == 1
+        elseif StaticLint.is_getfield_w_quotenode(parentof(x).args[1])
             call_name = parentof(x).args[1].args[3].args[1]
         else
             call_name = nothing
         end
-        if call_name !== nothing && StaticLint.hasref(call_name)
-            f_binding = refof(call_name)
-            while f_binding isa StaticLint.Binding || f_binding isa SymbolServer.FunctionStore || f_binding isa SymbolServer.DataTypeStore
-                if f_binding isa StaticLint.Binding && f_binding.type == StaticLint.CoreTypes.Function
-                    get_signatures(f_binding, sigs, server)
-                    f_binding = f_binding.prev
-                elseif refof(call_name) isa SymbolServer.FunctionStore || refof(call_name) isa SymbolServer.DataTypeStore
-                    for m in refof(call_name).methods
-                        push!(sigs, SignatureInformation(string(m), "", (a->ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
-                    end
-                    break
-                else
-                    break
-                end
-            end
+        if call_name !== nothing && (f_binding = refof(call_name)) !== nothing && (tls = StaticLint.retrieve_toplevel_scope(call_name)) !== nothing
+            get_signatures(f_binding, tls, sigs, server)
         end
     end
     if (isempty(sigs) || (typof(x) === CSTParser.PUNCTUATION  && kindof(x) === CSTParser.Tokens.RPAREN))
@@ -66,6 +91,55 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
 end
 
+# TODO: should be in StaticLint. visited check is costly.
+resolve_shadow_binding(b) = b
+function resolve_shadow_binding(b::StaticLint.Binding, visited = Base.IdSet{StaticLint.Binding}())
+    if b in visited
+        throw(LSInfiniteLoop("Inifinite loop in bindings."))
+    else
+        push!(visited, b)
+    end
+    if b.val isa StaticLint.Binding
+        return resolve_shadow_binding(b.val, visited)
+    else
+        return b
+    end
+end
+
+function get_definitions(x, tls, server, locations, visited = nothing) end # Fallback
+
+function get_definitions(x::T, tls, server, locations, visited = nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+    StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
+        try
+            if isfile(m.file)
+                push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
+            end
+        catch err
+            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        end
+    end)
+end
+
+function get_definitions(b::StaticLint.Binding, tls, server, locations, visited = Base.IdSet{StaticLint.Binding}())
+    if b in visited                                      # TODO: remove
+        throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+    else                                                 # TODO: remove
+        push!(visited, b)                                # TODO: remove
+    end                                                  # TODO: remove
+
+    if !(b.val isa EXPR)
+        return get_definitions(b.val, tls, server, locations, visited)
+    end
+    doc1, o = get_file_loc(b.val)
+    if doc1 isa Document
+        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
+    end
+
+    if b.type === StaticLint.CoreTypes.Function && b.prev isa StaticLint.Binding && (b.prev.type === StaticLint.CoreTypes.Function || b.prev.type === StaticLint.CoreTypes.DataType)
+        return get_definitions(b.prev, tls, server, locations, visited)
+    end
+end
+
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -74,41 +148,9 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     if x isa EXPR && StaticLint.hasref(x)
         # Replace with own function to retrieve references (with loop saftey-breaker)
         b = refof(x)
-        while b isa StaticLint.Binding && b.val isa StaticLint.Binding # TODO: replace with function from StaticLint
-            b = b.val
-        end
-        if b isa SymbolServer.FunctionStore || b isa SymbolServer.DataTypeStore
-            for m in b.methods
-                try
-                    if isfile(m.file)
-                        push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
-                    end
-                catch err
-                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                end
-            end
-        end
-
-        while b isa StaticLint.Binding
-            if b.val isa EXPR
-                doc1, o = get_file_loc(b.val)
-                if doc1 isa Document
-                    push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:b.val.span))))
-                end
-            elseif b.val isa SymbolServer.FunctionStore || b.val isa SymbolServer.DataTypeStore
-                for m in b.val.methods
-                    file = isabspath(string(m.file)) ? string(m.file) : Base.find_source_file(string(m.file))
-                    ((file, m.line) == DefaultTypeConstructorLoc || file == nothing) && continue
-                    push!(locations, Location(filepath2uri(file), Range(m.line - 1, 0, m.line, 0)))
-                end
-            end
-            # TODO: replace with method iterator
-            if b.type == StaticLint.CoreTypes.Function && b.prev isa StaticLint.Binding && (b.prev.type == Function || b.prev.type == StaticLint.CoreTypes.DataType)
-                b = b.prev
-            else
-                b = nothing
-            end
-        end
+        b = resolve_shadow_binding(b)
+        (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
+        get_definitions(b, tls, server, locations)
     elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
         # TODO: move to its own function
         if sizeof(valof(x)) < 256 # AUDIT: OK
@@ -130,7 +172,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return locations
 end
 
-function get_file_loc(x::EXPR, offset = 0, c  = nothing)
+function get_file_loc(x::EXPR, offset = 0, c = nothing)
     if c !== nothing
         for a in x.args
             a == c && break
@@ -300,11 +342,27 @@ function _binding_kind(b, server)
     end
 end
 
-function julia_getModuleAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
-    offset = get_offset(doc, params.position)
-    x = get_expr(getcst(doc), offset)
-    return x isa EXPR ? get_module_of(StaticLint.retrieve_scope(x)) : "Main"
+function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
+    uri = URI2(params.textDocument.uri)
+
+    if hasdocument(server, uri)
+        doc = getdocument(server, uri)
+        if doc._version == params.version
+            offset = get_offset(doc, params.position)
+            x = get_expr(getcst(doc), offset)
+            if x isa EXPR
+                scope = StaticLint.retrieve_scope(x)
+                if scope !== nothing
+                    return get_module_of(scope)
+                end
+            end
+        else
+            return JSONRPC.JSONRPCError(-32099, "version mismatch in getModuleAt for $(uri): JLS $(doc._version), client: $(params.version)", nothing)
+        end
+    else
+        return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
+    end
+    return "Main"
 end
 
 function get_module_of(s::StaticLint.Scope, ms = [])

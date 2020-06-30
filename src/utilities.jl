@@ -134,7 +134,14 @@ function get_toks(doc, offset)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
 
+    prevpos = -1 # TODO: remove.
     while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
+        if t.startbyte === prevpos # TODO: remove.
+            throw(LSInfiniteLoop("Loop did not progress between iterations.")) # TODO: remove.
+        else # TODO: remove.
+            prevpos = t.startbyte # TODO: remove.
+        end # TODO: remove.
+        
         if t.startbyte < offset <= t.endbyte + 1
             break
         end

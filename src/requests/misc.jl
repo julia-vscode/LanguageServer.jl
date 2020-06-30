@@ -5,8 +5,18 @@ end
 function setTraceNotification_notification(params, server::LanguageServerInstance, conn)
 end
 
-function julia_getCurrentBlockRange_request(tdpp::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(tdpp.textDocument.uri))
+function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
+    fallback = (Position(0, 0), Position(0, 0), tdpp.position)
+    uri = URI2(tdpp.textDocument.uri)
+
+    hasdocument(server, uri) || return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
+
+    doc = getdocument(server, uri)
+
+    if doc._version !== tdpp.version
+        return JSONRPC.JSONRPCError(-32099, "version mismatch in getCurrentBlockRange for $(uri): JLS $(doc._version), client: $(tdpp.version)", nothing)
+    end
+
     offset = get_offset(doc, tdpp.position)
     x = getcst(doc)
     loc = 0
@@ -47,7 +57,7 @@ function julia_getCurrentBlockRange_request(tdpp::TextDocumentPositionParams, se
             loc += a.fullspan
         end
     end
-    return Position(0, 0), Position(0, 0), tdpp.position
+    return fallback
 end
 
 function julia_activateenvironment_notification(params::String, server::LanguageServerInstance, conn)

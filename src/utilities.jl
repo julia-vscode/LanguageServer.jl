@@ -141,7 +141,7 @@ function get_toks(doc, offset)
         else # TODO: remove.
             prevpos = t.startbyte # TODO: remove.
         end # TODO: remove.
-        
+
         if t.startbyte < offset <= t.endbyte + 1
             break
         end

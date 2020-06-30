@@ -24,10 +24,10 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
                 push!(sigs, SignatureInformation(string(Expr(b.val)), "", params))
             end
         end
-        return 
+        return
     elseif b.val isa SymbolServer.SymStore
         return get_signatures(b.val, tls, sigs, server)
-    else 
+    else
         return
     end
 
@@ -64,7 +64,7 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     rng = Range(doc, offset:offset)
     x = get_expr(getcst(doc), offset)
     arg = 0
-    
+
     if x isa EXPR && parentof(x) isa EXPR && StaticLint.is_call(parentof(x))
         if CSTParser.isidentifier(parentof(x).args[1])
             call_name = parentof(x).args[1]

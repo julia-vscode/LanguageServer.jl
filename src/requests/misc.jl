@@ -9,7 +9,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     fallback = (Position(0, 0), Position(0, 0), tdpp.position)
     uri = URI2(tdpp.textDocument.uri)
 
-    hasdocument(server, uri) || return fallback
+    hasdocument(server, uri) || return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
 
     doc = getdocument(server, uri)
 

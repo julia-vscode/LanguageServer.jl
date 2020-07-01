@@ -358,10 +358,10 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
                 end
             end
         else
-            return JSONRPC.JSONRPCError(-32099, "version mismatch in getModuleAt for $(uri): JLS $(doc._version), client: $(params.version)", nothing)
+            return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
+        return nodocuemnt_error(uri)
     end
     return "Main"
 end
@@ -379,8 +379,15 @@ end
 
 using Base.Docs, Markdown
 
-function julia_getDocAt_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
+    uri = URI2(params.textDocument.uri)
+    hasdocument(server, uri) || return nodocuemnt_error(uri)
+
+    doc = getdocument(server, uri)
+    if doc._version !== params.version
+        return mismatched_version_error(uri, doc, params, "getDocAt")
+    end
+
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)

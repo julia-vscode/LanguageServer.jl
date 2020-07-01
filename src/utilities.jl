@@ -1,3 +1,14 @@
+nodocuemnt_error(uri, data = nothing) =
+    return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", data)
+
+function mismatched_version_error(uri, doc, params, msg, data = nothing)
+    return JSONRPC.JSONRPCError(
+        -32099,
+        "version mismatch in $(msg) request for $(uri): JLS $(doc._version), client: $(params.version)",
+        nothing
+    )
+end
+
 function uri2filepath(uri::AbstractString)
     parsed_uri = try
         URIParser.URI(uri)

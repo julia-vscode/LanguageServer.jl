@@ -310,7 +310,7 @@ function is_diag_dependent_on_env(diag::Diagnostic)
 end
 
 function publish_diagnostics(doc::Document, server, conn)
-    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc)) 
+    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
         if is_in_test_dir_of_package(getpath(doc))
             filter!(!is_diag_dependent_on_env, doc.diagnostics)
             publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)

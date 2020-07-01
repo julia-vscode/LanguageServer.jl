@@ -353,7 +353,7 @@ maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, ge
 function is_in_test_dir_of_package(path::String)
     try # Safe failure - attempts to read disc.
         spaths = splitpath(path)
-        if (i = findfirst(==("test"), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i-1]...))
+        if (i = findfirst(==("test"), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i - 1]...))
             return true
         end
         return false
@@ -366,8 +366,8 @@ end
 if VERSION < v"1.1"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
     function _splitdir_nodrive(a::String, b::String)
-        m = match(Base.Filesystem.path_dir_splitter,b)
-        m === nothing && return (a,b)
+        m = match(Base.Filesystem.path_dir_splitter, b)
+        m === nothing && return (a, b)
         a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
         a, String(m.captures[3])
     end
@@ -376,7 +376,7 @@ if VERSION < v"1.1"
     function splitpath(p::String)
         drive, p = splitdrive(p)
         out = String[]
-        isempty(p) && (pushfirst!(out,p))  # "" means the current directory.
+        isempty(p) && (pushfirst!(out, p))  # "" means the current directory.
         while !isempty(p)
             dir, base = _splitdir_nodrive(p)
             dir == p && (pushfirst!(out, dir); break)  # Reached root node.
@@ -386,7 +386,7 @@ if VERSION < v"1.1"
             p = dir
         end
         if !isempty(drive)  # Tack the drive back on to the first element.
-            out[1] = drive*out[1]  # Note that length(out) is always >= 1.
+            out[1] = drive * out[1]  # Note that length(out) is always >= 1.
         end
         return out
     end

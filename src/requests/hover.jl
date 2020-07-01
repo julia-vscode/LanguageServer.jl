@@ -25,10 +25,13 @@ end
 
 function get_hover(b::StaticLint.Binding, documentation::String, server)
     if b.val isa EXPR
-        if CSTParser.defines_function(b.val)
+        if CSTParser.defines_function(b.val) || CSTParser.defines_datatype(b.val)
             documentation = get_func_hover(b, documentation, server)
         else
             try
+                if binding_has_preceding_docs(b)
+                    documentation = string(documentation, Expr(parentof(b.val).args[2]))
+                end
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
             catch err
                 doc1, offset1 = get_file_loc(b.val)
@@ -93,10 +96,11 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited = 
         push!(visited, b)                                # TODO: remove
     end                                                  # TODO: remove
     if b.val isa EXPR
-        if parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
+        if binding_has_preceding_docs(b)
             # Binding has preceding docs so use them..
             documentation = string(documentation, Expr(parentof(b.val).args[2]))
-        elseif CSTParser.defines_function(b.val)
+        end
+        if CSTParser.defines_function(b.val)
             documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
         elseif CSTParser.defines_datatype(b.val)
             documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
@@ -109,6 +113,8 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited = 
     end
     return documentation
 end
+
+binding_has_preceding_docs(b::StaticLint.Binding) = parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
 
 
 get_fcall_position(x, documentation, visited = nothing) = documentation

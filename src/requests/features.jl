@@ -358,10 +358,10 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
                 end
             end
         else
-            return JSONRPC.JSONRPCError(-32099, "version mismatch in getModuleAt for $(uri): JLS $(doc._version), client: $(params.version)", nothing)
+            return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", nothing)
+        return nodocuemnt_error(uri)
     end
     return "Main"
 end
@@ -375,4 +375,45 @@ function get_module_of(s::StaticLint.Scope, ms = [])
     else
         return isempty(ms) ? "Main" : join(ms, ".")
     end
+end
+
+using Base.Docs, Markdown
+
+function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
+    uri = URI2(params.textDocument.uri)
+    hasdocument(server, uri) || return nodocuemnt_error(uri)
+
+    doc = getdocument(server, uri)
+    if doc._version !== params.version
+        return mismatched_version_error(uri, doc, params, "getDocAt")
+    end
+
+    x = get_expr1(getcst(doc), get_offset(doc, params.position))
+    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
+    documentation = get_hover(x, "", server)
+    md = Markdown.parse(documentation)
+    return webview_html(md)
+end
+
+const CODE_LANG_REGEX = r"\<code class\=\"language-(?<lang>(?!\>).+)\"\>"
+
+function webview_html(md)
+    # HACK goes on ...
+    s = html(md)
+    if haskey(md.meta, :module)
+        mod = md.meta[:module]
+        newhref = string("julia-vscode", '/', mod)
+        s = replace(s, "<a href=\"@ref\"" => "<a href=\"$newhref\"")
+    end
+    s = replace(s, CODE_LANG_REGEX => annotate_highlight_js)
+    return s
+end
+
+function annotate_highlight_js(s)
+    m::RegexMatch = match(CODE_LANG_REGEX, s)
+    lang = m[:lang]
+    if lang == "jldoctest"
+        lang = "julia-repl"
+    end
+    return "<code class=\"language-$(lang) hljs\">"
 end

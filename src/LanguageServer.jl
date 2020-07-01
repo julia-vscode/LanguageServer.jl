@@ -4,6 +4,7 @@ using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
+using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
 

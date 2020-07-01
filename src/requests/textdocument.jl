@@ -298,9 +298,25 @@ end
 
 isunsavedfile(doc::Document) = startswith(doc._uri, "untitled:") # Not clear if this is consistent across editors.
 
+"""
+is_diag_dependent_on_env(diag::Diagnostic)::Bool
+
+Is this diagnostic reliant on the current environment being accurately represented?
+"""
+function is_diag_dependent_on_env(diag::Diagnostic)
+    startswith(diag.message, "Missing reference: ") ||
+    startswith(diag.message, "Possible method call error") ||
+    startswith(diag.message, "An imported")
+end
+
 function publish_diagnostics(doc::Document, server, conn)
-    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc)) && !is_in_test_dir_of_package(getpath(doc))
-        publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
+    if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc)) 
+        if is_in_test_dir_of_package(getpath(doc))
+            filter!(!is_diag_dependent_on_env, doc.diagnostics)
+            publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
+        else
+            publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
+        end
     else
         publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
     end

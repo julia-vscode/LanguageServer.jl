@@ -117,6 +117,7 @@ function get_definitions(x::T, tls, server, locations, visited = nothing) where 
         catch err
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         end
+        return false
     end)
 end
 

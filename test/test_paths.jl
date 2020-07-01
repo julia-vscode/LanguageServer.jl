@@ -45,3 +45,8 @@ end
     end
 
 end
+
+@testset "is_in_test_dir_of_package" begin
+    @test LanguageServer.is_in_test_dir_of_package(@__DIR__)
+    @test !LanguageServer.is_in_test_dir_of_package(pathof(LanguageServer))
+end

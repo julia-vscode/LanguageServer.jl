@@ -31,7 +31,7 @@ DocumentFormat = "3"
 StaticLint = "4.3"
 Tokenize = "0.5.7"
 JSONRPC = "1.1"
-SymbolServer = "4.2"
+SymbolServer = "4.2, 5"
 URIParser = "0.4.1"
 
 [targets]

@@ -61,12 +61,6 @@ end
     position::Position
 end
 
-@dict_readable struct VersionedTextDocumentPositionParams
-    textDocument::TextDocumentIdentifier
-    version::Int
-    position::Position
-end
-
 mutable struct TextDocumentEdit
     textDocument::VersionedTextDocumentIdentifier
     edits::Vector{TextEdit}

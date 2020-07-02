@@ -13,6 +13,7 @@ export LanguageServerInstance, runserver
 include("exception_types.jl")
 include("uri2.jl")
 include("protocol/protocol.jl")
+include("extensions/extensions.jl")
 include("document.jl")
 include("languageserverinstance.jl")
 include("runserver.jl")

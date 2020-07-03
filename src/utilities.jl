@@ -350,10 +350,10 @@ end
 
 maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbolserver(server), true) : x # TODO: needs to go to SymbolServer
 
-function is_in_test_dir_of_package(path::String)
+function is_in_target_dir_of_package(pkgpath, target)
     try # Safe failure - attempts to read disc.
-        spaths = splitpath(path)
-        if (i = findfirst(==("test"), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i - 1]...))
+        spaths = splitpath(pkgpath)
+        if (i = findfirst(==(target), spaths)) !== nothing && "src" in readdir(joinpath(spaths[1:i - 1]...))
             return true
         end
         return false
@@ -361,7 +361,6 @@ function is_in_test_dir_of_package(path::String)
         return false
     end
 end
-
 
 if VERSION < v"1.1"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)

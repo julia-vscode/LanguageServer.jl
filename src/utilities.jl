@@ -5,7 +5,7 @@ function mismatched_version_error(uri, doc, params, msg, data = nothing)
     return JSONRPC.JSONRPCError(
         -32099,
         "version mismatch in $(msg) request for $(uri): JLS $(doc._version), client: $(params.version)",
-        nothing
+        data
     )
 end
 

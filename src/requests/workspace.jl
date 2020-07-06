@@ -76,6 +76,8 @@ end
     isnothing(::Nothing) = true
 end
 
+const LINT_DIABLED_DIRS = ["test", "docs"]
+
 function request_julia_config(server::LanguageServerInstance, conn)
     server.clientCapabilities.workspace.configuration !== true && return
 
@@ -103,7 +105,8 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.pirates"),
         ConfigurationItem(missing, "julia.lint.useoffuncargs"),
         ConfigurationItem(missing, "julia.lint.run"),
-        ConfigurationItem(missing, "julia.lint.missingrefs")
+        ConfigurationItem(missing, "julia.lint.missingrefs"),
+        ConfigurationItem(missing, "julia.lint.disabledDirs")
         ]))
 
     if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
@@ -116,20 +119,25 @@ function request_julia_config(server::LanguageServerInstance, conn)
         new_SL_opts = StaticLint.LintOptions(response[13:22]...)
     end
     new_lint_missingrefs = Symbol(something(response[24], :all))
+    new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
 
-    rerun_lint = any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
-        server.runlinter != new_runlinter || server.lint_missingrefs != new_lint_missingrefs
+    rerun_lint = begin
+        any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
+        server.runlinter != new_runlinter ||
+        server.lint_missingrefs != new_lint_missingrefs ||
+        server.lint_disableddirs != new_lint_disableddirs
+    end
 
     server.lint_options = new_SL_opts
     server.runlinter = new_runlinter
     server.lint_missingrefs = new_lint_missingrefs
+    server.lint_disableddirs = new_lint_disableddirs
 
     if rerun_lint
         for doc in getdocuments_value(server)
             lint!(doc, server)
         end
     end
-
 end
 
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)

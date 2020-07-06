@@ -14,10 +14,13 @@ function get_hover(x, documentation::String, server) documentation end
 
 function get_hover(x::EXPR, documentation::String, server)
     if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
-        if refof(x) isa StaticLint.Binding
-            documentation = get_hover(refof(x), documentation, server)
-        elseif refof(x) isa SymbolServer.SymStore
-            documentation = get_hover(refof(x), documentation, server)
+        r = refof(x)
+        documentation = if r isa StaticLint.Binding
+            get_hover(r, documentation, server)
+        elseif r isa SymbolServer.SymStore
+            get_hover(r, documentation, server)
+        else
+            documentation
         end
     end
     return documentation
@@ -29,8 +32,12 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
             documentation = get_func_hover(b, documentation, server)
         else
             try
-                if binding_has_preceding_docs(b)
-                    documentation = string(documentation, Expr(parentof(b.val).args[2]))
+                documentation = if binding_has_preceding_docs(b)
+                    string(documentation, Expr(parentof(b.val).args[2]))
+                elseif const_binding_has_preceding_docs(b)
+                    string(documentation, Expr(parentof(parentof(b.val)).args[2]))
+                else
+                    documentation
                 end
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
             catch err
@@ -96,9 +103,13 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited = 
         push!(visited, b)                                # TODO: remove
     end                                                  # TODO: remove
     if b.val isa EXPR
-        if binding_has_preceding_docs(b)
+        documentation = if binding_has_preceding_docs(b)
             # Binding has preceding docs so use them..
-            documentation = string(documentation, Expr(parentof(b.val).args[2]))
+            string(documentation, Expr(parentof(b.val).args[2]))
+        elseif const_binding_has_preceding_docs(b)
+            string(documentation, Expr(parentof(parentof(b.val)).args[2]))
+        else
+            documentation
         end
         if CSTParser.defines_function(b.val)
             documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
@@ -114,8 +125,26 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited = 
     return documentation
 end
 
-binding_has_preceding_docs(b::StaticLint.Binding) = parentof(b.val) isa EXPR && typof(parentof(b.val)) === CSTParser.MacroCall && length(parentof(b.val).args) == 3 && typof(parentof(b.val).args[1]) === CSTParser.GlobalRefDoc && CSTParser.isstring(parentof(b.val).args[2])
+binding_has_preceding_docs(b::StaticLint.Binding) = expr_has_preceding_docs(b.val)
 
+function const_binding_has_preceding_docs(b::StaticLint.Binding)
+    p = parentof(b.val)
+    is_const_expr(p) && expr_has_preceding_docs(p)
+end
+
+expr_has_preceding_docs(x) = false
+expr_has_preceding_docs(x::EXPR) = is_doc_expr(parentof(x))
+
+is_const_expr(x) = false
+is_const_expr(x::EXPR) = length(x.args) == 2 && kindof(x.args[1]) === CSTParser.Tokens.CONST
+
+is_doc_expr(x) = false
+function is_doc_expr(x::EXPR)
+    return typof(x) === CSTParser.MacroCall &&
+        length(x.args) == 3 &&
+        typof(x.args[1]) === CSTParser.GlobalRefDoc &&
+        CSTParser.isstring(x.args[2])
+end
 
 get_fcall_position(x, documentation, visited = nothing) = documentation
 

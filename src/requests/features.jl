@@ -377,8 +377,6 @@ function get_module_of(s::StaticLint.Scope, ms = [])
     end
 end
 
-using Base.Docs, Markdown
-
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = URI2(params.textDocument.uri)
     hasdocument(server, uri) || return nodocuemnt_error(uri)
@@ -391,6 +389,7 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)
+
     md = Markdown.parse(documentation)
     return webview_html(md)
 end

@@ -1,3 +1,6 @@
+# VSCode specific
+# ---------------
+
 nodocuemnt_error(uri, data = nothing) =
     return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", data)
 
@@ -8,6 +11,11 @@ function mismatched_version_error(uri, doc, params, msg, data = nothing)
         data
     )
 end
+
+vscode_cmd_uri(cmd; cmdargs...) = string("command:", cmd, '?', URIParser.escape(JSON.json(cmdargs)))
+
+# misc
+# ----
 
 function uri2filepath(uri::AbstractString)
     parsed_uri = try

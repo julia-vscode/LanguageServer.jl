@@ -44,6 +44,7 @@ mutable struct LanguageServerInstance
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
+    lint_disableddirs::Vector{String}
 
     combined_msg_queue::Channel{Any}
 
@@ -77,6 +78,7 @@ mutable struct LanguageServerInstance
             true,
             StaticLint.LintOptions(),
             :all,
+            LINT_DIABLED_DIRS,
             Channel{Any}(Inf),
             err_handler,
             :created,

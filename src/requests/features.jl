@@ -401,7 +401,7 @@ function webview_html(md)
     s = html(md)
     if haskey(md.meta, :module)
         mod = md.meta[:module]
-        newhref = "command:language-julia.findHelp?$(URIParser.escape(JSON.json(Dict("searchTerm" => mod))))"
+        newhref = vscode_cmd_uri("language-julia.findHelp"; searchTerm = mod)
         s = replace(s, "<a href=\"@ref\"" => "<a href=\"$newhref\"")
     end
     s = replace(s, CODE_LANG_REGEX => annotate_highlight_js)

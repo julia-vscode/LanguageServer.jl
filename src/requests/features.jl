@@ -390,29 +390,5 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)
 
-    md = Markdown.parse(documentation)
-    return webview_html(md)
-end
-
-const CODE_LANG_REGEX = r"\<code class\=\"language-(?<lang>(?!\>).+)\"\>"
-
-function webview_html(md)
-    # HACK goes on ...
-    s = html(md)
-    if haskey(md.meta, :module)
-        mod = md.meta[:module]
-        newhref = vscode_cmd_uri("language-julia.findHelp"; searchTerm = mod)
-        s = replace(s, "<a href=\"@ref\"" => "<a href=\"$newhref\"")
-    end
-    s = replace(s, CODE_LANG_REGEX => annotate_highlight_js)
-    return s
-end
-
-function annotate_highlight_js(s)
-    m::RegexMatch = match(CODE_LANG_REGEX, s)
-    lang = m[:lang]
-    if lang == "jldoctest"
-        lang = "julia-repl"
-    end
-    return "<code class=\"language-$(lang) hljs\">"
+    return documentation
 end

@@ -12,8 +12,6 @@ function mismatched_version_error(uri, doc, params, msg, data = nothing)
     )
 end
 
-vscode_cmd_uri(cmd; cmdargs...) = string("command:", cmd, '?', URIParser.escape(JSON.json(cmdargs)))
-
 # misc
 # ----
 

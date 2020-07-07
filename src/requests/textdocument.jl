@@ -309,21 +309,19 @@ function is_diag_dependent_on_env(diag::Diagnostic)
     startswith(diag.message, "An imported")
 end
 
-const LINT_IGNORED_DIRS = ["test", "docs"] # TODO?: make this configurable ?
 
 function publish_diagnostics(doc::Document, server, conn)
-    publishDiagnosticsParams = if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
+    diagnostics = if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
         pkgpath = getpath(doc)
-        if any(is_in_target_dir_of_package.(Ref(pkgpath), LINT_IGNORED_DIRS))
+        if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
             filter!(!is_diag_dependent_on_env, doc.diagnostics)
-            PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
-        else
-            PublishDiagnosticsParams(doc._uri, doc._version, doc.diagnostics)
         end
+        doc.diagnostics
     else
-        PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
+        Diagnostic[]
     end
-    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
+    params = PublishDiagnosticsParams(doc._uri, doc._version, diagnostics)
+    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
 end
 
 function clear_diagnostics(uri::URI2, server, conn)

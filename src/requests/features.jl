@@ -392,3 +392,15 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
 
     return documentation
 end
+
+# TODO: handle documentation resolving properly, respect how Documenter handles that
+function julia_getDocFromWord_request(word::String, server::LanguageServerInstance, conn)
+    documentation = ""
+    word_sym = Symbol(word)
+    traverse_by_name(getsymbolserver(server)) do sym, val
+        if sym === word_sym
+            documentation = get_hover(val, documentation, server)
+        end
+    end
+    return documentation
+end

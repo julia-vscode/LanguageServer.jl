@@ -12,6 +12,20 @@ function mismatched_version_error(uri, doc, params, msg, data = nothing)
     )
 end
 
+# lookup
+# ------
+
+traverse_by_name(f, cache = SymbolServer.stdlibs) = traverse_store!.(f, values(cache))
+
+traverse_store!(_, _) = return
+traverse_store!(f, store::SymbolServer.EnvStore) = traverse_store!.(f, values(store))
+function traverse_store!(f, store::SymbolServer.ModuleStore)
+    for (sym, val) in store.vals
+        f(sym, val)
+        traverse_store!(f, val)
+    end
+end
+
 # misc
 # ----
 

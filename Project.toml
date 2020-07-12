@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "3.2.0"
+version = "3.2.1-DEV"
 
 [deps]
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"

@@ -9,6 +9,7 @@ mktempdir() do dir
     init_params = LanguageServer.InitializeParams(JSON.parse(initstr))
 
     server.runlinter = true
+    server.jr_endpoint = nothing
     LanguageServer.initialize_request(init_params, server, nothing)
     # LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("initialized")},Any}(0, nothing), server)
 

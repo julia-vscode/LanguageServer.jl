@@ -1,5 +1,6 @@
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.runlinter = true
+server.jr_endpoint = nothing
 
 LanguageServer.initialize_request(init_request, server, nothing)
 

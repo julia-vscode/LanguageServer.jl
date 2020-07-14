@@ -1,7 +1,11 @@
 using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, JSON
 using LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
+import JSONRPC
 const LS = LanguageServer
 const Range = LanguageServer.Range
+
+# TODO Replace this with a proper mock endpoint
+JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
 @testset "LanguageServer" begin
 

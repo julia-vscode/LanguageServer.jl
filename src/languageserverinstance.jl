@@ -28,7 +28,7 @@ For normal usage, the language server can be instantiated with
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
-    jr_endpoint::JSONRPC.JSONRPCEndpoint
+    jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
     workspaceFolders::Set{String}
     _documents::Dict{URI2,Document}
 

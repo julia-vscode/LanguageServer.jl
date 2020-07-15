@@ -1,6 +1,6 @@
 function get_signatures(b, tls, sigs, server, visited = nothing) end # Fallback
 
-function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = Base.IdSet{StaticLint.Binding}())
+function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = StaticLint.Binding[])
     if b in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -93,7 +93,7 @@ end
 
 # TODO: should be in StaticLint. visited check is costly.
 resolve_shadow_binding(b) = b
-function resolve_shadow_binding(b::StaticLint.Binding, visited = Base.IdSet{StaticLint.Binding}())
+function resolve_shadow_binding(b::StaticLint.Binding, visited = StaticLint.Binding[])
     if b in visited
         throw(LSInfiniteLoop("Inifinite loop in bindings."))
     else
@@ -121,7 +121,7 @@ function get_definitions(x::T, tls, server, locations, visited = nothing) where 
     end)
 end
 
-function get_definitions(b::StaticLint.Binding, tls, server, locations, visited = Base.IdSet{StaticLint.Binding}())
+function get_definitions(b::StaticLint.Binding, tls, server, locations, visited = StaticLint.Binding[])
     if b in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove

@@ -96,9 +96,11 @@ end
 get_func_hover(x, documentation, server, visited = nothing) = documentation
 get_func_hover(x::SymbolServer.SymStore, documentation, server, visited = nothing) = get_hover(x, documentation, server)
 
-function get_func_hover(b::StaticLint.Binding, documentation, server, visited = Base.IdSet{StaticLint.Binding}())
+function get_func_hover(b::StaticLint.Binding, documentation, server, visited = StaticLint.Binding[])
     if b in visited                                      # TODO: remove
-        throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+        # throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
+        # There is a cycle in the links between Bindings. Root cause is in StaticLint but there is no reason to allow it to crash the language server. If we have done a complete circuit here then we have all the information we need and can return.
+        return documentation
     else                                                 # TODO: remove
         push!(visited, b)                                # TODO: remove
     end                                                  # TODO: remove
@@ -148,7 +150,7 @@ end
 
 get_fcall_position(x, documentation, visited = nothing) = documentation
 
-function get_fcall_position(x::EXPR, documentation, visited = Base.IdSet{EXPR}())
+function get_fcall_position(x::EXPR, documentation, visited = EXPR[])
     if xor in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove

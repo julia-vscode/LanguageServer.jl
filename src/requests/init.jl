@@ -4,7 +4,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     SaveOptions(true)),
-    CompletionOptions(false, ["."], missing),
+    CompletionOptions(false, [".", "@", "\""], missing),
     true,
     SignatureHelpOptions(["(", ","], missing),
     false,

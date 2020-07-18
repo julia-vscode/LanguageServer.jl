@@ -1,4 +1,7 @@
-# TODO: let's refactor, simplify branching, export latex completion into a separate package, etc
+# TODO:
+# - refactor, simplify branching, unify duplications
+# - fuzzy completions
+# - (maybe) export latex completions into a separate package
 
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     CIs = CompletionItem[]

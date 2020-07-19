@@ -48,4 +48,4 @@ end
 
 choose_env() = something(get(ARGS, 1, nothing),         # 1. path passed explicitly
                          Base.current_project(pwd()),   # 2. parent project of pwd()
-                         Base.load_path_expand("@#.#")) # 3. default "global" env
+                         Base.load_path_expand("@v#.#")) # 3. default "global" env

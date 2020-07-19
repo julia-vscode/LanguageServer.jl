@@ -46,6 +46,6 @@ function runserver(pipe_in = stdin, pipe_out = stdout, env_path = choose_env(),
     run(server)
 end
 
-choose_env() = something(get(ARGS, 1, nothing),         # 1. path passed explicitly
-                         Base.current_project(pwd()),   # 2. parent project of pwd()
+choose_env() = something(get(ARGS, 1, nothing),          # 1. path passed explicitly
+                         Base.current_project(pwd()),    # 2. parent project of pwd()
                          Base.load_path_expand("@v#.#")) # 3. default "global" env

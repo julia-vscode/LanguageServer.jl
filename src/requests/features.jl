@@ -349,7 +349,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
         if doc._version == params.version
-            offset = get_offset(doc, params.position)
+            offset = get_offset2(doc, params.position.line, params.position.character)
             x = get_expr(getcst(doc), offset)
             if x isa EXPR
                 scope = StaticLint.retrieve_scope(x)

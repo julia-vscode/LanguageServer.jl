@@ -101,7 +101,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     text = get_text(doc)
 
     if line >= length(line_offsets) || line < 0
-        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\line_offsets='$(line_offsets)'\ntext='$(obscure_text(get_text(doc)))'"))
+        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nline_offsets='$(line_offsets)'\ntext='$(obscure_text(get_text(doc)))'"))
     end
 
     line_offset = line_offsets[line + 1]

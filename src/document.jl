@@ -100,8 +100,11 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     line_offsets = get_line_offsets2!(doc)
     text = get_text(doc)
 
-    if line >= length(line_offsets) || line < 0
-        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nline_offsets='$(line_offsets)'\ntext='$(obscure_text(get_text(doc)))'"))
+    if line >= length(line_offsets)
+        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nline_offsets='$(line_offsets)'\ntext='$(obscure_text(text))'"))
+        return nextind(text, lastindex(text)) # xref: https://github.com/julia-vscode/LanguageServer.jl/pull/809#discussion_r460334753
+    elseif line < 0
+        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nline_offsets='$(line_offsets)'\ntext='$(obscure_text(text))'"))
     end
 
     line_offset = line_offsets[line + 1]
@@ -111,6 +114,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     pos = line_offset
 
     while character > 0
+        isvalid(text, pos) || throw(LSOffsetError("get_offset crashed with invalid string indexing. More diagnostics:\nline=$line\ncharacter=$character\pos='$(pos)'\ntext='$(obscure_text(text))'"))
         if UInt32(text[pos]) >= 0x010000
             character -= 2
         else

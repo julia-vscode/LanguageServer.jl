@@ -114,7 +114,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     pos = line_offset
 
     while character > 0
-        isvalid(text, pos) || throw(LSOffsetError("get_offset crashed with invalid string indexing. More diagnostics:\nline=$line\ncharacter=$character\pos='$(pos)'\ntext='$(obscure_text(text))'"))
+        isvalid(text, pos) || throw(LSOffsetError("get_offset crashed with invalid string indexing. More diagnostics:\nline=$line\ncharacter=$character\npos='$(pos)'\ntext='$(obscure_text(text))'"))
         if UInt32(text[pos]) >= 0x010000
             character -= 2
         else

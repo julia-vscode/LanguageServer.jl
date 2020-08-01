@@ -58,9 +58,8 @@ end
 function latex_completions(doc, offset, partial, CIs)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset - sizeof(partial) + 1:offset), "")
-            t2 = TextEdit(Range(doc, offset - sizeof(partial):offset - sizeof(partial) + 1), v)
-            push!(CIs, CompletionItem(k[2:end], 11, missing, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
+            t1 = TextEdit(Range(doc, (offset - sizeof(partial)):offset), v)
+            push!(CIs, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, t1, missing, missing, missing, missing))
         end
     end
 end

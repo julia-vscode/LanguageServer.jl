@@ -1,10 +1,10 @@
 const serverCapabilities = ServerCapabilities(
     TextDocumentSyncOptions(true,
-    TextDocumentSyncKinds.Incremental,
+    TextDocumentSyncKinds.Full,
     false,
     false,
     SaveOptions(true)),
-    CompletionOptions(false, ["."], missing),
+    CompletionOptions(false, [".", "@", "\""], missing),
     true,
     SignatureHelpOptions(["(", ","], missing),
     false,

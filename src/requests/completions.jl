@@ -1,3 +1,8 @@
+# TODO:
+# - refactor, simplify branching, unify duplications
+# - fuzzy completions
+# - (maybe) export latex completions into a separate package
+
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     CIs = CompletionItem[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -38,6 +43,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
             rng = Range(doc, offset:offset)
             collect_completions(x, spartial, rng, CIs, server, false)
         end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.AT_SIGN
+        # only `@` given
+        x !== nothing && collect_completions(x, "@", rng, CIs, server, false)
     elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
         kw_completion(doc, CSTParser.Tokenize.untokenize(t), CIs, offset)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end

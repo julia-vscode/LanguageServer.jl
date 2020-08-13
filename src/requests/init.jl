@@ -4,7 +4,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     SaveOptions(true)),
-    CompletionOptions(false, [".", "@", "\""], missing),
+    CompletionOptions(false, [".", "@", "\"", "^"], missing),
     true,
     SignatureHelpOptions(["(", ","], missing),
     false,
@@ -37,7 +37,7 @@ function isjuliabasedir(path)
         if "base" in fs && isdir(joinpath(path, "base"))
             return isjuliabasedir(joinpath(path, "base"))
         end
-        return all(f->f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
+        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
@@ -48,7 +48,7 @@ function has_too_many_files(path, N = 5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
+        for (root, dirs, files) in walkdir(path, onerror = x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -89,7 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror = x->x)
+            for (root, dirs, files) in walkdir(path, onerror = x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)

@@ -1,10 +1,10 @@
 # VSCode specific
 # ---------------
 
-nodocuemnt_error(uri, data = nothing) =
+nodocuemnt_error(uri, data=nothing) =
     return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", data)
 
-function mismatched_version_error(uri, doc, params, msg, data = nothing)
+function mismatched_version_error(uri, doc, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
         -32099,
         "version mismatch in $(msg) request for $(uri): JLS $(doc._version), client: $(params.version)",
@@ -92,7 +92,7 @@ function should_file_be_linted(uri, server)
     if length(server.workspaceFolders) == 0 || uri_path === nothing
         return false
     else
-        return any(i->startswith(uri_path, i), server.workspaceFolders)
+        return any(i -> startswith(uri_path, i), server.workspaceFolders)
     end
 end
 
@@ -141,7 +141,7 @@ function Base.getindex(server::LanguageServerInstance, r::Regex)
     return out
 end
 
-function _offset_unitrange(r::UnitRange{Int}, first = true)
+function _offset_unitrange(r::UnitRange{Int}, first=true)
     return r.start - 1:r.stop
 end
 
@@ -173,7 +173,7 @@ function isvalidjlfile(path)
     endswith(path, ".jl")
 end
 
-function get_expr(x, offset, pos = 0, ignorewhitespace = false)
+function get_expr(x, offset, pos=0, ignorewhitespace=false)
     if pos > offset
         return nothing
     end
@@ -192,7 +192,7 @@ function get_expr(x, offset, pos = 0, ignorewhitespace = false)
     end
 end
 
-function get_expr(x, offset::UnitRange{Int}, pos = 0, ignorewhitespace = false)
+function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     if all(pos .> offset)
         return nothing
     end
@@ -216,7 +216,7 @@ function get_expr(x, offset::UnitRange{Int}, pos = 0, ignorewhitespace = false)
     end
 end
 
-function get_expr1(x, offset, pos = 0)
+function get_expr1(x, offset, pos=0)
     if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
             return x
@@ -263,7 +263,7 @@ function get_expr1(x, offset, pos = 0)
 end
 
 
-function get_identifier(x, offset, pos = 0)
+function get_identifier(x, offset, pos=0)
     if pos > offset
         return nothing
     end

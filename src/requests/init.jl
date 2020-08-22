@@ -44,11 +44,11 @@ function isjuliabasedir(path)
     end
 end
 
-function has_too_many_files(path, N = 5000)
+function has_too_many_files(path, N=5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror = x -> x)
+        for (root, dirs, files) in walkdir(path, onerror=x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -89,7 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror = x -> x)
+            for (root, dirs, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)

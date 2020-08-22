@@ -116,7 +116,7 @@ const snippet_completions = Dict{String,String}(
     "while" => "while \$1\n\t\$0\nend"
     )
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     for val in m.vals
         n, v = String(val[1]), val[2]
         (startswith(n, ".") || startswith(n, "#")) && continue
@@ -134,7 +134,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
     end
 end
 
-function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     if scopeof(x) !== nothing
         collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported, dotcomps)
         if scopeof(x).modules isa Dict
@@ -150,7 +150,7 @@ function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported =
     end
 end
 
-function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     if x.names !== nothing
         for n in x.names
             if startswith(n[1], spartial)

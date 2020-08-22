@@ -10,7 +10,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         doc = Document(uri, params.textDocument.text, false, server)
         setdocument!(server, URI2(uri), doc)
         doc._version = params.textDocument.version
-        doc._workspace_file = any(i->startswith(uri, filepath2uri(i)), server.workspaceFolders)
+        doc._workspace_file = any(i -> startswith(uri, filepath2uri(i)), server.workspaceFolders)
         set_open_in_editor(doc, true)
 
         fpath = getpath(doc)
@@ -154,7 +154,7 @@ end
 
 insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0) # OK, used to adjust EXPR spans
 
-function cst_len(x, i1 = 1, i2 = length(x.args))
+function cst_len(x, i1=1, i2=length(x.args))
     n = 0
     @inbounds for i = i1:i2
         n += x.args[i].fullspan
@@ -238,7 +238,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     lint!(doc, server)
 end
 
-function mark_errors(doc, out = Diagnostic[])
+function mark_errors(doc, out=Diagnostic[])
     line_offsets = get_line_offsets(doc)
     errs = StaticLint.collect_hints(getcst(doc), doc.server, doc.server.lint_missingrefs)
     n = length(errs)
@@ -387,7 +387,7 @@ function parse_jmd(ps, str)
     return top, ps
 end
 
-function search_for_parent(dir::String, file::String, drop = 3, parents = String[])
+function search_for_parent(dir::String, file::String, drop=3, parents=String[])
     drop < 1 && return parents
     try
         !isdir(dir) && return parents
@@ -450,7 +450,7 @@ function is_parentof(parent_path, child_path, server)
         return true
     else
         # clean up
-        foreach(k->!(k in previous_server_docs) && deletedocument!(server, k), getdocuments_key(server))
+        foreach(k -> !(k in previous_server_docs) && deletedocument!(server, k), getdocuments_key(server))
         return false
     end
 end

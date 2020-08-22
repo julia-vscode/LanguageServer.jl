@@ -246,7 +246,7 @@ function reexport_module(x::EXPR, server, conn)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return
-    names = filter!(s->!isempty(s), collect(CSTParser.str_value.(exported_names)))
+    names = filter!(s -> !isempty(s), collect(CSTParser.str_value.(exported_names)))
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])

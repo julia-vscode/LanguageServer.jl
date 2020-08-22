@@ -1,6 +1,6 @@
-function get_signatures(b, tls, sigs, server, visited = nothing) end # Fallback
+function get_signatures(b, tls, sigs, server, visited=nothing) end # Fallback
 
-function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = StaticLint.Binding[])
+function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited=StaticLint.Binding[])
     if b in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -12,7 +12,7 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
     elseif b.val isa EXPR && CSTParser.defines_struct(b.val)
         args = CSTParser.defines_mutable(b.val) ? b.val[4] : b.val[3]
         if length(args) > 0
-            inner_constructor_i = findfirst(a->CSTParser.defines_function(a), args.args)
+            inner_constructor_i = findfirst(a -> CSTParser.defines_function(a), args.args)
             if inner_constructor_i !== nothing
                 get_siginfo_from_call(args[inner_constructor_i], sigs)
             else
@@ -34,9 +34,9 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
     get_signatures(b.prev, tls, sigs, server, visited)
 end
 
-function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited = nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server, visited=nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
     StaticLint.iterate_over_ss_methods(b, tls, server, function (m)
-        push!(sigs, SignatureInformation(string(m), "", (a->ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
+        push!(sigs, SignatureInformation(string(m), "", (a -> ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
         return false
     end)
 end
@@ -88,12 +88,12 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     else
         arg = sum(CSTParser.is_comma(a) for a in parentof(x).args)
     end
-    return SignatureHelp(filter(s->length(s.parameters) > arg, sigs), 0, arg)
+    return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
 end
 
 # TODO: should be in StaticLint. visited check is costly.
 resolve_shadow_binding(b) = b
-function resolve_shadow_binding(b::StaticLint.Binding, visited = StaticLint.Binding[])
+function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Binding[])
     if b in visited
         throw(LSInfiniteLoop("Inifinite loop in bindings."))
     else
@@ -106,9 +106,9 @@ function resolve_shadow_binding(b::StaticLint.Binding, visited = StaticLint.Bind
     end
 end
 
-function get_definitions(x, tls, server, locations, visited = nothing) end # Fallback
+function get_definitions(x, tls, server, locations, visited=nothing) end # Fallback
 
-function get_definitions(x::T, tls, server, locations, visited = nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+function get_definitions(x::T, tls, server, locations, visited=nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
     StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
         try
             if isfile(m.file)
@@ -121,7 +121,7 @@ function get_definitions(x::T, tls, server, locations, visited = nothing) where 
     end)
 end
 
-function get_definitions(b::StaticLint.Binding, tls, server, locations, visited = StaticLint.Binding[])
+function get_definitions(b::StaticLint.Binding, tls, server, locations, visited=StaticLint.Binding[])
     if b in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -173,7 +173,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return locations
 end
 
-function get_file_loc(x::EXPR, offset = 0, c = nothing)
+function get_file_loc(x::EXPR, offset=0, c=nothing)
     if c !== nothing
         for a in x.args
             a == c && break
@@ -216,7 +216,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
 end
 
 # If
-function find_references(b::StaticLint.Binding, refs = EXPR[], from_end = false)
+function find_references(b::StaticLint.Binding, refs=EXPR[], from_end=false)
     if !from_end && (b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType)
         b = StaticLint.last_method(b)
     end
@@ -284,7 +284,7 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     return syms
 end
 
-function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},StaticLint.Binding}[])
+function collect_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[])
     if bindingof(x) !== nothing
         push!(bindings, (pos .+ (0:x.span), bindingof(x)))
     end
@@ -297,7 +297,7 @@ function collect_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int
     return bindings
 end
 
-function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{UnitRange{Int},StaticLint.Binding}[]; query = "")
+function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[]; query="")
     if bindingof(x) isa StaticLint.Binding && valof(bindingof(x).name) isa String && bindingof(x).val isa EXPR && startswith(valof(bindingof(x).name), query)
         push!(bindings, (pos .+ (0:x.span), bindingof(x)))
     end
@@ -306,7 +306,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos = 0, bindings = Tuple{Unit
     end
     if x.args !== nothing
         for a in x.args
-            collect_toplevel_bindings_w_loc(a, pos, bindings, query = query)
+            collect_toplevel_bindings_w_loc(a, pos, bindings, query=query)
             pos += a.fullspan
         end
     end
@@ -366,7 +366,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
     return "Main"
 end
 
-function get_module_of(s::StaticLint.Scope, ms = [])
+function get_module_of(s::StaticLint.Scope, ms=[])
     if CSTParser.defines_module(s.expr) && CSTParser.isidentifier(s.expr[2])
         pushfirst!(ms, StaticLint.valofid(s.expr[2]))
     end

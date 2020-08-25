@@ -17,8 +17,8 @@ end
 @dict_readable struct DeclarationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
@@ -40,8 +40,8 @@ end
 @dict_readable struct DefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
@@ -64,8 +64,8 @@ end
 @dict_readable struct TypeDefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
@@ -88,8 +88,8 @@ end
 @dict_readable struct ImplementationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
@@ -114,7 +114,7 @@ end
 @dict_readable struct ReferenceParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
     context::ReferenceContext
 end

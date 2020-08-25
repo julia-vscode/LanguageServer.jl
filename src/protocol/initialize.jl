@@ -103,7 +103,7 @@ struct InitializeParams <: Outbound
     capabilities::ClientCapabilities
     trace::Union{String,Missing}
     workspaceFolders::Union{Vector{WorkspaceFolder},Nothing,Missing}
-    workDoneToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
 end
 
 # Requires handwritten implementaiton to account for 3-part Unions
@@ -116,7 +116,7 @@ function InitializeParams(dict::Dict)
     ClientCapabilities(dict["capabilities"]),
     haskey(dict, "trace") ? String(dict["trace"]) : missing ,
     !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]),
-    haskey(dict, "workDoneToken") ? ProgressToken(dict["workDoneToken"]) : missing)
+    haskey(dict, "workDoneToken") ? dict["workDoneToken"] : missing)
 end
 ##############################################################################
 

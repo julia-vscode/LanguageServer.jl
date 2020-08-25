@@ -3,9 +3,8 @@ mutable struct CancelParams
 end
 CancelParams(d::Dict) = CancelParams(d["id"])
 
-const ProgressToken = Union{Int,String}
 struct ProgressParams{T}
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
     value::T
 end
 
@@ -148,11 +147,11 @@ end
 ##############################################################################
 # Progress
 struct WorkDoneProgressCreateParams <: Outbound
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
 end
 
 @dict_readable struct WorkDoneProgressCancelParams
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
 end
 
 struct WorkDoneProgressBegin <: Outbound
@@ -185,7 +184,7 @@ struct WorkDoneProgressEnd <: Outbound
 end
 
 struct WorkDoneProgressParams <: Outbound
-    workDoneToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct WorkDoneProgressOptions <: Outbound
@@ -196,5 +195,5 @@ end
 # Partial
 
 struct PartialResultParams <: Outbound
-    partialResultToken::Union{ProgressToken,Missing}
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end

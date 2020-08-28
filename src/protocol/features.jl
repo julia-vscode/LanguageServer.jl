@@ -142,8 +142,8 @@ end
 
 @dict_readable struct DocumentColorParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct Color <: Outbound
@@ -196,7 +196,7 @@ end
 @dict_readable struct RenameParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
     newName::String
 end
 
@@ -231,8 +231,8 @@ end
 
 @dict_readable struct FoldingRangeParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct FoldingRange <: Outbound
@@ -260,8 +260,8 @@ struct SelectionRangeRegistrationOptions <: Outbound
 end
 
 @dict_readable struct SelectionRangeParams <: Outbound
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
     textDocument::TextDocumentIdentifier
     positions::Vector{Position}
 end
@@ -289,7 +289,7 @@ mutable struct ExecuteCommandRegistrationOptions <: Outbound
 end
 
 @dict_readable struct ExecuteCommandParams <: Outbound
-    workDoneToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
     command::String
     arguments::Union{Vector{Any},Missing}
 end

@@ -61,14 +61,14 @@ end
 
 @dict_readable struct DocumentSymbolParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 @dict_readable struct WorkspaceSymbolParams <: Outbound
     query::String
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct SymbolInformation <: Outbound

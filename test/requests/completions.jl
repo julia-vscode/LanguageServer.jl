@@ -61,3 +61,28 @@ end
     settestdoc("import Bas")
     @test any(item.label == "Base" for item in completion_test(0, 10).items)
 end
+
+@testset "getfield completions" begin
+    settestdoc("Base.")
+    @test any(item.label == "rand" for item in completion_test(0, 5).items)
+
+    settestdoc("Base.r")
+    @test any(item.label == "rand" for item in completion_test(0, 6).items)
+end
+
+@testset "token completions" begin
+    settestdoc("B")
+    @test any(item.label == "Base" for item in completion_test(0, 1).items)
+
+    settestdoc("r")
+    @test any(item.label == "rand" for item in completion_test(0, 1).items)
+
+    settestdoc("@t")
+    @test any(item.label == "@time" for item in completion_test(0, 2).items)
+    
+    settestdoc("i")
+    @test any(item.label == "if" for item in completion_test(0, 1).items)
+    
+    settestdoc("i")
+    @test any(item.label == "in" for item in completion_test(0, 1).items)
+end

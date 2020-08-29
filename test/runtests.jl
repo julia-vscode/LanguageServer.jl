@@ -17,6 +17,9 @@ JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
     end
     @testset "intellisense" begin
         include("test_intellisense.jl")
+        @testset "completions" begin
+            include("requests/completions.jl")
+        end
     end
     @testset "edit" begin
         include("test_edit.jl")

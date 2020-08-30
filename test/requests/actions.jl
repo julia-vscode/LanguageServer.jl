@@ -1,0 +1,28 @@
+action_request_test(line0, char0, line1 = line0, char1 = char0; diags = []) = LanguageServer.textDocument_codeAction_request(LanguageServer.CodeActionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Range(LanguageServer.Position(line0, char0), LanguageServer.Position(line1, char1)), LanguageServer.CodeActionContext(diags, missing)), server, server.jr_endpoint)
+
+@testset "reexport" begin
+    settestdoc("using Base.Meta\n")
+    @test any(c.command == "ReexportModule" for c in action_request_test(0, 15))
+    c = filter(c->c.command == "ReexportModule", action_request_test(0, 15))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
+@testset "inline expand" begin
+    settestdoc("f(x) = x")
+    @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
+    c = filter(c->c.command == "ExpandFunction", action_request_test(0, 5))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
+@testset "fixmissingref" begin
+    doc = settestdoc("argtail\n")
+    e = LanguageServer.mark_errors(doc)[1]
+    @test any(c.command == "FixMissingRef" for c in action_request_test(0, 5, diags = [e]))
+    c = filter(c->c.command == "FixMissingRef", action_request_test(0, 5, diags = [e]))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
+

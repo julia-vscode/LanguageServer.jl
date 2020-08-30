@@ -17,8 +17,26 @@ JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
     end
     @testset "intellisense" begin
         include("test_intellisense.jl")
+
+        server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
+        server.runlinter = true
+        server.jr_endpoint = nothing
+        LanguageServer.initialize_request(init_request, server, nothing)
+
+        function settestdoc(text)
+            empty!(server._documents)
+            LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
+
+            doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
+            LanguageServer.parse_all(doc, server)
+            doc
+        end
+
         @testset "completions" begin
             include("requests/completions.jl")
+        end
+        @testset "actions" begin
+            include("requests/actions.jl")
         end
     end
     @testset "edit" begin

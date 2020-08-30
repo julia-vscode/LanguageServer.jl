@@ -1,18 +1,4 @@
-server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-server.runlinter = true
-server.jr_endpoint = nothing
-LanguageServer.initialize_request(init_request, server, nothing)
-
-function settestdoc(text)
-    empty!(server._documents)
-    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
-
-    doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
-    LanguageServer.parse_all(doc, server)
-end
-
 completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
-
 
 @testset "latex completions" begin
     settestdoc("""

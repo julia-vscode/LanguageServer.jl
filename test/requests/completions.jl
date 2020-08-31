@@ -54,7 +54,7 @@ end
 
 @testset "getfield completions" begin
     settestdoc("Base.")
-    @test any(item.label == "rand" for item in completion_test(0, 5).items)
+    @test any(item.label == "Base" for item in completion_test(0, 5).items)
 
     settestdoc("Base.r")
     @test any(item.label == "rand" for item in completion_test(0, 6).items)

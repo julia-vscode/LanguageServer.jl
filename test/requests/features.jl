@@ -46,7 +46,7 @@ end
     """)
     @test !isempty(def_test(0, 3))
     @test !isempty(def_test(2, 3))
-def
+end
 
 @testset "references" begin
     settestdoc("""
@@ -54,7 +54,7 @@ def
     func()
     """)
     @test length(ref_test(1, 2)) == 2
-def
+end
 
 @testset "rename" begin
     settestdoc("""
@@ -62,7 +62,7 @@ def
     func()
     """)
     @test length(rename_test(0, 2).documentChanges[1].edits) == 2
-def
+end
 
 @testset "get_file_loc" begin
     doc = settestdoc("""

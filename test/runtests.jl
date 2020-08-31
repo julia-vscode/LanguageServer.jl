@@ -6,6 +6,15 @@ const Range = LanguageServer.Range
 
 # TODO Replace this with a proper mock endpoint
 JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+function settestdoc(text)
+    empty!(server._documents)
+    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
+
+    doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
+    LanguageServer.parse_all(doc, server)
+    doc
+end
+
 
 @testset "LanguageServer" begin
 
@@ -22,15 +31,6 @@ JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
         server.runlinter = true
         server.jr_endpoint = nothing
         LanguageServer.initialize_request(init_request, server, nothing)
-
-        function settestdoc(text)
-            empty!(server._documents)
-            LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
-
-            doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
-            LanguageServer.parse_all(doc, server)
-            doc
-        end
 
         @testset "completions" begin
             include("requests/completions.jl")

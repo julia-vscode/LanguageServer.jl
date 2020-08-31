@@ -41,6 +41,9 @@ end
         @testset "features" begin
             include("requests/features.jl")
         end
+        @testset "hover" begin
+            include("requests/hover.jl")
+        end
     end
     @testset "edit" begin
         include("test_edit.jl")

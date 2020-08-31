@@ -17,6 +17,16 @@ for i = 1:1 end
 while true end
 begin end
 sin()
+struct S
+    a
+    b
+    c
+    d
+    e
+    f
+    g
+end
+S(a,b,c,d,e,f,g)
 """)
 
 @test hover_test(0, 1) === nothing
@@ -34,3 +44,4 @@ sin()
 @test hover_test(13, 13) !== nothing
 @test hover_test(14, 7) !== nothing
 @test hover_test(15, 5) !== nothing
+@test hover_test(25, 15) !== nothing

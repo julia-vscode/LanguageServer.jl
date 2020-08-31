@@ -151,7 +151,7 @@ end
 get_fcall_position(x, documentation, visited=nothing) = documentation
 
 function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
-    if xor in visited                                      # TODO: remove
+    if x in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
         push!(visited, x)                                # TODO: remove

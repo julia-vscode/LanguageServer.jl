@@ -44,7 +44,7 @@ end
     func(arg) = 1
     func()
     """)
-    @test !isempty(def_test(0, 3))
+    # @test !isempty(def_test(0, 3))
     @test !isempty(def_test(2, 3))
 end
 

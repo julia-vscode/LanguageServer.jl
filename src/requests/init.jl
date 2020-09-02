@@ -60,7 +60,7 @@ function has_too_many_files(path, N=5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION >= v"1.3.0" && isa(err, Base.TaskFailedException) && isa(err.task.exception, Base.IOError)) || rethrow()
         return false
     end
 

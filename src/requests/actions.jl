@@ -123,33 +123,6 @@ function expand_inline_func(x, server, conn)
     end
 end
 
-
-function add_default_constructor(x::EXPR, server, conn)
-    sexpr = _get_parent_fexpr(x, CSTParser.defines_struct)
-    !(sexpr.args isa Vector{EXPR}) && return
-    ismutable = length(sexpr.args) == 5
-    name = CSTParser.get_name(sexpr)
-    sig = sexpr.args[2 + ismutable]
-    block = sexpr.args[3 + ismutable]
-
-    isempty(block.args) && return
-    any(CSTParser.defines_function(a) for a in block.args) && return # constructor already exists
-
-    newtext = string("\n    function $(valof(name))(args...)\n\n        new")
-    # if DataType is parameterised do something here
-
-    newtext = string(newtext, "(")
-    for i in 1:length(block.args)
-        newtext = string(newtext, "", valof(CSTParser.get_arg_name(block.args[i])))
-        newtext = string(newtext, i < length(block.args) ? ", " : ")\n    end")
-    end
-    file, offset = get_file_loc(last(block.args))
-    offset += last(block.args).span
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
-
-    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
-end
-
 function is_in_fexpr(x::EXPR, f)
     if f(x)
         return true

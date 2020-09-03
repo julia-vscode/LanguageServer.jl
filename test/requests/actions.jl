@@ -14,6 +14,12 @@ end
     c = filter(c->c.command == "ExpandFunction", action_request_test(0, 5))[1]
     
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+
+    settestdoc("f(x) = begin x end")
+    @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
+    c = filter(c->c.command == "ExpandFunction", action_request_test(0, 5))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
 @testset "fixmissingref" begin
@@ -24,5 +30,16 @@ end
     
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
+
+@testset "explicit import" begin
+    doc = settestdoc("using Base.Meta\nMeta.quot")
+    @test LanguageServer.find_using_statement(doc.cst[2][1]) !== nothing
+    
+    @test any(c.command == "ExplicitPackageVarImport" for c in action_request_test(1, 1))
+    c = filter(c->c.command == "ExplicitPackageVarImport", action_request_test(1, 1))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
 
 

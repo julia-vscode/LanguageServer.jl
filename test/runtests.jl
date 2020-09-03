@@ -47,6 +47,9 @@ end
         @testset "textdocument" begin
             include("requests/textdocument.jl")
         end
+        @testset "misc" begin
+            include("requests/misc.jl")
+        end
     end
     @testset "edit" begin
         include("test_edit.jl")

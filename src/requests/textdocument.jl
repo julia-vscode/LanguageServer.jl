@@ -433,7 +433,7 @@ function is_parentof(parent_path, child_path, server)
         end
         pdoc = Document(puri, content, false, server)
         setdocument!(server, URI2(puri), pdoc)
-        CSTParser.parse(get_text(pdoc))
+        CSTParser.parse(get_text(pdoc), true)
         if typof(pdoc.cst) === CSTParser.FileH
             pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)

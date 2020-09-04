@@ -12,7 +12,7 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands
     if x isa EXPR
-        for (_,sa) in LSActions
+        for (_, sa) in LSActions
             if sa.when(x, params)
                 push!(commands, Command(sa.command.title, sa.command.command, arguments))
             end

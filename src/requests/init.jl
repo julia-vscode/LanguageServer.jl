@@ -23,7 +23,7 @@ const serverCapabilities = ServerCapabilities(
     missing,
     true,
     false,
-    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule", "FixMissingRef"]),
+    ExecuteCommandOptions(missing, collect(keys(LSActions))),
     false,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
@@ -131,7 +131,10 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
             if wksp.uri !== nothing
-                push!(server.workspaceFolders, uri2filepath(wksp.uri))
+                fpath = uri2filepath(wksp.uri)
+                if fpath !== nothing
+                    push!(server.workspaceFolders, fpath)
+                end
             end
         end
     end

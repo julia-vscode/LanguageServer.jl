@@ -120,6 +120,10 @@ end
 # the include follow logic.
 function remove_workspace_files(root, server)
     for (uri, doc) in getdocuments_pair(server)
+        # We first check whether the doc still exists on the server
+        # because a previous loop iteration could have deleted it
+        # via dependency removal of files
+        hasdocument(server, uri) || continue
         fpath = getpath(doc)
         isempty(fpath) && continue
         get_open_in_editor(doc) && continue

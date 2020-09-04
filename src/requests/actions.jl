@@ -1,3 +1,9 @@
+struct ServerAction
+    command::Command
+    when::Function
+    handler::Function
+end
+
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     commands = Command[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -6,28 +12,12 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands
     if x isa EXPR
-        if refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore
-            push!(commands, Command("Explicitly import used package variables.", "ExplicitPackageVarImport", arguments))
-        end
-        if parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding
-            if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore
-                push!(commands, Command("Re-export package variables.", "ReexportModule", arguments))
+        for (_,sa) in LSActions
+            if sa.when(x, params)
+                push!(commands, Command(sa.command.title, sa.command.command, arguments))
             end
         end
-        if is_in_fexpr(x, is_single_line_func)
-            push!(commands, Command("Expand function definition.", "ExpandFunction", arguments))
-        end
-        if is_in_fexpr(x, CSTParser.defines_struct)
-            push!(commands, Command("Add default constructor", "AddDefaultConstructor", arguments))
-        end
-        if is_fixable_missing_ref(x, params.context)
-            push!(commands, Command("Fix missing reference", "FixMissingRef", arguments))
-        end
-        # if params.range.start.line != params.range.stop.line # selection across _line_offsets
-        #     push!(commands, Command("Wrap in `if` block.", "WrapIfBlock", arguments))
-        # end
     end
-
     return commands
 end
 
@@ -36,22 +26,8 @@ function workspace_executeCommand_request(params::ExecuteCommandParams, server::
     offset = params.arguments[2]
     doc = getdocument(server, URI2(uri))
     x = get_expr(getcst(doc), offset)
-    if params.command == "ExplicitPackageVarImport"
-        explicitly_import_used_variables(x, server, conn)
-    elseif params.command == "ExpandFunction"
-        expand_inline_func(x, server, conn)
-    elseif params.command == "AddDefaultConstructor"
-        add_default_constructor(x, server, conn)
-    elseif params.command == "ReexportModule"
-        if refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)
-            reexport_module(x, server, conn)
-        elseif refof(x).val isa SymbolServer.ModuleStore
-            reexport_package(x, server, conn)
-        end
-    elseif params.command == "WrapIfBlock"
-        wrap_block(get_expr(getcst(doc), params.arguments[2]:params.arguments[3]), server, :if, conn)
-    elseif params.command == "FixMissingRef"
-        applymissingreffix(x, server, conn)
+    if haskey(LSActions, params.command)
+        LSActions[params.command].handler(x, server, conn)
     end
 end
 
@@ -146,33 +122,6 @@ function expand_inline_func(x, server, conn)
     end
 end
 
-
-function add_default_constructor(x::EXPR, server, conn)
-    sexpr = _get_parent_fexpr(x, CSTParser.defines_struct)
-    !(sexpr.args isa Vector{EXPR}) && return
-    ismutable = length(sexpr.args) == 5
-    name = CSTParser.get_name(sexpr)
-    sig = sexpr.args[2 + ismutable]
-    block = sexpr.args[3 + ismutable]
-
-    isempty(block.args) && return
-    any(CSTParser.defines_function(a) for a in block.args) && return # constructor already exists
-
-    newtext = string("\n    function $(valof(name))(args...)\n\n        new")
-    # if DataType is parameterised do something here
-
-    newtext = string(newtext, "(")
-    for i in 1:length(block.args)
-        newtext = string(newtext, "", valof(CSTParser.get_arg_name(block.args[i])))
-        newtext = string(newtext, i < length(block.args) ? ", " : ")\n    end")
-    end
-    file, offset = get_file_loc(last(block.args))
-    offset += last(block.args).span
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset:offset), newtext)])
-
-    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
-end
-
 function is_in_fexpr(x::EXPR, f)
     if f(x)
         return true
@@ -204,6 +153,7 @@ function get_next_line_offset(x)
 end
 
 function reexport_package(x::EXPR, server, conn)
+    (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)) || (refof(x).val isa SymbolServer.ModuleStore) || return
     mod::SymbolServer.ModuleStore = refof(x).val
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
@@ -300,3 +250,22 @@ function applymissingreffix(x, server, conn)
         end
     end
 end
+
+# Adding a CodeAction requires defining:
+# * a Command (title and description);
+# * a function (.when) called on the currently selected expression and parameters of the CodeAction call;
+# * a function (.handler) called on three arguments (current expression, server and the jr connection) to implement the command.
+const LSActions = Dict(
+    "ExplicitPackageVarImport" => ServerAction(Command("Explicitly import used package variables.", "ExplicitPackageVarImport", missing), 
+                                               (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore, 
+                                               explicitly_import_used_variables),
+    "ExpandFunction" => ServerAction(Command("Expand function definition.", "ExpandFunction", missing),
+                                     (x, params) -> is_in_fexpr(x, is_single_line_func),
+                                     expand_inline_func),
+    "FixMissingRef" => ServerAction(Command("Fix missing reference", "FixMissingRef", missing),
+                                    (x, params) -> is_fixable_missing_ref(x, params.context),
+                                    applymissingreffix),
+    "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
+                                     (x, params) -> parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore),
+                                     reexport_package)
+)

@@ -19,7 +19,6 @@ include("languageserverinstance.jl")
 include("runserver.jl")
 include("staticlint.jl")
 
-include("requests/init.jl")
 include("requests/misc.jl")
 include("requests/textdocument.jl")
 include("requests/features.jl")
@@ -27,6 +26,7 @@ include("requests/hover.jl")
 include("requests/completions.jl")
 include("requests/workspace.jl")
 include("requests/actions.jl")
+include("requests/init.jl")
 include("utilities.jl")
 
 end

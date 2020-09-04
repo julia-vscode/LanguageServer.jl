@@ -10,11 +10,11 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
     if b.type == StaticLint.CoreTypes.Function && b.val isa EXPR && CSTParser.defines_function(b.val)
         get_siginfo_from_call(b.val, sigs)
     elseif b.val isa EXPR && CSTParser.defines_struct(b.val)
-        args = CSTParser.defines_mutable(b.val) ? b.val[4] : b.val[3]
+        args = b.val[3]
         if length(args) > 0
             inner_constructor_i = findfirst(a -> CSTParser.defines_function(a), args.args)
             if inner_constructor_i !== nothing
-                get_siginfo_from_call(args[inner_constructor_i], sigs)
+                get_siginfo_from_call(args.args[inner_constructor_i], sigs)
             else
                 params = ParameterInformation[]
                 for field in args.args
@@ -68,9 +68,9 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     if x isa EXPR && parentof(x) isa EXPR && StaticLint.is_call(parentof(x))
         if CSTParser.isidentifier(parentof(x).args[1])
             call_name = parentof(x).args[1]
-        elseif StaticLint.is_curly(parentof(x).args[1]) && CSTParser.isidentifier(parentof(x).args[1].args[1])
+        elseif CSTParser.iscurly(parentof(x).args[1]) && CSTParser.isidentifier(parentof(x).args[1].args[1])
             call_name = parentof(x).args[1].args[1]
-        elseif StaticLint.is_getfield_w_quotenode(parentof(x).args[1])
+        elseif CSTParser.is_getfield_w_quotenode(parentof(x).args[1])
             call_name = parentof(x).args[1].args[3].args[1]
         else
             call_name = nothing
@@ -79,14 +79,14 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
             get_signatures(f_binding, tls, sigs, server)
         end
     end
-    if (isempty(sigs) || (typof(x) === CSTParser.PUNCTUATION  && kindof(x) === CSTParser.Tokens.RPAREN))
+    if (isempty(sigs) || (headof(x) === :RPAREN))
         return SignatureHelp(SignatureInformation[], 0, 0)
     end
 
-    if typof(x) === CSTParser.Tokens.LPAREN
+    if headof(x) === :LPAREN
         arg = 0
     else
-        arg = sum(CSTParser.is_comma(a) for a in parentof(x).args)
+        arg = sum(headof(a) === :COMMA for a in parentof(x).trivia)
     end
     return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
 end
@@ -152,7 +152,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
         get_definitions(b, tls, server, locations)
-    elseif x isa EXPR && typof(x) === CSTParser.LITERAL && (kindof(x) === Tokens.STRING || kindof(x) === Tokens.TRIPLE_STRING)
+    elseif x isa EXPR && CSTParser.isstringliteral(x)
         # TODO: move to its own function
         if sizeof(valof(x)) < 256 # AUDIT: OK
             try
@@ -175,14 +175,14 @@ end
 
 function get_file_loc(x::EXPR, offset=0, c=nothing)
     if c !== nothing
-        for a in x.args
+        for a in x
             a == c && break
             offset += a.fullspan
         end
     end
     if parentof(x) !== nothing
         return get_file_loc(parentof(x), offset, x)
-    elseif typof(x) === CSTParser.FileH && StaticLint.hasmeta(x)
+    elseif headof(x) === :file && StaticLint.hasmeta(x)
         return x.meta.error, offset
     else
         return nothing, offset
@@ -215,7 +215,6 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     return locations
 end
 
-# If
 function find_references(b::StaticLint.Binding, refs=EXPR[], from_end=false)
     if !from_end && (b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType)
         b = StaticLint.last_method(b)
@@ -253,17 +252,17 @@ end
 
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)
-    (typof(name) === CSTParser.IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
-    (typof(name) === CSTParser.OPERATOR) ||
-    (typof(name) === CSTParser.NONSTDIDENTIFIER && length(name) == 2 && valof(name[2]) isa String && !isempty(valof(name[2])))
+    (headof(name) === :IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
+    CSTParser.isoperator(name) ||
+    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2])))
 end
 function get_name_of_binding(name::EXPR)
-    if typof(name) === CSTParser.IDENTIFIER
+    if headof(name) === :IDENTIFIER
         valof(name)
-    elseif typof(name) === CSTParser.OPERATOR
+    elseif CSTParser.isoperator(name)
         string(Expr(name))
-    elseif typof(name) === CSTParser.NONSTDIDENTIFIER
-        valof(name[2])
+    elseif headof(name) === :NONSTDIDENTIFIER
+        valof(name.args[2])
     else
         ""
     end
@@ -288,8 +287,8 @@ function collect_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRange{Int},St
     if bindingof(x) !== nothing
         push!(bindings, (pos .+ (0:x.span), bindingof(x)))
     end
-    if x.args !== nothing
-        for a in x.args
+    if length(x) > 0
+        for a in x
             collect_bindings_w_loc(a, pos, bindings)
             pos += a.fullspan
         end
@@ -301,11 +300,11 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     if bindingof(x) isa StaticLint.Binding && valof(bindingof(x).name) isa String && bindingof(x).val isa EXPR && startswith(valof(bindingof(x).name), query)
         push!(bindings, (pos .+ (0:x.span), bindingof(x)))
     end
-    if scopeof(x) !== nothing && !(typof(x) === CSTParser.FileH || typof(x) === CSTParser.ModuleH || typof(x) === CSTParser.BareModule)
+    if scopeof(x) !== nothing && !(headof(x) === :file || CSTParser.defines_module(x))
         return bindings
     end
-    if x.args !== nothing
-        for a in x.args
+    if length(x) > 0
+        for a in x
             collect_toplevel_bindings_w_loc(a, pos, bindings, query=query)
             pos += a.fullspan
         end
@@ -315,7 +314,7 @@ end
 
 function _binding_kind(b, server)
     if b isa StaticLint.Binding
-        if b.type == nothing
+        if b.type === nothing
             return 13
         elseif b.type == StaticLint.CoreTypes.Module
             return 2
@@ -367,8 +366,8 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
 end
 
 function get_module_of(s::StaticLint.Scope, ms=[])
-    if CSTParser.defines_module(s.expr) && CSTParser.isidentifier(s.expr[2])
-        pushfirst!(ms, StaticLint.valofid(s.expr[2]))
+    if CSTParser.defines_module(s.expr) && CSTParser.isidentifier(s.expr.args[2])
+        pushfirst!(ms, StaticLint.valofid(s.expr.args[2]))
     end
     if parentof(s) isa StaticLint.Scope
         return get_module_of(parentof(s), ms)
@@ -387,7 +386,7 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     end
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)
 
     return documentation

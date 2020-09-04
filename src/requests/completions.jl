@@ -21,7 +21,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         !isempty(partial) && latex_completions(doc, offset, partial, CIs)
     elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
         string_completion(doc, offset, rng, t, CIs)
-    elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
+    elseif x isa EXPR && is_in_import_statement(x)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
@@ -143,7 +143,7 @@ function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported=f
             end
         end
     end
-    if parentof(x) !== nothing && typof(x) !== CSTParser.ModuleH && typof(x) !== CSTParser.BareModule
+    if parentof(x) !== nothing && !CSTParser.defines_module(x)
         return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported, dotcomps)
     else
         return
@@ -168,9 +168,9 @@ end
 
 function is_rebinding_of_module(x)
     x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
-    refof(x).val isa EXPR && typof(refof(x).val) === CSTParser.BinaryOpCall && kindof(refof(x).val.args[2]) === CSTParser.Tokens.EQ && # binding expr is an assignment
-    StaticLint.hasref(refof(x).val.args[3]) && refof(refof(x).val.args[3]).type === StaticLint.CoreTypes.Module &&
-    refof(refof(x).val.args[3]).val isa EXPR && typof(refof(refof(x).val.args[3]).val) === CSTParser.ModuleH# double check the rhs points to a module
+    refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
+    StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
+    refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
 end
 
 function _get_dot_completion(px, spartial, rng, CIs, server) end
@@ -179,10 +179,10 @@ function _get_dot_completion(px::EXPR, spartial, rng, CIs, server)
         if refof(px) isa StaticLint.Binding
             if refof(px).val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(refof(px).val, spartial, rng, CIs, server, true)
-            elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
+            elseif refof(px).val isa EXPR && CSTParser.defines_module(refof(px).val) && scopeof(refof(px).val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
             elseif is_rebinding_of_module(px)
-                collect_completions(scopeof(refof(refof(px).val.args[3]).val), spartial, rng, CIs, server, true)
+                collect_completions(scopeof(refof(refof(px).val.args[2]).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fieldnames
                     a = String(a)
@@ -236,7 +236,7 @@ end
 
 function get_import_root(x::EXPR)
     for i = 1:length(x.args)
-        if typof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
+        if headof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
             return x.args[i - 1]
         end
     end
@@ -320,6 +320,8 @@ function path_completion(doc, offset, rng, t, CIs)
         end
     end
 end
+
+is_in_import_statement(x::EXPR) = (headof(parentof(x)) === :using || headof(parentof(x)) === :import) || (CSTParser.isoperator(headof(parentof(x))) && (valof(headof(parentof(x))) == "." || valof(headof(parentof(x))) == ":") && is_in_import_statement(parentof(parentof(x)))) 
 
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
     import_statement = parentof(x)

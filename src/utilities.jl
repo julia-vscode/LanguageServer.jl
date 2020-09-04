@@ -177,8 +177,8 @@ function get_expr(x, offset, pos=0, ignorewhitespace=false)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if pos < offset <= (pos + a.fullspan)
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -196,8 +196,8 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     if all(pos .> offset)
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if all(pos .< offset .<= (pos + a.fullspan))
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -217,35 +217,35 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
 end
 
 function get_expr1(x, offset, pos=0)
-    if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
+    if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
             return x
         else
             return nothing
         end
     else
-        for i = 1:length(x.args)
-            arg = x.args[i]
+        for i = 1:length(x)
+            arg = x[i]
             if pos < offset < (pos + arg.span) # def within span
                 return get_expr1(arg, offset, pos)
             elseif arg.span == arg.fullspan
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
-                elseif i == length(x.args) # offset == pos + arg.fullspan
+                elseif i == length(x) # offset == pos + arg.fullspan
                     return get_expr1(arg, offset, pos)
                 end
             else
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
@@ -267,14 +267,14 @@ function get_identifier(x, offset, pos=0)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing
-        for a in x.args
+    if length(x) > 0
+        for a in x
             if pos <= offset <= (pos + a.span)
                 return get_identifier(a, offset, pos)
             end
             pos += a.fullspan
         end
-    elseif typof(x) === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif headof(x) === :IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
 end
@@ -326,7 +326,7 @@ end
 
 function resolve_op_ref(x::EXPR, server)
     StaticLint.hasref(x) && return true
-    typof(x) !== CSTParser.OPERATOR && return false
+    !CSTParser.isoperator(x) && return false
     pf = parent_file(x)
     pf === nothing && return false
     scope = StaticLint.retrieve_scope(x)

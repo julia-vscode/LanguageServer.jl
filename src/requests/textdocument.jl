@@ -70,7 +70,7 @@ end
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     if params.textDocument.version < doc._version
-        error("The client and server have different textDocument versions for $(doc._uri).")
+        error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
     end
     doc._version = params.textDocument.version
 
@@ -433,7 +433,7 @@ function is_parentof(parent_path, child_path, server)
         end
         pdoc = Document(puri, content, false, server)
         setdocument!(server, URI2(puri), pdoc)
-        CSTParser.parse(get_text(pdoc))
+        CSTParser.parse(get_text(pdoc), true)
         if typof(pdoc.cst) === CSTParser.FileH
             pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)

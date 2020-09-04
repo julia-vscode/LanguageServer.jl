@@ -63,7 +63,7 @@ end
 """
     get_offset(doc, line, char)
 
-Returns the byte offset position corresponding to a line/character position. 
+Returns the byte offset position corresponding to a line/character position.
 This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
@@ -101,10 +101,10 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     text = get_text(doc)
 
     if line >= length(line_offsets)
-        error("Invalid arguments.")
+        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
         return nextind(text, lastindex(text))
     elseif line < 0
-        error("Invalid arguments.")
+        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
     end
 
     line_offset = line_offsets[line + 1]
@@ -153,9 +153,9 @@ end
 
 """
     get_line_offsets(doc::Document)
-    
-Updates the doc._line_offsets field, an n length Array each entry of which 
-gives the byte offset position of the start of each line. This always starts 
+
+Updates the doc._line_offsets field, an n length Array each entry of which
+gives the byte offset position of the start of each line. This always starts
 with 0 for the first line (even if empty).
 """
 function get_line_offsets(doc::Document, force=false)

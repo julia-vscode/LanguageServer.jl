@@ -48,14 +48,13 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
 
     tdes = Dict{String,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
-
     # Find uses of `x` and mark edits
     for ref in refof(x).refs
         if parentof(ref) isa EXPR && typof(parentof(ref)) == CSTParser.BinaryOpCall && length(parentof(ref).args) == 3 && kindof(parentof(ref).args[2]) === CSTParser.Tokens.DOT && parentof(ref).args[1] == ref
             typof(parentof(ref).args[3]) !== CSTParser.Quotenode && continue # some malformed EXPR, skip
             childname = parentof(ref).args[3].args[1]
             StaticLint.hasref(childname) && refof(childname) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
-            !haskey(refof(x).val.vals, valof(childname)) && continue # skip, perhaps mark as missing ref ?
+            !haskey(refof(x).val.vals, Symbol(valof(childname))) && continue # skip, perhaps mark as missing ref ?
 
             file, offset = get_file_loc(ref)
             if !haskey(tdes, file._uri)

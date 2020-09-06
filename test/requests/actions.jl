@@ -33,7 +33,7 @@ end
 
 @testset "explicit import" begin
     doc = settestdoc("using Base.Meta\nMeta.quot")
-    @test LanguageServer.find_using_statement(doc.cst[2][1]) !== nothing
+    @test LanguageServer.find_using_statement(doc.cst.args[2].args[1]) !== nothing
     
     @test any(c.command == "ExplicitPackageVarImport" for c in action_request_test(1, 1))
     c = filter(c->c.command == "ExplicitPackageVarImport", action_request_test(1, 1))[1]

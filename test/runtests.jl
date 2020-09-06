@@ -54,9 +54,6 @@ end
     @testset "edit" begin
         include("test_edit.jl")
     end
-    @testset "actions" begin
-        include("test_actions.jl")
-    end
     @testset "paths" begin
         include("test_paths.jl")
     end

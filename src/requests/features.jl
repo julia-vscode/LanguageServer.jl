@@ -6,11 +6,10 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
     else                                                 # TODO: remove
         push!(visited, b)                                # TODO: remove
     end                                                  # TODO: remove
-
     if b.type == StaticLint.CoreTypes.Function && b.val isa EXPR && CSTParser.defines_function(b.val)
         get_siginfo_from_call(b.val, sigs)
     elseif b.val isa EXPR && CSTParser.defines_struct(b.val)
-        args = b.val[3]
+        args = b.val.args[3]
         if length(args) > 0
             inner_constructor_i = findfirst(a -> CSTParser.defines_function(a), args.args)
             if inner_constructor_i !== nothing
@@ -64,14 +63,13 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     rng = Range(doc, offset:offset)
     x = get_expr(getcst(doc), offset)
     arg = 0
-
-    if x isa EXPR && parentof(x) isa EXPR && StaticLint.is_call(parentof(x))
+    if x isa EXPR && parentof(x) isa EXPR && CSTParser.iscall(parentof(x))
         if CSTParser.isidentifier(parentof(x).args[1])
             call_name = parentof(x).args[1]
         elseif CSTParser.iscurly(parentof(x).args[1]) && CSTParser.isidentifier(parentof(x).args[1].args[1])
             call_name = parentof(x).args[1].args[1]
         elseif CSTParser.is_getfield_w_quotenode(parentof(x).args[1])
-            call_name = parentof(x).args[1].args[3].args[1]
+            call_name = parentof(x).args[1].args[2].args[1]
         else
             call_name = nothing
         end

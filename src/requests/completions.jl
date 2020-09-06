@@ -235,10 +235,8 @@ function _completion_kind(b, server)
 end
 
 function get_import_root(x::EXPR)
-    for i = 1:length(x.args)
-        if headof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
-            return x.args[i - 1]
-        end
+    if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"
+        return last(x.args[1].args[1].args)
     end
     return nothing
 end
@@ -321,11 +319,13 @@ function path_completion(doc, offset, rng, t, CIs)
     end
 end
 
-is_in_import_statement(x::EXPR) = (headof(parentof(x)) === :using || headof(parentof(x)) === :import) || (CSTParser.isoperator(headof(parentof(x))) && (valof(headof(parentof(x))) == "." || valof(headof(parentof(x))) == ":") && is_in_import_statement(parentof(parentof(x)))) 
+is_in_import_statement(x::EXPR) = parentof(x) isa EXPR && ((headof(parentof(x)) === :using || headof(parentof(x)) === :import) || (CSTParser.isoperator(headof(parentof(x))) && (valof(headof(parentof(x))) == "." || valof(headof(parentof(x))) == ":") && is_in_import_statement(parentof(parentof(x))))) 
 
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
-    import_statement = parentof(x)
+    import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+    
     import_root = get_import_root(import_statement)
+    
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
         # no partial, no dot

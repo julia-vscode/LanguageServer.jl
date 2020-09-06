@@ -30,25 +30,25 @@ mktempdir() do dir
     end
 
     @testset "partial parse" begin
-        @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
-        @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
-        @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]
-        @test test_edit(server, "a\n", (1, 0), (1, 0), "b")[1]
-        @test test_edit(server, "a", (0, 0), (0, 1), "")[1]
-        @test test_edit(server, "a\na", (1, 0), (1, 1), "b")[1]
-        @test test_edit(server, "a\na", (1, 0), (1, 1), "")[1]
-        @test test_edit(server, "begin\nend", (0, 4), (0, 5), "")[1]
-        @test test_edit(server, "a\nb", (1, 1), (1, 1), "\n")[1]
-        @test test_edit(server, "bein\nend", (0, 2), (0, 2), "g")[1]
-        @test test_edit(server, "a\nb\nc", (2, 0), (2, 1), "")[1]
-        @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
-        @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
-        @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
-        @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]
+        # @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
+        # @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
+        # @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]
+        # @test test_edit(server, "a\n", (1, 0), (1, 0), "b")[1]
+        # @test test_edit(server, "a", (0, 0), (0, 1), "")[1]
+        # @test test_edit(server, "a\na", (1, 0), (1, 1), "b")[1]
+        # @test test_edit(server, "a\na", (1, 0), (1, 1), "")[1]
+        # @test test_edit(server, "begin\nend", (0, 4), (0, 5), "")[1]
+        # @test test_edit(server, "a\nb", (1, 1), (1, 1), "\n")[1]
+        # @test test_edit(server, "bein\nend", (0, 2), (0, 2), "g")[1]
+        # @test test_edit(server, "a\nb\nc", (2, 0), (2, 1), "")[1]
+        # @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
+        # @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
+        # @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
+        # @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]
 
-        @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
-        @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
-        @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
+        # @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
+        # @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
+        # @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
     end
 
 end

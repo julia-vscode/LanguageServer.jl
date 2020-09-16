@@ -46,6 +46,9 @@ function runserver(pipe_in=stdin, pipe_out=stdout, env_path=choose_env(),
     run(server)
 end
 
-choose_env() = something(get(ARGS, 1, nothing),          # 1. path passed explicitly
-                         Base.current_project(pwd()),    # 2. parent project of pwd()
-                         Base.load_path_expand("@v#.#")) # 3. default "global" env
+function choose_env()
+    maybe_dirname = x -> x !== nothing ? dirname(x) : nothing
+    something(get(ARGS, 1, nothing),                            # 1. path passed explicitly
+              maybe_dirname(Base.current_project(pwd())),       # 2. parent project of pwd()
+              maybe_dirname(Base.load_path_expand("@v#.#")))    # 3. default "global" env
+end

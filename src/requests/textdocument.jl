@@ -153,7 +153,6 @@ function mark_errors(doc, out=Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
-                    DiagnosticSeverities
                     if headof(errs[i][2]) === :errortoken
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, "Julia", "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
@@ -229,7 +228,7 @@ function parse_jmd(ps, str)
             push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
         end
     end
-    top = EXPR(CSTParser.FileH, EXPR[])
+    top = EXPR(:file, EXPR[], nothing)
     if isempty(blocks)
         return top, ps
     end

@@ -1,5 +1,3 @@
-using JSONRPC
-
 init_request = LanguageServer.InitializeParams(
     9902,
     missing,

@@ -83,7 +83,6 @@ end
             
             LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
         end
-        end
     end
     @testset "edit" begin
         include("test_edit.jl")
@@ -91,5 +90,4 @@ end
     @testset "paths" begin
         include("test_paths.jl")
     end
-
 end

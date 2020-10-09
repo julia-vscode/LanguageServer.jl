@@ -68,6 +68,7 @@ end
 
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
+    t=  time()
     doc = getdocument(server, URI2(params.textDocument.uri))
     if params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
@@ -77,6 +78,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     for tdcce in params.contentChanges
         applytextdocumentchanges(doc, tdcce)
     end
+    @info "didChange (pre-parse): $(round(time()-t, sigdigits = 3))"
     parse_all(doc, server)
 end
 

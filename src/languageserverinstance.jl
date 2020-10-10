@@ -327,3 +327,32 @@ function Base.run(server::LanguageServerInstance)
         end
     end
 end
+
+using Pkg
+
+VersionFloat(v::VersionNumber) = join(split(string(v),'.')[1:2],'.')
+
+global_env_path = joinpath(homedir(),".julia/environments/v$(VersionFloat(VERSION))")
+
+"""
+    get_project_language_server()
+
+Get a language server instance for current julia session using the default options. If the path of current project uses the global environment path, it will activate the project to speed up the process.
+"""
+function get_project_language_server()
+
+    current_project = Pkg.project()
+    current_env_path = dirname(current_project.path)
+
+    # Force activation to speed up the process
+    if current_env_path == global_env_path
+        @warn("Activating the project at $(pwd())")
+        Pkg.activate(".")
+        current_project = Pkg.project()
+        current_env_path = dirname(current_project.path)
+    end
+
+    env_path = current_env_path
+
+    return LanguageServerInstance(stdin, stdout, env_path)
+end

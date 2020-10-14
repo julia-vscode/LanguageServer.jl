@@ -78,7 +78,6 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     for tdcce in params.contentChanges
         applytextdocumentchanges(doc, tdcce)
     end
-    @info "didChange (pre-parse): $(round(time()-t, sigdigits = 3))"
     parse_all(doc, server)
 end
 

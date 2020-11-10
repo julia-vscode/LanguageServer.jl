@@ -96,6 +96,21 @@ function should_file_be_linted(uri, server)
     end
 end
 
+function search_up_file(target, from)
+    parent_dir = dirname(from)
+    return if begin
+            parent_dir == from || # ensure to escape infinite recursion
+            isempty(from)        # reached to the system root
+        end
+        nothing
+    else
+        path = joinpath(from, target)
+        isfile′(path) ? path : search_up_file(target, parent_dir)
+    end
+end
+
+isfile′(p) = try; isfile(p) catch; false end
+
 # CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
 #                                 t == :Function ? 3 :
 #                                 t == :DataType ? 7 :
@@ -106,9 +121,6 @@ end
 #                         t == :DataType ? 5 :
 #                         t == :Module ? 2 :
 #                         t == :Bool ? 17 : 13
-
-
-
 
 # Find location of default datatype constructor
 const DefaultTypeConstructorLoc = let def = first(methods(Int))

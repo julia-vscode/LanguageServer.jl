@@ -68,3 +68,5 @@ end
 
 julia_refreshLanguageServer_notification(_, server::LanguageServerInstance, conn) =
     trigger_symbolstore_reload(server)
+
+julia_file_search_up_request(params::FileSearchUpParams, _...) = search_up_file(params.target, params.from)

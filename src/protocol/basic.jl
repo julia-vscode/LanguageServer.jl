@@ -197,3 +197,9 @@ end
 struct PartialResultParams <: Outbound
     partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
+
+# misc
+@dict_readable struct FileSearchUpParams
+    target::String
+    from::String
+end

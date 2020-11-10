@@ -24,6 +24,7 @@ const workspace_applyEdit_request_type = JSONRPC.RequestType("workspace/applyEdi
 const workspace_configuration_request_type = JSONRPC.RequestType("workspace/configuration", ConfigurationParams, Vector{Any})
 const julia_activateenvironment_notification_type = JSONRPC.NotificationType("julia/activateenvironment", String)
 const julia_refreshLanguageServer_notification_type = JSONRPC.NotificationType("julia/refreshLanguageServer", Nothing)
+const julia_file_search_up_request_type = JSONRPC.RequestType("julia/fileSearchUp", FileSearchUpParams, Union{Nothing,String})
 
 const initialize_request_type = JSONRPC.RequestType("initialize", InitializeParams, InitializeResult)
 const initialized_notification_type = JSONRPC.NotificationType("initialized", InitializedParams)

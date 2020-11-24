@@ -17,6 +17,7 @@ make use of the Julia Language Server for various code editing features:
 - [Vim and Neovim](../../wiki/Vim-and-Neovim)
 - [Emacs](../../wiki/Emacs)
 - [Sublime Text](https://github.com/tomv564/LSP)
+- [Kakoune](../../wiki/Kakoune)
 
 ## Installation and Usage
 **Documentation**: [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://www.julia-vscode.org/LanguageServer.jl/dev)

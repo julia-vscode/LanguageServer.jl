@@ -227,7 +227,16 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     if endswith(doc._uri, ".jmd")
         doc.cst, ps = parse_jmd(ps, get_text(doc))
     else
-        doc.cst, ps = CSTParser.parse(ps, true)
+        try
+            doc.cst, ps = CSTParser.parse(ps, true)
+        catch err
+            # This throws users' source text to error...
+            if err isa CSTInfiniteLoop
+                error("CSTParser looped while parsing: \"$(get_text(doc))\" ")
+            else
+                err
+            end
+        end
     end
     if typof(doc.cst) === CSTParser.FileH
         doc.cst.val = getpath(doc)

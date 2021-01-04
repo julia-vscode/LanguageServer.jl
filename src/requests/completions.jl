@@ -319,7 +319,7 @@ function path_completion(doc, offset, rng, t, CIs)
     end
 end
 
-is_in_import_statement(x::EXPR) = parentof(x) isa EXPR && ((headof(parentof(x)) === :using || headof(parentof(x)) === :import) || (CSTParser.isoperator(headof(parentof(x))) && (valof(headof(parentof(x))) == "." || valof(headof(parentof(x))) == ":") && is_in_import_statement(parentof(parentof(x))))) 
+is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :import))
 
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
     import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)

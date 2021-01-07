@@ -117,8 +117,8 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
+    semantic_pass(getroot(doc), doc)
 
-    scopepass(getroot(doc), doc)
     lint!(doc, server)
 end
 

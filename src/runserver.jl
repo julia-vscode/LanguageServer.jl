@@ -52,7 +52,7 @@ choose_env() = something(get(ARGS, 1, nothing),          # 1. path passed explic
 
 function choose()
     maybe_dirname = x -> x !== nothing ? dirname(x) : nothing
-    something(get(ARGS, 1, nothing),                            # 1. path passed explicitlysomething(get(ARGS, 1, nothing))
+    something(get(ARGS, 1, nothing),                            # 1. path passed explicitly
               maybe_dirname(Base.current_project(pwd())),       # 2. parent project of pwd()
               maybe_dirname(Base.load_path_expand("@v#.#")))    # 3. default "global" env
 end

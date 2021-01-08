@@ -68,7 +68,6 @@ end
 
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
-    t=  time()
     doc = getdocument(server, URI2(params.textDocument.uri))
     if params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")

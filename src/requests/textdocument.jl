@@ -324,12 +324,12 @@ function is_parentof(parent_path, child_path, server)
     else
         pdoc = getdocument(server, URI2(puri))
     end
-    scopepass(getroot(pdoc), pdoc)
+    semantic_pass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
     if any(getpath(d) == child_path for (k, d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server, URI2(filepath2uri(child_path)))
         parse_all(cdoc, server)
-        scopepass(getroot(cdoc))
+        semantic_pass(getroot(cdoc))
         return true, "", CSTParser.Tokens.STRING
     else
         # clean up

@@ -65,3 +65,6 @@ function julia_activateenvironment_notification(params::String, server::Language
 
     trigger_symbolstore_reload(server)
 end
+
+julia_refreshLanguageServer_notification(_, server::LanguageServerInstance, conn) =
+    trigger_symbolstore_reload(server)

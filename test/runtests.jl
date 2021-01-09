@@ -1,6 +1,5 @@
-using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, JSON
+using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, LanguageServer.JSON, LanguageServer.JSONRPC
 using LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
-import JSONRPC
 const LS = LanguageServer
 const Range = LanguageServer.Range
 
@@ -30,7 +29,6 @@ function on_all_offsets(doc, f)
 end
 
 @testset "LanguageServer" begin
-
     @testset "document" begin
         include("test_document.jl")
     end

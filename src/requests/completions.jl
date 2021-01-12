@@ -19,7 +19,10 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
         partial = is_latex_comp(t.val, offset - t.startbyte)
         !isempty(partial) && latex_completions(doc, offset, partial, CIs)
-    elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
+    elseif t isa CSTParser.Tokens.Token && (t.kind in (CSTParser.Tokenize.Tokens.STRING,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_STRING,
+                                                       CSTParser.Tokenize.Tokens.CMD,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(doc, offset, rng, t, CIs)
     elseif x isa EXPR && is_in_import_statement(x)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
@@ -244,7 +247,7 @@ end
 function string_completion(doc, offset, rng, t, CIs)
     path_completion(doc, offset, rng, t, CIs)
     # Need to adjust things for quotation marks
-    if t.kind == CSTParser.Tokenize.Tokens.STRING
+    if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
         t.startbyte < offset <= t.endbyte || return
         relative_offset = offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]

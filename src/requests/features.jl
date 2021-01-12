@@ -106,6 +106,12 @@ end
 
 function get_definitions(x, tls, server, locations, visited=nothing) end # Fallback
 
+function get_definitions(x::SymbolServer.ModuleStore, tls, server, locations, visited=nothing)
+    if haskey(x.vals, :eval) && x[:eval] isa SymbolServer.FunctionStore
+        get_definitions(x[:eval], tls, server, locations, visited)
+    end
+end
+
 function get_definitions(x::T, tls, server, locations, visited=nothing) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
     StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
         try

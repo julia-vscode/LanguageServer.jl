@@ -311,6 +311,26 @@ if VERSION < v"1.1"
         end
         return out
     end
+    _path_separator    = "\\"
+    _path_separator_re = r"[/\\]+"
+    function _pathsep(paths::AbstractString...)
+        for path in paths
+            m = match(_path_separator_re, String(path))
+            m !== nothing && return m.match[1:1]
+        end
+        return _path_separator
+    end
+    function joinpath(a::String, b::String)
+        isabspath(b) && return b
+        A, a = _splitdrive(a)
+        B, b = _splitdrive(b)
+        !isempty(B) && A != B && return string(B,b)
+        C = isempty(B) ? A : B
+        isempty(a)                              ? string(C,b) :
+        occursin(_path_separator_re, a[end:end]) ? string(C,a,b) :
+                                                  string(C,a,_pathsep(a,b),b)
+    end
+    joinpath(a::AbstractString, b::AbstractString) = joinpath(String(a), String(b))
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"

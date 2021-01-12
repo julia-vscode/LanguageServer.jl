@@ -292,11 +292,13 @@ end
     end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return ""
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a, b)[1]
     end
     function _splitdrive(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return "", path
         String(m.captures[1]), String(m.captures[2])
     end
     function _splitdir(path::String)

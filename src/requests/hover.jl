@@ -114,9 +114,9 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited=St
             documentation
         end
         if CSTParser.defines_function(b.val)
-            documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
+            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
         elseif CSTParser.defines_datatype(b.val)
-            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(b.val), "\n```\n")
         end
     elseif b.val isa SymbolServer.SymStore
         return get_hover(b.val, documentation, server)
@@ -126,6 +126,8 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited=St
     end
     return documentation
 end
+
+ensure_ends_with(s, c = "\n") = endswith(s, c) ? s : string(s, c)
 
 binding_has_preceding_docs(b::StaticLint.Binding) = expr_has_preceding_docs(b.val)
 
@@ -143,7 +145,7 @@ is_const_expr(x::EXPR) = headof(x) === :const
 is_doc_expr(x) = false
 function is_doc_expr(x::EXPR)
     return CSTParser.ismacrocall(x) &&
-        length(x.args) == 3 &&
+        length(x.args) == 4 &&
         headof(x.args[1]) === :globalrefdoc &&
         CSTParser.isstring(x.args[3])
 end

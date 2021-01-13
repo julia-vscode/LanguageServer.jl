@@ -284,7 +284,7 @@ function get_identifier(x, offset, pos=0)
 end
 
 
-if VERSION < v"1.1"
+if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
     function _splitdir_nodrive(a::String, b::String)
         m = match(Base.Filesystem.path_dir_splitter, b)
@@ -331,6 +331,7 @@ if VERSION < v"1.1"
                                                   string(C,a,_pathsep(a,b),b)
     end
     joinpath(a::AbstractString, b::AbstractString) = joinpath(String(a), String(b))
+    joinpath(a, b, c, paths...) = joinpath(joinpath(a, b), c, paths...)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
@@ -420,7 +421,7 @@ function is_in_target_dir_of_package(pkgpath, target)
             return true
         end
         return false
-    catch
+    catch err
         return false
     end
 end

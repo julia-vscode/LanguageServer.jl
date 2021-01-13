@@ -1,6 +1,6 @@
 const serverCapabilities = ServerCapabilities(
     TextDocumentSyncOptions(true,
-    TextDocumentSyncKinds.Full,
+    TextDocumentSyncKinds.Incremental,
     false,
     false,
     SaveOptions(true)),

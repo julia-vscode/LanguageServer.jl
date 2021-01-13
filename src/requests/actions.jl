@@ -34,7 +34,7 @@ end
 
 function find_using_statement(x::EXPR)
     for ref in refof(x).refs
-        if parentof(ref) isa EXPR && typof(parentof(ref)) === CSTParser.Using
+        if StaticLint.is_in_fexpr(ref, x -> headof(x) === :using || headof(x) === :import)
             return parentof(ref)
         end
     end
@@ -50,9 +50,8 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     vars = Set{String}() # names that need to be imported
     # Find uses of `x` and mark edits
     for ref in refof(x).refs
-        if parentof(ref) isa EXPR && typof(parentof(ref)) == CSTParser.BinaryOpCall && length(parentof(ref).args) == 3 && kindof(parentof(ref).args[2]) === CSTParser.Tokens.DOT && parentof(ref).args[1] == ref
-            typof(parentof(ref).args[3]) !== CSTParser.Quotenode && continue # some malformed EXPR, skip
-            childname = parentof(ref).args[3].args[1]
+        if parentof(ref) isa EXPR && CSTParser.is_getfield_w_quotenode(parentof(ref)) && parentof(ref).args[1] == ref
+            childname = parentof(ref).args[2].args[1]
             StaticLint.hasref(childname) && refof(childname) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
             !haskey(refof(x).val.vals, Symbol(valof(childname))) && continue # skip, perhaps mark as missing ref ?
 
@@ -67,7 +66,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     isempty(tdes) && return
 
     # Add `using x: vars...` statement
-    if parentof(using_stmt) isa EXPR && (typof(parentof(using_stmt)) === CSTParser.Block || typof(parentof(using_stmt)) === CSTParser.FileH)
+    if parentof(using_stmt) isa EXPR && (headof(parentof(using_stmt)) === :block || headof(parentof(using_stmt)) === :file)
         # this should cover all cases
         i1 = 0
         for i = 1:length(parentof(using_stmt).args)
@@ -93,28 +92,28 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, collect(values(tdes)))))
 end
 
-is_single_line_func(x) = CSTParser.defines_function(x) && typof(x) !== CSTParser.FunctionDef
+is_single_line_func(x) = CSTParser.defines_function(x) && headof(x) !== :function
 
 function expand_inline_func(x, server, conn)
     func = _get_parent_fexpr(x, is_single_line_func)
     length(func) < 3 && return
-    sig = func[1]
-    op = func[2]
-    body = func[3]
-    if typof(body) == CSTParser.Block && length(body) == 1
+    sig = func.args[1]
+    op = func.head
+    body = func.args[2]
+    if headof(body) == :block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
-    elseif (typof(body) === CSTParser.Begin || typof(body) === CSTParser.InvisBrackets) && length(body) == 3 &&
-        typof(body[2]) === CSTParser.Block && length(body[2]) > 0
+    elseif (headof(body) === :begin || CSTParser.isbracketed(body)) &&
+        headof(body.args[1]) === :block && length(body.args[1]) > 0
         file, offset = get_file_loc(func)
         newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
-        blockoffset = offset + sig.fullspan + op.fullspan + body[1].fullspan
-        for i = 1:length(body[2])
-            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body[2][i].span)])
-            blockoffset += body[2][i].fullspan
+        blockoffset = offset + sig.fullspan + op.fullspan + body.trivia[1].fullspan
+        for i = 1:length(body.args[1].args)
+            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[1].args[i].span)])
+            blockoffset += body.args[1].args[i].fullspan
         end
         newtext = string(newtext, "\nend\n")
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
@@ -153,8 +152,8 @@ function get_next_line_offset(x)
 end
 
 function reexport_package(x::EXPR, server, conn)
-    (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)) || (refof(x).val isa SymbolServer.ModuleStore) || return
-    mod::SymbolServer.ModuleStore = refof(x).val
+    (refof(x) isa SymbolServer.ModuleStore || refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)) || (refof(x).val isa SymbolServer.ModuleStore) || return
+    mod::SymbolServer.ModuleStore = refof(x) isa SymbolServer.ModuleStore ? refof(x) : refof(x).val
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
@@ -167,13 +166,13 @@ function reexport_package(x::EXPR, server, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
-# TODO move to StaticLint
+# TODO move to StaticL  int
 # to be called where typof(x) === CSTParser.ModuleH/BareModule
 function find_exported_names(x::EXPR)
     exported_vars = EXPR[]
     for i in 1:length(x.args[3].args)
         expr = x.args[3].args[i]
-        if typof(expr) == CSTParser.Export &&
+        if headof(expr) === :export
             for j = 2:length(expr)
                 if CSTParser.isidentifier(expr.args[j]) && StaticLint.hasref(expr.args[j])
                     push!(exported_vars, expr.args[j])
@@ -187,7 +186,7 @@ end
 function reexport_module(x::EXPR, server, conn)
     using_stmt = parentof(x)
     mod_expr = refof(x).val isa StaticLint.Binding ? refof(x).val.val : refof(x).val
-    (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || typof(mod_expr.args[3]) != CSTParser.Block || mod_expr.args[3].args isa Nothing) && return # module expr without block
+    (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || headof(mod_expr.args[3]) !== :block || mod_expr.args[3].args isa Nothing) && return # module expr without block
     # find export EXPR
     exported_names = find_exported_names(mod_expr)
 
@@ -266,6 +265,6 @@ const LSActions = Dict(
                                     (x, params) -> is_fixable_missing_ref(x, params.context),
                                     applymissingreffix),
     "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
-                                     (x, params) -> parentof(x) isa EXPR && typof(parentof(x)) === CSTParser.Using &&  refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore),
+                                     (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
                                      reexport_package)
 )

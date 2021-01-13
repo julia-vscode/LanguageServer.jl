@@ -74,124 +74,10 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     end
     doc._version = params.textDocument.version
 
-    if length(params.contentChanges) == 1 && !endswith(doc._uri, ".jmd") && !ismissing(first(params.contentChanges).range)
-        tdcce = first(params.contentChanges)
-        new_cst = _partial_update(doc, tdcce)
-        scopepass(getroot(doc), doc)
-        lint!(doc, server)
-    else
-        for tdcce in params.contentChanges
-            applytextdocumentchanges(doc, tdcce)
-        end
-        parse_all(doc, server)
+    for tdcce in params.contentChanges
+        applytextdocumentchanges(doc, tdcce)
     end
-end
-
-function _partial_update(doc::Document, tdcce::TextDocumentContentChangeEvent)
-    cst = getcst(doc)
-    insert_range = get_offset(doc, tdcce.range)
-
-    applytextdocumentchanges(doc, tdcce)
-
-    updated_text = get_text(doc)
-
-    i1, i2, loc1, loc2 = get_update_area(cst, insert_range)
-    is = insert_size(tdcce.text, insert_range)
-    if isempty(updated_text)
-        empty!(cst.args)
-        StaticLint.clear_meta(cst)
-        cst.span = cst.fullspan = 0
-    elseif 0 < i1 <= i2
-        old_span = cst_len(cst, i1, i2)
-        ps = ParseState(updated_text, loc1)
-        args = EXPR[]
-        if i1 == 1 && (ps.nt.kind == CSTParser.Tokens.WHITESPACE || ps.nt.kind == CSTParser.Tokens.COMMENT)
-            CSTParser.next(ps)
-            push!(args, CSTParser.mLITERAL(ps.nt.startbyte, ps.nt.startbyte, "", Tokens.NOTHING))
-        else
-            push!(args, CSTParser.parse(ps)[1])
-        end
-        prev_pos = -1
-        while ps.nt.startbyte < old_span + loc1 + is && !(ps.done || kindof(ps.nt) === CSTParser.Tokens.ENDMARKER)
-            if ps.nt.startbyte <= prev_pos
-                throw(LSInfiniteLoop("Loop not progressing as it should."))
-            else
-                prev_pos = ps.nt.startbyte
-            end
-            push!(args, CSTParser.parse(ps)[1])
-        end
-        new_span = 0
-        for i = 1:length(args)
-            new_span += args[i].fullspan
-        end
-        # remove old blocks
-        while old_span + is < new_span && i2 < length(cst.args)
-            i2 += 1
-            old_span += cst.args[i2].fullspan
-        end
-        for i = i1:i2
-            StaticLint.clear_meta(cst.args[i])
-        end
-        deleteat!(cst.args, i1:i2)
-
-        # insert new blocks
-        for a in args
-            insert!(cst.args, i1, a)
-            CSTParser.setparent!(cst.args[i1], cst)
-            i1 += 1
-        end
-    else
-        StaticLint.clear_meta(cst)
-        cst = CSTParser.parse(updated_text, true)
-    end
-    CSTParser.update_span!(cst)
-    doc.cst = cst
-    if typof(doc.cst) === CSTParser.FileH
-        doc.cst.val = getpath(doc)
-        set_doc(doc.cst, doc)
-    end
-end
-
-insert_size(inserttext, insertrange) = sizeof(inserttext) - max(last(insertrange) - first(insertrange), 0) # OK, used to adjust EXPR spans
-
-function cst_len(x, i1=1, i2=length(x.args))
-    n = 0
-    @inbounds for i = i1:i2
-        n += x.args[i].fullspan
-    end
-    n
-end
-
-function get_update_area(cst, insert_range)
-    loc1 = loc2 = 0
-    i1 = i2 = 0
-
-    while i1 < length(cst.args)
-        i1 += 1
-        a = cst.args[i1]
-        if loc1 <= first(insert_range) <= loc1 + a.fullspan
-            loc2 = loc1
-            i2 = i1
-            if !(loc1 <= last(insert_range) <= loc1 + a.fullspan)
-                while i2 < length(cst.args)
-                    i2 += 1
-                    a = cst.args[i2]
-                    if loc2 <= last(insert_range) <= loc2 + a.fullspan
-                        if i2 < length(cst.args) && last(insert_range) <= loc2 + a.fullspan
-                            i2 += 1
-                        end
-                        break
-                    end
-                    loc2 += a.fullspan
-                end
-            elseif i2 < length(cst.args) && last(insert_range) == loc1 + a.fullspan
-                i2 += 1
-            end
-            break
-        end
-        loc1 += a.fullspan
-    end
-    return i1, i2, loc1, loc2
+    parse_all(doc, server)
 end
 
 function convert_lsrange_to_jlrange(doc::Document, range::Range)
@@ -212,11 +98,8 @@ function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChang
         set_text!(doc, tdcce.text)
     else
         editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
-
         text = get_text(doc)
-
         new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
-
         set_text!(doc, new_text)
     end
 end
@@ -229,12 +112,12 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     else
         doc.cst, ps = CSTParser.parse(ps, true)
     end
-    if typof(doc.cst) === CSTParser.FileH
+    if headof(doc.cst) === :file
         doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
+    semantic_pass(getroot(doc), doc)
 
-    scopepass(getroot(doc), doc)
     lint!(doc, server)
 end
 
@@ -270,8 +153,7 @@ function mark_errors(doc, out=Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
-                    DiagnosticSeverities
-                    if typof(errs[i][2]) === CSTParser.ErrorToken
+                    if headof(errs[i][2]) === :errortoken
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, "Julia", "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
                         push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
@@ -346,14 +228,15 @@ function parse_jmd(ps, str)
             push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
         end
     end
-    top = EXPR(CSTParser.FileH, EXPR[])
+    top = EXPR(:file, EXPR[], nothing)
     if isempty(blocks)
         return top, ps
     end
 
     for (startbyte, b) in blocks
-        if typof(b) === CSTParser.LITERAL && kindof(b) == CSTParser.Tokens.TRIPLE_CMD && (startswith(b.val, "julia") || startswith(b.val, "{julia"))
-            blockstr = b.val
+        if CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :TRIPLESTRING && (startswith(b.args[3].val, "julia") || startswith(b.args[3].val, "{julia"))
+            
+            blockstr = b.args[3].val
             ps = CSTParser.ParseState(blockstr)
             # skip first line
             while ps.nt.startpos[1] == 1
@@ -361,18 +244,18 @@ function parse_jmd(ps, str)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
-            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
+            push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
-        elseif typof(b) === CSTParser.LITERAL && kindof(b) == CSTParser.Tokens.CMD && startswith(b.val, "j ")
-            blockstr = b.val
+        elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && startswith(b.val, "j ")
+            blockstr = b.args[3].val
             ps = CSTParser.ParseState(blockstr)
             CSTParser.next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
+            push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
 
             args, ps = CSTParser.parse(ps, true)
             append!(top.args, args.args)
@@ -382,7 +265,7 @@ function parse_jmd(ps, str)
     end
 
     prec_str_size = currentbyte:sizeof(str) # OK
-    push!(top.args, CSTParser.mLITERAL(length(prec_str_size), length(prec_str_size), "", CSTParser.Tokens.STRING))
+    push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
 
     return top, ps
 end
@@ -434,20 +317,20 @@ function is_parentof(parent_path, child_path, server)
         pdoc = Document(puri, content, false, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc), true)
-        if typof(pdoc.cst) === CSTParser.FileH
+        if headof(pdoc.cst) === :file
             pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)
         end
     else
         pdoc = getdocument(server, URI2(puri))
     end
-    scopepass(getroot(pdoc), pdoc)
+    semantic_pass(getroot(pdoc), pdoc)
     # check whether child has been included automatically
     if any(getpath(d) == child_path for (k, d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server, URI2(filepath2uri(child_path)))
         parse_all(cdoc, server)
-        scopepass(getroot(cdoc))
-        return true
+        semantic_pass(getroot(cdoc))
+        return true, "", CSTParser.Tokens.STRING
     else
         # clean up
         foreach(k -> !(k in previous_server_docs) && deletedocument!(server, k), getdocuments_key(server))

@@ -130,7 +130,7 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     for d in getdocuments_value(server)
         if d.root === doc
             d.root = d
-            scopepass(getroot(d), d)
+            semantic_pass(getroot(d), d)
         end
     end
 end
@@ -320,7 +320,7 @@ function Base.run(server::LanguageServerInstance)
                 root = getroot(doc)
                 if !(root in roots)
                     push!(roots, root)
-                    scopepass(root, doc)
+                    semantic_pass(root, doc)
                 end
 
                 lint!(doc, server)

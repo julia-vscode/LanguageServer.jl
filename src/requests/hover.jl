@@ -1,7 +1,7 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && typof(x) === CSTParser.OPERATOR && resolve_op_ref(x, server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
     documentation = get_hover(x, "", server)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
@@ -33,9 +33,9 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
         else
             try
                 documentation = if binding_has_preceding_docs(b)
-                    string(documentation, Expr(parentof(b.val).args[2]))
+                    string(documentation, Expr(parentof(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
-                    string(documentation, Expr(parentof(parentof(b.val)).args[2]))
+                    string(documentation, Expr(parentof(parentof(b.val)).args[3]))
                 else
                     documentation
                 end
@@ -107,16 +107,16 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited=St
     if b.val isa EXPR
         documentation = if binding_has_preceding_docs(b)
             # Binding has preceding docs so use them..
-            string(documentation, Expr(parentof(b.val).args[2]))
+            string(documentation, Expr(parentof(b.val).args[3]))
         elseif const_binding_has_preceding_docs(b)
-            string(documentation, Expr(parentof(parentof(b.val)).args[2]))
+            string(documentation, Expr(parentof(parentof(b.val)).args[3]))
         else
             documentation
         end
         if CSTParser.defines_function(b.val)
-            documentation = string(documentation, "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
+            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
         elseif CSTParser.defines_datatype(b.val)
-            documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(b.val), "\n```\n")
         end
     elseif b.val isa SymbolServer.SymStore
         return get_hover(b.val, documentation, server)
@@ -126,6 +126,8 @@ function get_func_hover(b::StaticLint.Binding, documentation, server, visited=St
     end
     return documentation
 end
+
+ensure_ends_with(s, c = "\n") = endswith(s, c) ? s : string(s, c)
 
 binding_has_preceding_docs(b::StaticLint.Binding) = expr_has_preceding_docs(b.val)
 
@@ -138,14 +140,14 @@ expr_has_preceding_docs(x) = false
 expr_has_preceding_docs(x::EXPR) = is_doc_expr(parentof(x))
 
 is_const_expr(x) = false
-is_const_expr(x::EXPR) = length(x.args) == 2 && kindof(x.args[1]) === CSTParser.Tokens.CONST
+is_const_expr(x::EXPR) = headof(x) === :const
 
 is_doc_expr(x) = false
 function is_doc_expr(x::EXPR)
-    return typof(x) === CSTParser.MacroCall &&
-        length(x.args) == 3 &&
-        typof(x.args[1]) === CSTParser.GlobalRefDoc &&
-        CSTParser.isstring(x.args[2])
+    return CSTParser.ismacrocall(x) &&
+        length(x.args) == 4 &&
+        headof(x.args[1]) === :globalrefdoc &&
+        CSTParser.isstring(x.args[3])
 end
 
 get_fcall_position(x, documentation, visited=nothing) = documentation
@@ -157,14 +159,14 @@ function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
         push!(visited, x)                                # TODO: remove
     end                                                  # TODO: remove
     if parentof(x) isa EXPR
-        if typof(parentof(x)) === CSTParser.Call
+        if CSTParser.iscall(parentof(x))
             call_counts = StaticLint.call_nargs(parentof(x))
             call_counts[1] < 5 && return documentation
             arg_i = 0
-            for i = 1:length(parentof(x).args)
-                arg = parentof(x).args[i]
+            for (i, arg) = enumerate(parentof(x))
                 if arg == x
                     arg_i = div(i - 1, 2)
+                    break
                 end
             end
             arg_i == 0 && return documentation
@@ -172,7 +174,7 @@ function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
             if StaticLint.hasref(fname) &&
                 (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
                 dt_ex = refof(fname).val
-                args = CSTParser.defines_mutable(dt_ex) ? dt_ex.args[4] : dt_ex.args[3]
+                args = dt_ex.args[3]
                 args.args === nothing || arg_i > length(args.args) && return documentation
                 _fieldname = CSTParser.str_value(CSTParser.get_arg_name(args.args[arg_i]))
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
@@ -196,27 +198,24 @@ end
 get_closer_hover(x, documentation) = documentation
 function get_closer_hover(x::EXPR, documentation)
     if parentof(x) isa EXPR
-        if kindof(x) === CSTParser.Tokens.END
-            if typof(parentof(x)) === CSTParser.FunctionDef
+        if headof(x) === :END
+            if headof(parentof(x)) === :function
                 documentation = string(documentation, "Closes function definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
-            elseif (typof(parentof(x)) === CSTParser.ModuleH || typof(parentof(x)) === CSTParser.ModuleH) && length(parentof(x).args) > 1
+            elseif CSTParser.defines_module(parentof(x)) && length(parentof(x).args) > 1
                 documentation = string(documentation, "Closes module definition for `", Expr(parentof(x).args[2]), "`\n")
-            elseif typof(parentof(x)) === CSTParser.Struct
+            elseif CSTParser.defines_struct(parentof(x))
                 documentation = string(documentation, "Closes struct definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
-            elseif typof(parentof(x)) === CSTParser.Mutable
-                documentation = string(documentation, "Closes mutable struct definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
-            elseif typof(parentof(x)) === CSTParser.For && length(parentof(x).args) > 2
+            elseif headof(parentof(x)) === :for && length(parentof(x).args) > 2
                 documentation = string(documentation, "Closes for-loop expression over `", Expr(parentof(x).args[2]), "`\n")
-            elseif typof(parentof(x)) === CSTParser.While && length(parentof(x).args) > 2
+            elseif headof(parentof(x)) === :while && length(parentof(x).args) > 2
                 documentation = string(documentation, "Closes while-loop expression over `", Expr(parentof(x).args[2]), "`\n")
             else
-                documentation = "Closes `$(typof(parentof(x)))` expression."
+                documentation = "Closes `$(headof(parentof(x)))` expression."
             end
-        elseif kindof(x) === CSTParser.Tokens.RPAREN
-            if typof(parentof(x)) === CSTParser.Call && length(parentof(x).args) > 0
+        elseif headof(x) === :RPAREN
+            if CSTParser.iscall(parentof(x)) && length(parentof(x).args) > 0
                 documentation = string(documentation, "Closes call of ", Expr(parentof(x).args[1]), "\n")
             end
-        elseif kindof(x) === CSTParser.Tokens.RBRACE || kindof(x) === CSTParser.Tokens.RSQUARE
         end
     end
     return documentation

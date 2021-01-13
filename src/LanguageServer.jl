@@ -1,7 +1,7 @@
 module LanguageServer
 import URIParser
 using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
-using CSTParser: EXPR, Tokenize.Tokens, typof, kindof, parentof, valof
+using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
 using Base.Docs, Markdown

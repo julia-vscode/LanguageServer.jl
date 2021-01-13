@@ -181,8 +181,8 @@ function get_expr(x, offset, pos=0, ignorewhitespace=false)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if pos < offset <= (pos + a.fullspan)
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -200,8 +200,8 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     if all(pos .> offset)
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if all(pos .< offset .<= (pos + a.fullspan))
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -221,35 +221,35 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
 end
 
 function get_expr1(x, offset, pos=0)
-    if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
+    if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
             return x
         else
             return nothing
         end
     else
-        for i = 1:length(x.args)
-            arg = x.args[i]
+        for i = 1:length(x)
+            arg = x[i]
             if pos < offset < (pos + arg.span) # def within span
                 return get_expr1(arg, offset, pos)
             elseif arg.span == arg.fullspan
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
-                elseif i == length(x.args) # offset == pos + arg.fullspan
+                elseif i == length(x) # offset == pos + arg.fullspan
                     return get_expr1(arg, offset, pos)
                 end
             else
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
@@ -271,16 +271,67 @@ function get_identifier(x, offset, pos=0)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing
-        for a in x.args
+    if length(x) > 0
+        for a in x
             if pos <= offset <= (pos + a.span)
                 return get_identifier(a, offset, pos)
             end
             pos += a.fullspan
         end
-    elseif typof(x) === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif headof(x) === :IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
+end
+
+
+if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
+    _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
+    function _splitdir_nodrive(a::String, b::String)
+        m = match(Base.Filesystem.path_dir_splitter, b)
+        m === nothing && return (a, b)
+        a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
+        a, String(m.captures[3])
+    end
+    splitpath(p::AbstractString) = splitpath(String(p))
+
+    function splitpath(p::String)
+        drive, p = _splitdrive(p)
+        out = String[]
+        isempty(p) && (pushfirst!(out, p))  # "" means the current directory.
+        while !isempty(p)
+            dir, base = _splitdir_nodrive(p)
+            dir == p && (pushfirst!(out, dir); break)  # Reached root node.
+            if !isempty(base)  # Skip trailing '/' in basename
+                pushfirst!(out, base)
+            end
+            p = dir
+        end
+        if !isempty(drive)  # Tack the drive back on to the first element.
+            out[1] = drive * out[1]  # Note that length(out) is always >= 1.
+        end
+        return out
+    end
+    _path_separator    = "\\"
+    _path_separator_re = r"[/\\]+"
+    function _pathsep(paths::AbstractString...)
+        for path in paths
+            m = match(_path_separator_re, String(path))
+            m !== nothing && return m.match[1:1]
+        end
+        return _path_separator
+    end
+    function joinpath(a::String, b::String)
+        isabspath(b) && return b
+        A, a = _splitdrive(a)
+        B, b = _splitdrive(b)
+        !isempty(B) && A != B && return string(B,b)
+        C = isempty(B) ? A : B
+        isempty(a)                              ? string(C,b) :
+        occursin(_path_separator_re, a[end:end]) ? string(C,a,b) :
+                                                  string(C,a,_pathsep(a,b),b)
+    end
+    joinpath(a::AbstractString, b::AbstractString) = joinpath(String(a), String(b))
+    joinpath(a, b, c, paths...) = joinpath(joinpath(a, b), c, paths...)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
@@ -292,11 +343,13 @@ end
     end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return ""
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a, b)[1]
     end
     function _splitdrive(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return "", path
         String(m.captures[1]), String(m.captures[2])
     end
     function _splitdir(path::String)
@@ -306,6 +359,7 @@ end
 else
     _dirname = dirname
     _splitdir = splitdir
+    _splitdrive = splitdrive
 end
 
 function valid_id(s::String)
@@ -330,7 +384,7 @@ end
 
 function resolve_op_ref(x::EXPR, server)
     StaticLint.hasref(x) && return true
-    typof(x) !== CSTParser.OPERATOR && return false
+    !CSTParser.isoperator(x) && return false
     pf = parent_file(x)
     pf === nothing && return false
     scope = StaticLint.retrieve_scope(x)
@@ -367,36 +421,8 @@ function is_in_target_dir_of_package(pkgpath, target)
             return true
         end
         return false
-    catch
+    catch err
         return false
     end
 end
 
-if VERSION < v"1.1"
-    _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
-    function _splitdir_nodrive(a::String, b::String)
-        m = match(Base.Filesystem.path_dir_splitter, b)
-        m === nothing && return (a, b)
-        a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
-        a, String(m.captures[3])
-    end
-    splitpath(p::AbstractString) = splitpath(String(p))
-
-    function splitpath(p::String)
-        drive, p = splitdrive(p)
-        out = String[]
-        isempty(p) && (pushfirst!(out, p))  # "" means the current directory.
-        while !isempty(p)
-            dir, base = _splitdir_nodrive(p)
-            dir == p && (pushfirst!(out, dir); break)  # Reached root node.
-            if !isempty(base)  # Skip trailing '/' in basename
-                pushfirst!(out, base)
-            end
-            p = dir
-        end
-        if !isempty(drive)  # Tack the drive back on to the first element.
-            out[1] = drive * out[1]  # Note that length(out) is always >= 1.
-        end
-        return out
-    end
-end

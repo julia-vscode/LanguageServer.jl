@@ -250,7 +250,7 @@ function parse_jmd(ps, str)
             append!(top.args, args.args)
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
-        elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && startswith(b.val, "j ")
+        elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && b.val !== nothing && startswith(b.val, "j ")
             blockstr = b.args[3].val
             ps = CSTParser.ParseState(blockstr)
             CSTParser.next(ps)

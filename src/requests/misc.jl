@@ -22,8 +22,21 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     loc = 0
 
     if headof(x) === :file
-        for a in x
-            if loc <= offset <= loc + a.span
+        for (i, a) in enumerate(x)
+            if loc <= offset <= loc + a.fullspan
+                # we'll try to use the next expression instead if the current expr is a
+                # NOTHING or we're in the whitespace after an expr _and_ that whitespace wraps
+                # to a new line
+                if !(loc <= offset <= loc + a.span) || headof(a) === :NOTHING
+                    if length(x) > i
+                        thisline, _ = get_position_at(doc, loc + a.span)
+                        if tdpp.position.line > thisline || headof(a) === :NOTHING
+                            loc += a.fullspan
+                            a = x[i + 1]
+                        end
+                    end
+                end
+
                 if CSTParser.defines_module(a) # Within module at the top-level, lets see if we can select on of the block arguments
                     if loc <= offset <= loc + a.trivia[1].span # Within `module` keyword, so return entire expression
                         return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
@@ -42,13 +55,6 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                         end
                     elseif loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan < offset < loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan + a.trivia[2].span # Within `end` of the module, so return entire expression
                         return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
-                    end
-                elseif headof(a) === :toplevel
-                    for b in a.args
-                        if loc <= offset <= loc + b.span
-                            return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + b.span)...), Position(get_position_at(doc, loc + b.fullspan)...)
-                        end
-                        loc += b.fullspan
                     end
                 else
                     return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)

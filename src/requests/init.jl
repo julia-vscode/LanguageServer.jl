@@ -4,7 +4,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     SaveOptions(true)),
-    CompletionOptions(false, ["."], missing),
+    CompletionOptions(false, [".", "@", "\"", "^"], missing),
     true,
     SignatureHelpOptions(["(", ","], missing),
     false,
@@ -23,7 +23,7 @@ const serverCapabilities = ServerCapabilities(
     missing,
     true,
     false,
-    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule", "FixMissingRef"]),
+    ExecuteCommandOptions(missing, collect(keys(LSActions))),
     false,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
@@ -37,18 +37,18 @@ function isjuliabasedir(path)
         if "base" in fs && isdir(joinpath(path, "base"))
             return isjuliabasedir(joinpath(path, "base"))
         end
-        return all(f->f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
+        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false
     end
 end
 
-function has_too_many_files(path, N = 5000)
+function has_too_many_files(path, N=5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
+        for (root, dirs, files) in walkdir(path, onerror=x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -60,7 +60,7 @@ function has_too_many_files(path, N = 5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION >= v"1.3.0" && isa(err, Base.TaskFailedException) && isa(err.task.exception, Base.IOError)) || rethrow()
         return false
     end
 
@@ -89,7 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror = x->x)
+            for (root, dirs, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
@@ -131,7 +131,10 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
             if wksp.uri !== nothing
-                push!(server.workspaceFolders, uri2filepath(wksp.uri))
+                fpath = uri2filepath(wksp.uri)
+                if fpath !== nothing
+                    push!(server.workspaceFolders, fpath)
+                end
             end
         end
     end

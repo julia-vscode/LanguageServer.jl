@@ -1,5 +1,5 @@
 import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver, getsymbolextendeds
-import StaticLint: getpath, getroot, setroot, getcst, setcst, scopepass, getserver, setserver
+import StaticLint: getpath, getroot, setroot, getcst, setcst, semantic_pass, getserver, setserver
 hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, URI2(filepath2uri(path)))
 function canloadfile(server::LanguageServerInstance, path::String)
     try

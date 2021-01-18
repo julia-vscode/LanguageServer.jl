@@ -11,7 +11,7 @@ mutable struct Document
     _version::Int
     server
     root::Document
-    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server = nothing)
+    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(uri), "")
         cst = CSTParser.parse(text, true)
         doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
@@ -63,7 +63,7 @@ end
 """
     get_offset(doc, line, char)
 
-Returns the byte offset position corresponding to a line/character position. 
+Returns the byte offset position corresponding to a line/character position.
 This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
@@ -101,10 +101,10 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     text = get_text(doc)
 
     if line >= length(line_offsets)
-        error("Invalid arguments.")
+        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
         return nextind(text, lastindex(text))
     elseif line < 0
-        error("Invalid arguments.")
+        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
     end
 
     line_offset = line_offsets[line + 1]
@@ -153,12 +153,12 @@ end
 
 """
     get_line_offsets(doc::Document)
-    
-Updates the doc._line_offsets field, an n length Array each entry of which 
-gives the byte offset position of the start of each line. This always starts 
+
+Updates the doc._line_offsets field, an n length Array each entry of which
+gives the byte offset position of the start of each line. This always starts
 with 0 for the first line (even if empty).
 """
-function get_line_offsets(doc::Document, force = false)
+function get_line_offsets(doc::Document, force=false)
     if force || doc._line_offsets === nothing
         doc._line_offsets = Int[0]
         text = get_text(doc)
@@ -176,7 +176,7 @@ function get_line_offsets(doc::Document, force = false)
     return doc._line_offsets
 end
 
-function get_line_offsets2!(doc::Document, force = false)
+function get_line_offsets2!(doc::Document, force=false)
     if force || doc._line_offsets2 === nothing
         doc._line_offsets2 = Int[1]
         text = get_text(doc)

@@ -1,3 +1,8 @@
+# TODO:
+# - refactor, simplify branching, unify duplications
+# - fuzzy completions
+# - (maybe) export latex completions into a separate package
+
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     CIs = CompletionItem[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -8,15 +13,18 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         # latex completion
-        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+        latex_completions(doc, offset, string("\\", CSTParser.Tokenize.untokenize(t)), CIs)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
-        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(ppt), CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+        latex_completions(doc, offset, string("\\", CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
         partial = is_latex_comp(t.val, offset - t.startbyte)
         !isempty(partial) && latex_completions(doc, offset, partial, CIs)
-    elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
+    elseif t isa CSTParser.Tokens.Token && (t.kind in (CSTParser.Tokenize.Tokens.STRING,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_STRING,
+                                                       CSTParser.Tokenize.Tokens.CMD,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(doc, offset, rng, t, CIs)
-    elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
+    elseif x isa EXPR && is_in_import_statement(x)
         import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
@@ -38,6 +46,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
             rng = Range(doc, offset:offset)
             collect_completions(x, spartial, rng, CIs, server, false)
         end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.AT_SIGN
+        # only `@` given
+        x !== nothing && collect_completions(x, "@", rng, CIs, server, false)
     elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
         kw_completion(doc, CSTParser.Tokenize.untokenize(t), CIs, offset)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end
@@ -58,9 +69,8 @@ end
 function latex_completions(doc, offset, partial, CIs)
     for (k, v) in REPL.REPLCompletions.latex_symbols
         if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset - sizeof(partial) + 1:offset), "")
-            t2 = TextEdit(Range(doc, offset - sizeof(partial):offset - sizeof(partial) + 1), v)
-            push!(CIs, CompletionItem(k[2:end], 11, missing, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
+            t1 = TextEdit(Range(doc, (offset - sizeof(partial)):offset), v)
+            push!(CIs, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, t1, missing, missing, missing, missing))
         end
     end
 end
@@ -109,7 +119,7 @@ const snippet_completions = Dict{String,String}(
     "while" => "while \$1\n\t\$0\nend"
     )
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     for val in m.vals
         n, v = String(val[1]), val[2]
         (startswith(n, ".") || startswith(n, "#")) && continue
@@ -127,7 +137,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
     end
 end
 
-function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     if scopeof(x) !== nothing
         collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported, dotcomps)
         if scopeof(x).modules isa Dict
@@ -136,14 +146,14 @@ function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported =
             end
         end
     end
-    if parentof(x) !== nothing && typof(x) !== CSTParser.ModuleH && typof(x) !== CSTParser.BareModule
+    if parentof(x) !== nothing && !CSTParser.defines_module(x)
         return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported, dotcomps)
     else
         return
     end
 end
 
-function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported=false, dotcomps=false)
     if x.names !== nothing
         for n in x.names
             if startswith(n[1], spartial)
@@ -161,9 +171,9 @@ end
 
 function is_rebinding_of_module(x)
     x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
-    refof(x).val isa EXPR && typof(refof(x).val) === CSTParser.BinaryOpCall && kindof(refof(x).val.args[2]) === CSTParser.Tokens.EQ && # binding expr is an assignment
-    StaticLint.hasref(refof(x).val.args[3]) && refof(refof(x).val.args[3]).type === StaticLint.CoreTypes.Module &&
-    refof(refof(x).val.args[3]).val isa EXPR && typof(refof(refof(x).val.args[3]).val) === CSTParser.ModuleH# double check the rhs points to a module
+    refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
+    StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
+    refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
 end
 
 function _get_dot_completion(px, spartial, rng, CIs, server) end
@@ -172,10 +182,10 @@ function _get_dot_completion(px::EXPR, spartial, rng, CIs, server)
         if refof(px) isa StaticLint.Binding
             if refof(px).val isa StaticLint.SymbolServer.ModuleStore
                 collect_completions(refof(px).val, spartial, rng, CIs, server, true)
-            elseif refof(px).val isa EXPR && typof(refof(px).val) === CSTParser.ModuleH && scopeof(refof(px).val) isa StaticLint.Scope
+            elseif refof(px).val isa EXPR && CSTParser.defines_module(refof(px).val) && scopeof(refof(px).val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).val), spartial, rng, CIs, server, true)
             elseif is_rebinding_of_module(px)
-                collect_completions(scopeof(refof(refof(px).val.args[3]).val), spartial, rng, CIs, server, true)
+                collect_completions(scopeof(refof(refof(px).val.args[2]).val), spartial, rng, CIs, server, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fieldnames
                     a = String(a)
@@ -228,10 +238,8 @@ function _completion_kind(b, server)
 end
 
 function get_import_root(x::EXPR)
-    for i = 1:length(x.args)
-        if typof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
-            return x.args[i - 1]
-        end
+    if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"
+        return last(x.args[1].args[1].args)
     end
     return nothing
 end
@@ -239,7 +247,7 @@ end
 function string_completion(doc, offset, rng, t, CIs)
     path_completion(doc, offset, rng, t, CIs)
     # Need to adjust things for quotation marks
-    if t.kind == CSTParser.Tokenize.Tokens.STRING
+    if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
         t.startbyte < offset <= t.endbyte || return
         relative_offset = offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
@@ -314,9 +322,13 @@ function path_completion(doc, offset, rng, t, CIs)
     end
 end
 
+is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :import))
+
 function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, server)
-    import_statement = parentof(x)
+    import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+    
     import_root = get_import_root(import_statement)
+    
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
         # no partial, no dot

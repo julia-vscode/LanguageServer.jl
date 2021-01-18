@@ -398,12 +398,23 @@ end
 
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(word::String, server::LanguageServerInstance, conn)
-    documentation = ""
+    exact_matches = []
+    approx_matches = []
     word_sym = Symbol(word)
     traverse_by_name(getsymbolserver(server)) do sym, val
-        if sym === word_sym
-            documentation = get_hover(val, documentation, server)
+        is_exact_match = sym === word_sym
+        # this would ideally use the Damerau-Levenshtein distance or even something fancier:
+        is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1
+        if is_match
+            val = get_hover(val, "", server)
+            if !isempty(val)
+                push!(is_exact_match ? exact_matches : approx_matches, val)
+            end
         end
     end
-    return documentation
+    if isempty(exact_matches) && isempty(approx_matches)
+        return "No results found."
+    else
+        return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
+    end
 end

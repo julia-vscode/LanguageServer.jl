@@ -113,7 +113,6 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst, ps = CSTParser.parse(ps, true)
     end
     if headof(doc.cst) === :file
-        doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
     semantic_pass(getroot(doc), doc)
@@ -318,7 +317,6 @@ function is_parentof(parent_path, child_path, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc), true)
         if headof(pdoc.cst) === :file
-            pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)
         end
     else

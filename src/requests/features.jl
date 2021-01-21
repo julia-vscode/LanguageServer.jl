@@ -158,7 +158,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         get_definitions(b, tls, server, locations)
     elseif x isa EXPR && CSTParser.isstringliteral(x)
         # TODO: move to its own function
-        if sizeof(valof(x)) < 256 # AUDIT: OK
+        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
             try
                 if isabspath(valof(x)) && isfile(valof(x))
                     push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))

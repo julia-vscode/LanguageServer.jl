@@ -97,7 +97,6 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
     
     target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-    @info "target range: $(last(r1) .+ (1:length(r2)))"
     semantic_pass(getroot(doc), target_exprs)
     lint!(doc, server)
 end

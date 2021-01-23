@@ -17,7 +17,6 @@ mutable struct Document
         doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
         get_line_offsets(doc)
         get_line_offsets2!(doc)
-        cst.val = path
         set_doc(doc.cst, doc)
         setroot(doc, doc)
         return doc

@@ -66,9 +66,19 @@ function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentPara
     return TextEdit[]
 end
 
+comp(x, y) = x == y
+function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
+    comp(x.head, y.head) && 
+    x.span == y.span && 
+    x.fullspan == y.fullspan && 
+    x.val == y.val && 
+    length(x) == length(y) && 
+    all(comp(x[i], y[i]) for i = 1:length(x))
+end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
+    s0 = deepcopy(get_text(doc)) # I don't think deepcopy is needed
     if params.textDocument.version < doc._version
         error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
     end
@@ -77,7 +87,18 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     for tdcce in params.contentChanges
         applytextdocumentchanges(doc, tdcce)
     end
-    parse_all(doc, server)
+    cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+    r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+    for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+        StaticLint.clear_meta(cst0[i])
+    end
+    setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+    comp(cst1, getcst(doc)) || @info "File didn't update properly." # expensive check, remove
+    headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+    
+    target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+    semantic_pass(getroot(doc), target_exprs)
+    lint!(doc, server)
 end
 
 function convert_lsrange_to_jlrange(doc::Document, range::Range)
@@ -113,10 +134,9 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         doc.cst, ps = CSTParser.parse(ps, true)
     end
     if headof(doc.cst) === :file
-        doc.cst.val = getpath(doc)
         set_doc(doc.cst, doc)
     end
-    semantic_pass(getroot(doc), doc)
+    semantic_pass(getroot(doc))
 
     lint!(doc, server)
 end
@@ -318,13 +338,12 @@ function is_parentof(parent_path, child_path, server)
         setdocument!(server, URI2(puri), pdoc)
         CSTParser.parse(get_text(pdoc), true)
         if headof(pdoc.cst) === :file
-            pdoc.cst.val = getpath(pdoc)
             set_doc(pdoc.cst, pdoc)
         end
     else
         pdoc = getdocument(server, URI2(puri))
     end
-    semantic_pass(getroot(pdoc), pdoc)
+    semantic_pass(getroot(pdoc))
     # check whether child has been included automatically
     if any(getpath(d) == child_path for (k, d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server, URI2(filepath2uri(child_path)))

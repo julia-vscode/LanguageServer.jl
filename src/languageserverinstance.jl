@@ -130,7 +130,7 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     for d in getdocuments_value(server)
         if d.root === doc
             d.root = d
-            semantic_pass(getroot(d), d)
+            semantic_pass(getroot(d))
         end
     end
 end
@@ -321,7 +321,7 @@ function Base.run(server::LanguageServerInstance)
                 root = getroot(doc)
                 if !(root in roots)
                     push!(roots, root)
-                    semantic_pass(root, doc)
+                    semantic_pass(root)
                 end
 
                 lint!(doc, server)

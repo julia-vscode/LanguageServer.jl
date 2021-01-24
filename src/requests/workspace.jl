@@ -109,7 +109,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.disabledDirs")
         ]))
 
-    if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
+    if server.clientInfo isa InfoParams && server.clientInfo.name == "Visual Studio Code"
         server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:12])]...)
         new_runlinter = isnothing(response[23]) ? false : true
         new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[13:22])]...)

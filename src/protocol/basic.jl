@@ -3,6 +3,13 @@ mutable struct CancelParams
 end
 CancelParams(d::Dict) = CancelParams(d["id"])
 
+const TraceValue = String
+
+struct SetTraceParams
+    value::TraceValue
+end
+SetTraceParams(d::Dict) = SetTraceParams(d["value"])
+
 struct ProgressParams{T}
     token::Union{Int,String} # ProgressToken
     value::T

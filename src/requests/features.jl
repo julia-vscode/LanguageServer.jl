@@ -397,10 +397,10 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
 end
 
 # TODO: handle documentation resolving properly, respect how Documenter handles that
-function julia_getDocFromWord_request(word::String, server::LanguageServerInstance, conn)
+function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
     exact_matches = []
     approx_matches = []
-    word_sym = Symbol(word)
+    word_sym = Symbol(params.word)
     traverse_by_name(getsymbolserver(server)) do sym, val
         is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:

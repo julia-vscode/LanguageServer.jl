@@ -66,8 +66,8 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     return fallback
 end
 
-function julia_activateenvironment_notification(params::String, server::LanguageServerInstance, conn)
-    server.env_path = params
+function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),Tuple{String}}, server::LanguageServerInstance, conn)
+    server.env_path = params.envPath
 
     trigger_symbolstore_reload(server)
 end

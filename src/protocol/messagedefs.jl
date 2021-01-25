@@ -22,7 +22,7 @@ const workspace_didChangeConfiguration_notification_type = JSONRPC.NotificationT
 const workspace_didChangeWorkspaceFolders_notification_type = JSONRPC.NotificationType("workspace/didChangeWorkspaceFolders", DidChangeWorkspaceFoldersParams)
 const workspace_applyEdit_request_type = JSONRPC.RequestType("workspace/applyEdit", ApplyWorkspaceEditParams, ApplyWorkspaceEditResponse)
 const workspace_configuration_request_type = JSONRPC.RequestType("workspace/configuration", ConfigurationParams, Vector{Any})
-const julia_activateenvironment_notification_type = JSONRPC.NotificationType("julia/activateenvironment", String)
+const julia_activateenvironment_notification_type = JSONRPC.NotificationType("julia/activateenvironment", NamedTuple{(:envPath,),Tuple{String}})
 const julia_refreshLanguageServer_notification_type = JSONRPC.NotificationType("julia/refreshLanguageServer", Nothing)
 
 const initialize_request_type = JSONRPC.RequestType("initialize", InitializeParams, InitializeResult)

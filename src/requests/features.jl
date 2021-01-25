@@ -40,11 +40,15 @@ function get_definitions(b::StaticLint.Binding, tls, server, locations)
     if !(b.val isa EXPR)
         get_definitions(b.val, tls, server, locations)
     end
-    for ref in b.refs
-        method = StaticLint.get_method(ref)
-        if method !== nothing
-            get_definitions(method, tls, server, locations)
+    if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
+        for ref in b.refs
+            method = StaticLint.get_method(ref)
+            if method !== nothing
+                get_definitions(method, tls, server, locations)
+            end
         end
+    elseif b.val isa EXPR
+        get_definitions(b.val)
     end
 end
 

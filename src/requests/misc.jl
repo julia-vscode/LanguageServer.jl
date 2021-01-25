@@ -1,6 +1,9 @@
 function cancel_notification(params::CancelParams, server::LanguageServerInstance, conn)
 end
 
+function setTrace_notification(params::SetTraceParams, server::LanguageServerInstance, conn)
+end
+
 # TODO Provide type for params
 function setTraceNotification_notification(params, server::LanguageServerInstance, conn)
 end

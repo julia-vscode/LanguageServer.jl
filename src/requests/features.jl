@@ -48,7 +48,7 @@ function get_definitions(b::StaticLint.Binding, tls, server, locations)
             end
         end
     elseif b.val isa EXPR
-        get_definitions(b.val)
+        get_definitions(b.val, tls, server, locations)
     end
 end
 

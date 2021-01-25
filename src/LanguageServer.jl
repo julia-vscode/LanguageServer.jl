@@ -27,6 +27,7 @@ include("requests/completions.jl")
 include("requests/workspace.jl")
 include("requests/actions.jl")
 include("requests/init.jl")
+include("requests/signatures.jl")
 include("utilities.jl")
 
 end

@@ -27,9 +27,24 @@ function get_hover(x::EXPR, documentation::String, server)
 end
 
 function get_hover(b::StaticLint.Binding, documentation::String, server)
-    if b.val isa EXPR
+    if b.val isa StaticLint.Binding
+        documentation = get_hover(b.val, documentation, server)
+    elseif b.val isa EXPR
         if CSTParser.defines_function(b.val) || CSTParser.defines_datatype(b.val)
             documentation = get_func_hover(b, documentation, server)
+            for r in b.refs
+                method = StaticLint.get_method(r)
+                if method isa EXPR
+                    documentation = get_preceding_docs(method, documentation)
+                    if CSTParser.defines_function(method)
+                        documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(CSTParser.get_sig(method)), "\n```\n")
+                    elseif CSTParser.defines_datatype(method)
+                        documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(method), "\n```\n")
+                    end
+                elseif method isa SymbolServer.SymStore
+                    documentation = get_hover(method, documentation, server)
+                end
+            end
         else
             try
                 documentation = if binding_has_preceding_docs(b)
@@ -42,12 +57,10 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
             catch err
                 doc1, offset1 = get_file_loc(b.val)
-                throw(LSHoverError(string("get_hover failed to convert the following to coode: ", String(codeunits(get_text(doc1))[offset1 .+ (1:b.val.span)]))))
+                throw(LSHoverError(string("get_hover failed to convert the following to code: ", String(codeunits(get_text(doc1))[offset1 .+ (1:b.val.span)]))))
             end
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = get_hover(b.val, documentation, server)
-    elseif b.val isa StaticLint.Binding
         documentation = get_hover(b.val, documentation, server)
     end
     return documentation
@@ -93,38 +106,17 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
 end
 
 
-get_func_hover(x, documentation, server, visited=nothing) = documentation
-get_func_hover(x::SymbolServer.SymStore, documentation, server, visited=nothing) = get_hover(x, documentation, server)
+get_func_hover(x, documentation, server) = documentation
+get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, documentation, server)
 
-function get_func_hover(b::StaticLint.Binding, documentation, server, visited=StaticLint.Binding[])
-    if b in visited                                      # TODO: remove
-        # throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
-        # There is a cycle in the links between Bindings. Root cause is in StaticLint but there is no reason to allow it to crash the language server. If we have done a complete circuit here then we have all the information we need and can return.
-        return documentation
-    else                                                 # TODO: remove
-        push!(visited, b)                                # TODO: remove
-    end                                                  # TODO: remove
-    if b.val isa EXPR
-        documentation = if binding_has_preceding_docs(b)
-            # Binding has preceding docs so use them..
-            string(documentation, Expr(parentof(b.val).args[3]))
-        elseif const_binding_has_preceding_docs(b)
-            string(documentation, Expr(parentof(parentof(b.val)).args[3]))
-        else
-            documentation
-        end
-        if CSTParser.defines_function(b.val)
-            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(CSTParser.get_sig(b.val)), "\n```\n")
-        elseif CSTParser.defines_datatype(b.val)
-            documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(b.val), "\n```\n")
-        end
-    elseif b.val isa SymbolServer.SymStore
-        return get_hover(b.val, documentation, server)
+function get_preceding_docs(expr::EXPR, documentation)
+    if expr_has_preceding_docs(expr)
+        string(documentation, Expr(parentof(expr).args[3]))
+    elseif is_const_expr(parentof(expr)) && expr_has_preceding_docs(parentof(expr))
+        string(documentation, Expr(parentof(parentof(expr)).args[3]))
+    else
+        documentation
     end
-    if b.prev isa StaticLint.Binding && (b.prev.type == StaticLint.CoreTypes.Function || b.prev.type == StaticLint.CoreTypes.DataType || b.prev.val isa Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}) || (b.prev isa SymbolServer.FunctionStore || b.prev isa SymbolServer.DataTypeStore)
-        return get_func_hover(b.prev, documentation, server, visited)
-    end
-    return documentation
 end
 
 ensure_ends_with(s, c = "\n") = endswith(s, c) ? s : string(s, c)

@@ -315,6 +315,7 @@ function Base.run(server::LanguageServerInstance)
             server.external_env.symbols = msg
             server.external_env.extended_methods = SymbolServer.collect_extended_methods(server.external_env.symbols)
             server.external_env.project_deps = collect(keys(server.external_env.symbols))
+            # server.external_env.project_deps = maybe_get_project_deps(server.env_path)
 
             roots = Document[]
             for doc in getdocuments_value(server)
@@ -329,4 +330,16 @@ function Base.run(server::LanguageServerInstance)
             end
         end
     end
+end
+
+function maybe_get_project_deps(env_path)
+    try
+        proj_file = Base.env_project_file(env_path)
+        if isfile(proj_file)
+            proj = Base.parsed_toml(proj_file)
+            return Symbol.(collect(keys(proj["deps"])))
+        end
+    catch e
+    end
+    Symbol[]
 end

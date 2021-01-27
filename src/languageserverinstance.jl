@@ -314,7 +314,7 @@ function Base.run(server::LanguageServerInstance)
 
             server.external_env.symbols = msg
             server.external_env.extended_methods = SymbolServer.collect_extended_methods(server.external_env.symbols)
-            server.external_env.project = collect(keys(server.external_env.symbols))
+            server.external_env.project_deps = collect(keys(server.external_env.symbols))
 
             roots = Document[]
             for doc in getdocuments_value(server)

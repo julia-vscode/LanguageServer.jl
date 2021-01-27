@@ -35,7 +35,7 @@ getsymbols(server::LanguageServerInstance) = server.external_env.symbols
 getsymbolextendeds(server::LanguageServerInstance) = server.external_env.extended_methods
 
 function getenv(doc::Document, server::LanguageServerInstance)
-    StaticLint.ExternalEnv(server.external_env.symbols, server.external_env.extended_methods, server.external_env.project)
+    StaticLint.ExternalEnv(server.external_env.symbols, server.external_env.extended_methods, server.external_env.project_deps)
 end
 
 getpath(d::Document) = d._path

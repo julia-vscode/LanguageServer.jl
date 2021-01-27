@@ -31,11 +31,11 @@ function setfile(server::LanguageServerInstance, path::String, x::Document)
     setdocument!(server, uri, x)
 end
 getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2(filepath2uri(path)))
-getsymbols(server::LanguageServerInstance) = server.symbol_store
-getsymbolextendeds(server::LanguageServerInstance) = server.symbol_extends
+getsymbols(server::LanguageServerInstance) = server.external_env.symbols
+getsymbolextendeds(server::LanguageServerInstance) = server.external_env.extended_methods
 
 function getenv(doc::Document, server::LanguageServerInstance)
-    StaticLint.ExternalEnv(server.symbol_store, server.symbol_extends, Symbol[])
+    StaticLint.ExternalEnv(server.external_env.symbols, server.external_env.extended_methods, server.external_env.project)
 end
 
 getpath(d::Document) = d._path
@@ -59,7 +59,7 @@ function setserver(file::Document, server::LanguageServerInstance)
 end
 
 function lint!(doc, server)
-    StaticLint.check_all(getcst(doc), server.lint_options, server)
+    StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
     # TODO Ideally we would not want to acces jr_endpoint here

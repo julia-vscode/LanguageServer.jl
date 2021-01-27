@@ -36,8 +36,7 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::SymbolServer.EnvStore
-    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
+    external_env::StaticLint.ExternalEnv
     symbol_store_ready::Bool
 
     format_options::DocumentFormat.FormatOptions
@@ -71,8 +70,7 @@ mutable struct LanguageServerInstance
             depot_path,
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
             Channel(Inf),
-            deepcopy(SymbolServer.stdlibs),
-            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
+            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             false,
             DocumentFormat.FormatOptions(),
             true,
@@ -314,8 +312,10 @@ function Base.run(server::LanguageServerInstance)
             @info "Received new data from Julia Symbol Server."
             msg = message.msg
 
-            server.symbol_store = msg
-            server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
+            server.external_env.symbols = msg
+            server.external_env.extended_methods = SymbolServer.collect_extended_methods(server.external_env.symbols)
+            server.external_env.project = collect(keys(server.external_env.symbols))
+
             roots = Document[]
             for doc in getdocuments_value(server)
                 # only do a pass on documents once

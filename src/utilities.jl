@@ -426,7 +426,7 @@ function op_resolve_up_scopes(x, mn, scope, server)
     return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), server)
 end
 
-maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbolserver(server), true) : x # TODO: needs to go to SymbolServer
+maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbols(server), true) : x # TODO: needs to go to SymbolServer
 
 function is_in_target_dir_of_package(pkgpath, target)
     try # Safe failure - attempts to read disc.

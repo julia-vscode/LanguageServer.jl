@@ -125,7 +125,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, se
         (startswith(n, ".") || startswith(n, "#")) && continue
         !startswith(n, spartial) && continue
         if v isa SymbolServer.VarRef
-            v = SymbolServer._lookup(v, getsymbolserver(server), true)
+            v = SymbolServer._lookup(v, getsymbols(server), true)
             v === nothing && return
         end
         if StaticLint.isexportedby(n, m) || inclexported
@@ -340,7 +340,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, ser
                 end
             end
         else
-            for (n, m) in StaticLint.getsymbolserver(server)
+            for (n, m) in getsymbols(server)
                 n = String(n)
                 (startswith(n, ".") || startswith(n, "#")) && continue
                 push!(CIs, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(rng, n)))
@@ -348,14 +348,14 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, ser
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
         # no partial, dot
-        if haskey(getsymbolserver(server), Symbol(pt.val))
-            collect_completions(getsymbolserver(server)[Symbol(pt.val)], "", rng, CIs, server)
+        if haskey(getsymbols(server), Symbol(pt.val))
+            collect_completions(getsymbols(server)[Symbol(pt.val)], "", rng, CIs, server)
         end
     elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
         # partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
-            if haskey(StaticLint.getsymbolserver(server), Symbol(ppt.val))
-                rootmod = StaticLint.getsymbolserver(server)[Symbol(ppt.val)]
+            if haskey(getsymbols(server), Symbol(ppt.val))
+                rootmod = getsymbols(server)[Symbol(ppt.val)]
                 for (n, m) in rootmod.vals
                     n = String(n)
                     if startswith(n, t.val) && !startswith(n, "#")
@@ -372,7 +372,7 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end, x, CIs, ser
                     end
                 end
             else
-                for (n, m) in StaticLint.getsymbolserver(server)
+                for (n, m) in getsymbols(server)
                     n = String(n)
                     if startswith(n, t.val)
                         push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n, sizeof(t.val)):end])))

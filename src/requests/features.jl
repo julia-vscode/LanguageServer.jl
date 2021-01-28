@@ -15,16 +15,16 @@ function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Bindin
     end
 end
 
-function get_definitions(x, tls, server, locations) end # Fallback
+function get_definitions(x, tls, env, locations) end # Fallback
 
-function get_definitions(x::SymbolServer.ModuleStore, tls, server, locations)
+function get_definitions(x::SymbolServer.ModuleStore, tls, env, locations)
     if haskey(x.vals, :eval) && x[:eval] isa SymbolServer.FunctionStore
-        get_definitions(x[:eval], tls, server, locations)
+        get_definitions(x[:eval], tls, env, locations)
     end
 end
 
-function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations) 
-    StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
+function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, env, locations)
+    StaticLint.iterate_over_ss_methods(x, tls, env, function (m)
         try
             if isfile(m.file)
                 push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
@@ -36,23 +36,23 @@ function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTy
     end)
 end
 
-function get_definitions(b::StaticLint.Binding, tls, server, locations)
+function get_definitions(b::StaticLint.Binding, tls, env, locations)
     if !(b.val isa EXPR)
-        get_definitions(b.val, tls, server, locations)
+        get_definitions(b.val, tls, env, locations)
     end
     if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
         for ref in b.refs
             method = StaticLint.get_method(ref)
             if method !== nothing
-                get_definitions(method, tls, server, locations)
+                get_definitions(method, tls, env, locations)
             end
         end
     elseif b.val isa EXPR
-        get_definitions(b.val, tls, server, locations)
+        get_definitions(b.val, tls, env, locations)
     end
 end
 
-function get_definitions(x::EXPR, tls::StaticLint.Scope, server, locations)
+function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
     doc1, o = get_file_loc(x)
     if doc1 isa Document
         push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:x.span))))
@@ -69,7 +69,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = refof(x)
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
-        get_definitions(b, tls, server, locations)
+        get_definitions(b, tls, getenv(doc, server), locations)
     elseif x isa EXPR && CSTParser.isstringliteral(x)
         # TODO: move to its own function
         if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK

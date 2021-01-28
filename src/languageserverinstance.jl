@@ -126,8 +126,8 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     delete!(server._documents, uri)
 
     for d in getdocuments_value(server)
-        if d.root === doc
-            d.root = d
+        if getroot(d) === doc
+            setroot(d, d)
             semantic_pass(getroot(d))
         end
     end

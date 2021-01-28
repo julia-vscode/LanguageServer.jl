@@ -320,13 +320,10 @@ function Base.run(server::LanguageServerInstance)
             roots = Document[]
             for doc in getdocuments_value(server)
                 # only do a pass on documents once
-                root = getroot(doc)
-                if !(root in roots)
-                    push!(roots, root)
-                    semantic_pass(root)
+                if getroot(doc) == doc
+                    semantic_pass(doc)
+                    lint!(doc, server)
                 end
-
-                lint!(doc, server)
             end
         end
     end

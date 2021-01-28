@@ -15,7 +15,7 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
             call_name = nothing
         end
         if call_name !== nothing && (f_binding = refof(call_name)) !== nothing && (tls = StaticLint.retrieve_toplevel_scope(call_name)) !== nothing
-            get_signatures(f_binding, tls, sigs, server)
+            get_signatures(f_binding, tls, sigs, getenv(doc, server))
         end
     end
     if (isempty(sigs) || (headof(x) === :RPAREN))
@@ -30,29 +30,29 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
 end
 
-function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server)
+function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
     if b.val isa StaticLint.Binding
-        get_signatures(b.val, tls, sigs, server)
+        get_signatures(b.val, tls, sigs, env)
     end
     if b.type == StaticLint.CoreTypes.Function || b.type == StaticLint.CoreTypes.DataType
-        b.val isa SymbolServer.SymStore && get_signatures(b.val, tls, sigs, server)
+        b.val isa SymbolServer.SymStore && get_signatures(b.val, tls, sigs, env)
         for ref in b.refs
             method = StaticLint.get_method(ref)
             if method !== nothing
-                get_signatures(method, tls, sigs, server)
+                get_signatures(method, tls, sigs, env)
             end
         end
     end
 end
 
-function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
-    StaticLint.iterate_over_ss_methods(b, tls, server, function (m)
+function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+    StaticLint.iterate_over_ss_methods(b, tls, env, function (m)
         push!(sigs, SignatureInformation(string(m), "", (a -> ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
         return false
     end)
 end
 
-function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, server)
+function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
     if CSTParser.defines_function(x)
         sig = CSTParser.rem_where_decl(CSTParser.get_sig(x))
         params = ParameterInformation[]

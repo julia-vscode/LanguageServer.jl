@@ -121,7 +121,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
             end
         catch err
             if err isa BoundsError
-                throw(LSOffsetError("get_offset2 crashed at location 3. More diagnostics:\nline=$line\nline_offsets='$line_offsets'\ncharacter=$character\npos=$pos\lastindex=$(lastindex(text))"))
+                throw(LSOffsetError("get_offset2 crashed at location 3. More diagnostics:\nline=$line\nline_offsets='$line_offsets'\ncharacter=$character\npos=$pos\nlastindex=$(lastindex(text))"))
             else
                 rethrow(err)
             end

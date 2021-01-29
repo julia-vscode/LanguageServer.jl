@@ -87,18 +87,23 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     for tdcce in params.contentChanges
         applytextdocumentchanges(doc, tdcce)
     end
-    cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-    r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-    for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-        StaticLint.clear_meta(cst0[i])
+    if endswith(doc._uri, ".jmd")
+        parse_all(doc, server)
+    else
+        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+            StaticLint.clear_meta(cst0[i])
+        end
+        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+        comp(cst1, getcst(doc)) || @error "File didn't update properly." # expensive check, remove
+        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+        
+        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+        semantic_pass(getroot(doc), target_exprs)
+        lint!(doc, server)
     end
-    setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-    comp(cst1, getcst(doc)) || @info "File didn't update properly." # expensive check, remove
-    headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
-    
-    target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-    semantic_pass(getroot(doc), target_exprs)
-    lint!(doc, server)
 end
 
 function convert_lsrange_to_jlrange(doc::Document, range::Range)
@@ -133,6 +138,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     else
         doc.cst, ps = CSTParser.parse(ps, true)
     end
+    sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
     if headof(doc.cst) === :file
         set_doc(doc.cst, doc)
     end

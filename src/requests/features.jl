@@ -23,7 +23,7 @@ function get_definitions(x::SymbolServer.ModuleStore, tls, server, locations)
     end
 end
 
-function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations) 
+function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations)
     StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
         try
             if isfile(m.file)
@@ -262,10 +262,10 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
                 end
             end
         else
-            return mismatched_version_error(uri, doc, params, "getModuleAt")
+            return "#retry"
         end
     else
-        return nodocuemnt_error(uri)
+        return "#retry"
     end
     return "Main"
 end

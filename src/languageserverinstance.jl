@@ -322,11 +322,12 @@ function Base.run(server::LanguageServerInstance)
 end
 
 function relintserver(server)
-    roots = Document[]
-    for doc in getdocuments_value(server)
+    roots = Set{Document}()
+    documents = getdocuments_value(server)
+    for doc in documents
         StaticLint.clear_meta(getcst(doc))
     end
-    for doc in getdocuments_value(server)
+    for doc in documents
         # only do a pass on documents once
         root = getroot(doc)
         if !(root in roots)
@@ -334,7 +335,7 @@ function relintserver(server)
             semantic_pass(root)
         end
     end
-    for doc in getdocuments_value(server)
+    for doc in documents
         lint!(doc, server)
     end
 end

@@ -316,17 +316,26 @@ function Base.run(server::LanguageServerInstance)
 
             server.symbol_store = msg
             server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
-            roots = Document[]
-            for doc in getdocuments_value(server)
-                # only do a pass on documents once
-                root = getroot(doc)
-                if !(root in roots)
-                    push!(roots, root)
-                    semantic_pass(root)
-                end
-
-                lint!(doc, server)
-            end
+            relintserver(server)
         end
+    end
+end
+
+function relintserver(server)
+    roots = Set{Document}()
+    documents = getdocuments_value(server)
+    for doc in documents
+        StaticLint.clear_meta(getcst(doc))
+    end
+    for doc in documents
+        # only do a pass on documents once
+        root = getroot(doc)
+        if !(root in roots)
+            push!(roots, root)
+            semantic_pass(root)
+        end
+    end
+    for doc in documents
+        lint!(doc, server)
     end
 end

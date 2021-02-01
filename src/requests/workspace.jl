@@ -134,9 +134,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.lint_disableddirs = new_lint_disableddirs
 
     if rerun_lint
-        for doc in getdocuments_value(server)
-            lint!(doc, server)
-        end
+        relintserver(server)
     end
 end
 

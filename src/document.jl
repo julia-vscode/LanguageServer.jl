@@ -113,10 +113,18 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
     pos = line_offset
 
     while character > 0
-        if UInt32(text[pos]) >= 0x010000
-            character -= 2
-        else
-            character -= 1
+        try
+            if UInt32(text[pos]) >= 0x010000
+                character -= 2
+            else
+                character -= 1
+            end
+        catch err
+            if err isa BoundsError
+                throw(LSOffsetError("get_offset2 crashed at location 3. More diagnostics:\nline=$line\nline_offsets='$line_offsets'\ncharacter=$character\npos=$pos\nlastindex=$(lastindex(text))"))
+            else
+                rethrow(err)
+            end
         end
         pos = nextind(text, pos)
     end

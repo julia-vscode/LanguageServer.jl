@@ -317,14 +317,7 @@ function Base.run(server::LanguageServerInstance)
             server.external_env.project_deps = collect(keys(server.external_env.symbols))
             # server.external_env.project_deps = maybe_get_project_deps(server.env_path)
 
-            roots = Document[]
-            for doc in getdocuments_value(server)
-                # only do a pass on documents once
-                if getroot(doc) == doc
-                    semantic_pass(doc)
-                    lint!(doc, server)
-                end
-            end
+            relintserver(server)
         end
     end
 end
@@ -339,4 +332,23 @@ function maybe_get_project_deps(env_path)
     catch e
     end
     Symbol[]
+end
+                
+function relintserver(server)
+    roots = Set{Document}()
+    documents = getdocuments_value(server)
+    for doc in documents
+        StaticLint.clear_meta(getcst(doc))
+    end
+    for doc in documents
+        # only do a pass on documents once
+        root = getroot(doc)
+        if !(root in roots)
+            push!(roots, root)
+            semantic_pass(root)
+        end
+    end
+    for doc in documents
+        lint!(doc, server)
+    end
 end

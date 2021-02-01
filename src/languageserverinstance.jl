@@ -352,3 +352,42 @@ function relintserver(server)
         lint!(doc, server)
     end
 end
+
+function get_external_envs(server::LanguageServerInstance)
+    env_proj_file = Base.env_project_file(server.env_path)
+    env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
+    (isfile(env_proj_file) && isfile(env_manifest_file)) || return 
+    env_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(env_proj_file))
+    env_manifest = SymbolServer.Pkg.Types.Manifest(Base.parsed_toml(env_manifest_file))
+
+    for folder in server.workspaceFolders
+        if is_project_folder(folder) && is_project_folder_in_env(folder, env_manifest, server)
+            folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(folder)))
+            d = Dict(folder => collect(keys(folder_proj.deps)))
+            if isdirpath(joinpath(folder, "test"))
+                d[joinpath(folder, "test")] = vcat(d[folder], collect(keys(folder_proj.extras)))
+            end
+        end
+    end
+end
+
+function is_project_folder(folder)
+    isfile(Base.env_project_file(folder))
+end
+
+function is_project_folder_in_env(folder, env_manifest, server)
+    folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(folder)))
+    manifest_pe = get(env_manifest,folder_proj.uuid, nothing)
+    if manifest_pe === nothing
+        return false
+    elseif manifest_pe.path !== nothing
+        return manifest_pe.path == folder
+    elseif manifest_pe.tree_hash isa Base.SHA1
+        if Base.Filesystem.samefile(abspath(server.depot_path, "packages", folder_proj.name, Base.version_slug(folder_proj.uuid, manifest_pe.tree_hash, 4)), folder)
+            return true
+        elseif Base.Filesystem.samefile(abspath(server.depot_path, "packages", folder_proj.name, Base.version_slug(folder_proj.uuid, manifest_pe.tree_hash)), folder)
+            return true
+        end
+    end
+    return false
+end

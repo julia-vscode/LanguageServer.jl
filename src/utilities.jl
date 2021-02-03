@@ -408,6 +408,7 @@ function resolve_op_ref(x::EXPR, server)
 end
 
 function op_resolve_up_scopes(x, mn, scope, server)
+    scope isa StaticLint.Scope || return false
     if StaticLint.scopehasbinding(scope, mn)
         StaticLint.setref!(x, scope.names[mn])
         return true

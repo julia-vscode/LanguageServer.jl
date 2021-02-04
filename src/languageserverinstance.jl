@@ -36,7 +36,8 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    external_env::StaticLint.ExternalEnv
+    global_env::StaticLint.ExternalEnv
+    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
 
     format_options::DocumentFormat.FormatOptions
@@ -71,6 +72,7 @@ mutable struct LanguageServerInstance
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
             Channel(Inf),
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
+            Dict(),
             false,
             DocumentFormat.FormatOptions(),
             true,
@@ -312,10 +314,20 @@ function Base.run(server::LanguageServerInstance)
             @info "Received new data from Julia Symbol Server."
             msg = message.msg
 
-            server.external_env.symbols = msg
-            server.external_env.extended_methods = SymbolServer.collect_extended_methods(server.external_env.symbols)
-            server.external_env.project_deps = collect(keys(server.external_env.symbols))
+            server.global_env.symbols = msg
+            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            server.global_env.project_deps = collect(keys(server.global_env.symbols))
             # server.external_env.project_deps = maybe_get_project_deps(server.env_path)
+
+            # redo roots_env_map
+            for (root, extenv) in server.roots_env_map
+                newenv = get_env_for_root(root, server)
+                if newenv === nothing
+                    delete!(server.roots_env_map, root)
+                else
+                    server.roots_env_map[root] = newenv
+                end
+            end
 
             relintserver(server)
         end
@@ -353,24 +365,6 @@ function relintserver(server)
     end
 end
 
-function get_external_envs(server::LanguageServerInstance)
-    env_proj_file = Base.env_project_file(server.env_path)
-    env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
-    (isfile(env_proj_file) && isfile(env_manifest_file)) || return 
-    env_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(env_proj_file))
-    env_manifest = SymbolServer.Pkg.Types.Manifest(Base.parsed_toml(env_manifest_file))
-
-    for folder in server.workspaceFolders
-        if is_project_folder(folder) && is_project_folder_in_env(folder, env_manifest, server)
-            folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(folder)))
-            d = Dict(folder => collect(keys(folder_proj.deps)))
-            if isdirpath(joinpath(folder, "test"))
-                d[joinpath(folder, "test")] = vcat(d[folder], collect(keys(folder_proj.extras)))
-            end
-        end
-    end
-end
-
 function is_project_folder(folder)
     isfile(Base.env_project_file(folder))
 end
@@ -381,7 +375,7 @@ function is_project_folder_in_env(folder, env_manifest, server)
     if manifest_pe === nothing
         return false
     elseif manifest_pe.path !== nothing
-        return manifest_pe.path == folder
+        return Base.Filesystem.samefile(manifest_pe.path, folder)
     elseif manifest_pe.tree_hash isa Base.SHA1
         if Base.Filesystem.samefile(abspath(server.depot_path, "packages", folder_proj.name, Base.version_slug(folder_proj.uuid, manifest_pe.tree_hash, 4)), folder)
             return true
@@ -390,4 +384,36 @@ function is_project_folder_in_env(folder, env_manifest, server)
         end
     end
     return false
+end
+
+function get_env_for_root(doc::Document, server::LanguageServerInstance)
+    env_proj_file = Base.env_project_file(server.env_path)
+    env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
+    (isfile(env_proj_file) && isfile(env_manifest_file)) || return 
+    env_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(env_proj_file))
+    env_manifest = SymbolServer.Pkg.Types.Manifest(Base.parsed_toml(env_manifest_file))
+
+    # Find which workspace folder the doc is in.
+    parent_workspaceFolders = sort(filter(f->startswith(doc._path, f), collect(server.workspaceFolders)), by = length, rev = true)
+    isempty(parent_workspaceFolders) && return
+    parent_workspaceFolders = first(parent_workspaceFolders)
+    
+    if is_project_folder(parent_workspaceFolders) & is_project_folder_in_env(parent_workspaceFolders, env_manifest, server)
+        folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(parent_workspaceFolders)))
+        symbols = server.global_env.symbols
+        extended_methods = server.global_env.extended_methods
+        project_deps = Symbol.(collect(keys(folder_proj.deps)))
+        if isdir(joinpath(parent_workspaceFolders, "test")) && startswith(doc._path, joinpath(parent_workspaceFolders, "test"))
+            # We're in the test folder, add the project iteself to the deps
+            # This should actually point to the live code (e.g. the relevant EXPR or Scope)?
+            push!(project_deps, Symbol(folder_proj.name))
+            for extra in keys(folder_proj.extras)
+                if Symbol(extra) in keys(symbols)
+                    push!(project_deps, Symbol(extra))
+                end
+            end
+        end
+        
+        StaticLint.ExternalEnv(symbols, extended_methods, project_deps)
+    end
 end

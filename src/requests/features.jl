@@ -183,7 +183,7 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
         p, b = x[1], x[2]
         !(b.val isa EXPR) && continue
         !is_valid_binding_name(b.name) && continue
-        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
+        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b), false, Location(doc._uri, Range(doc, p)), missing))
     end
     return syms
 end
@@ -217,7 +217,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b, server)
+function _binding_kind(b)
     if b isa StaticLint.Binding
         if b.type === nothing
             return 13
@@ -286,13 +286,14 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
+    env = getenv(doc, server)
     if doc._version !== params.version
         return mismatched_version_error(uri, doc, params, "getDocAt")
     end
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
-    documentation = get_hover(x, "", server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
+    documentation = get_hover(x, "", env)
 
     return documentation
 end

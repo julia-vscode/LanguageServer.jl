@@ -1,8 +1,9 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
+    env = getenv(doc, server)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
-    documentation = get_hover(x, "", server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
+    documentation = get_hover(x, "", env)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
     documentation = sanitize_docstring(documentation)
@@ -10,15 +11,15 @@ function textDocument_hover_request(params::TextDocumentPositionParams, server::
     return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
 end
 
-function get_hover(x, documentation::String, server) documentation end
+function get_hover(x, documentation::String, env) documentation end
 
-function get_hover(x::EXPR, documentation::String, server)
+function get_hover(x::EXPR, documentation::String, env)
     if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
         r = refof(x)
         documentation = if r isa StaticLint.Binding
-            get_hover(r, documentation, server)
+            get_hover(r, documentation, env)
         elseif r isa SymbolServer.SymStore
-            get_hover(r, documentation, server)
+            get_hover(r, documentation, env)
         else
             documentation
         end
@@ -26,12 +27,12 @@ function get_hover(x::EXPR, documentation::String, server)
     return documentation
 end
 
-function get_hover(b::StaticLint.Binding, documentation::String, server)
+function get_hover(b::StaticLint.Binding, documentation::String, env)
     if b.val isa StaticLint.Binding
-        documentation = get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, env)
     elseif b.val isa EXPR
         if CSTParser.defines_function(b.val) || CSTParser.defines_datatype(b.val)
-            documentation = get_func_hover(b, documentation, server)
+            documentation = get_func_hover(b, documentation, env)
             for r in b.refs
                 method = StaticLint.get_method(r)
                 if method isa EXPR
@@ -42,7 +43,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                         documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(method), "\n```\n")
                     end
                 elseif method isa SymbolServer.SymStore
-                    documentation = get_hover(method, documentation, server)
+                    documentation = get_hover(method, documentation, env)
                 end
             end
         else
@@ -61,20 +62,20 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
             end
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, env)
     end
     return documentation
 end
 
 # print(io, x::SymStore) methods are defined in SymbolServer
-function get_hover(b::SymbolServer.SymStore, documentation::String, server)
+function get_hover(b::SymbolServer.SymStore, documentation::String, env)
     if !isempty(b.doc)
         documentation = string(documentation, b.doc, "\n")
     end
     documentation = string(documentation, "```julia\n", b, "\n```")
 end
 
-function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
+function get_hover(f::SymbolServer.FunctionStore, documentation::String, env)
     if !isempty(f.doc)
         documentation = string(documentation, f.doc, "\n")
     end
@@ -106,8 +107,8 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
 end
 
 
-get_func_hover(x, documentation, server) = documentation
-get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, documentation, server)
+get_func_hover(x, documentation, env) = documentation
+get_func_hover(x::SymbolServer.SymStore, documentation, env) = get_hover(x, documentation, env)
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)

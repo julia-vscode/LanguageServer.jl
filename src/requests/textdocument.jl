@@ -149,7 +149,7 @@ end
 
 function mark_errors(doc, out=Diagnostic[])
     line_offsets = get_line_offsets(doc)
-    errs = StaticLint.collect_hints(getcst(doc), doc.server, doc.server.lint_missingrefs)
+    errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
     i = 1

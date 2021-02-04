@@ -31,19 +31,31 @@ function setfile(server::LanguageServerInstance, path::String, x::Document)
     setdocument!(server, uri, x)
 end
 getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2(filepath2uri(path)))
-getsymbols(server::LanguageServerInstance) = server.external_env.symbols
-getsymbolextendeds(server::LanguageServerInstance) = server.external_env.extended_methods
 
 function getenv(doc::Document, server::LanguageServerInstance)
-    StaticLint.ExternalEnv(server.external_env.symbols, server.external_env.extended_methods, server.external_env.project_deps)
+    get(server.roots_env_map, doc.root, server.global_env)
 end
+getenv(doc::Document) = getenv(doc, doc.server)
 
 getpath(d::Document) = d._path
 
 getroot(d::Document) = d.root
-function setroot(d::Document, root::Document)
-    d.root = root
-    return d
+function setroot(doc::Document, root::Document)
+    if isdefined(doc, :root) && doc == doc.root && root !== doc
+        # doc is being unset as a root - remove ExternalEnv if there is one
+        if doc.server isa LanguageServerInstance && haskey(doc.server.roots_env_map, doc)
+            delete!(doc.server.roots_env_map, doc)
+        end
+    end
+    doc.root = root
+    if doc == root && doc.server isa LanguageServerInstance
+        # doc is being set as it's own root, lets find 
+        extenv = get_env_for_root(doc, doc.server)
+        if extenv !== nothing
+            doc.server.roots_env_map[doc] = extenv
+        end
+    end
+    return doc
 end
 
 getcst(d::Document) = d.cst

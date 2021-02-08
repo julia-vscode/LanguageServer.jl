@@ -441,3 +441,11 @@ function is_in_target_dir_of_package(pkgpath, target)
     end
 end
 
+function client_type(server::LanguageServerInstance)
+    if server.clientInfo isa InfoParams
+        if occursin(r"vim", server.clientInfo.name)
+            :vim
+        end
+    end
+    :vscode
+end

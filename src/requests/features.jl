@@ -177,8 +177,11 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     syms = SymbolInformation[]
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
-
-    bs = collect_bindings_w_loc(getcst(doc))
+    if client_type(server) == :vim
+        bs = collect_toplevel_bindings_w_loc(getcst(doc))
+    else
+        bs = collect_bindings_w_loc(getcst(doc))
+    end
     for x in bs
         p, b = x[1], x[2]
         !(b.val isa EXPR) && continue

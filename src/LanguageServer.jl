@@ -29,5 +29,6 @@ include("requests/actions.jl")
 include("requests/init.jl")
 include("requests/signatures.jl")
 include("utilities.jl")
+include("ss_report.jl")
 
 end

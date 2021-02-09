@@ -110,47 +110,6 @@ function should_file_be_linted(uri, server)
     end
 end
 
-# CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
-#                                 t == :Function ? 3 :
-#                                 t == :DataType ? 7 :
-#                                 t == :Module ? 9 : 6
-
-# SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
-#                         t == :Function ? 12 :
-#                         t == :DataType ? 5 :
-#                         t == :Module ? 2 :
-#                         t == :Bool ? 17 : 13
-
-
-
-
-# Find location of default datatype constructor
-const DefaultTypeConstructorLoc = let def = first(methods(Int))
-    Base.find_source_file(string(def.file)), def.line
-end
-
-# TODO I believe this will also remove files from documents that were added
-# not because they are part of the workspace, but by either StaticLint or
-# the include follow logic.
-function remove_workspace_files(root, server)
-    for (uri, doc) in getdocuments_pair(server)
-        # We first check whether the doc still exists on the server
-        # because a previous loop iteration could have deleted it
-        # via dependency removal of files
-        hasdocument(server, uri) || continue
-        fpath = getpath(doc)
-        isempty(fpath) && continue
-        get_open_in_editor(doc) && continue
-        for folder in server.workspaceFolders
-            if startswith(fpath, folder)
-                continue
-            end
-            deletedocument!(server, uri)
-        end
-    end
-end
-
-
 function Base.getindex(server::LanguageServerInstance, r::Regex)
     out = []
     for (uri, doc) in getdocuments_pair(server)

@@ -145,7 +145,16 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     end
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
-        remove_workspace_files(wksp, server)
+        wksp_path = uri2filepath(wksp.uri)
+        for (uri, doc) in getdocuments_pair(server)
+            path = getpath(doc)
+            (!hasdocument(server, uri) || isempty(path) || get_open_in_editor(doc)) && continue
+            if hasdocument(server, uri) && !isempty(path) && startswith(path, wksp_path) && 
+                    !(wksp_path in server.workspaceFolders) && # Don't delete a doc that's in another workspace (e..g. one workspace may be in another)
+                    !get_open_in_editor(doc) # Don't delete a doc that's open
+                deletedocument!(server, uri)
+            end
+        end
     end
 end
 

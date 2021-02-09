@@ -7,10 +7,9 @@ end
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     commands = Command[]
     doc = getdocument(server, URI2(params.textDocument.uri))
-    offset = get_offset(doc, params.range.start)
-    offset1 = get_offset(doc, params.range.stop)
+    offset = get_offset(doc, params.range.start) # Should usef get_offset2?
     x = get_expr(getcst(doc), offset)
-    arguments = Any[params.textDocument.uri, offset, offset1] # use the same arguments for all commands
+    arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR
         for (_, sa) in LSActions
             if sa.when(x, params)

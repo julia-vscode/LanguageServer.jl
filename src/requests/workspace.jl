@@ -109,14 +109,14 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.disabledDirs")
         ]))
 
-    if server.clientInfo isa InfoParams && (server.clientInfo.name == "Visual Studio Code" || server.clientInfo.name == "Visual Studio Code - Insiders")
-        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:12])]...)
-        new_runlinter = isnothing(response[23]) ? false : true
-        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[13:22])]...)
-    else
+    if client_type(server) == :vim
         server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
         new_runlinter = something(response[23], true)
         new_SL_opts = StaticLint.LintOptions(response[13:22]...)
+    else
+        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:12])]...)
+        new_runlinter = isnothing(response[23]) ? false : true
+        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[13:22])]...)
     end
     new_lint_missingrefs = Symbol(something(response[24], :all))
     new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)

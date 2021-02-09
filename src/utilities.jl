@@ -444,8 +444,10 @@ end
 function client_type(server::LanguageServerInstance)
     if server.clientInfo isa InfoParams
         if occursin(r"vim", server.clientInfo.name)
-            :vim
+            return :vim
+        elseif (server.clientInfo.name == "Visual Studio Code" || server.clientInfo.name == "Visual Studio Code - Insiders")
+            return :vscode
         end
     end
-    :vscode
+    return :unknown
 end

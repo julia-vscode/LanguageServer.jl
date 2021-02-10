@@ -30,7 +30,10 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
     return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
 end
 
+function get_signatures(b, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) end
+
 function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
+
     if b.val isa StaticLint.Binding
         get_signatures(b.val, tls, sigs, env)
     end

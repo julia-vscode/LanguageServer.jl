@@ -326,6 +326,7 @@ function relintserver(server)
     documents = getdocuments_value(server)
     for doc in documents
         StaticLint.clear_meta(getcst(doc))
+        set_doc(getcst(doc), doc)
     end
     for doc in documents
         # only do a pass on documents once

@@ -141,14 +141,11 @@ function remove_workspace_files(root, server)
         fpath = getpath(doc)
         isempty(fpath) && continue
         get_open_in_editor(doc) && continue
-        for folder in server.workspaceFolders
-            if startswith(fpath, folder)
-                continue
-            end
+        # If the file is in any other workspace folder, don't delete it
+        any(folder -> startswith(fpath, folder), server.workspaceFolders) && continue
             deletedocument!(server, uri)
         end
     end
-end
 
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)

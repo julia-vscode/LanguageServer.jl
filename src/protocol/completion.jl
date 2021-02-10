@@ -74,9 +74,13 @@ struct CompletionRegistrationOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
 end
 
-@dict_readable struct CompletionContext <: Outbound
+struct CompletionContext <: Outbound
     triggerKind::CompletionTriggerKind
     triggerCharacter::Union{String,Missing}
+end
+
+function CompletionContext(d::Dict)
+    CompletionContext(d["triggerKind"], haskey(d, "triggerCharacter") && d["triggerCharacter"] isa String ? d["triggerCharacter"] : missing)
 end
 
 @dict_readable struct CompletionParams <: Outbound

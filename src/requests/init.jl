@@ -119,8 +119,11 @@ function load_folder(path::String, server)
     end
 end
 
-function is_walkdir_error(err)
-    return isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION > v"1.3.0-" && isa(err, Base.TaskFailedException))
+is_walkdir_error(_) = false
+is_walkdir_error(::Base.IOError) = true
+is_walkdir_error(::Base.SystemError) = true
+@static if VERSION > v"1.3.0-"
+    is_walkdir_error(err::Base.TaskFailedException) = is_walkdir_error(err.task.exception)
 end
 
 function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)

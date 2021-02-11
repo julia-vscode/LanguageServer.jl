@@ -23,7 +23,7 @@ function get_definitions(x::SymbolServer.ModuleStore, tls, server, locations)
     end
 end
 
-function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations) 
+function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations)
     StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
         try
             if isfile(m.file)
@@ -178,14 +178,33 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
 
-    bs = collect_bindings_w_loc(getcst(doc))
-    for x in bs
-        p, b = x[1], x[2]
-        !(b.val isa EXPR) && continue
-        !is_valid_binding_name(b.name) && continue
-        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b, server), false, Location(doc._uri, Range(doc, p)), missing))
+    return collect_document_symbols(getcst(doc), server, doc)
+end
+
+function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=[])
+    if bindingof(x) !== nothing
+        b =  bindingof(x)
+        if b.val isa EXPR && is_valid_binding_name(b.name)
+            ds = DocumentSymbol(
+                get_name_of_binding(b.name), # name
+                missing, # detail
+                _binding_kind(b, server), # kind
+                false, # deprecated
+                Range(doc, (pos .+ (0:x.span))), # range
+                Range(doc, (pos .+ (0:x.span))), # selection range
+                DocumentSymbol[] # children
+            )
+            push!(symbols, ds)
+            symbols = ds.children
+        end
     end
-    return syms
+    if length(x) > 0
+        for a in x
+            collect_document_symbols(a, server, doc, pos, symbols)
+            pos += a.fullspan
+        end
+    end
+    return symbols
 end
 
 function collect_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[])

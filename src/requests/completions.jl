@@ -137,7 +137,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, do
             # These are non-exported names and require the inserting of a :using statement. 
             # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
             cmd = Command("Apply text edit", "language-julia.applytextedit", [
-                TextDocumentEdit(
+                WorkspaceEdit(missing, [TextDocumentEdit(
                     VersionedTextDocumentIdentifier(doc._uri, doc._version),
                     [
                         TextEdit(
@@ -145,7 +145,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, do
                             "using $(m.name): $(n)\n"
                         )
                     ]
-                )
+                )])
             ])
             ci = CompletionItem(n, _completion_kind(v, server), missing, missing, MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText, TextEdit(rng, n[nextind(n, sizeof(spartial)):end]), missing, missing, cmd, missing)
             push!(CIs, ci)

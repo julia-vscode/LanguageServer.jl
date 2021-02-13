@@ -460,12 +460,13 @@ function textedit_to_insert_using_stmt(m::ModuleStore, n::String, state::Complet
         (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
         
         l, c = get_position_at(using_doc, using_offset + using_stmt.span)
-        TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
+        TextDocumentEdit(VersionedTextDocumentIdentifier(using_doc._uri, using_doc._version),
             [TextEdit(Range(l, c, l, c), ", $n")])
     elseif tls !== nothing
         if tls.expr.head === :file
             # Insert at the head of the file
-            TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
+            tlsdoc, offset1 = get_file_loc(tls.expr)
+            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
             [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
         elseif tls.expr.head === :module
             # Insert at start of module
@@ -473,7 +474,7 @@ function textedit_to_insert_using_stmt(m::ModuleStore, n::String, state::Complet
             offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
             l, c = get_position_at(tlsdoc, offset1 + offset2)
 
-            TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
+            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
             [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")])
         else
             error()

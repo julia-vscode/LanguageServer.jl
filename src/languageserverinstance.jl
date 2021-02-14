@@ -1,5 +1,3 @@
-T = 0.0
-
 """
     LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
@@ -45,6 +43,7 @@ mutable struct LanguageServerInstance
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
+    comps_nonexported::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -79,6 +78,7 @@ mutable struct LanguageServerInstance
             StaticLint.LintOptions(),
             :all,
             LINT_DIABLED_DIRS,
+            :import, # options: :import or :qualify, anything else turns this off
             Channel{Any}(Inf),
             err_handler,
             :created,

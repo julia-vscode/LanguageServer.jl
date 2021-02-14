@@ -302,6 +302,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[workspace_symbol_request_type] = (conn, params) -> workspace_symbol_request(params, server, conn)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = (conn, params) -> julia_refreshLanguageServer_notification(params, server, conn)
     msg_dispatcher[julia_getDocFromWord_request_type] = (conn, params) -> julia_getDocFromWord_request(params, server, conn)
+    msg_dispatcher[textDocument_selectionRange_request_type] = (conn, params) -> textDocument_selectionRange_request(params, server, conn)
 
     while true
         message = take!(server.combined_msg_queue)

@@ -24,7 +24,7 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
-    false,
+    true,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)

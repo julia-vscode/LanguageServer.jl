@@ -338,3 +338,21 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
         return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
     end
 end
+
+function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    map(params.positions) do position
+        offset = get_offset(doc, position)
+        x = get_expr1(getcst(doc), offset)
+        get_selection_range_of_expr(x)
+    end
+end
+
+# Just returns a selection for each parent EXPR, should be more selective
+get_selection_range_of_expr(x) = nothing
+function get_selection_range_of_expr(x::EXPR)
+    doc, offset = get_file_loc(x)
+    l1, c1 = get_position_at(doc, offset)
+    l2, c2 = get_position_at(doc, offset + x.span)
+    SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
+end

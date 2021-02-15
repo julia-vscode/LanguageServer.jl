@@ -349,7 +349,7 @@ function textDocument_selectionRange_request(params::SelectionRangeParams, serve
 end
 
 # Just returns a selection for each parent EXPR, should be more selective
-get_selection_range_of_expr(x) = nothing
+get_selection_range_of_expr(x) = missing
 function get_selection_range_of_expr(x::EXPR)
     doc, offset = get_file_loc(x)
     l1, c1 = get_position_at(doc, offset)

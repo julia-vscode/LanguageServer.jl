@@ -19,7 +19,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         offset = get_offset(doc, params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
-        using_stmts = server.comps_nonexported == :import ? get_preexisting_using_stmts(x, doc) : Dict()
+        using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
         CompletionState(offset, CompletionItem[], rng, x, doc, server, using_stmts)
     end
     
@@ -147,7 +147,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             rng1 = Range(Position(state.range.start.line, state.range.start.character - sizeof(spartial)), state.range.stop)
             push!(state.completions, CompletionItem(n, _completion_kind(v, state.server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n))))
         elseif length(spartial) > 3
-            if state.server.comps_nonexported === :import
+            if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement. 
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
                 cmd = Command("Apply text edit", "language-julia.applytextedit", [
@@ -156,7 +156,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
                 
                 ci = CompletionItem(n, _completion_kind(v, state.server), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText, TextEdit(state.range, n[nextind(n, sizeof(spartial)):end]), missing, missing, cmd, missing)
                 push!(state.completions, ci)
-            elseif state.server.comps_nonexported === :qualify
+            elseif state.server.completion_mode === :qualify
                 rng1 = Range(Position(state.range.start.line, state.range.start.character - sizeof(spartial)), state.range.stop)
                 push!(state.completions, CompletionItem(string(m.name, ".", n), _completion_kind(v, state.server), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, string(n), missing, missing, InsertTextFormats.PlainText, TextEdit(rng1, string(m.name, ".", n)), missing, missing, missing, missing))
             end

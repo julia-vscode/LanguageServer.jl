@@ -43,7 +43,7 @@ mutable struct LanguageServerInstance
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
-    comps_nonexported::Symbol
+    completion_mode::Symbol
 
     combined_msg_queue::Channel{Any}
 

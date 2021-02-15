@@ -38,7 +38,7 @@ end
 
 function set_text!(doc::Document, text)
     # TODO Remove this check eventually
-    contains(text, '\0') && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
+    occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
     doc._content = text
     doc._line_offsets = nothing
     doc._line_offsets2 = nothing

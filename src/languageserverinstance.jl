@@ -39,6 +39,7 @@ mutable struct LanguageServerInstance
     symbol_store::SymbolServer.EnvStore
     symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
     symbol_store_ready::Bool
+    symbol_server_download::Bool
 
     format_options::DocumentFormat.FormatOptions
     runlinter::Bool
@@ -74,6 +75,7 @@ mutable struct LanguageServerInstance
             deepcopy(SymbolServer.stdlibs),
             SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
             false,
+            true,
             DocumentFormat.FormatOptions(),
             true,
             StaticLint.LintOptions(),
@@ -184,8 +186,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 @info "Indexing $i..."
             end
         end,
-            server.err_handler
-        )
+            server.err_handler, download = server.symbol_server_download)
 
         server.number_of_outstanding_symserver_requests -= 1
 

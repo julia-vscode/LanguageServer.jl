@@ -152,7 +152,13 @@ end
 
 function reexport_package(x::EXPR, server, conn)
     (refof(x) isa SymbolServer.ModuleStore || refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)) || (refof(x).val isa SymbolServer.ModuleStore) || return
-    mod::SymbolServer.ModuleStore = refof(x) isa SymbolServer.ModuleStore ? refof(x) : refof(x).val
+    mod = if refof(x) isa SymbolServer.ModuleStore
+        refof(x)
+    elseif refof(x).val isa SymbolServer.ModuleStore
+        refof(x).val
+    else
+        return
+    end
     using_stmt = parentof(x)
     file, offset = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)

@@ -74,9 +74,9 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         # TODO: move to its own function
         if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
             try
-                if isabspath(valof(x)) && isfile(valof(x))
+                if isabspath(valof(x)) && !occursin("\0", valof(x)) && isfile(valof(x))
                     push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                elseif !isempty(getpath(doc)) && !occursin("\0", valof(x)) && isfile(joinpath(_dirname(getpath(doc)), valof(x)))
                     push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err

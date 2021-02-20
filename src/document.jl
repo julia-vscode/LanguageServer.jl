@@ -13,7 +13,7 @@ mutable struct Document
     root::Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(uri), "")
-        isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
+        path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
         cst = CSTParser.parse(text, true)
         doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
         get_line_offsets(doc)

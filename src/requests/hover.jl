@@ -110,15 +110,15 @@ get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, d
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
-        string(documentation, Expr(parentof(expr).args[3]))
+    string(documentation, Expr(parentof(expr).args[3]))
     elseif is_const_expr(parentof(expr)) && expr_has_preceding_docs(parentof(expr))
         string(documentation, Expr(parentof(parentof(expr)).args[3]))
     else
         documentation
-    end
+end
 end
 
-ensure_ends_with(s, c = "\n") = endswith(s, c) ? s : string(s, c)
+ensure_ends_with(s, c="\n") = endswith(s, c) ? s : string(s, c)
 
 binding_has_preceding_docs(b::StaticLint.Binding) = expr_has_preceding_docs(b.val)
 
@@ -155,7 +155,7 @@ function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
             call_counts[1] < 5 && return documentation
             arg_i = 0
             for (i, arg) = enumerate(parentof(x))
-                if arg == x
+                    if arg == x
                     arg_i = div(i - 1, 2)
                     break
                 end
@@ -201,7 +201,7 @@ function get_closer_hover(x::EXPR, documentation)
             elseif headof(parentof(x)) === :while && length(parentof(x).args) > 2
                 documentation = string(documentation, "Closes while-loop expression over `", Expr(parentof(x).args[2]), "`\n")
             else
-                documentation = "Closes `$(headof(parentof(x)))` expression."
+            documentation = "Closes `$(headof(parentof(x)))` expression."
             end
         elseif headof(x) === :RPAREN
             if CSTParser.iscall(parentof(x)) && length(parentof(x).args) > 0

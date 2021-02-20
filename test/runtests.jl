@@ -30,11 +30,11 @@ end
 
 @testset "LanguageServer" begin
     @testset "document" begin
-        include("test_document.jl")
-    end
+    include("test_document.jl")
+end
     @testset "communication" begin
-        include("test_communication.jl")
-    end
+    include("test_communication.jl")
+end
     @testset "intellisense" begin
         include("test_intellisense.jl")
 
@@ -44,48 +44,48 @@ end
         LanguageServer.initialize_request(init_request, server, nothing)
 
         @testset "completions" begin
-            include("requests/completions.jl")
-        end
+    include("requests/completions.jl")
+end
         @testset "actions" begin
-            include("requests/actions.jl")
-        end
+    include("requests/actions.jl")
+end
         @testset "features" begin
-            include("requests/features.jl")
-        end
+    include("requests/features.jl")
+end
         @testset "hover" begin
-            include("requests/hover.jl")
-        end
+    include("requests/hover.jl")
+end
         @testset "textdocument" begin
-            include("requests/textdocument.jl")
-        end
+    include("requests/textdocument.jl")
+end
         @testset "misc" begin
-            include("requests/misc.jl")
-        end
+    include("requests/misc.jl")
+end
         @testset "brute force tests" begin
             # run tests against each position in each document
             empty!(server._documents)
             LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
             on_all_docs(server, doc -> (println(doc._uri);on_all_offsets(doc, function (doc, offset) 
-                tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
-                pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
-                @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset 
-                LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
-                LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
-                LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
-            end)))
+    tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
+    pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
+    @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset 
+    LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
+    LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+    LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+    LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+    LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
+    LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
+end)))
             
-            on_all_docs(server, doc -> @info doc._uri, length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint)))
+            on_all_docs(server, doc -> @info doc._uri, length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri), missing, missing), server, server.jr_endpoint)))
             
             LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
         end
     end
     @testset "edit" begin
-        include("test_edit.jl")
-    end
+    include("test_edit.jl")
+end
     @testset "paths" begin
-        include("test_paths.jl")
-    end
+    include("test_paths.jl")
+end
 end

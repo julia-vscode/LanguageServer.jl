@@ -15,7 +15,7 @@ end
 # lookup
 # ------
 
-traverse_by_name(f, cache = SymbolServer.stdlibs) = traverse_store!.(f, values(cache))
+traverse_by_name(f, cache=SymbolServer.stdlibs) = traverse_store!.(f, values(cache))
 
 traverse_store!(_, _) = return
 traverse_store!(f, store::SymbolServer.EnvStore) = traverse_store!.(f, values(store))
@@ -143,9 +143,9 @@ function remove_workspace_files(root, server)
         get_open_in_editor(doc) && continue
         # If the file is in any other workspace folder, don't delete it
         any(folder -> startswith(fpath, folder), server.workspaceFolders) && continue
-            deletedocument!(server, uri)
-        end
+        deletedocument!(server, uri)
     end
+end
 
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)
@@ -335,11 +335,11 @@ if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
         isabspath(b) && return b
         A, a = _splitdrive(a)
         B, b = _splitdrive(b)
-        !isempty(B) && A != B && return string(B,b)
+        !isempty(B) && A != B && return string(B, b)
         C = isempty(B) ? A : B
-        isempty(a)                              ? string(C,b) :
-        occursin(_path_separator_re, a[end:end]) ? string(C,a,b) :
-                                                  string(C,a,_pathsep(a,b),b)
+        isempty(a)                              ? string(C, b) :
+        occursin(_path_separator_re, a[end:end]) ? string(C, a, b) :
+                                                  string(C, a, _pathsep(a, b), b)
     end
     joinpath(a::AbstractString, b::AbstractString) = joinpath(String(a), String(b))
     joinpath(a, b, c, paths...) = joinpath(joinpath(a, b), c, paths...)
@@ -347,7 +347,7 @@ end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
     function _splitdir_nodrive(a::String, b::String)
-        m = match(r"^(.*?)([/\\]+)([^/\\]*)$", b)
+    m = match(r"^(.*?)([/\\]+)([^/\\]*)$", b)
         m === nothing && return (a, b)
         a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
         a, String(m.captures[3])
@@ -359,7 +359,7 @@ end
         _splitdir_nodrive(a, b)[1]
     end
     function _splitdrive(path::String)
-        m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+    m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
         m === nothing && return "", path
         String(m.captures[1]), String(m.captures[2])
     end
@@ -393,7 +393,7 @@ function parent_file(x::EXPR)
     end
 end
 
-function resolve_op_ref(x::EXPR, server)
+    function resolve_op_ref(x::EXPR, server)
     StaticLint.hasref(x) && return true
     !CSTParser.isoperator(x) && return false
     pf = parent_file(x)

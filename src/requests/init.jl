@@ -60,7 +60,7 @@ function has_too_many_files(path, N=5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION >= v"1.3.0" && isa(err, Base.TaskFailedException) && isa(err.task.exception, Base.IOError)) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 
@@ -76,7 +76,7 @@ function load_rootpath(path)
             !isjuliabasedir(path) &&
             !has_too_many_files(path)
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 end
@@ -103,7 +103,7 @@ function load_folder(path::String, server)
                                 isvalid(s) || continue
                                 s
                             catch err
-                                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                                is_walkdir_error(err) || rethrow()
                                 continue
                             end
                             doc = Document(uri, content, true, server)
@@ -114,11 +114,17 @@ function load_folder(path::String, server)
                 end
             end
         catch err
-            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            is_walkdir_error(err) || rethrow()
         end
     end
 end
 
+is_walkdir_error(_) = false
+is_walkdir_error(::Base.IOError) = true
+is_walkdir_error(::Base.SystemError) = true
+@static if VERSION > v"1.3.0-"
+    is_walkdir_error(err::Base.TaskFailedException) = is_walkdir_error(err.task.exception)
+end
 
 function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders

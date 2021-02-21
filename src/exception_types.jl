@@ -61,3 +61,11 @@ end
 function Base.showerror(io::IO, ex::LSInfiniteLoop)
     print(io, ex.msg)
 end
+
+struct LSInvalidFile <: Exception
+    msg::AbstractString
+end
+
+function Base.showerror(io::IO, ex::LSInvalidFile)
+    print(io, ex.msg)
+end

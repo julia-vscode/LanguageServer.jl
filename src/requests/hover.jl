@@ -46,7 +46,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 end
             end
         else
-            try
+            documentation = try
                 documentation = if binding_has_preceding_docs(b)
                     string(documentation, Expr(parentof(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
@@ -56,8 +56,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 end
                 documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
             catch err
-                doc1, offset1 = get_file_loc(b.val)
-                throw(LSHoverError(string("get_hover failed to convert the following to code: ", String(codeunits(get_text(doc1))[offset1 .+ (1:b.val.span)]))))
+                throw(LSHoverError(string("get_hover failed to convert Expr")))
             end
         end
     elseif b.val isa SymbolServer.SymStore

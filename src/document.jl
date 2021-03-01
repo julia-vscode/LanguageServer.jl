@@ -13,6 +13,7 @@ mutable struct Document
     root::Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(uri), "")
+        path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
         cst = CSTParser.parse(text, true)
         doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
         get_line_offsets(doc)
@@ -37,6 +38,8 @@ function get_text(doc::Document)
 end
 
 function set_text!(doc::Document, text)
+    # TODO Remove this check eventually
+    occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
     doc._content = text
     doc._line_offsets = nothing
     doc._line_offsets2 = nothing
@@ -95,12 +98,12 @@ end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
-function get_offset2(doc::Document, line::Integer, character::Integer)
+function get_offset2(doc::Document, line::Integer, character::Integer, forgiving_mode=false)
     line_offsets = get_line_offsets2!(doc)
     text = get_text(doc)
 
     if line >= length(line_offsets)
-        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
+        forgiving_mode || throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
         return nextind(text, lastindex(text))
     elseif line < 0
         throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
@@ -127,7 +130,7 @@ function get_offset2(doc::Document, line::Integer, character::Integer)
         pos = nextind(text, pos)
     end
 
-    return pos
+return pos
 end
 
 # Note: to be removed
@@ -166,7 +169,7 @@ function get_line_offsets(doc::Document, force=false)
         doc._line_offsets = Int[0]
         text = get_text(doc)
         ind = firstindex(text)
-        while ind <= lastindex(text)
+            while ind <= lastindex(text)
             c = text[ind]
             nl = c == '\n' || c == '\r'
             if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
@@ -175,7 +178,7 @@ function get_line_offsets(doc::Document, force=false)
             nl && push!(doc._line_offsets, ind)
             ind = nextind(text, ind)
         end
-    end
+end
     return doc._line_offsets
 end
 
@@ -184,7 +187,7 @@ function get_line_offsets2!(doc::Document, force=false)
         doc._line_offsets2 = Int[1]
         text = get_text(doc)
         ind = firstindex(text)
-        while ind <= lastindex(text)
+            while ind <= lastindex(text)
             c = text[ind]
             if c == '\n' || c == '\r'
                 if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
@@ -212,7 +215,7 @@ function get_line_of(line_offsets::Vector{Int}, offset::Integer)
             end
             line += 1
         end
-    end
+end
     return line, line_offsets[line]
 end
 
@@ -233,7 +236,7 @@ function get_position_at(doc::Document, offset::Integer)
         c = read(io, Char)
         character += 1
         if UInt32(c) >= 0x010000
-            character += 1
+    character += 1
         end
     end
     close(io)

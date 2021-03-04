@@ -25,12 +25,8 @@ end
 
 function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations)
     StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
-        try
-            if isfile(m.file)
-                push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
-            end
-        catch err
-            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        if safe_isfile(m.file)
+            push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
         end
         return false
     end)
@@ -59,6 +55,16 @@ function get_definitions(x::EXPR, tls::StaticLint.Scope, server, locations)
     end
 end
 
+safe_isfile(s::Symbol) = safe_isfile(string(s))
+function safe_isfile(s::AbstractString)
+    try
+        !occursin("\0", s) && isfile(s)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        false
+    end
+end
+
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -74,9 +80,9 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         # TODO: move to its own function
         if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
             try
-                if isabspath(valof(x)) && isfile(valof(x))
+                if isabspath(valof(x)) && safe_isfile(valof(x))
                     push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
                     push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err

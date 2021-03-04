@@ -98,6 +98,7 @@ end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
+# 1-based. Basically the index at which (line, character) can be found in the document.
 function get_offset2(doc::Document, line::Integer, character::Integer, forgiving_mode=false)
     line_offsets = get_line_offsets2!(doc)
     text = get_text(doc)

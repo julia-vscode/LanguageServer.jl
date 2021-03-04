@@ -62,6 +62,8 @@ mutable struct LanguageServerInstance
     clientCapabilities::Union{ClientCapabilities,Missing}
     clientInfo::Union{InfoParams,Missing}
 
+    shutdown_requested::Bool
+
     function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
@@ -87,7 +89,8 @@ mutable struct LanguageServerInstance
             false,
             false,
             missing,
-            missing
+            missing,
+            false
         )
     end
 end
@@ -174,16 +177,16 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             server.symbol_server,
             server.env_path,
             function (i)
-            if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-                JSONRPC.send(
+                if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
+                    JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
                         ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
                     )
-            else
-                @info "Indexing $i..."
-            end
-        end,
+                else
+                    @info "Indexing $i..."
+                end
+            end,
             server.err_handler
         )
 
@@ -228,6 +231,21 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 end
 
+function request_wrapper(func, server::LanguageServerInstance)
+    return function (conn, params)
+        if server.shutdown_requested
+            # it's fine to always return a value here, even for notifications, because
+            # JSONRPC discards it anyways in that case
+            return JSONRPC.JSONRPCError(
+                -32600,
+                "LS shutdown was requested.",
+                nothing
+            )
+        end
+        func(params, server, conn)
+    end
+end
+
 """
     run(server::LanguageServerInstance)
 
@@ -269,39 +287,39 @@ function Base.run(server::LanguageServerInstance)
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
-    msg_dispatcher[textDocument_codeAction_request_type] = (conn, params) -> textDocument_codeAction_request(params, server, conn)
-    msg_dispatcher[workspace_executeCommand_request_type] = (conn, params) -> workspace_executeCommand_request(params, server, conn)
-    msg_dispatcher[textDocument_completion_request_type] = (conn, params) -> textDocument_completion_request(params, server, conn)
-    msg_dispatcher[textDocument_signatureHelp_request_type] = (conn, params) -> textDocument_signatureHelp_request(params, server, conn)
-    msg_dispatcher[textDocument_definition_request_type] = (conn, params) -> textDocument_definition_request(params, server, conn)
-    msg_dispatcher[textDocument_formatting_request_type] = (conn, params) -> textDocument_formatting_request(params, server, conn)
-    msg_dispatcher[textDocument_references_request_type] = (conn, params) -> textDocument_references_request(params, server, conn)
-    msg_dispatcher[textDocument_rename_request_type] = (conn, params) -> textDocument_rename_request(params, server, conn)
-    msg_dispatcher[textDocument_documentSymbol_request_type] = (conn, params) -> textDocument_documentSymbol_request(params, server, conn)
-    msg_dispatcher[julia_getModuleAt_request_type] = (conn, params) -> julia_getModuleAt_request(params, server, conn)
-    msg_dispatcher[julia_getDocAt_request_type] = (conn, params) -> julia_getDocAt_request(params, server, conn)
-    msg_dispatcher[textDocument_hover_request_type] = (conn, params) -> textDocument_hover_request(params, server, conn)
-    msg_dispatcher[initialize_request_type] = (conn, params) -> initialize_request(params, server, conn)
-    msg_dispatcher[initialized_notification_type] = (conn, params) -> initialized_notification(params, server, conn)
-    msg_dispatcher[shutdown_request_type] = (conn, params) -> shutdown_request(params, server, conn)
-    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
-    msg_dispatcher[cancel_notification_type] = (conn, params) -> cancel_notification(params, server, conn)
-    msg_dispatcher[setTrace_notification_type] = (conn, params) -> setTrace_notification(params, server, conn)
-    msg_dispatcher[setTraceNotification_notification_type] = (conn, params) -> setTraceNotification_notification(params, server, conn) # Can we drop this?
-    msg_dispatcher[julia_getCurrentBlockRange_request_type] = (conn, params) -> julia_getCurrentBlockRange_request(params, server, conn)
-    msg_dispatcher[julia_activateenvironment_notification_type] = (conn, params) -> julia_activateenvironment_notification(params, server, conn)
-    msg_dispatcher[textDocument_didOpen_notification_type] = (conn, params) -> textDocument_didOpen_notification(params, server, conn)
-    msg_dispatcher[textDocument_didClose_notification_type] = (conn, params) -> textDocument_didClose_notification(params, server, conn)
-    msg_dispatcher[textDocument_didSave_notification_type] = (conn, params) -> textDocument_didSave_notification(params, server, conn)
-    msg_dispatcher[textDocument_willSave_notification_type] = (conn, params) -> textDocument_willSave_notification(params, server, conn)
-    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = (conn, params) -> textDocument_willSaveWaitUntil_request(params, server, conn)
-    msg_dispatcher[textDocument_didChange_notification_type] = (conn, params) -> textDocument_didChange_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = (conn, params) -> workspace_didChangeWatchedFiles_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = (conn, params) -> workspace_didChangeConfiguration_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = (conn, params) -> workspace_didChangeWorkspaceFolders_notification(params, server, conn)
-    msg_dispatcher[workspace_symbol_request_type] = (conn, params) -> workspace_symbol_request(params, server, conn)
-    msg_dispatcher[julia_refreshLanguageServer_notification_type] = (conn, params) -> julia_refreshLanguageServer_notification(params, server, conn)
-    msg_dispatcher[julia_getDocFromWord_request_type] = (conn, params) -> julia_getDocFromWord_request(params, server, conn)
+    msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
+    msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
+    msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
+    msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
+    msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
+    msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+    msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
+    msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+    msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
+    msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
+    msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
+    msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
+    msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
+    msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)
+    msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
+    msg_dispatcher[exit_notification_type] = request_wrapper(exit_notification, server)
+    msg_dispatcher[cancel_notification_type] = request_wrapper(cancel_notification, server)
+    msg_dispatcher[setTrace_notification_type] = request_wrapper(setTrace_notification, server)
+    msg_dispatcher[setTraceNotification_notification_type] = request_wrapper(setTraceNotification_notification, server)
+    msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
+    msg_dispatcher[julia_activateenvironment_notification_type] = request_wrapper(julia_activateenvironment_notification, server)
+    msg_dispatcher[textDocument_didOpen_notification_type] = request_wrapper(textDocument_didOpen_notification, server)
+    msg_dispatcher[textDocument_didClose_notification_type] = request_wrapper(textDocument_didClose_notification, server)
+    msg_dispatcher[textDocument_didSave_notification_type] = request_wrapper(textDocument_didSave_notification, server)
+    msg_dispatcher[textDocument_willSave_notification_type] = request_wrapper(textDocument_willSave_notification, server)
+    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
+    msg_dispatcher[textDocument_didChange_notification_type] = request_wrapper(textDocument_didChange_notification, server)
+    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = request_wrapper(workspace_didChangeWatchedFiles_notification, server)
+    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = request_wrapper(workspace_didChangeConfiguration_notification, server)
+    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = request_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
+    msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
+    msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
+    msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
 
     while true
         message = take!(server.combined_msg_queue)

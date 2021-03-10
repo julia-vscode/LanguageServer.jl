@@ -259,7 +259,7 @@ function Base.run(server::LanguageServerInstance)
     trigger_symbolstore_reload(server)
 
     @async try
-        while true
+        while isopen(server.jr_endpoint)
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
         end
@@ -270,10 +270,13 @@ function Base.run(server::LanguageServerInstance)
         else
             Base.display_error(stderr, err, bt)
         end
+    finally
+        put!(server.combined_msg_queue, (type = :close,))
+        close(server.combined_msg_queue)
     end
 
     @async try
-        while true
+        while isopen(server.symbol_results_channel)
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
         end
@@ -284,6 +287,9 @@ function Base.run(server::LanguageServerInstance)
         else
             Base.display_error(stderr, err, bt)
         end
+    finally
+        put!(server.combined_msg_queue, (type = :close,))
+        close(server.combined_msg_queue)
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
@@ -321,10 +327,13 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
 
-    while true
+    while isopen(server.combined_msg_queue)
         message = take!(server.combined_msg_queue)
 
-        if message.type == :clientmsg
+        if message.type == :close
+            @info "Shutting down server instance."
+            return
+        elseif message.type == :clientmsg
             msg = message.msg
 
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)

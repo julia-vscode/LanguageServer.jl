@@ -259,7 +259,7 @@ function Base.run(server::LanguageServerInstance)
     trigger_symbolstore_reload(server)
 
     @async try
-        while isopen(server.jr_endpoint)
+        while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
         end
@@ -276,7 +276,7 @@ function Base.run(server::LanguageServerInstance)
     end
 
     @async try
-        while isopen(server.symbol_results_channel)
+        while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
         end
@@ -327,7 +327,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
 
-    while isopen(server.combined_msg_queue)
+    while true
         message = take!(server.combined_msg_queue)
 
         if message.type == :close

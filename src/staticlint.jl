@@ -3,7 +3,7 @@ import StaticLint: getpath, getroot, setroot, getcst, setcst, semantic_pass, get
 hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, URI2(filepath2uri(path)))
 function canloadfile(server::LanguageServerInstance, path::String)
     try
-        return !isempty(path) && isfile(path)
+        return !isempty(path) && !safe_isfile(path)
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
         return false

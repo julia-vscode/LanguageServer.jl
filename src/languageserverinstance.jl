@@ -270,6 +270,9 @@ function Base.run(server::LanguageServerInstance)
         else
             Base.display_error(stderr, err, bt)
         end
+    finally
+        put!(server.combined_msg_queue, (type = :close,))
+        close(server.combined_msg_queue)
     end
 
     @async try
@@ -284,6 +287,9 @@ function Base.run(server::LanguageServerInstance)
         else
             Base.display_error(stderr, err, bt)
         end
+    finally
+        put!(server.combined_msg_queue, (type = :close,))
+        close(server.combined_msg_queue)
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
@@ -325,7 +331,10 @@ function Base.run(server::LanguageServerInstance)
     while true
         message = take!(server.combined_msg_queue)
 
-        if message.type == :clientmsg
+        if message.type == :close
+            @info "Shutting down server instance."
+            return
+        elseif message.type == :clientmsg
             msg = message.msg
 
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)

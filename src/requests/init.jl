@@ -60,7 +60,7 @@ function has_too_many_files(path, N=5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION >= v"1.3.0" && isa(err, Base.TaskFailedException) && isa(err.task.exception, Base.IOError)) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 
@@ -188,13 +188,12 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 end
 
-# TODO provide type for params
-function shutdown_request(params, server::LanguageServerInstance, conn)
+function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
+    server.shutdown_requested = true
     return nothing
 end
 
-# TODO provide type for params
-function exit_notification(params, server::LanguageServerInstance, conn)
+function exit_notification(params::Nothing, server::LanguageServerInstance, conn)
     server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
-    exit()
+    exit(server.shutdown_requested ? 0 : 1)
 end

@@ -126,7 +126,8 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     locations = Location[]
     doc = getdocument(server, URI2(textDocument.uri))
     offset = get_offset(doc, position)
-    x = get_expr1(getcst(doc), offset)
+    x = get_identifier(getcst(doc), offset)
+
     if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
         for r in refof(x).refs
             if r isa EXPR

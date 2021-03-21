@@ -13,6 +13,7 @@ mutable struct Document
     root::Document
     function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(uri), "")
+        path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
         cst = CSTParser.parse(text, true)
         doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
         get_line_offsets(doc)
@@ -97,12 +98,13 @@ end
 get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
-function get_offset2(doc::Document, line::Integer, character::Integer)
+# 1-based. Basically the index at which (line, character) can be found in the document.
+function get_offset2(doc::Document, line::Integer, character::Integer, forgiving_mode=false)
     line_offsets = get_line_offsets2!(doc)
     text = get_text(doc)
 
     if line >= length(line_offsets)
-        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
+        forgiving_mode || throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
         return nextind(text, lastindex(text))
     elseif line < 0
         throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))

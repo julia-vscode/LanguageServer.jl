@@ -293,6 +293,7 @@ function Base.run(server::LanguageServerInstance)
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
+
     msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
     msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
     msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
@@ -326,6 +327,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
+    msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
 
     while true
         message = take!(server.combined_msg_queue)

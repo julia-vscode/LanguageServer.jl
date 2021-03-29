@@ -280,8 +280,20 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
         doc = getdocument(server, uri)
         if doc._version == params.version
             offset = get_offset2(doc, params.position.line, params.position.character, true)
-            x = get_expr_or_parent(getcst(doc), offset, 1)
+            x, p = get_expr_or_parent(getcst(doc), offset, 1)
             if x isa EXPR
+                if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
+                    if x.parent !== nothing && x.parent.head === :module
+                        x = x.parent
+                        if CSTParser.defines_module(x)
+                            x = x.parent
+                        end
+                    end
+                end
+                if CSTParser.defines_module(x) && p <= offset <= p + x[1].fullspan + x[2].fullspan
+                    x = x.parent
+                end
+
                 scope = StaticLint.retrieve_scope(x)
                 if scope !== nothing
                     return get_module_of(scope)

@@ -15,7 +15,7 @@ function settestdoc(text)
 end
 
 function on_all_docs(server, f)
-    for (n, doc) in server._documents
+    for doc in values(server._documents)
         f(doc)
     end
 end

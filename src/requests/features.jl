@@ -181,7 +181,6 @@ function get_name_of_binding(name::EXPR)
 end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
-    syms = SymbolInformation[]
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
 

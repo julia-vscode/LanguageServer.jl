@@ -77,7 +77,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 end
 
 function get_partial_completion(doc, offset)
-    ppt, pt, t = toks = get_toks(doc, offset)
+    ppt, pt, t = get_toks(doc, offset)
     is_at_end = offset == t.endbyte + 1
     return ppt, pt, t, is_at_end
 end
@@ -93,7 +93,6 @@ end
 
 function kw_completion(doc, spartial, CIs, offset)
     length(spartial) == 0 && return
-    fc = first(spartial)
     for (kw, comp) in snippet_completions
         if startswith(kw, spartial)
             push!(CIs, CompletionItem(kw, 14, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, TextEdit(Range(doc, offset:offset), comp[length(spartial) + 1:end]), missing, missing, missing, missing))

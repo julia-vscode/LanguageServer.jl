@@ -142,7 +142,7 @@ function create_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress
         token = string(uuid4())
         server.current_symserver_progress_token = token
-        response = JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
+        JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
 
         JSONRPC.send(
             server.jr_endpoint,

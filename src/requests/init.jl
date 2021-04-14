@@ -128,7 +128,7 @@ end
 
 function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false
+    if !ismissing(params.capabilities.workspace) && (ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false)
         if !(params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(params.rootUri))
         elseif !(params.rootPath isa Nothing)
@@ -154,7 +154,8 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_window_workdoneprogress = false
     end
 
-    if !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+    if !ismissing(params.capabilities.workspace) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
         !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
         params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 

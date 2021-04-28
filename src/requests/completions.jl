@@ -11,6 +11,20 @@ struct CompletionState
     doc::Document
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
+using REPL
+
+"""
+    is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
+
+Returns true if `s` starts with `prefix` or has a sufficiently high fuzzy score.
+"""
+function is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
+    starter = if all(islowercase, prefix)
+        startswith(lowercase(s), prefix)
+    else
+        startswith(s, prefix)
+    end
+    starter || REPL.fuzzyscore(prefix, s) >= cutoff
 end
 
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
@@ -73,6 +87,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
     return CompletionList(true, unique(state.completions))
 end
 
+
 function get_partial_completion(state::CompletionState)
     ppt, pt, t = toks = get_toks(state.doc, state.offset)
     is_at_end = state.offset == t.endbyte + 1
@@ -81,7 +96,7 @@ end
 
 function latex_completions(partial::String, state::CompletionState)
     for (k, v) in REPL.REPLCompletions.latex_symbols
-        if startswith(string(k), partial)
+        if if is_completion_match(string(k), partial)
             t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
             push!(state.completions, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, t1, missing, missing, missing, missing))
         end
@@ -90,7 +105,6 @@ end
 
 function kw_completion(partial::String, state::CompletionState)
     length(partial) == 0 && return
-    fc = first(partial)
     for (kw, comp) in snippet_completions
         if startswith(kw, partial)
             push!(state.completions, CompletionItem(kw, 14, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, TextEdit(Range(state.doc, state.offset:state.offset), comp[length(partial) + 1:end]), missing, missing, missing, missing))
@@ -136,7 +150,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
     for val in m.vals
         n, v = String(val[1]), val[2]
         (startswith(n, ".") || startswith(n, "#")) && continue
-        !startswith(n, spartial) && continue
+        !is_completion_match(n, spartial) && continue
         if v isa SymbolServer.VarRef
             v = SymbolServer._lookup(v, getsymbolserver(state.server), true)
             v === nothing && return
@@ -181,7 +195,7 @@ end
 function collect_completions(x::StaticLint.Scope, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     if x.names !== nothing
         for n in x.names
-            if startswith(n[1], spartial)
+            if is_completion_match(n[1], spartial)
                 documentation = ""
                 if n[2] isa StaticLint.Binding
                     documentation = get_hover(n[2], documentation, state.server)
@@ -214,14 +228,14 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
             elseif refof(px).type isa SymbolServer.DataTypeStore
                 for a in refof(px).type.fieldnames
                     a = String(a)
-                    if startswith(a, spartial)
+                    if is_completion_match(a, spartial)
                         push!(state.completions, CompletionItem(a, 2, MarkupContent(a), TextEdit(state.range, a[nextind(a, sizeof(spartial)):end])))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fieldnames
                     a = String(a)
-                    if startswith(a, spartial)
+                    if is_completion_match(a, spartial)
                         push!(state.completions, CompletionItem(a, 2, MarkupContent(a), TextEdit(state.range, a[nextind(a, sizeof(spartial)):end])))
                     end
                 end
@@ -350,16 +364,16 @@ is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :imp
 
 function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
     import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
-    
+
     import_root = get_import_root(import_statement)
-    
+
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
         # no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
             for (n, m) in refof(import_root).vals
                 n = String(n)
-                if startswith(n, t.val) && !startswith(n, "#")
+                if is_completion_match(n, t.val) && !startswith(n, "#")
                     push!(state.completions, CompletionItem(n, _completion_kind(m, state.server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(state.range, n[length(t.val) + 1:end])))
                 end
             end
@@ -382,7 +396,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 rootmod = StaticLint.getsymbolserver(state.server)[Symbol(ppt.val)]
                 for (n, m) in rootmod.vals
                     n = String(n)
-                    if startswith(n, t.val) && !startswith(n, "#")
+                    if is_completion_match(n, t.val) && !startswith(n, "#")
                         push!(state.completions, CompletionItem(n, _completion_kind(m, state.server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(state.range, n[length(t.val) + 1:end])))
                     end
                 end
@@ -391,14 +405,14 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
                 for (n, m) in refof(import_root).vals
                     n = String(n)
-                    if startswith(n, t.val) && !startswith(n, "#")
+                    if is_completion_match(n, t.val) && !startswith(n, "#")
                         push!(state.completions, CompletionItem(n, _completion_kind(m, state.server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(state.range, n[length(t.val) + 1:end])))
                     end
                 end
             else
                 for (n, m) in StaticLint.getsymbolserver(state.server)
                     n = String(n)
-                    if startswith(n, t.val)
+                    if is_completion_match(n, t.val)
                         push!(state.completions, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(state.range, n[nextind(n, sizeof(t.val)):end])))
                     end
                 end

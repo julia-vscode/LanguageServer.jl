@@ -79,7 +79,7 @@ end
 const LINT_DIABLED_DIRS = ["test", "docs"]
 
 function request_julia_config(server::LanguageServerInstance, conn)
-    server.clientCapabilities.workspace.configuration !== true && return
+    (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions

@@ -32,7 +32,7 @@ end
 function uri2filepath(uri::AbstractString)
     parsed_uri = try
         URIParser.URI(uri)
-    catch err
+    catch
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
@@ -459,7 +459,7 @@ function is_in_target_dir_of_package(pkgpath, target)
             return true
         end
         return false
-    catch err
+    catch
         return false
     end
 end

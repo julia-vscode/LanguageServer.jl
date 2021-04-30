@@ -156,7 +156,6 @@ function mark_errors(doc, out=Diagnostic[])
     start = true
     offset = errs[i][1]
     r = Int[0, 0]
-    pos = 0
     nlines = length(line_offsets)
     if offset > last(line_offsets)
         line = nlines

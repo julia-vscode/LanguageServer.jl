@@ -24,7 +24,7 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
-    false,
+    true,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
@@ -48,7 +48,7 @@ function has_too_many_files(path, N=5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror=x -> x)
+        for (_, _, files) in walkdir(path, onerror=x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -89,7 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror=x -> x)
+            for (root, _, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
@@ -128,7 +128,7 @@ end
 
 function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false
+    if !ismissing(params.capabilities.workspace) && (ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false)
         if !(params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(params.rootUri))
         elseif !(params.rootPath isa Nothing)
@@ -154,7 +154,8 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_window_workdoneprogress = false
     end
 
-    if !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+    if !ismissing(params.capabilities.workspace) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
         !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
         params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 

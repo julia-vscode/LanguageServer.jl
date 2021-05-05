@@ -155,7 +155,7 @@ function obscure_text(s)
         end
         i += di
     end
-    s1 = String(take!(io))
+    String(take!(io))
 end
 
 """
@@ -229,7 +229,7 @@ byte offset.
 function get_position_at(doc::Document, offset::Integer)
     offset > sizeof(get_text(doc)) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")) # OK, offset comes from EXPR spans
     line_offsets = get_line_offsets(doc)
-    line, ind = get_line_of(line_offsets, offset)
+    line, _ = get_line_of(line_offsets, offset)
     io = IOBuffer(get_text(doc))
     seek(io, line_offsets[line])
     character = 0

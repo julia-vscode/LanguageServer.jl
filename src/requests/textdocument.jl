@@ -156,7 +156,6 @@ function mark_errors(doc, out=Diagnostic[])
     start = true
     offset = errs[i][1]
     r = Int[0, 0]
-    pos = 0
     nlines = length(line_offsets)
     if offset > last(line_offsets)
         line = nlines
@@ -292,6 +291,7 @@ function parse_jmd(ps, str)
 
     prec_str_size = currentbyte:sizeof(str) # OK
     push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+    CSTParser.update_span!(top)
 
     return top, ps
 end

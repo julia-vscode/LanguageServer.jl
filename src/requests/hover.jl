@@ -94,12 +94,17 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         end
         print(io, ")")
         sig = String(take!(io))
-        mod = m.mod
-        text = string(m.file, ':', m.line)
-        # VSCode markdown doesn't seem to be able to handle line number in links
-        # link = string(normpath(m.file), ':', m.line)
-        link = normpath(m.file)
-        documentation = string(documentation, "- `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
+
+        text = replace(string(m.file, ':', m.line), "\\" => "\\\\")
+        link = text
+
+        if server.clientInfo !== missing
+            if occursin("code", lowercase(server.clientInfo.name))
+                link = string(filepath2uri(m.file), "#", m.line)
+            end
+        end
+
+        documentation = string(documentation, "- `$(sig)` in `$(m.mod)` at [$(text)]($(link))", '\n')
     end
     return documentation
 end

@@ -165,7 +165,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             push!(state.completions, CompletionItem(n, _completion_kind(v, state.server), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
         elseif dotcomps
             push!(state.completions, CompletionItem(n, _completion_kind(v, state.server), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
-        elseif length(spartial) > 3
+        elseif length(spartial) > 3 && !variable_already_imported(m, n, state)
             if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement. 
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
@@ -179,6 +179,22 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             end
         end
     end
+end
+
+function variable_already_imported(m, n, state)
+    haskey(state.using_stmts, String(m.name.name)) && import_has_x(state.using_stmts[String(m.name.name)][1], n)
+end
+
+function import_has_x(expr::EXPR, x::String)
+    if length(expr.args) == 1 && length(expr.args[1]) > 1
+        for i = 2:length(expr.args[1].args)
+            arg = expr.args[1].args[i]
+            if CSTParser.isoperator(arg.head) && length(arg.args) == 1 && CSTParser.isidentifier(arg.args[1]) && CSTParser.valof(arg.args[1]) == x
+                return true
+            end
+        end
+    end
+    return false
 end
 
 function collect_completions(x::EXPR, spartial, state::CompletionState, inclexported=false, dotcomps=false)

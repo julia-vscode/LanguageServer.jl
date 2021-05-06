@@ -207,30 +207,32 @@ function get_expr(x, offset, pos=0, ignorewhitespace=false)
     end
 end
 
-# like get_expr, but only returns a expr if offset is not on the edge of it's span
+# like get_expr, but only returns a expr if offset is not on the edge of its span
 function get_expr_or_parent(x, offset, pos=0)
     if pos > offset
-        return nothing
+        return nothing, pos
     end
+    ppos = pos
     if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
         for a in x
             if pos < offset <= (pos + a.fullspan)
                 if pos < offset < (pos + a.span)
                     return get_expr_or_parent(a, offset, pos)
                 else
-                    return x
+                    return x, ppos
                 end
             end
             pos += a.fullspan
         end
     elseif pos == 0
-        return x
+        return x, pos
     elseif (pos < offset <= (pos + x.fullspan))
         if pos + x.span < offset
-            return x.parent
+            return x.parent, ppos
         end
-        return x
+        return x, pos
     end
+    return nothing, pos
 end
 
 function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)

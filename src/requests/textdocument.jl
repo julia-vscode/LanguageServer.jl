@@ -291,6 +291,7 @@ function parse_jmd(ps, str)
 
     prec_str_size = currentbyte:sizeof(str) # OK
     push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+    CSTParser.update_span!(top)
 
     return top, ps
 end

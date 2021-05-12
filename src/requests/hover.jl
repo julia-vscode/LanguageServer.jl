@@ -110,7 +110,7 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         link = text
 
         if server.clientInfo !== missing
-            if occursin("code", lowercase(server.clientInfo.name))
+            if occursin("code", lowercase(server.clientInfo.name)) && isabspath(m.file)
                 link = string(filepath2uri(m.file), "#", m.line)
             end
         end

@@ -89,6 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
+            sema = Base.Semaphore(Threads.nthreads())
             for (root, _, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
@@ -108,7 +109,16 @@ function load_folder(path::String, server)
                             end
                             doc = Document(uri, content, true, server)
                             setdocument!(server, URI2(uri), doc)
-                            parse_all(doc, server)
+                            Base.acquire(sema)
+                            Threads.@spawn begin
+                                try
+                                    parse_all(doc, server)
+                                catch ex
+                                    @error "Error parsing file $(uri)\n$(sprint(showerror, ex, catch_backtrace()))"
+                                finally
+                                    Base.release(sema)
+                                end
+                            end
                         end
                     end
                 end

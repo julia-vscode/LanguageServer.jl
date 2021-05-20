@@ -54,8 +54,9 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 else
                     documentation
                 end
-                documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+                documentation = string(documentation, "```julia\n", prettify_expr(Expr(b.val)), "\n```\n")
             catch err
+                @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
                 throw(LSHoverError(string("get_hover failed to convert Expr")))
             end
         end
@@ -64,6 +65,16 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
     end
     return documentation
 end
+
+function prettify_expr(ex::Expr)
+    if ex.head === :kw && length(ex.args) == 2
+        string(ex.args[1], " = ", ex.args[2])
+    else
+        string(ex)
+    end
+end
+
+prettify_expr(ex) = string(ex)
 
 # print(io, x::SymStore) methods are defined in SymbolServer
 function get_hover(b::SymbolServer.SymStore, documentation::String, server)
@@ -94,12 +105,17 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         end
         print(io, ")")
         sig = String(take!(io))
-        mod = m.mod
-        text = string(m.file, ':', m.line)
-        # VSCode markdown doesn't seem to be able to handle line number in links
-        # link = string(normpath(m.file), ':', m.line)
-        link = normpath(m.file)
-        documentation = string(documentation, "- `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
+
+        text = replace(string(m.file, ':', m.line), "\\" => "\\\\")
+        link = text
+
+        if server.clientInfo !== missing
+            if occursin("code", lowercase(server.clientInfo.name)) && isabspath(m.file)
+                link = string(filepath2uri(m.file), "#", m.line)
+            end
+        end
+
+        documentation = string(documentation, "- `$(sig)` in `$(m.mod)` at [$(text)]($(link))", '\n')
     end
     return documentation
 end

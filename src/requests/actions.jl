@@ -160,7 +160,7 @@ function reexport_package(x::EXPR, server, conn)
         return
     end
     using_stmt = parentof(x)
-    file, offset = get_file_loc(x)
+    file, _ = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return
 
@@ -196,7 +196,7 @@ function reexport_module(x::EXPR, server, conn)
     exported_names = find_exported_names(mod_expr)
 
     isempty(exported_names) && return
-    file, offset = get_file_loc(x)
+    file, _ = get_file_loc(x)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return
     names = filter!(s -> !isempty(s), collect(CSTParser.str_value.(exported_names)))
@@ -210,8 +210,6 @@ end
 function wrap_block(x, server, type, conn) end
 function wrap_block(x::EXPR, server, type, conn)
     file, offset = get_file_loc(x) # rese
-    l0, _ = get_position_at(file, offset)
-    l1, _ = get_position_at(file, offset + x.span)
     if type == :if
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
             TextEdit(Range(file, offset .+ (0:0)), "if CONDITION\n"),
@@ -228,7 +226,7 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
         xname = StaticLint.valofid(x)
         tls = StaticLint.retrieve_toplevel_scope(x)
         if tls isa StaticLint.Scope && tls.modules !== nothing
-            for (n, m) in tls.modules
+            for m in values(tls.modules)
                 if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
                     return true
                 end
@@ -241,7 +239,6 @@ end
 function applymissingreffix(x, server, conn)
     xname = StaticLint.valofid(x)
     file, offset = get_file_loc(x)
-    l, c = get_position_at(file, offset)
     tls = StaticLint.retrieve_toplevel_scope(x)
     if tls.modules !== nothing
         for (n, m) in tls.modules

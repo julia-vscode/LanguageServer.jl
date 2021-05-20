@@ -29,7 +29,7 @@ function is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3
 end
 
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
-    state = let 
+    state = let
         doc = getdocument(server, URI2(params.textDocument.uri))
         offset = get_offset(doc, params.position)
         rng = Range(doc, offset:offset)
@@ -37,7 +37,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
         CompletionState(offset, CompletionItem[], rng, x, doc, server, using_stmts)
     end
-    
+
     ppt, pt, t, is_at_end  = get_partial_completion(state)
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
@@ -151,7 +151,7 @@ const snippet_completions = Dict{String,String}(
 function texteditfor(state::CompletionState, partial, n)
     TextEdit(Range(Position(state.range.start.line, state.range.start.character - sizeof(partial)), state.range.stop), n)
 end
-    
+
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     for val in m.vals
         n, v = String(val[1]), val[2]
@@ -167,7 +167,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             push!(state.completions, CompletionItem(n, _completion_kind(v, state.server), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
         elseif length(spartial) > 3 && !variable_already_imported(m, n, state)
             if state.server.completion_mode === :import
-                # These are non-exported names and require the insertion of a :using statement. 
+                # These are non-exported names and require the insertion of a :using statement.
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
                 cmd = Command("Apply text edit", "language-julia.applytextedit", [
                     WorkspaceEdit(missing, [textedit_to_insert_using_stmt(m, n, state)])
@@ -367,8 +367,8 @@ function path_completion(t, state::CompletionState)
                         if isdir(joinpath(dir, f))
                             f = string(f, "/")
                         end
-                        rng1 = Range(doc, offset - sizeof(partial):offset)
-                        push!(CIs, CompletionItem(f, 17, f, TextEdit(rng1, f)))
+                        rng1 = Range(state.doc, state.offset - sizeof(partial):state.offset)
+                        push!(state.completions, CompletionItem(f, 17, f, TextEdit(rng1, f)))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     end
@@ -447,8 +447,8 @@ function get_preexisting_using_stmts(x::EXPR, doc::Document)
     using_stmts = Dict{String,Any}()
     tls = StaticLint.retrieve_toplevel_scope(x)
     file_level_arg = get_file_level_parent(x)
-    
-    if scopeof(getcst(doc)) == tls 
+
+    if scopeof(getcst(doc)) == tls
         # check for :using stmts in current file
         for a in getcst(doc).args
             if headof(a) === :using
@@ -464,7 +464,7 @@ function get_preexisting_using_stmts(x::EXPR, doc::Document)
             if headof(a) === :using
                 add_using_stmt(a, using_stmts)
             end
-            
+
         end
     end
     return using_stmts
@@ -472,7 +472,7 @@ end
 
 function add_using_stmt(x::EXPR, using_stmts)
     if length(x.args) > 0 && CSTParser.is_colon(x.args[1].head)
-        if CSTParser.is_dot(x.args[1].args[1].head) && length(x.args[1].args[1].args) == 1 
+        if CSTParser.is_dot(x.args[1].args[1].head) && length(x.args[1].args[1].args) == 1
             using_stmts[valof(x.args[1].args[1].args[1])] = (x, get_file_loc(x))
         end
     end
@@ -490,7 +490,7 @@ function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, s
     tls = StaticLint.retrieve_toplevel_scope(state.x)
     if haskey(state.using_stmts, String(m.name.name))
         (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
-        
+
         l, c = get_position_at(using_doc, using_offset + using_stmt.span)
         TextDocumentEdit(VersionedTextDocumentIdentifier(using_doc._uri, using_doc._version),
             [TextEdit(Range(l, c, l, c), ", $n")])

@@ -127,6 +127,7 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     doc = getdocument(server, URI2(textDocument.uri))
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
+    x === nothing && return locations
     for_each_ref(x) do r, doc1, o
         push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
     end

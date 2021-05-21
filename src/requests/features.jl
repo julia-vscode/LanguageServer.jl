@@ -126,19 +126,25 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     locations = Location[]
     doc = getdocument(server, URI2(textDocument.uri))
     offset = get_offset(doc, position)
-    x = get_identifier(getcst(doc), offset)
+    x = get_expr1(getcst(doc), offset)
+    x === nothing && return locations
+    for_each_ref(x) do r, doc1, o
+        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+    end
+    return locations
+end
 
-    if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
-        for r in refof(x).refs
+function for_each_ref(f, identifier::EXPR)
+    if identifier isa EXPR && StaticLint.hasref(identifier) && refof(identifier) isa StaticLint.Binding
+        for r in refof(identifier).refs
             if r isa EXPR
                 doc1, o = get_file_loc(r)
                 if doc1 isa Document
-                    push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+                    f(r, doc1, o)
                 end
             end
         end
     end
-    return locations
 end
 
 function textDocument_references_request(params::ReferenceParams, server::LanguageServerInstance, conn)

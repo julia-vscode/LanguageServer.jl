@@ -232,7 +232,7 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
                 end
             end
         end
-    end
+end
     return false
 end
 

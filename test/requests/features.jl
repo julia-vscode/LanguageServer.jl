@@ -33,25 +33,25 @@ rename_test(line, char) = LanguageServer.textDocument_rename_request(LanguageSer
     @test_broken !isempty(sig_test(15, 5).signatures)
 
     let sigs = LanguageServer.SignatureInformation[]
-        LanguageServer.get_signatures(doc.cst[3].meta.binding, doc.cst.meta.scope, sigs, server)
-        @test length(sigs) == 1
-    end
+    LanguageServer.get_signatures(doc.cst[3].meta.binding, doc.cst.meta.scope, sigs, server)
+    @test length(sigs) == 1
+end
     let sigs = LanguageServer.SignatureInformation[]
-        LanguageServer.get_signatures(doc.cst[5].meta.binding, doc.cst.meta.scope, sigs, server)
-        @test length(sigs) == 1
-    end
+    LanguageServer.get_signatures(doc.cst[5].meta.binding, doc.cst.meta.scope, sigs, server)
+    @test length(sigs) == 1
+end
     let sigs = LanguageServer.SignatureInformation[]
-        LanguageServer.get_signatures(doc.cst[1][1].meta.ref, doc.cst.meta.scope, sigs, server)
-        @test length(sigs) > 0
-    end
+    LanguageServer.get_signatures(doc.cst[1][1].meta.ref, doc.cst.meta.scope, sigs, server)
+    @test length(sigs) > 0
+end
     let sigs = LanguageServer.SignatureInformation[]
-        LanguageServer.get_signatures(doc.cst[7].meta.binding, doc.cst.meta.scope, sigs, server)
-        @test length(sigs) == 1
-    end
+    LanguageServer.get_signatures(doc.cst[7].meta.binding, doc.cst.meta.scope, sigs, server)
+    @test length(sigs) == 1
+end
     let sigs = LanguageServer.SignatureInformation[]
-        LanguageServer.get_signatures(doc.cst[9][1].meta.ref, doc.cst.meta.scope, sigs, server)
-        @test length(sigs) == 1
-    end
+    LanguageServer.get_signatures(doc.cst[9][1].meta.ref, doc.cst.meta.scope, sigs, server)
+    @test length(sigs) == 1
+end
 end
 
 @testset "definitions" begin

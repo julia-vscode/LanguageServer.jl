@@ -304,7 +304,7 @@ end
 function string_completion(t, state::CompletionState)
     path_completion(t, state)
     # Need to adjust things for quotation marks
-    if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
+    if t.kind in (CSTParser.Tokenize.Tokens.STRING, CSTParser.Tokenize.Tokens.CMD)
         t.startbyte < state.offset <= t.endbyte || return
         relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]

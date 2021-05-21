@@ -106,7 +106,8 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.useoffuncargs"),
         ConfigurationItem(missing, "julia.lint.run"),
         ConfigurationItem(missing, "julia.lint.missingrefs"),
-        ConfigurationItem(missing, "julia.lint.disabledDirs")
+        ConfigurationItem(missing, "julia.lint.disabledDirs"),
+        ConfigurationItem(missing, "julia.completionmode")
         ]))
 
     server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
@@ -115,6 +116,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
 
     new_lint_missingrefs = Symbol(something(response[24], :all))
     new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[26], :import))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
@@ -127,6 +129,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.runlinter = new_runlinter
     server.lint_missingrefs = new_lint_missingrefs
     server.lint_disableddirs = new_lint_disableddirs
+    server.completion_mode = new_completion_mode
 
     if rerun_lint
         relintserver(server)

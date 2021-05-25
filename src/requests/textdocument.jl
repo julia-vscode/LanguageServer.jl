@@ -155,7 +155,6 @@ function mark_errors(doc, out=Diagnostic[])
     start = true
     offset = errs[i][1]
     r = Int[0, 0]
-    pos = 0
     nlines = length(line_offsets)
     if offset > last(line_offsets)
         line = nlines
@@ -269,10 +268,13 @@ function parse_jmd(ps, str)
             end
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
 
-            push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
 
             args, ps = CSTParser.parse(ps, true)
-            append!(top.args, args.args)
+            for a in args.args
+                push!(top, a)
+            end
+
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
         elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && b.val !== nothing && startswith(b.val, "j ")
@@ -280,17 +282,21 @@ function parse_jmd(ps, str)
             ps = CSTParser.ParseState(blockstr)
             CSTParser.next(ps)
             prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
 
             args, ps = CSTParser.parse(ps, true)
-            append!(top.args, args.args)
+            for a in args.args
+                push!(top, a)
+            end
+            
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
         end
     end
 
     prec_str_size = currentbyte:sizeof(str) # OK
-    push!(top.args, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+    push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
+    CSTParser.update_span!(top)
 
     return top, ps
 end

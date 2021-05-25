@@ -1,5 +1,3 @@
-T = 0.0
-
 """
     LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
@@ -45,6 +43,7 @@ mutable struct LanguageServerInstance
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
+    completion_mode::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -81,6 +80,7 @@ mutable struct LanguageServerInstance
             StaticLint.LintOptions(),
             :all,
             LINT_DIABLED_DIRS,
+            :import, # options: :import or :qualify, anything else turns this off
             Channel{Any}(Inf),
             err_handler,
             :created,
@@ -142,7 +142,7 @@ function create_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress
         token = string(uuid4())
         server.current_symserver_progress_token = token
-        response = JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
+        JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
 
         JSONRPC.send(
             server.jr_endpoint,
@@ -303,6 +303,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
     msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
     msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
+    msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
     msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
     msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
     msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)

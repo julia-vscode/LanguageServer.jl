@@ -40,6 +40,13 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                     end
                 end
 
+                if a.head === :macrocall && a.args[1].head === :globalrefdoc && length(a.args) == 4 && CSTParser.defines_module(a.args[4])
+                    for i in 1:3
+                        loc += a.args[i].fullspan
+                    end
+                    a = a.args[4]
+                end
+
                 if CSTParser.defines_module(a) # Within module at the top-level, lets see if we can select on of the block arguments
                     if loc <= offset <= loc + a.trivia[1].span # Within `module` keyword, so return entire expression
                         return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
@@ -56,7 +63,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                             end
                             loc += b.fullspan
                         end
-                    elseif loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan < offset < loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan + a.trivia[2].span # Within `end` of the module, so return entire expression
+                    elseif loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan < offset <= loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan + a.trivia[2].span # Within `end` of the module, so return entire expression
                         return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
                     end
                 else

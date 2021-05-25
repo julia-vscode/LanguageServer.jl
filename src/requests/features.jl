@@ -200,7 +200,7 @@ function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, 
             ds = DocumentSymbol(
                 get_name_of_binding(b.name), # name
                 missing, # detail
-                _binding_kind(b, server), # kind
+                _binding_kind(b), # kind
                 false, # deprecated
                 Range(doc, (pos .+ (0:x.span))), # range
                 Range(doc, (pos .+ (0:x.span))), # selection range
@@ -248,7 +248,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b, server)
+function _binding_kind(b)
     if b isa StaticLint.Binding
         if b.type === nothing
             return 13

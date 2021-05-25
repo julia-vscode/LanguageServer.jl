@@ -248,7 +248,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b)
+function _binding_kind(b, server)
     if b isa StaticLint.Binding
         if b.type === nothing
             return 13

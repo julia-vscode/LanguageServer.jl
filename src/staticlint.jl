@@ -36,6 +36,7 @@ function getenv(doc::Document, server::LanguageServerInstance)
     get(server.roots_env_map, doc.root, server.global_env)
 end
 getenv(doc::Document) = getenv(doc, doc.server)
+getenv(server::LanguageServerInstance) = server.global_env
 
 getpath(d::Document) = d._path
 
@@ -49,7 +50,7 @@ function setroot(doc::Document, root::Document)
     end
     doc.root = root
     if doc == root && doc.server isa LanguageServerInstance
-        # doc is being set as it's own root, lets find 
+        # doc is being set as it's own root, lets find
         extenv = get_env_for_root(doc, doc.server)
         if extenv !== nothing
             doc.server.roots_env_map[doc] = extenv

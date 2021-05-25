@@ -336,7 +336,7 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", env)
+    documentation = get_hover(x, "", server)
 
     return documentation
 end
@@ -346,7 +346,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
     exact_matches = []
     approx_matches = []
     word_sym = Symbol(params.word)
-    traverse_by_name(getsymbols(server)) do sym, val
+    traverse_by_name(getsymbols(getenv(server))) do sym, val
         is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1

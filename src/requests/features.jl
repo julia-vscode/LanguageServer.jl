@@ -25,12 +25,8 @@ end
 
 function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, env, locations)
     StaticLint.iterate_over_ss_methods(x, tls, env, function (m)
-        try
-            if isfile(m.file)
-                push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
-            end
-        catch err
-            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        if safe_isfile(m.file)
+            push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
         end
         return false
     end)
@@ -59,6 +55,16 @@ function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
     end
 end
 
+safe_isfile(s::Symbol) = safe_isfile(string(s))
+function safe_isfile(s::AbstractString)
+    try
+        !occursin("\0", s) && isfile(s)
+    catch err
+        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        false
+    end
+end
+
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
     doc = getdocument(server, URI2(params.textDocument.uri))
@@ -74,9 +80,9 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         # TODO: move to its own function
         if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
             try
-                if isabspath(valof(x)) && isfile(valof(x))
+                if isabspath(valof(x)) && safe_isfile(valof(x))
                     push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
                     push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
                 end
             catch err
@@ -121,17 +127,24 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     doc = getdocument(server, URI2(textDocument.uri))
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
-    if x isa EXPR && StaticLint.hasref(x) && refof(x) isa StaticLint.Binding
-        for r in refof(x).refs
+    x === nothing && return locations
+    for_each_ref(x) do r, doc1, o
+        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+    end
+    return locations
+end
+
+function for_each_ref(f, identifier::EXPR)
+    if identifier isa EXPR && StaticLint.hasref(identifier) && refof(identifier) isa StaticLint.Binding
+        for r in refof(identifier).refs
             if r isa EXPR
                 doc1, o = get_file_loc(r)
                 if doc1 isa Document
-                    push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+                    f(r, doc1, o)
                 end
             end
         end
     end
-    return locations
 end
 
 function textDocument_references_request(params::ReferenceParams, server::LanguageServerInstance, conn)
@@ -174,18 +187,36 @@ function get_name_of_binding(name::EXPR)
 end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
-    syms = SymbolInformation[]
     uri = params.textDocument.uri
     doc = getdocument(server, URI2(uri))
 
-    bs = collect_bindings_w_loc(getcst(doc))
-    for x in bs
-        p, b = x[1], x[2]
-        !(b.val isa EXPR) && continue
-        !is_valid_binding_name(b.name) && continue
-        push!(syms, SymbolInformation(get_name_of_binding(b.name), _binding_kind(b), false, Location(doc._uri, Range(doc, p)), missing))
+    return collect_document_symbols(getcst(doc), server, doc)
+end
+
+function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=DocumentSymbol[])
+    if bindingof(x) !== nothing
+        b =  bindingof(x)
+        if b.val isa EXPR && is_valid_binding_name(b.name)
+            ds = DocumentSymbol(
+                get_name_of_binding(b.name), # name
+                missing, # detail
+                _binding_kind(b, server), # kind
+                false, # deprecated
+                Range(doc, (pos .+ (0:x.span))), # range
+                Range(doc, (pos .+ (0:x.span))), # selection range
+                DocumentSymbol[] # children
+            )
+            push!(symbols, ds)
+            symbols = ds.children
+        end
     end
-    return syms
+    if length(x) > 0
+        for a in x
+            collect_document_symbols(a, server, doc, pos, symbols)
+            pos += a.fullspan
+        end
+    end
+    return symbols
 end
 
 function collect_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[])
@@ -253,9 +284,21 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
         if doc._version == params.version
-            offset = get_offset2(doc, params.position.line, params.position.character)
-            x = get_expr(getcst(doc), offset)
+            offset = get_offset2(doc, params.position.line, params.position.character, true)
+            x, p = get_expr_or_parent(getcst(doc), offset, 1)
             if x isa EXPR
+                if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
+                    if x.parent !== nothing && x.parent.head === :module
+                        x = x.parent
+                        if CSTParser.defines_module(x)
+                            x = x.parent
+                        end
+                    end
+                end
+                if CSTParser.defines_module(x) && p <= offset <= p + x[1].fullspan + x[2].fullspan
+                    x = x.parent
+                end
+
                 scope = StaticLint.retrieve_scope(x)
                 if scope !== nothing
                     return get_module_of(scope)
@@ -319,4 +362,22 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
     else
         return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
     end
+end
+
+function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    map(params.positions) do position
+        offset = get_offset(doc, position)
+        x = get_expr1(getcst(doc), offset)
+        get_selection_range_of_expr(x)
+    end
+end
+
+# Just returns a selection for each parent EXPR, should be more selective
+get_selection_range_of_expr(x) = missing
+function get_selection_range_of_expr(x::EXPR)
+    doc, offset = get_file_loc(x)
+    l1, c1 = get_position_at(doc, offset)
+    l2, c2 = get_position_at(doc, offset + x.span)
+    SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end

@@ -12,7 +12,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     true,
-    false,
+    true,
     true,
     true,
     missing,
@@ -24,7 +24,7 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
-    false,
+    true,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
@@ -48,7 +48,7 @@ function has_too_many_files(path, N=5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror=x -> x)
+        for (_, _, files) in walkdir(path, onerror=x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -60,7 +60,7 @@ function has_too_many_files(path, N=5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || (VERSION >= v"1.3.0" && isa(err, Base.TaskFailedException) && isa(err.task.exception, Base.IOError)) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 
@@ -76,7 +76,7 @@ function load_rootpath(path)
             !isjuliabasedir(path) &&
             !has_too_many_files(path)
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 end
@@ -89,7 +89,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror=x -> x)
+            for (root, _, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
@@ -103,7 +103,7 @@ function load_folder(path::String, server)
                                 isvalid(s) || continue
                                 s
                             catch err
-                                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                                is_walkdir_error(err) || rethrow()
                                 continue
                             end
                             doc = Document(uri, content, true, server)
@@ -114,15 +114,21 @@ function load_folder(path::String, server)
                 end
             end
         catch err
-            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            is_walkdir_error(err) || rethrow()
         end
     end
 end
 
+is_walkdir_error(_) = false
+is_walkdir_error(::Base.IOError) = true
+is_walkdir_error(::Base.SystemError) = true
+@static if VERSION > v"1.3.0-"
+    is_walkdir_error(err::Base.TaskFailedException) = is_walkdir_error(err.task.exception)
+end
 
 function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false
+    if !ismissing(params.capabilities.workspace) && (ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false)
         if !(params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(params.rootUri))
         elseif !(params.rootPath isa Nothing)
@@ -148,7 +154,8 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_window_workdoneprogress = false
     end
 
-    if !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+    if !ismissing(params.capabilities.workspace) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
         !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
         params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 
@@ -182,13 +189,12 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 end
 
-# TODO provide type for params
-function shutdown_request(params, server::LanguageServerInstance, conn)
+function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
+    server.shutdown_requested = true
     return nothing
 end
 
-# TODO provide type for params
-function exit_notification(params, server::LanguageServerInstance, conn)
+function exit_notification(params::Nothing, server::LanguageServerInstance, conn)
     server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
-    exit()
+    exit(server.shutdown_requested ? 0 : 1)
 end

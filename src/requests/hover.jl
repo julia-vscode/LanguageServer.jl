@@ -47,7 +47,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, env)
                 end
             end
         else
-            try
+            documentation = try
                 documentation = if binding_has_preceding_docs(b)
                     string(documentation, Expr(parentof(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
@@ -55,10 +55,10 @@ function get_hover(b::StaticLint.Binding, documentation::String, env)
                 else
                     documentation
                 end
-                documentation = string(documentation, "```julia\n", Expr(b.val), "\n```\n")
+                documentation = string(documentation, "```julia\n", prettify_expr(Expr(b.val)), "\n```\n")
             catch err
-                doc1, offset1 = get_file_loc(b.val)
-                throw(LSHoverError(string("get_hover failed to convert the following to code: ", String(codeunits(get_text(doc1))[offset1 .+ (1:b.val.span)]))))
+                @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
+                throw(LSHoverError(string("get_hover failed to convert Expr")))
             end
         end
     elseif b.val isa SymbolServer.SymStore
@@ -66,6 +66,16 @@ function get_hover(b::StaticLint.Binding, documentation::String, env)
     end
     return documentation
 end
+
+function prettify_expr(ex::Expr)
+    if ex.head === :kw && length(ex.args) == 2
+        string(ex.args[1], " = ", ex.args[2])
+    else
+        string(ex)
+    end
+end
+
+prettify_expr(ex) = string(ex)
 
 # print(io, x::SymStore) methods are defined in SymbolServer
 function get_hover(b::SymbolServer.SymStore, documentation::String, env)
@@ -96,12 +106,17 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, env)
         end
         print(io, ")")
         sig = String(take!(io))
-        mod = m.mod
-        text = string(m.file, ':', m.line)
-        # VSCode markdown doesn't seem to be able to handle line number in links
-        # link = string(normpath(m.file), ':', m.line)
-        link = normpath(m.file)
-        documentation = string(documentation, "- `$(sig)` in `$(mod)` at [$(text)]($(link))", '\n')
+
+        text = replace(string(m.file, ':', m.line), "\\" => "\\\\")
+        link = text
+
+        if server.clientInfo !== missing
+            if occursin("code", lowercase(server.clientInfo.name)) && isabspath(m.file)
+                link = string(filepath2uri(m.file), "#", m.line)
+            end
+        end
+
+        documentation = string(documentation, "- `$(sig)` in `$(m.mod)` at [$(text)]($(link))", '\n')
     end
     return documentation
 end

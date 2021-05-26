@@ -353,14 +353,14 @@ function Base.run(server::LanguageServerInstance)
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
             @info "Received new data from Julia Symbol Server."
-            msg = message.msg
 
-            server.global_env.symbols = msg
+            server.global_env.symbols = message.msg
             server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
             server.global_env.project_deps = collect(keys(server.global_env.symbols))
 
             # redo roots_env_map
-            for (root, extenv) in server.roots_env_map
+            for (root, _) in server.roots_env_map
+                @debug "resetting get_env_for_root"
                 newenv = get_env_for_root(root, server)
                 if newenv === nothing
                     delete!(server.roots_env_map, root)
@@ -369,7 +369,9 @@ function Base.run(server::LanguageServerInstance)
                 end
             end
 
+            @debug "starting re-lint of everything"
             relintserver(server)
+            @debug "re-lint done"
         end
     end
 end
@@ -392,81 +394,4 @@ function relintserver(server)
     for doc in documents
         lint!(doc, server)
     end
-end
-
-function is_project_folder(folder)
-    isfile(Base.env_project_file(folder))
-end
-
-@static if isdefined(Base, :parsed_toml)
-    parsed_toml(args...) = Base.parsed_toml(args...)
-else
-    using Pkg
-    parsed_toml(file) = Pkg.TOML.parsefile(file)
-end
-
-function is_project_folder_in_env(folder, env_manifest, server)
-    folder_proj = SymbolServer.Pkg.Types.Project(parsed_toml(Base.env_project_file(folder)))
-    manifest_pe = get(env_manifest,folder_proj.uuid, nothing)
-    if manifest_pe === nothing
-        return false
-    elseif manifest_pe.path !== nothing
-        return Base.Filesystem.samefile(manifest_pe.path, folder)
-    elseif manifest_pe.tree_hash isa Base.SHA1
-        if Base.Filesystem.samefile(abspath(server.depot_path, "packages", folder_proj.name, Base.version_slug(folder_proj.uuid, manifest_pe.tree_hash, 4)), folder)
-            return true
-        elseif Base.Filesystem.samefile(abspath(server.depot_path, "packages", folder_proj.name, Base.version_slug(folder_proj.uuid, manifest_pe.tree_hash)), folder)
-            return true
-        end
-    end
-    return false
-end
-
-function get_env_for_root(doc::Document, server::LanguageServerInstance)
-    env_proj_file = Base.env_project_file(server.env_path)
-    env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
-    (isfile(env_proj_file) && isfile(env_manifest_file)) || return
-    env_proj = SymbolServer.Pkg.Types.Project(parsed_toml(env_proj_file))
-    env_manifest = SymbolServer.Pkg.Types.Manifest(parsed_toml(env_manifest_file))
-
-    # Find which workspace folder the doc is in.
-    parent_workspaceFolders = sort(filter(f->startswith(doc._path, f), collect(server.workspaceFolders)), by = length, rev = true)
-    isempty(parent_workspaceFolders) && return
-    parent_workspaceFolders = first(parent_workspaceFolders)
-
-    if is_project_folder(parent_workspaceFolders) & is_project_folder_in_env(parent_workspaceFolders, env_manifest, server)
-        folder_proj = SymbolServer.Pkg.Types.Project(parsed_toml(Base.env_project_file(parent_workspaceFolders)))
-
-        # We point to all caches as, though a package may not be directly available (e.g as
-        # a dependency) it may still be accessible as imported by one of the direct dependencies.
-        symbols = server.global_env.symbols
-
-        # Will want to limit this to only get extended methods from the dependency tree of
-        # the project (e.g. using `complete_dep_tree` below)
-        extended_methods = server.global_env.extended_methods
-
-        # This is the list of packages that are directly available
-        project_deps = Symbol.(collect(keys(folder_proj.deps)))
-        if isdir(joinpath(parent_workspaceFolders, "test")) && startswith(doc._path, joinpath(parent_workspaceFolders, "test"))
-            # We're in the test folder, add the project iteself to the deps
-            # This should actually point to the live code (e.g. the relevant EXPR or Scope)?
-            push!(project_deps, Symbol(folder_proj.name))
-            for extra in keys(folder_proj.extras)
-                if Symbol(extra) in keys(symbols)
-                    push!(project_deps, Symbol(extra))
-                end
-            end
-        end
-
-        StaticLint.ExternalEnv(symbols, extended_methods, project_deps)
-    end
-end
-
-function complete_dep_tree(uuid, env_manifest, alldeps = Dict{Base.UUID,Pkg.Types.PackageEntry}())
-    haskey(alldeps, uuid) && return alldeps
-    alldeps[uuid] = env_manifest[uuid]
-    for dep_uuid in values(alldeps[uuid].deps)
-        complete_dep_tree(dep_uuid, env_manifest, alldeps)
-    end
-    alldeps
 end

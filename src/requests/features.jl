@@ -56,6 +56,7 @@ function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
 end
 
 safe_isfile(s::Symbol) = safe_isfile(string(s))
+safe_isfile(::Nothing) = false
 function safe_isfile(s::AbstractString)
     try
         !occursin("\0", s) && isfile(s)

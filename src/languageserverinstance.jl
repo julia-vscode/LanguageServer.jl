@@ -398,8 +398,14 @@ function is_project_folder(folder)
     isfile(Base.env_project_file(folder))
 end
 
+@static if isdefined(Base, :parsed_toml)
+    parsed_toml(args...) = Base.parsed_toml(args...)
+else
+    parsed_toml(file) = Pkg.TOML.parsefile(file)
+end
+
 function is_project_folder_in_env(folder, env_manifest, server)
-    folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(folder)))
+    folder_proj = SymbolServer.Pkg.Types.Project(parsed_toml(Base.env_project_file(folder)))
     manifest_pe = get(env_manifest,folder_proj.uuid, nothing)
     if manifest_pe === nothing
         return false
@@ -419,8 +425,8 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
     env_proj_file = Base.env_project_file(server.env_path)
     env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
     (isfile(env_proj_file) && isfile(env_manifest_file)) || return
-    env_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(env_proj_file))
-    env_manifest = SymbolServer.Pkg.Types.Manifest(Base.parsed_toml(env_manifest_file))
+    env_proj = SymbolServer.Pkg.Types.Project(parsed_toml(env_proj_file))
+    env_manifest = SymbolServer.Pkg.Types.Manifest(parsed_toml(env_manifest_file))
 
     # Find which workspace folder the doc is in.
     parent_workspaceFolders = sort(filter(f->startswith(doc._path, f), collect(server.workspaceFolders)), by = length, rev = true)
@@ -428,7 +434,7 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
     parent_workspaceFolders = first(parent_workspaceFolders)
 
     if is_project_folder(parent_workspaceFolders) & is_project_folder_in_env(parent_workspaceFolders, env_manifest, server)
-        folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(parent_workspaceFolders)))
+        folder_proj = SymbolServer.Pkg.Types.Project(parsed_toml(Base.env_project_file(parent_workspaceFolders)))
 
         # We point to all caches as, though a package may not be directly available (e.g as
         # a dependency) it may still be accessible as imported by one of the direct dependencies.

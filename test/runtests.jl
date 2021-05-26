@@ -62,6 +62,7 @@ end
             include("requests/misc.jl")
         end
         @testset "brute force tests" begin
+            @info "Self-parse test"
             # run tests against each position in each document
             empty!(server._documents)
             LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
@@ -80,7 +81,10 @@ end
                 end)
             end)
 
-            on_all_docs(server, doc -> @info "Getting all document symbols" file=doc._uri, symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint)))
+            on_all_docs(server, doc -> begin
+                symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint))
+                @info "Found $symbols symbols" file=doc._uri
+            end)
 
             LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
         end

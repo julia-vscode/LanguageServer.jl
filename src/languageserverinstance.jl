@@ -259,6 +259,7 @@ function Base.run(server::LanguageServerInstance)
     trigger_symbolstore_reload(server)
 
     @async try
+        @debug "LS: Starting client listener task."
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
@@ -268,14 +269,20 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Client listener task done."
     end
 
     @async try
+        @debug "LS: Starting symbol server listener task."
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
@@ -285,11 +292,16 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Symbol server listener task done."
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
@@ -338,7 +350,6 @@ function Base.run(server::LanguageServerInstance)
             return
         elseif message.type == :clientmsg
             msg = message.msg
-
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
             @info "Received new data from Julia Symbol Server."
@@ -407,7 +418,7 @@ end
 function get_env_for_root(doc::Document, server::LanguageServerInstance)
     env_proj_file = Base.env_project_file(server.env_path)
     env_manifest_file = SymbolServer.Pkg.Types.manifestfile_path(server.env_path)
-    (isfile(env_proj_file) && isfile(env_manifest_file)) || return 
+    (isfile(env_proj_file) && isfile(env_manifest_file)) || return
     env_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(env_proj_file))
     env_manifest = SymbolServer.Pkg.Types.Manifest(Base.parsed_toml(env_manifest_file))
 
@@ -415,15 +426,15 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
     parent_workspaceFolders = sort(filter(f->startswith(doc._path, f), collect(server.workspaceFolders)), by = length, rev = true)
     isempty(parent_workspaceFolders) && return
     parent_workspaceFolders = first(parent_workspaceFolders)
-    
+
     if is_project_folder(parent_workspaceFolders) & is_project_folder_in_env(parent_workspaceFolders, env_manifest, server)
         folder_proj = SymbolServer.Pkg.Types.Project(Base.parsed_toml(Base.env_project_file(parent_workspaceFolders)))
-        
+
         # We point to all caches as, though a package may not be directly available (e.g as
         # a dependency) it may still be accessible as imported by one of the direct dependencies.
         symbols = server.global_env.symbols
 
-        # Will want to limit this to only get extended methods from the dependency tree of 
+        # Will want to limit this to only get extended methods from the dependency tree of
         # the project (e.g. using `complete_dep_tree` below)
         extended_methods = server.global_env.extended_methods
 
@@ -439,7 +450,7 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
                 end
             end
         end
-        
+
         StaticLint.ExternalEnv(symbols, extended_methods, project_deps)
     end
 end

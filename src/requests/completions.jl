@@ -1,6 +1,5 @@
 # TODO:
 # - refactor, simplify branching, unify duplications
-# - fuzzy completions
 # - (maybe) export latex completions into a separate package
 
 struct CompletionState
@@ -12,6 +11,9 @@ struct CompletionState
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
 end
+
+StaticLint.getenv(state::CompletionState) = getenv(state.doc, state.server)
+
 using REPL
 
 """
@@ -158,7 +160,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
         (startswith(n, ".") || startswith(n, "#")) && continue
         !is_completion_match(n, spartial) && continue
         if v isa SymbolServer.VarRef
-            v = SymbolServer._lookup(v, getsymbols(getenv(state.doc, state.server)), true)
+            v = SymbolServer._lookup(v, getsymbols(getenv(state)), true)
             v === nothing && return
         end
         if StaticLint.isexportedby(n, m) || inclexported
@@ -398,7 +400,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 end
             end
         else
-            for (n, m) in StaticLint.getsymbolserver(state.server)
+            for (n, m) in StaticLint.getsymbols(getenv(state))
                 n = String(n)
                 (startswith(n, ".") || startswith(n, "#")) && continue
                 push!(state.completions, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(state.range, n)))
@@ -406,14 +408,14 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
         # no partial, dot
-        if haskey(getsymbolserver(state.server), Symbol(pt.val))
-            collect_completions(getsymbolserver(state.server)[Symbol(pt.val)], "", state)
+        if haskey(getsymbols(getenv(state)), Symbol(pt.val))
+            collect_completions(getsymbols(getenv(state))[Symbol(pt.val)], "", state)
         end
     elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
         # partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
-            if haskey(StaticLint.getsymbolserver(state.server), Symbol(ppt.val))
-                rootmod = StaticLint.getsymbolserver(state.server)[Symbol(ppt.val)]
+            if haskey(StaticLint.getsymbols(getenv(state)), Symbol(ppt.val))
+                rootmod = StaticLint.getsymbols(getenv(state))[Symbol(ppt.val)]
                 for (n, m) in rootmod.vals
                     n = String(n)
                     if is_completion_match(n, t.val) && !startswith(n, "#")
@@ -430,7 +432,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                     end
                 end
             else
-                for (n, m) in StaticLint.getsymbolserver(state.server)
+                for (n, m) in StaticLint.getsymbols(getenv(state))
                     n = String(n)
                     if is_completion_match(n, t.val)
                         push!(state.completions, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), texteditfor(state, t.val, n)))

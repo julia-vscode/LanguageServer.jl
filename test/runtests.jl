@@ -65,20 +65,23 @@ end
             # run tests against each position in each document
             empty!(server._documents)
             LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
-            on_all_docs(server, doc -> (println(doc._uri);on_all_offsets(doc, function (doc, offset) 
-                tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
-                pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
-                @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset 
-                LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
-                LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
-                LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
-            end)))
-            
-            on_all_docs(server, doc -> @info doc._uri, length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint)))
-            
+            on_all_docs(server, doc -> begin
+                @info "Testing LS functionality at all offsets" file=doc._uri
+                on_all_offsets(doc, function (doc, offset)
+                    tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
+                    pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
+                    @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset
+                    LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
+                    LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                    LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                    LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                    LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
+                    LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
+                end)
+            end)
+
+            on_all_docs(server, doc -> @info "Getting all document symbols" file=doc._uri, symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint)))
+
             LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
         end
     end

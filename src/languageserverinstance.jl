@@ -401,6 +401,7 @@ end
 @static if isdefined(Base, :parsed_toml)
     parsed_toml(args...) = Base.parsed_toml(args...)
 else
+    using Pkg
     parsed_toml(file) = Pkg.TOML.parsefile(file)
 end
 

@@ -28,13 +28,13 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
     else
-        if any(d.root == doc.root && (d._open_in_editor || is_workspace_file(d)) for (uri, d::Document) in getdocuments_pair(server) if d != doc)
+        if any(getroot(d) == getroot(doc) && (d._open_in_editor || is_workspace_file(d)) for (uri, d::Document) in getdocuments_pair(server) if d != doc)
             # If any other open document shares doc's root we just mark it as closed...
             set_open_in_editor(doc, false)
         else
             # ...otherwise we delete all documents that share root with doc.
             for (u, d) in getdocuments_pair(server)
-                if d.root == doc.root
+                if getroot(d) == getroot(doc)
                     deletedocument!(server, u)
                     empty!(doc.diagnostics)
                     publish_diagnostics(doc, server, conn)
@@ -149,7 +149,7 @@ end
 
 function mark_errors(doc, out=Diagnostic[])
     line_offsets = get_line_offsets(doc)
-    errs = StaticLint.collect_hints(getcst(doc), doc.server, doc.server.lint_missingrefs)
+    errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
     i = 1

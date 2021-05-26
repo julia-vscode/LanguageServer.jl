@@ -16,6 +16,7 @@ include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("document.jl")
 include("languageserverinstance.jl")
+include("multienv.jl")
 include("runserver.jl")
 include("staticlint.jl")
 

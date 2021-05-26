@@ -1,7 +1,8 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
+    env = getenv(doc, server)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
     documentation = get_hover(x, "", server)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
@@ -10,7 +11,7 @@ function textDocument_hover_request(params::TextDocumentPositionParams, server::
     return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
 end
 
-function get_hover(x, documentation::String, server) documentation end
+get_hover(x, documentation::String, server) = documentation
 
 function get_hover(x::EXPR, documentation::String, server)
     if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)

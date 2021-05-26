@@ -15,16 +15,16 @@ function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Bindin
     end
 end
 
-function get_definitions(x, tls, server, locations) end # Fallback
+function get_definitions(x, tls, env, locations) end # Fallback
 
-function get_definitions(x::SymbolServer.ModuleStore, tls, server, locations)
+function get_definitions(x::SymbolServer.ModuleStore, tls, env, locations)
     if haskey(x.vals, :eval) && x[:eval] isa SymbolServer.FunctionStore
-        get_definitions(x[:eval], tls, server, locations)
+        get_definitions(x[:eval], tls, env, locations)
     end
 end
 
-function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, server, locations)
-    StaticLint.iterate_over_ss_methods(x, tls, server, function (m)
+function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, env, locations)
+    StaticLint.iterate_over_ss_methods(x, tls, env, function (m)
         if safe_isfile(m.file)
             push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
         end
@@ -32,23 +32,23 @@ function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTy
     end)
 end
 
-function get_definitions(b::StaticLint.Binding, tls, server, locations)
+function get_definitions(b::StaticLint.Binding, tls, env, locations)
     if !(b.val isa EXPR)
-        get_definitions(b.val, tls, server, locations)
+        get_definitions(b.val, tls, env, locations)
     end
     if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
         for ref in b.refs
             method = StaticLint.get_method(ref)
             if method !== nothing
-                get_definitions(method, tls, server, locations)
+                get_definitions(method, tls, env, locations)
             end
         end
     elseif b.val isa EXPR
-        get_definitions(b.val, tls, server, locations)
+        get_definitions(b.val, tls, env, locations)
     end
 end
 
-function get_definitions(x::EXPR, tls::StaticLint.Scope, server, locations)
+function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
     doc1, o = get_file_loc(x)
     if doc1 isa Document
         push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:x.span))))
@@ -56,6 +56,7 @@ function get_definitions(x::EXPR, tls::StaticLint.Scope, server, locations)
 end
 
 safe_isfile(s::Symbol) = safe_isfile(string(s))
+safe_isfile(::Nothing) = false
 function safe_isfile(s::AbstractString)
     try
         !occursin("\0", s) && isfile(s)
@@ -75,7 +76,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = refof(x)
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
-        get_definitions(b, tls, server, locations)
+        get_definitions(b, tls, getenv(doc, server), locations)
     elseif x isa EXPR && CSTParser.isstringliteral(x)
         # TODO: move to its own function
         if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
@@ -193,14 +194,14 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     return collect_document_symbols(getcst(doc), server, doc)
 end
 
-function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=[])
+function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=DocumentSymbol[])
     if bindingof(x) !== nothing
         b =  bindingof(x)
         if b.val isa EXPR && is_valid_binding_name(b.name)
             ds = DocumentSymbol(
                 get_name_of_binding(b.name), # name
                 missing, # detail
-                _binding_kind(b, server), # kind
+                _binding_kind(b), # kind
                 false, # deprecated
                 Range(doc, (pos .+ (0:x.span))), # range
                 Range(doc, (pos .+ (0:x.span))), # selection range
@@ -248,7 +249,7 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b, server)
+function _binding_kind(b)
     if b isa StaticLint.Binding
         if b.type === nothing
             return 13
@@ -329,12 +330,13 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
+    env = getenv(doc, server)
     if doc._version !== params.version
         return mismatched_version_error(uri, doc, params, "getDocAt")
     end
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, server)
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
     documentation = get_hover(x, "", server)
 
     return documentation
@@ -345,7 +347,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
     exact_matches = []
     approx_matches = []
     word_sym = Symbol(params.word)
-    traverse_by_name(getsymbolserver(server)) do sym, val
+    traverse_by_name(getsymbols(getenv(server))) do sym, val
         is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1

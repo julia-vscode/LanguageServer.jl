@@ -34,8 +34,8 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::SymbolServer.EnvStore
-    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
+    global_env::StaticLint.ExternalEnv
+    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
 
     format_options::DocumentFormat.FormatOptions
@@ -72,8 +72,8 @@ mutable struct LanguageServerInstance
             depot_path,
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
             Channel(Inf),
-            deepcopy(SymbolServer.stdlibs),
-            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
+            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
+            Dict(),
             false,
             DocumentFormat.FormatOptions(),
             true,
@@ -131,8 +131,8 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     delete!(server._documents, uri)
 
     for d in getdocuments_value(server)
-        if d.root === doc
-            d.root = d
+        if getroot(d) === doc
+            setroot(d, d)
             semantic_pass(getroot(d))
         end
     end
@@ -259,6 +259,7 @@ function Base.run(server::LanguageServerInstance)
     trigger_symbolstore_reload(server)
 
     @async try
+        @debug "LS: Starting client listener task."
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
@@ -268,14 +269,20 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Client listener task done."
     end
 
     @async try
+        @debug "LS: Starting symbol server listener task."
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
@@ -285,11 +292,16 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Symbol server listener task done."
     end
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
@@ -338,15 +350,28 @@ function Base.run(server::LanguageServerInstance)
             return
         elseif message.type == :clientmsg
             msg = message.msg
-
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
             @info "Received new data from Julia Symbol Server."
-            msg = message.msg
 
-            server.symbol_store = msg
-            server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
+            server.global_env.symbols = message.msg
+            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            server.global_env.project_deps = collect(keys(server.global_env.symbols))
+
+            # redo roots_env_map
+            for (root, _) in server.roots_env_map
+                @debug "resetting get_env_for_root"
+                newenv = get_env_for_root(root, server)
+                if newenv === nothing
+                    delete!(server.roots_env_map, root)
+                else
+                    server.roots_env_map[root] = newenv
+                end
+            end
+
+            @debug "starting re-lint of everything"
             relintserver(server)
+            @debug "re-lint done"
         end
     end
 end

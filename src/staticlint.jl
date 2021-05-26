@@ -1,4 +1,4 @@
-import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbolserver, getsymbolextendeds
+import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbols, getsymbolextendeds, getenv
 import StaticLint: getpath, getroot, setroot, getcst, setcst, semantic_pass, getserver, setserver
 hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, URI2(filepath2uri(path)))
 function canloadfile(server::LanguageServerInstance, path::String)
@@ -31,15 +31,32 @@ function setfile(server::LanguageServerInstance, path::String, x::Document)
     setdocument!(server, uri, x)
 end
 getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2(filepath2uri(path)))
-getsymbolserver(server::LanguageServerInstance) = server.symbol_store
-getsymbolextendeds(server::LanguageServerInstance) = server.symbol_extends
+
+function getenv(doc::Document, server::LanguageServerInstance)
+    get(server.roots_env_map, doc.root, server.global_env)
+end
+getenv(doc::Document) = getenv(doc, doc.server)
+getenv(server::LanguageServerInstance) = server.global_env
 
 getpath(d::Document) = d._path
 
 getroot(d::Document) = d.root
-function setroot(d::Document, root::Document)
-    d.root = root
-    return d
+function setroot(doc::Document, root::Document)
+    if isdefined(doc, :root) && doc == doc.root && root !== doc
+        # doc is being unset as a root - remove ExternalEnv if there is one
+        if doc.server isa LanguageServerInstance && haskey(doc.server.roots_env_map, doc)
+            delete!(doc.server.roots_env_map, doc)
+        end
+    end
+    doc.root = root
+    if doc == root && doc.server isa LanguageServerInstance
+        # doc is being set as it's own root, lets find
+        extenv = get_env_for_root(doc, doc.server)
+        if extenv !== nothing
+            doc.server.roots_env_map[doc] = extenv
+        end
+    end
+    return doc
 end
 
 getcst(d::Document) = d.cst
@@ -55,7 +72,7 @@ function setserver(file::Document, server::LanguageServerInstance)
 end
 
 function lint!(doc, server)
-    StaticLint.check_all(getcst(doc), server.lint_options, server)
+    StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
     # TODO Ideally we would not want to acces jr_endpoint here

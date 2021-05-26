@@ -108,7 +108,12 @@ function load_folder(path::String, server)
                             end
                             doc = Document(uri, content, true, server)
                             setdocument!(server, URI2(uri), doc)
-                            parse_all(doc, server)
+                            try
+                                parse_all(doc, server)
+                            catch ex
+                                @error "Error parsing file $(uri)"
+                                rethrow()
+                            end
                         end
                     end
                 end

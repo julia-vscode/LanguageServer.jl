@@ -70,8 +70,8 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
         if isdir(joinpath(parent_workspaceFolder, "test")) && startswith(doc._path, joinpath(parent_workspaceFolder, "test"))
             # We're in the test folder, add the project iteself to the deps
             # This should actually point to the live code (e.g. the relevant EXPR or Scope)?
-            push!(project_deps, Symbol(folder_proj["name"]))
-            for extra in keys(folder_proj["extras"])
+            haskey(folder_proj, "name") && push!(project_deps, Symbol(folder_proj["name"]))
+            for extra in keys(get(folder_proj, "extras", []))
                 if Symbol(extra) in keys(symbols)
                     push!(project_deps, Symbol(extra))
                 end

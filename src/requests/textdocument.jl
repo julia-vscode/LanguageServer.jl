@@ -179,14 +179,14 @@ function mark_errors(doc, out=Diagnostic[])
                     offset += errs[i][2].span
                 else
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, "Julia", "Julia", "Parsing error", missing, missing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, "Julia", "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
+                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        if StaticLint.errorof(errs[i][2]) === StaticLint.UnusedFunctionArgument
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
+                        if StaticLint.errorof(errs[i][2]) in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
+                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
                         else
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, "Julia", "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
                         end
                     end
                     i += 1

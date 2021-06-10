@@ -484,6 +484,9 @@ function get_file_level_parent(x::EXPR)
     if x.parent isa EXPR && x.parent.head === :file
         x
     else
+        if x.parent === nothing
+            return nothing
+        end
         get_file_level_parent(x.parent)
     end
 end

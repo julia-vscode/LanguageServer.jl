@@ -110,8 +110,9 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
         text = replace(string(m.file, ':', m.line), "\\" => "\\\\")
         link = text
 
-        if server.clientInfo !== missing
-            if occursin("code", lowercase(server.clientInfo.name)) && isabspath(m.file)
+        if server.clientInfo !== missing && isabspath(m.file)
+            clientname = lowercase(server.clientInfo.name)
+            if occursin("code", clientname) || occursin("sublime", clientname)
                 link = string(filepath2uri(m.file), "#", m.line)
             end
         end

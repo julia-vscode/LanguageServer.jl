@@ -2,7 +2,7 @@ module LanguageServer
 import URIParser
 using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof
-using StaticLint: refof, scopeof, bindingof
+using StaticLint: refof, scopeof, bindingof, CSTParser
 using UUIDs
 using Base.Docs, Markdown
 import JSONRPC
@@ -30,6 +30,7 @@ include("requests/actions.jl")
 include("requests/init.jl")
 include("requests/signatures.jl")
 include("requests/highlight.jl")
+include("requests/semantic.jl")
 include("utilities.jl")
 
 end

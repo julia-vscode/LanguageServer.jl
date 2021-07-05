@@ -322,6 +322,24 @@ function get_identifier(x, offset, pos=0)
     end
 end
 
+function get_identifier_pos(x, offset, pos=0)
+    if pos > offset
+        return nothing
+    end
+    if length(x) > 0
+        for a in x
+            if pos <= offset <= (pos + a.span)
+                return get_identifier_pos(a, offset, pos)
+            end
+            pos += a.fullspan
+        end
+    elseif headof(x) === :IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+        return (x, pos)
+    end
+end
+
+
+
 
 if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)

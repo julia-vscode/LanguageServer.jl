@@ -38,6 +38,7 @@ init_request = LanguageServer.InitializeParams(
             missing, # PublishDiagnosticsClientCapabilities(),
             missing, # FoldingRangeClientCapabilities(),
             missing, # SelectionRangeClientCapabilities()
+            missing,
         ),
         missing,
         missing

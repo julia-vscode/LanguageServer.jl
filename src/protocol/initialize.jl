@@ -77,6 +77,7 @@ end
     publishDiagnostics::Union{PublishDiagnosticsClientCapabilities,Missing}
     foldingRange::Union{FoldingRangeClientCapabilities,Missing}
     selectionRange::Union{SelectionRangeClientCapabilities,Missing}
+	semanticTokens::Union{SemanticTokensClientCapabilities,Missing}
 end
 
 @dict_readable struct WindowClientCapabilities <: Outbound
@@ -181,6 +182,7 @@ struct ServerCapabilities <: Outbound
     foldingRangeProvider::Union{Bool,FoldingRangeOptions,FoldingRangeRegistrationOptions,Missing}
     executeCommandProvider::Union{ExecuteCommandOptions,Missing}
     selectionRangeProvider::Union{Bool,SelectionRangeOptions,SelectionRangeRegistrationOptions,Missing}
+	semanticTokensProvider::Union{Bool,SemanticTokensOptions, SemanticTokensRegistrationOptions}
     workspaceSymbolProvider::Union{Bool,Missing}
     workspace::Union{WorkspaceOptions,Missing}
     experimental::Union{Any,Missing}

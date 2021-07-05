@@ -58,6 +58,9 @@ end
         @testset "textdocument" begin
             include("requests/textdocument.jl")
         end
+        @testset "semantic tokens" begin
+            include("requests/semantic_tokens.jl")
+        end
         @testset "misc" begin
             include("requests/misc.jl")
         end

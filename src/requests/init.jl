@@ -25,6 +25,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
     true,
+    SemanticTokensOptions(JuliaSemanticTokensLegend, missing, true),
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)

@@ -21,7 +21,7 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     missing,
-    true,
+    RenameOptions(missing, true),
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
     true,

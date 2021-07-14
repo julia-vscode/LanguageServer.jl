@@ -168,6 +168,13 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
     return WorkspaceEdit(missing, collect(values(tdes)))
 end
 
+function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    x = get_expr1(getcst(doc), get_offset(doc, params.position))
+    _, x_start_offset = get_file_loc(x)
+    x_range = Range(doc, x_start_offset .+ (0:x.span))
+    return x_range
+end
 
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)

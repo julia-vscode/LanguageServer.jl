@@ -34,7 +34,7 @@ init_request = LanguageServer.InitializeParams(
             LanguageServer.DocumentFormattingClientCapabilities(true),
             missing, # DocumentRangeFormattingClientCapabilities(),
             missing, # DocumentOnTypeFormattingClientCapabilities(),
-            LanguageServer.RenameClientCapabilities(true, missing),
+            LanguageServer.RenameClientCapabilities(true, true),
             missing, # PublishDiagnosticsClientCapabilities(),
             missing, # FoldingRangeClientCapabilities(),
             missing, # SelectionRangeClientCapabilities()

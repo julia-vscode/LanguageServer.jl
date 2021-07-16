@@ -68,7 +68,7 @@ mutable struct LanguageServerInstance
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
-            env_path,
+            (isempty(env_path) ? env_path : (p = env_file(env_path); p === nothing ? env_path : dirname(p))),
             depot_path,
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
             Channel(Inf),

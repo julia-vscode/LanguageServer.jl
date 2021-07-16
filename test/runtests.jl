@@ -95,4 +95,12 @@ end
     @testset "paths" begin
         include("test_paths.jl")
     end
+    @testset "LanguageServerInstance constructor" begin
+        # normalization of project env
+        p = Pkg.Types.Context().env.project_file
+        io = IOBuffer()
+        @test LanguageServerInstance(io, io, p).env_path == dirname(p)
+        @test LanguageServerInstance(io, io, dirname(p)).env_path == dirname(p)
+        @test LanguageServerInstance(io, io, "").env_path == ""
+    end
 end

@@ -188,7 +188,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 end
             end,
             server.err_handler,
-            true
+            download = true
         )
 
         server.number_of_outstanding_symserver_requests -= 1

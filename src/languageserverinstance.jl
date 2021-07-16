@@ -179,10 +179,10 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
             function (i)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
                     JSONRPC.send(
-                            server.jr_endpoint,
-                            progress_notification_type,
-                            ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
-                        )
+                        server.jr_endpoint,
+                        progress_notification_type,
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
+                    )
                 else
                     @info "Indexing $i..."
                 end

@@ -187,7 +187,8 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                     @info "Indexing $i..."
                 end
             end,
-            server.err_handler
+            server.err_handler,
+            true
         )
 
         server.number_of_outstanding_symserver_requests -= 1

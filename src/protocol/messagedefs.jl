@@ -5,6 +5,7 @@ const textDocument_definition_request_type = JSONRPC.RequestType("textDocument/d
 const textDocument_formatting_request_type = JSONRPC.RequestType("textDocument/formatting", DocumentFormattingParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_references_request_type = JSONRPC.RequestType("textDocument/references", ReferenceParams, Union{Vector{Location}, Nothing})
 const textDocument_rename_request_type = JSONRPC.RequestType("textDocument/rename", RenameParams, Union{WorkspaceEdit, Nothing})
+const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocument/prepareRename", PrepareRenameParams, Range)
 const textDocument_documentSymbol_request_type = JSONRPC.RequestType("textDocument/documentSymbol", DocumentSymbolParams, Union{Vector{DocumentSymbol}, Vector{SymbolInformation}, Nothing})
 const textDocument_documentHighlight_request_type = JSONRPC.RequestType("textDocument/documentHighlight", DocumentHighlightParams, Union{Vector{DocumentHighlight}, Nothing})
 const textDocument_hover_request_type = JSONRPC.RequestType("textDocument/hover", TextDocumentPositionParams, Union{Hover, Nothing})

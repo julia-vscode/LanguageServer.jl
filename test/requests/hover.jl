@@ -43,5 +43,6 @@ S(a,b,c,d,e,f,g)
 @test hover_test(12, 14) !== nothing
 @test hover_test(13, 13) !== nothing
 @test hover_test(14, 7) !== nothing
-@test hover_test(15, 5) !== nothing
+@test hover_test(15, 2) !== nothing
+@test hover_test(15, 5) === nothing
 @test hover_test(25, 15) !== nothing

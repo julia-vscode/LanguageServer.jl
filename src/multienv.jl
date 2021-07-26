@@ -24,7 +24,9 @@ function env_file(env::String, names = project_names)::Union{Nothing,String}
 end
 
 function is_project_folder_in_env(folder, env_manifest, server)
-    folder_proj = parsed_toml(env_project_file(folder))
+    project_file = Base.env_project_file(folder)
+    project_file isa Bool && return false
+    folder_proj = parsed_toml(project_file)
     manifest_pe = get(env_manifest, get(folder_proj, "uuid", ""), nothing)
     if manifest_pe === nothing
         return false

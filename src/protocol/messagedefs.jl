@@ -41,7 +41,7 @@ const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setT
 
 const window_workDoneProgress_create_request_type = JSONRPC.RequestType("window/workDoneProgress/create", WorkDoneProgressCreateParams, Nothing)
 const window_showMessage_notification_type = JSONRPC.NotificationType("window/showMessage", ShowMessageParams)
-const window_showMessage_request_type = JSONRPC.NotificationType("window/showMessageRequest", ShowMessageRequestParams)
+const window_showMessage_request_type = JSONRPC.RequestType("window/showMessageRequest", ShowMessageRequestParams, Union{MessageActionItem, Nothing})
 
 const progress_notification_type = JSONRPC.NotificationType("\$/progress", ProgressParams)
 

@@ -8,7 +8,6 @@ struct FormatOptions <: JuliaFormatter.AbstractStyle
 end
 FormatOptions() = FormatOptions(default_format_options...)
 
-
 JuliaFormatter.getstyle(x::FormatOptions) = x
 
 # All functions that don't have a dispatch defined for FormatOptions

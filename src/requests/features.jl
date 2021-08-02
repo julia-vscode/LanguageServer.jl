@@ -114,15 +114,34 @@ function get_file_loc(x::EXPR, offset=0, c=nothing)
     end
 end
 
+function search_file(filename, dir, topdir)
+    parent_dir = dirname(dir)
+    return if (dir == topdir || parent_dir == dir || isempty(dir))
+        nothing
+    else
+        path = joinpath(dir, filename)
+        isfile(path) ? path : search_file(filename, parent_dir, topdir)
+    end
+end
+
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
-    newcontent = if server.runlinter
+    path = get_path(doc)
+
+    # search through workspace for a `.JuliaFormatter.toml`
+    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
+    config_path = length(workspace_dirs) > 0 ?
+        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
+        nothing
+
+    newcontent = if config_path === nothing
         JuliaFormatter.format_text(get_text(doc);
-                                   indent=server.format_options.indent,
-                                   margin=server.format_options.margin,
-                                   style=server.format_options)
+                            indent=params.options.tabSize,
+                            style=server.format_options)
     else
-        get_text(doc)
+        JuliaFormatter.format_text(get_text(doc);
+                            JuliaFormatter.kwargs(JuliaFormatter.parse_config(config_path))...)
+
     end
 
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK

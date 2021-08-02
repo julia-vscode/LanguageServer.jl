@@ -32,6 +32,9 @@ function set_doc(x::EXPR, doc)
     x.meta.error = doc
 end
 
+function get_path(doc)
+    return doc._path
+end
 
 function get_text(doc::Document)
     return doc._content

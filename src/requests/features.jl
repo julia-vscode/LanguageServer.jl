@@ -116,7 +116,7 @@ end
 
 function search_file(filename, dir, topdir)
     parent_dir = dirname(dir)
-    return if (dir == topdir || parent_dir == dir || isempty(dir))
+    return if (!startswith(dir, topdir) || parent_dir == dir || isempty(dir))
         nothing
     else
         path = joinpath(dir, filename)

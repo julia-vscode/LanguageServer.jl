@@ -38,7 +38,7 @@ mutable struct LanguageServerInstance
     roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
 
-    format_options::DocumentFormat.FormatOptions
+    format_options::FormatOptions
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
@@ -76,7 +76,7 @@ mutable struct LanguageServerInstance
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             Dict(),
             false,
-            DocumentFormat.FormatOptions(),
+            FormatOptions(),
             true,
             StaticLint.LintOptions(),
             :all,

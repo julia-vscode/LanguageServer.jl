@@ -116,7 +116,15 @@ end
 
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
-    newcontent = DocumentFormat.format(get_text(doc), server.format_options)
+    newcontent = if server.runlinter
+        JuliaFormatter.format_text(get_text(doc);
+                                   indent=server.format_options.indent,
+                                   margin=server.format_options.margin,
+                                   style=server.format_options)
+    else
+        get_text(doc)
+    end
+
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 

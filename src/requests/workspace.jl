@@ -83,17 +83,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
-        ConfigurationItem(missing, "julia.format.indents"),
-        ConfigurationItem(missing, "julia.format.ops"),
-        ConfigurationItem(missing, "julia.format.tuples"),
-        ConfigurationItem(missing, "julia.format.curly"),
-        ConfigurationItem(missing, "julia.format.calls"),
-        ConfigurationItem(missing, "julia.format.iterOps"),
-        ConfigurationItem(missing, "julia.format.comments"),
-        ConfigurationItem(missing, "julia.format.docs"),
-        ConfigurationItem(missing, "julia.format.lineends"),
-        ConfigurationItem(missing, "julia.format.keywords"),
-        ConfigurationItem(missing, "julia.format.kwarg"),
+        ConfigurationItem(missing, "julia.format.margin"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),

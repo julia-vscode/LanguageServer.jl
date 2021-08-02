@@ -98,15 +98,15 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.missingrefs"),
         ConfigurationItem(missing, "julia.lint.disabledDirs"),
         ConfigurationItem(missing, "julia.completionmode")
-        ]))
+    ]))
 
-    server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
-    new_runlinter = something(response[23], true)
-    new_SL_opts = StaticLint.LintOptions(response[13:22]...)
+    server.format_options = FormatOptions(response[1:2]...)
+    new_runlinter = something(response[13], true)
+    new_SL_opts = StaticLint.LintOptions(response[3:12]...)
 
-    new_lint_missingrefs = Symbol(something(response[24], :all))
-    new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
-    new_completion_mode = Symbol(something(response[26], :import))
+    new_lint_missingrefs = Symbol(something(response[14], :all))
+    new_lint_disableddirs = something(response[15], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[16], :import))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||

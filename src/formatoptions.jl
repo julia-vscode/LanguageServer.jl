@@ -3,11 +3,11 @@ const default_format_options = (4, 100)
 struct FormatOptions <: JuliaFormatter.AbstractStyle
     indent::Int
     margin::Int
+    FormatOptions(indent, margin) =
+        new(something(indent, default_format_options[1]), something(margin, default_format_options[2]))
 end
 FormatOptions() = FormatOptions(default_format_options...)
 
-FormatOptions(options::Vararg{Any,length(default_format_options)}) =
-    FormatOptions(something.(options, default_format_options)...)
 
 JuliaFormatter.getstyle(x::FormatOptions) = x
 

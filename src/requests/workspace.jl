@@ -82,8 +82,6 @@ function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
-        ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
-        ConfigurationItem(missing, "julia.format.margin"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),
@@ -100,13 +98,12 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.completionmode")
     ]))
 
-    server.format_options = FormatOptions(response[1:2]...)
-    new_runlinter = something(response[13], true)
-    new_SL_opts = StaticLint.LintOptions(response[3:12]...)
+    new_runlinter = something(response[11], true)
+    new_SL_opts = StaticLint.LintOptions(response[1:10]...)
 
-    new_lint_missingrefs = Symbol(something(response[14], :all))
-    new_lint_disableddirs = something(response[15], LINT_DIABLED_DIRS)
-    new_completion_mode = Symbol(something(response[16], :import))
+    new_lint_missingrefs = Symbol(something(response[12], :all))
+    new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[14], :import))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||

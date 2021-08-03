@@ -124,8 +124,7 @@ function search_file(filename, dir, topdir)
     end
 end
 
-function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+function get_juliaformatter_config(doc, server)
     path = get_path(doc)
 
     # search through workspace for a `.JuliaFormatter.toml`
@@ -134,18 +133,93 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
         nothing
 
-    newcontent = if config_path === nothing
-        JuliaFormatter.format_text(get_text(doc);
-                            indent=params.options.tabSize,
-                            style=server.format_options)
-    else
-        JuliaFormatter.format_text(get_text(doc);
-                            JuliaFormatter.kwargs(JuliaFormatter.parse_config(config_path))...)
+    config_path === nothing && return nothing
 
+    @debug "Found JuliaFormatter config at $(config_path)"
+    return JuliaFormatter.parse_config(config_path)
+end
+
+function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+
+    config = get_juliaformatter_config(doc, server)
+
+    newcontent = if config === nothing
+        JuliaFormatter.format_text(get_text(doc); indent=params.options.tabSize)
+    else
+        JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
     end
 
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
+
+    return lsedits
+end
+
+function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    cst = getcst(doc)
+
+    expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
+
+    if expr === nothing
+        return nothing
+    end
+
+    while !(expr.head in (:for, :if, :function, :module, :file))
+        if expr.parent !== nothing
+            expr = expr.parent
+        else
+            return nothing
+        end
+    end
+
+    _, offset = get_file_loc(expr)
+    l1, c1 = get_position_at(doc, offset)
+    c1 = 0
+    start_offset = get_offset2(doc, l1, c1)
+    l2, c2 = get_position_at(doc, offset + expr.span)
+    end_offset = get_offset(doc, l2, c2)
+
+    text = get_text(doc)[start_offset:end_offset]
+
+    longest_prefix = nothing
+    for line in eachline(IOBuffer(text))
+        (isempty(line) || occursin(r"^\s*$", line)) && continue
+        idx = 0
+        for c in line
+            if c == ' ' || c == '\t'
+                idx += 1
+            else
+                break
+            end
+        end
+        line = line[1:idx]
+        longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
+    end
+
+    config = get_juliaformatter_config(doc, server)
+
+    newcontent = try
+         if config === nothing
+            JuliaFormatter.format_text(text; indent=params.options.tabSize)
+        else
+            JuliaFormatter.format_text(text; JuliaFormatter.kwargs(config)...)
+        end
+    catch err
+        @debug "Formatter errored:" exception=(err, catch_backtrace())
+        return nothing
+    end
+
+    if longest_prefix !== nothing && !isempty(longest_prefix)
+        io = IOBuffer()
+        for line in eachline(IOBuffer(newcontent), keep = true)
+            print(io, longest_prefix, line)
+        end
+        newcontent = String(take!(io))
+    end
+
+    lsedits = TextEdit[TextEdit(Range(l1, c1, l2, c2), newcontent)]
 
     return lsedits
 end

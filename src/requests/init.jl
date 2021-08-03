@@ -22,7 +22,7 @@ function ServerCapabilities(client::ClientCapabilities)
     missing,
     false,
     true,
-    false,
+    true,
     missing,
     RenameOptions(missing, prepareSupport),
     false,

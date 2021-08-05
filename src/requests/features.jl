@@ -374,11 +374,14 @@ end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
-    map(params.positions) do position
+    ret = map(params.positions) do position
         offset = get_offset(doc, position)
         x = get_expr1(getcst(doc), offset)
         get_selection_range_of_expr(x)
     end
+    return ret isa Vector{SelectionRange} ?
+        ret :
+        nothing
 end
 
 # Just returns a selection for each parent EXPR, should be more selective

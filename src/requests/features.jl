@@ -171,6 +171,7 @@ end
 function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
+    x isa EXPR || return nothing
     _, x_start_offset = get_file_loc(x)
     x_range = Range(doc, x_start_offset .+ (0:x.span))
     return x_range

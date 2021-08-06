@@ -1,5 +1,5 @@
 mutable struct Document
-    _uri::String
+    _uri::URI
     _path::String
     _content::String
     _line_offsets::Union{Nothing,Vector{Int}}
@@ -11,7 +11,7 @@ mutable struct Document
     _version::Int
     server
     root::Document
-    function Document(uri::AbstractString, text::AbstractString, workspace_file::Bool, server=nothing)
+    function Document(uri::URI, text::AbstractString, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(uri), "")
         path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
         cst = CSTParser.parse(text, true)

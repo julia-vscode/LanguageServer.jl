@@ -1,5 +1,5 @@
 function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     sigs = SignatureInformation[]
     offset = get_offset(doc, params.position)
     x = get_expr(getcst(doc), offset)

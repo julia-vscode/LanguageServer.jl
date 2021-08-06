@@ -97,7 +97,7 @@ end
 struct InitializeParams <: Outbound
     processId::Union{Int,Nothing}
     clientInfo::Union{InfoParams,Missing}
-    rootPath::Union{DocumentUri,Nothing,Missing}
+    rootPath::Union{String,Nothing,Missing}
     rootUri::Union{DocumentUri,Nothing}
     initializationOptions::Union{Any,Missing}
     capabilities::ClientCapabilities
@@ -110,7 +110,7 @@ end
 function InitializeParams(dict::Dict)
     InitializeParams(dict["processId"],
     haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
-    !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
+    !haskey(dict, "rootPath") ? missing : dict["rootPath"],
     dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]),
     get(dict, "initializationOptions", missing),
     ClientCapabilities(dict["capabilities"]),

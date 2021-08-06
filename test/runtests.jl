@@ -95,4 +95,6 @@ end
     @testset "paths" begin
         include("test_paths.jl")
     end
+
+    include("test_uris2.jl")
 end

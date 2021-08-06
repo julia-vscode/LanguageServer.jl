@@ -2,11 +2,11 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for change in params.changes
         uri = change.uri
 
-        startswith(uri, "file:") || continue
+        uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            if hasdocument(server, URI2(uri))
-                doc = getdocument(server, URI2(uri))
+            if hasdocument(server, uri)
+                doc = getdocument(server, uri)
 
                 # Currently managed by the client, we don't do anything
                 if get_open_in_editor(doc)
@@ -16,13 +16,13 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     content = try
                         s = read(filepath, String)
                         if !isvalid(s)
-                            deletedocument!(server, URI2(uri))
+                            deletedocument!(server, uri)
                             continue
                         end
                         s
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                        deletedocument!(server, URI2(uri))
+                        deletedocument!(server, uri)
                         continue
                     end
 
@@ -42,16 +42,16 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 end
 
                 doc = Document(uri, content, true, server)
-                setdocument!(server, URI2(uri), doc)
+                setdocument!(server, uri, doc)
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
-            if hasdocument(server, URI2(uri))
-                doc = getdocument(server, URI2(uri))
+            if hasdocument(server, uri)
+                doc = getdocument(server, uri)
 
                 # We only handle if currently not managed by client
                 if !get_open_in_editor(doc)
-                    deletedocument!(server, URI2(uri))
+                    deletedocument!(server, uri)
 
                     publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
                     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)

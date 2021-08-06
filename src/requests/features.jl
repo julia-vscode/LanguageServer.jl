@@ -68,7 +68,7 @@ end
 
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
@@ -115,7 +115,7 @@ function get_file_loc(x::EXPR, offset=0, c=nothing)
 end
 
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     newcontent = DocumentFormat.format(get_text(doc), server.format_options)
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
@@ -125,7 +125,7 @@ end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
-    doc = getdocument(server, URI2(textDocument.uri))
+    doc = getdocument(server, textDocument.uri)
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     x === nothing && return locations
@@ -160,7 +160,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
         else
-            doc = getdocument(server, URI2(loc.uri))
+            doc = getdocument(server, loc.uri)
             tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
         end
     end
@@ -169,7 +169,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
 end
 
 function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     _, x_start_offset = get_file_loc(x)
     x_range = Range(doc, x_start_offset .+ (0:x.span))
@@ -196,7 +196,7 @@ end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
 
     return collect_document_symbols(getcst(doc), server, doc)
 end
@@ -287,7 +287,7 @@ function _binding_kind(b)
 end
 
 function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
@@ -333,7 +333,7 @@ function get_module_of(s::StaticLint.Scope, ms=[])
 end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
@@ -373,7 +373,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
 end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     map(params.positions) do position
         offset = get_offset(doc, position)
         x = get_expr1(getcst(doc), offset)

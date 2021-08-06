@@ -10,7 +10,7 @@ end
 
 function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     fallback = (Position(0, 0), Position(0, 0), tdpp.position)
-    uri = URI2(tdpp.textDocument.uri)
+    uri = tdpp.textDocument.uri
 
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 

@@ -21,7 +21,7 @@ mutable struct DocumentFilter <: Outbound
     pattern::Union{String,Missing}
 end
 const DocumentSelector = Vector{DocumentFilter}
-const DocumentUri = String
+const DocumentUri = URI
 
 @dict_readable struct Position
     line::Int
@@ -56,7 +56,7 @@ Location(f::String, line::Integer) = Location(f, Range(line))
 end
 
 @dict_readable struct WorkspaceFolder
-    uri::String
+    uri::DocumentURI
     name::String
 end
 

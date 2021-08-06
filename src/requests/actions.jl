@@ -6,7 +6,7 @@ end
 
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     commands = Command[]
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset(doc, params.range.start) # Should usef get_offset2?
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
@@ -23,7 +23,7 @@ end
 function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
     uri = params.arguments[1]
     offset = params.arguments[2]
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
     x = get_expr(getcst(doc), offset)
     if haskey(LSActions, params.command)
         LSActions[params.command].handler(x, server, conn)
@@ -257,8 +257,8 @@ end
 # * a function (.when) called on the currently selected expression and parameters of the CodeAction call;
 # * a function (.handler) called on three arguments (current expression, server and the jr connection) to implement the command.
 const LSActions = Dict(
-    "ExplicitPackageVarImport" => ServerAction(Command("Explicitly import used package variables.", "ExplicitPackageVarImport", missing), 
-                                               (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore, 
+    "ExplicitPackageVarImport" => ServerAction(Command("Explicitly import used package variables.", "ExplicitPackageVarImport", missing),
+                                               (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore,
                                                explicitly_import_used_variables),
     "ExpandFunction" => ServerAction(Command("Expand function definition.", "ExpandFunction", missing),
                                      (x, params) -> is_in_fexpr(x, is_single_line_func),
@@ -266,7 +266,7 @@ const LSActions = Dict(
     "FixMissingRef" => ServerAction(Command("Fix missing reference", "FixMissingRef", missing),
                                     (x, params) -> is_fixable_missing_ref(x, params.context),
                                     applymissingreffix),
-    "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
+    "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing),
                                      (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
                                      reexport_package)
 )

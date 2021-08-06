@@ -56,7 +56,7 @@ Location(f::String, line::Integer) = Location(f, Range(line))
 end
 
 @dict_readable struct WorkspaceFolder
-    uri::DocumentURI
+    uri::DocumentUri
     name::String
 end
 

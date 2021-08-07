@@ -1,5 +1,6 @@
 using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, LanguageServer.JSON, LanguageServer.JSONRPC
 using LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
+using LanguageServer.URIs2
 const LS = LanguageServer
 const Range = LanguageServer.Range
 
@@ -7,9 +8,9 @@ const Range = LanguageServer.Range
 JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 function settestdoc(text)
     empty!(server._documents)
-    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
+    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(uri"untitled:testdoc", "julia", 0, text)), server, nothing)
 
-    doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
+    doc = LanguageServer.getdocument(server, uri"untitled:testdoc")
     LanguageServer.parse_all(doc, server)
     doc
 end

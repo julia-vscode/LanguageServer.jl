@@ -1,5 +1,5 @@
 using Test
-using Languageserver.URIs2
+using LanguageServer.URIs2
 
 @testset "URIs2" begin
     @testset "filepath2uri to string" begin
@@ -21,20 +21,20 @@ using Languageserver.URIs2
 
     @testset "uri2filepath to string - Windows special" begin
         if Sys.iswindows()
-            uri2filepath(filepath2uri("c:\\win\\path")) == "c:\\win\\path"
-            uri2filepath(filepath2uri("c:\\win/path")) == "c:\\win\\path"
+            @test uri2filepath(filepath2uri("c:\\win\\path")) == "c:\\win\\path"
+            @test uri2filepath(filepath2uri("c:\\win/path")) == "c:\\win\\path"
 
-            uri2filepath(filepath2uri("c:/win/path")) == "c:\\win\\path"
-            uri2filepath(filepath2uri("c:/win/path/")) == "c:\\win\\path\\"
-            uri2filepath(filepath2uri("C:/win/path")) == "c:\\win\\path"
-            uri2filepath(filepath2uri("/c:/win/path")) == "c:\\win\\path"
-            uri2filepath(filepath2uri("./c/win/path")) == "\\.\\c\\win\\path"
+            @test uri2filepath(filepath2uri("c:/win/path")) == "c:\\win\\path"
+            @test uri2filepath(filepath2uri("c:/win/path/")) == "c:\\win\\path\\"
+            @test uri2filepath(filepath2uri("C:/win/path")) == "c:\\win\\path"
+            @test uri2filepath(filepath2uri("/c:/win/path")) == "c:\\win\\path"
+            @test_broken uri2filepath(filepath2uri("./c/win/path")) == "\\.\\c\\win\\path"
         else
-            uri2filepath(filepath2uri("c:/win/path")) == "c:/win/path"
-            uri2filepath(filepath2uri("c:/win/path/")) == "c:/win/path/"
-            uri2filepath(filepath2uri("C:/win/path")) == "c:/win/path"
-            uri2filepath(filepath2uri("/c:/win/path")) == "c:/win/path"
-            uri2filepath(filepath2uri("./c/win/path")) == "/./c/win/path"
+            @test uri2filepath(filepath2uri("c:/win/path")) == "c:/win/path"
+            @test uri2filepath(filepath2uri("c:/win/path/")) == "c:/win/path/"
+            @test uri2filepath(filepath2uri("C:/win/path")) == "c:/win/path"
+            @test uri2filepath(filepath2uri("/c:/win/path")) == "c:/win/path"
+            @test_broken uri2filepath(filepath2uri("./c/win/path")) == "/./c/win/path"
         end
     end
 

@@ -1,4 +1,4 @@
-completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
+completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
 
 @testset "latex completions" begin
     settestdoc("""

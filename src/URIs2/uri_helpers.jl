@@ -29,7 +29,7 @@ function uri2filepath(uri::URI)
 end
 
 function filepath2uri(path::String)
-    isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
+    isabspath(path) || error("Relative path `$path` is not valid.")
 
     path = normpath(path)
 

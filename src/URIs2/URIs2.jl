@@ -2,7 +2,7 @@ module URIs2
 
 import URIs
 
-export URI, uri2filepath, filepath2uri
+export URI, uri2filepath, filepath2uri, @uri_str
 
 struct URI
     scheme::Union{String,Nothing}
@@ -192,6 +192,10 @@ function Base.string(uri::URI)
     print(io, uri)
 
     return String(take!(io))
+end
+
+macro uri_str(ex)
+    return URI(ex)
 end
 
 include("uri_helpers.jl")

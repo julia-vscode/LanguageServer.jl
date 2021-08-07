@@ -17,8 +17,8 @@ using LanguageServer.URIs2
             @test filepath2uri("c:\\win\\path") |> string == "file:///c%3A/win/path"
             @test filepath2uri("c:\\win/path") |> string == "file:///c%3A/win/path"
         # else TODO Put this else back in once we support these paths on Unix
-            @test filepath2uri("c:\\win\\path") |> string == "file:///c%3A%5Cwin%5Cpath"
-            @test filepath2uri("c:\\win/path") |> string == "file:///c%3A%5Cwin/path"
+            # @test filepath2uri("c:\\win\\path") |> string == "file:///c%3A%5Cwin%5Cpath"
+            # @test filepath2uri("c:\\win/path") |> string == "file:///c%3A%5Cwin/path"
         end
     end
 
@@ -33,11 +33,11 @@ using LanguageServer.URIs2
             @test uri2filepath(filepath2uri("/c:/win/path")) == "c:\\win\\path"
             @test_broken uri2filepath(filepath2uri("./c/win/path")) == "\\.\\c\\win\\path"
          # else TODO Put this else back in once we support relative paths
-            @test uri2filepath(filepath2uri("c:/win/path")) == "c:/win/path"
-            @test uri2filepath(filepath2uri("c:/win/path/")) == "c:/win/path/"
-            @test uri2filepath(filepath2uri("C:/win/path")) == "c:/win/path"
-            @test uri2filepath(filepath2uri("/c:/win/path")) == "c:/win/path"
-            @test_broken uri2filepath(filepath2uri("./c/win/path")) == "/./c/win/path"
+            # @test uri2filepath(filepath2uri("c:/win/path")) == "c:/win/path"
+            # @test uri2filepath(filepath2uri("c:/win/path/")) == "c:/win/path/"
+            # @test uri2filepath(filepath2uri("C:/win/path")) == "c:/win/path"
+            # @test uri2filepath(filepath2uri("/c:/win/path")) == "c:/win/path"
+            # @test_broken uri2filepath(filepath2uri("./c/win/path")) == "/./c/win/path"
         end
     end
 

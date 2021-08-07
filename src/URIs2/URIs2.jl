@@ -33,7 +33,7 @@ end
 function URI(;
     scheme::Union{AbstractString,Nothing}=nothing,
     authority::Union{AbstractString,Nothing}=nothing,
-    path::Union{AbstractString,Nothing}=nothing,
+    path::AbstractString="",
     query::Union{AbstractString,Nothing}=nothing,
     fragment::Union{AbstractString,Nothing}=nothing
     )

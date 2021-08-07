@@ -1,6 +1,6 @@
 
 function uri2filepath(uri::URI)
-    if uri.scheme !== "file"
+    if uri.scheme != "file"
         return nothing
     end
 

@@ -41,13 +41,13 @@ function filepath2uri(path::String)
 
     if startswith(path, "//")
         # UNC path //foo/bar/foobar
-        idx = findnext('/', path, 3)
+        idx = findnext("/", path, 3)
         if idx===nothing
             authority = path[3:end]
             path = "/"
         else
-            authority = path[3:idx-1]
-            path = path[idx:end]
+            authority = path[3:idx.start-1]
+            path = path[idx.start:end]
         end
     elseif length(path)>=2 && isascii(path[1]) && isletter(path[1]) && path[2]==':'
         path = string('/', lowercase(path[1]), SubString(path, 2))

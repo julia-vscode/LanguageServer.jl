@@ -45,7 +45,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
 
-    tdes = Dict{String,TextDocumentEdit}()
+    tdes = Dict{URI,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
     # Find uses of `x` and mark edits
     for ref in refof(x).refs

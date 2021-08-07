@@ -153,7 +153,7 @@ function textDocument_references_request(params::ReferenceParams, server::Langua
 end
 
 function textDocument_rename_request(params::RenameParams, server::LanguageServerInstance, conn)
-    tdes = Dict{String,TextDocumentEdit}()
+    tdes = Dict{URI,TextDocumentEdit}()
     locations = find_references(params.textDocument, params.position, server)
 
     for loc in locations

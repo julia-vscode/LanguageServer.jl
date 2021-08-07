@@ -149,24 +149,24 @@ function Base.print(io::IO, uri::URI)
  	if authority!==nothing
         print(io, "//")
 
-		idx = findfirst('@', authority)
+		idx = findfirst("@", authority)
 		if idx !== nothing
 			# <user>@<auth>
-			userinfo = SubString(authority, 1:idx-1)
-			host_and_port = SubString(authority, idx + 1)
+			userinfo = SubString(authority, 1:idx.start-1)
+			host_and_port = SubString(authority, idx.start + 1)
 			encode(io, userinfo, is_rfc3986_userinfo)
             print(io, '@')
         else
             host_and_port = SubString(authority, 1)
 		end
 
-		idx3 = findfirst(':', host_and_port)
+		idx3 = findfirst(":", host_and_port)
 		if idx3 === nothing
             encode_host(io, host_and_port)
 		else
 			# <auth>:<port>
-            encode_host(io, SubString(host_and_port, 1:idx3-1))
-			print(io, SubString(host_and_port, idx3))
+            encode_host(io, SubString(host_and_port, 1:idx3.start-1))
+			print(io, SubString(host_and_port, idx3.start))
         end
      end
 

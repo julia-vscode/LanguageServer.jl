@@ -18,3 +18,13 @@ end
 ref = REPL.REPLCompletions.completions(refstr, length(refstr))[1]
 
 println(ref == res)
+
+struct Foo
+    bar
+    baz
+end
+
+phi = Foo(1, 2)
+psi = Foo(2, 3)
+
+

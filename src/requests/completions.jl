@@ -93,6 +93,23 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         collect_completions(state.x, "in", state, false)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end
         collect_completions(state.x, "isa", state, false)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.COMMA &&
+        pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER &&
+        ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.LPAREN
+        # WIP method completion for variable
+        @info "$ppt $pt $t $is_at_end"
+        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
+        a = "test"
+        spartial = ""
+        add_completion_item(state, CompletionItem(
+            a, 2, MarkupContent(a),
+            TextEdit(Range(
+                Position(state.range.start.line, 
+                    state.range.start.character), 
+                Position(state.range.stop.line,
+                    state.range.stop.character)), a)
+        ))
+        # - (1 + pt.endbyte - pt.startbyte) - 2)
     end
 
     return CompletionList(true, unique(values(state.completions)))

@@ -27,4 +27,12 @@ end
 phi = Foo(1, 2)
 psi = Foo(2, 3)
 
+##
+using CSTParser, StaticLint
+expr = CSTParser.parse("""x=3
+x""")
+println(StaticLint.parentof(expr))
 
+x = 3
+
+(x,)

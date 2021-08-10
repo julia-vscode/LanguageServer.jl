@@ -95,21 +95,45 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         collect_completions(state.x, "isa", state, false)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.COMMA &&
         pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER &&
-        ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.LPAREN
+        ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.LPAREN &&
+        ! (parentof(state.x) isa EXPR && CSTParser.iscall(parentof(state.x)))
         # WIP method completion for variable
-        @info "$ppt $pt $t $is_at_end"
-        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
-        a = "test"
-        spartial = ""
-        add_completion_item(state, CompletionItem(
-            a, 2, MarkupContent(a),
-            TextEdit(Range(
-                Position(state.range.start.line, 
-                    state.range.start.character), 
-                Position(state.range.stop.line,
-                    state.range.stop.character)), a)
-        ))
-        # - (1 + pt.endbyte - pt.startbyte) - 2)
+        @info "Tokens for method completion: $ppt $pt $t $is_at_end"
+        x = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
+        px = get_expr(getcst(state.doc), state.offset - (1 + pt.endbyte - pt.startbyte))
+        scope = scopeof(parentof(parentof(state.x)))
+        @info "Names in scope: $(scope.names)"
+        @info "Modules in scope: $([m[1] for m in scope.modules])"
+
+        px_type = refof(px).type.name.name.name
+
+        for m in scope.modules
+            for val in m[2].vals
+                n, v = String(val[1]), val[2]
+                (startswith(n, ".") || startswith(n, "#")) && continue
+                !(typeof(v) == SymbolServer.FunctionStore) && continue
+                for m in v.methods
+                    isempty(m.sig) && continue
+                    !(typeof(m.sig[1][2]) == SymbolServer.FakeTypeName) && continue
+                    !(m.sig[1][2].name.name == px_type) && continue
+
+                    inplace_edit = TextEdit(Range(
+                        Position(state.range.start.line, state.range.start.character),
+                        Position(state.range.stop.line, state.range.stop.character)), " ")
+                    prefix_edit = TextEdit(Range(
+                            Position(state.range.start.line,
+                            state.range.start.character - (1 + pt.endbyte - pt.startbyte) - 2),
+                            Position(state.range.stop.line,
+                            state.range.stop.character - (1 + pt.endbyte - pt.startbyte) - 2)), n)
+                    item = CompletionItem(n, 2, missing, missing, n,
+                        missing, missing, missing, missing, missing,
+                        InsertTextFormats.PlainText, inplace_edit, [prefix_edit],
+                        missing, missing, missing)
+                    add_completion_item(state, item)
+                end
+            end
+        end
+
     end
 
     return CompletionList(true, unique(values(state.completions)))

@@ -78,9 +78,8 @@ settestdoc("using ")
 labels = [item.label for item in completion_test(0, 6).items]
 
 ## Another completion
-settestdoc("""phi = 1
-    ph""")
-labels = [item.label for item in completion_test(0, 10).items]
+settestdoc("me")
+labels = [item.label for item in completion_test(0, 2).items]
 
 ## Another completion
 settestdoc("""phi = 1

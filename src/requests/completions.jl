@@ -583,7 +583,7 @@ function method_completion(x, state, xlen)
                     state.range.stop.character - xlen - 2)), n)
 
             if siglen_max == 1  # need to close bracket right away
-                additionalEdits = [TextEdit(Range(
+                additional_edits = [TextEdit(Range(
                     Position(state.range.start.line,
                     state.range.start.character - 1),
                     Position(state.range.stop.line,
@@ -591,7 +591,7 @@ function method_completion(x, state, xlen)
                 inplace_text = ""
             else
                 inplace_text = " "
-                additionalEdits = [prefix_edit]
+                additional_edits = [prefix_edit]
             end
 
             inplace_edit = TextEdit(Range(
@@ -601,7 +601,7 @@ function method_completion(x, state, xlen)
 
             item = CompletionItem(n, 2, missing, missing, n,
                 missing, missing, missing, missing, missing,
-                InsertTextFormats.PlainText, inplace_edit, additionalEdits,
+                InsertTextFormats.PlainText, inplace_edit, additional_edits,
                 missing, missing, missing)
             add_completion_item(state, item)
         end

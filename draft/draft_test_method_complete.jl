@@ -85,3 +85,17 @@ labels = [item.label for item in completion_test(0, 2).items]
 settestdoc("""phi = 1
     (phi,""")
 labels = [item.label for item in completion_test(0, 13).items]
+println(labels)
+
+## Another completion
+doctext = """
+struct Foo
+    bar
+    baz
+end
+
+phi = Foo(1, 2)
+(phi,"""
+settestdoc(doctext)
+labels = [item.label for item in completion_test(0, length(doctext)).items]
+println(labels)

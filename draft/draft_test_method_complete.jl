@@ -99,3 +99,20 @@ phi = Foo(1, 2)
 settestdoc(doctext)
 labels = [item.label for item in completion_test(0, length(doctext)).items]
 println(labels)
+
+## Another completion
+doctext = """
+struct Foo
+    bar
+    baz
+end
+
+function do_something(x::Foo)
+    x
+end
+
+phi = Foo(1, 2)
+(phi,"""
+settestdoc(doctext)
+labels = [item.label for item in completion_test(0, length(doctext)).items]
+println(labels)

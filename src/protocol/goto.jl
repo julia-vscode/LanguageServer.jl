@@ -1,120 +1,120 @@
 # Declaration
-@dict_readable struct DeclarationClientCapabilities
+@dict_readable struct DeclarationClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     linkSupport::Union{Bool,Missing}
 end
 
 struct DeclarationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DeclarationRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
 end
 
-@dict_readable struct DeclarationParams
+@dict_readable struct DeclarationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
 # Definition
-@dict_readable struct DefinitionClientCapabilities
+@dict_readable struct DefinitionClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     linkSupport::Union{Bool,Missing}
 end
 
 struct DefinitionOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DefinitionRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
-@dict_readable struct DefinitionParams
+@dict_readable struct DefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
 # Type definition
-@dict_readable struct TypeDefinitionClientCapabilities
+@dict_readable struct TypeDefinitionClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     linkSupport::Union{Bool,Missing}
 end
 
-struct TypeDefinitionOptions
-    workDoneProgress::Union{Bool, Missing}
+struct TypeDefinitionOptions <: Outbound
+    workDoneProgress::Union{Bool,Missing}
 end
 
-struct TypeDefinitionRegistrationOptions
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
-    id::Union{String, Missing}
+struct TypeDefinitionRegistrationOptions <: Outbound
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
+    id::Union{String,Missing}
 end
 
-@dict_readable struct TypeDefinitionParams
+@dict_readable struct TypeDefinitionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
 # Implementation
-@dict_readable struct ImplementationClientCapabilities
+@dict_readable struct ImplementationClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     linkSupport::Union{Bool,Missing}
 end
 
-struct ImplementationOptions
-    workDoneProgress::Union{Bool, Missing}
+struct ImplementationOptions <: Outbound
+    workDoneProgress::Union{Bool,Missing}
 end
 
-struct ImplementationRegistrationOptions
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
-    id::Union{String, Missing}
+struct ImplementationRegistrationOptions <: Outbound
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
+    id::Union{String,Missing}
 end
 
-@dict_readable struct ImplementationParams
+@dict_readable struct ImplementationParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 ##############################################################################
 # References
-@dict_readable struct ReferenceClientCapabilities
+@dict_readable struct ReferenceClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
-struct ReferenceOptions
-    workDoneProgress::Union{Bool, Missing}
+struct ReferenceOptions <: Outbound
+    workDoneProgress::Union{Bool,Missing}
 end
 
-struct ReferenceRegistrationOptions
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
+struct ReferenceRegistrationOptions <: Outbound
+    documentSelector::Union{DocumentSelector,Nothing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct ReferenceContext
     includeDeclaration::Bool
 end
 
-@dict_readable struct ReferenceParams
+@dict_readable struct ReferenceParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
     context::ReferenceContext
 end

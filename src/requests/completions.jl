@@ -1,220 +1,236 @@
-JSONRPC.parse_params(::Type{Val{Symbol("textDocument/completion")}}, params) = CompletionParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("textDocument/completion")},CompletionParams}, server)
-    CIs = CompletionItem[]
-    doc = getdocument(server, URI2(r.params.textDocument.uri))
-    offset = get_offset(doc, r.params.position)
-    rng = Range(doc, offset:offset)
-    ppt, pt, t, is_at_end  = get_partial_completion(doc, offset)
-    x = get_expr(getcst(doc), offset)
+# TODO:
+# - refactor, simplify branching, unify duplications
+# - (maybe) export latex completions into a separate package
 
-    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH 
-        #latex completion
-        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+struct CompletionState
+    offset::Int
+    completions::Dict{String,CompletionItem}
+    range::Range
+    x::EXPR
+    doc::Document
+    server::LanguageServerInstance
+    using_stmts::Dict{String,Any}
+end
+
+function add_completion_item(state::CompletionState, completion::CompletionItem)
+    if haskey(state.completions, completion.label) && ismissing(state.completions[completion.label].data)
+        # For the above statement: we've (1) already got a completion which (2) doesn't require adding an explicit import statement.
+        return
+    end
+    state.completions[completion.label] = completion
+end
+
+StaticLint.getenv(state::CompletionState) = getenv(state.doc, state.server)
+
+using REPL
+
+"""
+    is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
+
+Returns true if `s` starts with `prefix` or has a sufficiently high fuzzy score.
+"""
+function is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
+    starter = if all(islowercase, prefix)
+        startswith(lowercase(s), prefix)
+    else
+        startswith(s, prefix)
+    end
+    starter || REPL.fuzzyscore(prefix, s) >= cutoff
+end
+
+function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
+    state = let
+        doc = getdocument(server, URI2(params.textDocument.uri))
+        offset = get_offset(doc, params.position)
+        rng = Range(doc, offset:offset)
+        x = get_expr(getcst(doc), offset)
+        using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
+        CompletionState(offset, Dict{String,CompletionItem}(), rng, x, doc, server, using_stmts)
+    end
+
+    ppt, pt, t, is_at_end  = get_partial_completion(state)
+
+    if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
+        latex_completions(string("\\", CSTParser.Tokenize.untokenize(t)), state)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
-        latex_completions(doc, offset, string(CSTParser.Tokenize.untokenize(ppt), CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), CIs)
+        latex_completions(string("\\", CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
-        partial = is_latex_comp(t.val, offset - t.startbyte)
-        !isempty(partial) && latex_completions(doc, offset, partial, CIs)
-    elseif t isa CSTParser.Tokens.Token && (t.kind == CSTParser.Tokenize.Tokens.STRING || t.kind == CSTParser.Tokenize.Tokens.TRIPLE_STRING)
-        string_completion(doc, offset, rng, t, CIs)
-    elseif x isa EXPR && parentof(x) !== nothing && (typof(parentof(x)) === CSTParser.Using || typof(parentof(x)) === CSTParser.Import)
-        import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER 
-        #getfield completion, no partial
-        px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte))
-        _get_dot_completion(px, "", rng, CIs, server)
+        partial = is_latex_comp(t.val, state.offset - t.startbyte)
+        !isempty(partial) && latex_completions(partial, state)
+    elseif t isa CSTParser.Tokens.Token && (t.kind in (CSTParser.Tokenize.Tokens.STRING,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_STRING,
+                                                       CSTParser.Tokenize.Tokens.CMD,
+                                                       CSTParser.Tokenize.Tokens.TRIPLE_CMD))
+        string_completion(t, state)
+    elseif state.x isa EXPR && is_in_import_statement(state.x)
+        import_completions(ppt, pt, t, is_at_end, state.x, state)
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
+        # getfield completion, no partial
+        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
+        _get_dot_completion(px, "", state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
-        #getfield completion, partial
-        px = get_expr(getcst(doc), offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
-        _get_dot_completion(px, t.val, rng, CIs, server)
+        # getfield completion, partial
+        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
+        _get_dot_completion(px, t.val, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
-        #token completion
-        if is_at_end && x !== nothing
+        # token completion
+        if is_at_end && state.x !== nothing
             if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.AT_SIGN
                 spartial = string("@", t.val)
             else
                 spartial = t.val
             end
-            kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-            rng = Range(doc, offset:offset)
-            collect_completions(x, spartial, rng, CIs, server, false)
+            kw_completion(spartial, state)
+            rng = Range(state.doc, state.offset:state.offset)
+            collect_completions(state.x, spartial, state, false)
         end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.AT_SIGN
+        # only `@` given
+        state.x !== nothing && collect_completions(state.x, "@", state, false)
+    elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
+        kw_completion(CSTParser.Tokenize.untokenize(t), state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end
-        collect_completions(x, "in", rng, CIs, server, false)
+        collect_completions(state.x, "in", state, false)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end
-        collect_completions(x, "isa", rng, CIs, server, false)
+        collect_completions(state.x, "isa", state, false)
     end
 
-    return CompletionList(true, unique(CIs))
+    return CompletionList(true, unique(values(state.completions)))
 end
 
-function get_partial_completion(doc, offset)
-    ppt, pt, t = toks = get_toks(doc, offset)
-    is_at_end = offset == t.endbyte + 1
+
+function get_partial_completion(state::CompletionState)
+    ppt, pt, t = toks = get_toks(state.doc, state.offset)
+    is_at_end = state.offset == t.endbyte + 1
     return ppt, pt, t, is_at_end
 end
 
-function latex_completions(doc, offset, partial, CIs)
+function latex_completions(partial::String, state::CompletionState)
     for (k, v) in REPL.REPLCompletions.latex_symbols
-        if startswith(string(k), partial)
-            t1 = TextEdit(Range(doc, offset-sizeof(partial)+1:offset), "") # AUDIT: partial should only contain 1-byte characters as it matches k
-            t2 = TextEdit(Range(doc, offset-sizeof(partial):offset-sizeof(partial)+1), v) # AUDIT: partial should only contain 1-byte characters as it matches k
-            push!(CIs, CompletionItem(k[2:end], 11, missing, missing, v, missing, missing, missing, missing, missing, missing, t1, TextEdit[t2], missing, missing, missing))
+        if is_completion_match(string(k), partial)
+            # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
+            add_completion_item(state, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
         end
     end
 end
 
-function kw_completion(doc, spartial, ppt, pt, t, CIs, offset)
-    length(spartial) == 0 && return
-    fc = first(spartial)
-    if startswith("abstract", spartial)
-        push!(CIs, CompletionItem("abstract", 14, "abstract", TextEdit(Range(doc, offset:offset), "abstract type \$0 end"[length(spartial) + 1:end])))
-    elseif fc == 'b'
-        if startswith("baremodule", spartial)
-            push!(CIs, CompletionItem("baremodule", 14, "baremodule", TextEdit(Range(doc, offset:offset), "baremodule \$0\nend"[length(spartial) + 1:end])))
+function kw_completion(partial::String, state::CompletionState)
+    length(partial) == 0 && return
+    for (kw, comp) in snippet_completions
+        if startswith(kw, partial)
+            add_completion_item(state, CompletionItem(kw, 14, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
         end
-        if startswith("begin", spartial)
-            push!(CIs, CompletionItem("begin", 14, "begin", TextEdit(Range(doc, offset:offset), "begin\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("break", spartial)
-            push!(CIs, CompletionItem("break", 14, "break", TextEdit(Range(doc, offset:offset), "break"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'c'
-        if startswith("catch", spartial)
-            push!(CIs, CompletionItem("catch", 14, "catch", TextEdit(Range(doc, offset:offset), "catch"[length(spartial) + 1:end])))
-        end
-        if startswith("const", spartial)
-            push!(CIs, CompletionItem("const", 14, "const", TextEdit(Range(doc, offset:offset), "const \$0"[length(spartial) + 1:end])))
-        end
-        if startswith("continue", spartial)
-            push!(CIs, CompletionItem("continue", 14, "continue", TextEdit(Range(doc, offset:offset), "continue"[length(spartial) + 1:end])))
-        end
-    elseif startswith("do", spartial)
-        push!(CIs, CompletionItem("do", 14, "do", TextEdit(Range(doc, offset:offset), "do \$0\n end"[length(spartial) + 1:end])))
-    elseif fc == 'e'
-        if startswith("else", spartial)
-            push!(CIs, CompletionItem("else", 14, "else", TextEdit(Range(doc, offset:offset), "else"[length(spartial) + 1:end])))
-        end
-        if startswith("elseif", spartial)
-            push!(CIs, CompletionItem("elseif", 14, "elseif", TextEdit(Range(doc, offset:offset), "elseif"[length(spartial) + 1:end])))
-        end
-        if startswith("end", spartial)
-            push!(CIs, CompletionItem("end", 14, "end", TextEdit(Range(doc, offset:offset), "end"[length(spartial) + 1:end])))
-        end
-        if startswith("export", spartial)
-            push!(CIs, CompletionItem("export", 14, "export", TextEdit(Range(doc, offset:offset), "export \$0"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'f'
-        if startswith("finally", spartial)
-            push!(CIs, CompletionItem("finally", 14, "finally", TextEdit(Range(doc, offset:offset), "finally"[length(spartial) + 1:end])))
-        end
-        if startswith("for", spartial)
-            push!(CIs, CompletionItem("for", 14, "for", TextEdit(Range(doc, offset:offset), "for \$1 in \$2\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("function", spartial)
-            push!(CIs, CompletionItem("function", 14, "function", TextEdit(Range(doc, offset:offset), "function \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("global", spartial)
-        push!(CIs, CompletionItem("global", 14, "global", TextEdit(Range(doc, offset:offset), "global \$0\n"[length(spartial) + 1:end])))
-    elseif fc == 'i'
-        if startswith("if", spartial)
-            push!(CIs, CompletionItem("if", 14, "if", TextEdit(Range(doc, offset:offset), "if \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("import", spartial)
-            push!(CIs, CompletionItem("import", 14, "import", TextEdit(Range(doc, offset:offset), "import \$0\n"[length(spartial) + 1:end])))
-        end
-        if startswith("importall", spartial)
-            push!(CIs, CompletionItem("importall", 14, "importall", TextEdit(Range(doc, offset:offset), "importall \$0\n"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'l'
-        if startswith("let", spartial)
-            push!(CIs, CompletionItem("let", 14, "let", TextEdit(Range(doc, offset:offset), "let \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("local", spartial)
-            push!(CIs, CompletionItem("local", 14, "local", TextEdit(Range(doc, offset:offset), "local \$0\n"[length(spartial) + 1:end])))
-        end
-    elseif fc == 'm'
-        if startswith("macro", spartial)
-            push!(CIs, CompletionItem("macro", 14, "macro", TextEdit(Range(doc, offset:offset), "macro \$1(\$2)\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("module", spartial)
-            push!(CIs, CompletionItem("module", 14, "module", TextEdit(Range(doc, offset:offset), "module \$0\nend"[length(spartial) + 1:end])))
-        end
-        if startswith("mutable", spartial)
-            push!(CIs, CompletionItem("mutable", 14, "mutable", TextEdit(Range(doc, offset:offset), "mutable struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("outer", spartial)
-        push!(CIs, CompletionItem("outer", 14, "outer", TextEdit(Range(doc, offset:offset), "outer"[length(spartial) + 1:end])))
-    elseif startswith("primitive", spartial)
-        push!(CIs, CompletionItem("primitive", 14, "primitive", TextEdit(Range(doc, offset:offset), "primitive type \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("quote", spartial)
-        push!(CIs, CompletionItem("quote", 14, "quote", TextEdit(Range(doc, offset:offset), "quote\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif startswith("return", spartial)
-        push!(CIs, CompletionItem("return", 14, "return", TextEdit(Range(doc, offset:offset), "return \$0"[length(spartial) + 1:end])))
-    elseif startswith("struct", spartial)
-        push!(CIs, CompletionItem("struct", 14, "struct", TextEdit(Range(doc, offset:offset), "struct \$1\n    \$0\nend"[length(spartial) + 1:end])))
-    elseif fc == 't'
-        if startswith("try", spartial)
-            push!(CIs, CompletionItem("try", 14, "try", TextEdit(Range(doc, offset:offset), "try \$1\n    \$0\ncatch\nend"[length(spartial) + 1:end])))
-        end
-    elseif startswith("using", spartial)
-        push!(CIs, CompletionItem("using", 14, "using", TextEdit(Range(doc, offset:offset), "using \$0\n"[length(spartial) + 1:end])))
-    elseif startswith("while", spartial)
-        push!(CIs, CompletionItem("while", 14, "while", TextEdit(Range(doc, offset:offset), "while \$1\n    \$0\nend"[length(spartial) + 1:end])))
     end
 end
 
-function collect_completions(m::SymbolServer.ModuleStore, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+const snippet_completions = Dict{String,String}(
+    "abstract" => "abstract type \$0 end",
+    "baremodule" => "baremodule \$1\n\t\$0\nend",
+    "begin" => "begin\n\t\$0\nend",
+    "break" => "break",
+    "catch" => "catch",
+    "const" => "const ",
+    "continue" => "continue",
+    "do" => "do \$1\n\t\$0\nend",
+    "else" => "else",
+    "elseif" => "elseif ",
+    "end" => "end",
+    "export" => "export ",
+    "finally" => "finally",
+    "for" => "for \$1 in \$2\n\t\$0\nend",
+    "function" => "function \$1(\$2)\n\t\$0\nend",
+    "global" => "global ",
+    "if" => "if \$1\n\t\$0\nend",
+    "import" => "import",
+    "let" => "let \$1\n\t\$0\nend",
+    "local" => "local ",
+    "macro" => "macro \$1(\$2)\n\t\$0\nend",
+    "module" => "module \$1\n\t\$0\nend",
+    "mutable" => "mutable struct \$0\nend",
+    "outer" => "outer ",
+    "primitive" => "primitive type \$1 \$0 end",
+    "quote" => "quote\n\t\$0\nend",
+    "return" => "return",
+    "struct" => "struct \$0 end",
+    "try" => "try\n\t\$0\ncatch\nend",
+    "using" => "using ",
+    "while" => "while \$1\n\t\$0\nend"
+    )
+
+
+function texteditfor(state::CompletionState, partial, n)
+    TextEdit(Range(Position(state.range.start.line, state.range.start.character - sizeof(partial)), state.range.stop), n)
+end
+
+function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     for val in m.vals
         n, v = String(val[1]), val[2]
-        startswith(n, ".") && continue
-        # v isa String && continue
-        !startswith(n, spartial) && continue
-        if v isa SymbolServer.VarRef 
-            v = SymbolServer._lookup(v, getsymbolserver(server), true)
-            v === nothing && return 
+        (startswith(n, ".") || startswith(n, "#")) && continue
+        !is_completion_match(n, spartial) && continue
+        if v isa SymbolServer.VarRef
+            v = SymbolServer._lookup(v, getsymbols(getenv(state)), true)
+            v === nothing && return
         end
         if StaticLint.isexportedby(n, m) || inclexported
-            # if v isa SymbolServer.VarRef
-            #     prv = SymbolServer._lookup(getsymbolserver(server), v)
-            #     !(prv isa SymbolServer.SymStore) && continue
-            #     push!(CIs, CompletionItem(n, _completion_kind(prv, server), MarkupContent(sanitize_docstring(prv.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end])))
-            # else
-                push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng, n[nextind(n,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
-            # end
+            add_completion_item(state, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
         elseif dotcomps
-            rng1 = Range(Position(rng.start.line, rng.start.character - sizeof(spartial)), rng.stop) # AUDIT: PROBLEM?: combining utf16 character offset with byte offset, no current impact 
-            push!(CIs, CompletionItem(n, _completion_kind(v, server), MarkupContent(sanitize_docstring(v.doc)), TextEdit(rng1, string(m.name, ".", n)))) 
-        end
-    end
-end
-
-function collect_completions(x::EXPR, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
-    if scopeof(x) !== nothing
-        collect_completions(scopeof(x), spartial, rng, CIs, server, inclexported, dotcomps)
-        if scopeof(x).modules isa Dict
-            for m in scopeof(x).modules
-                collect_completions(m[2], spartial, rng, CIs, server, inclexported, dotcomps)
+            push!(state.completions, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
+        elseif length(spartial) > 3 && !variable_already_imported(m, n, state)
+            if state.server.completion_mode === :import
+                # These are non-exported names and require the insertion of a :using statement.
+                # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
+                cmd = Command("Apply text edit", "language-julia.applytextedit", [
+                    WorkspaceEdit(missing, [textedit_to_insert_using_stmt(m, n, state)])
+                ])
+                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, n), missing, missing, cmd, "import")
+                add_completion_item(state, ci)
+            elseif state.server.completion_mode === :qualify
+                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)), missing, missing, missing, missing))
             end
         end
     end
-    if parentof(x) !== nothing && typof(x) !== CSTParser.ModuleH && typof(x) !== CSTParser.BareModule
-        return collect_completions(parentof(x), spartial, rng, CIs, server, inclexported, dotcomps)
-    else
-        return
+end
+
+function variable_already_imported(m, n, state)
+    haskey(state.using_stmts, String(m.name.name)) && import_has_x(state.using_stmts[String(m.name.name)][1], n)
+end
+
+function import_has_x(expr::EXPR, x::String)
+    if length(expr.args) == 1 && length(expr.args[1]) > 1
+        for i = 2:length(expr.args[1].args)
+            arg = expr.args[1].args[i]
+            if CSTParser.isoperator(arg.head) && length(arg.args) == 1 && CSTParser.isidentifier(arg.args[1]) && CSTParser.valof(arg.args[1]) == x
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function collect_completions(x::EXPR, spartial, state::CompletionState, inclexported=false, dotcomps=false)
+    if scopeof(x) !== nothing
+        collect_completions(scopeof(x), spartial, state, inclexported, dotcomps)
+        if scopeof(x).modules isa Dict
+            for m in scopeof(x).modules
+                collect_completions(m[2], spartial, state, inclexported, dotcomps)
+            end
+        end
+    end
+    if parentof(x) !== nothing && !CSTParser.defines_module(x)
+        return collect_completions(parentof(x), spartial, state, inclexported, dotcomps)
     end
 end
 
-function collect_completions(x::StaticLint.Scope, spartial, rng, CIs, server, inclexported = false, dotcomps = false)
+function collect_completions(x::StaticLint.Scope, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     if x.names !== nothing
         for n in x.names
-            if startswith(n[1], spartial)
+            if is_completion_match(n[1], spartial)
                 documentation = ""
                 if n[2] isa StaticLint.Binding
-                    documentation = get_hover(n[2], documentation, server)
+                    documentation = get_hover(n[2], documentation, state.server)
                     sanitize_docstring(documentation)
                 end
-                push!(CIs, CompletionItem(n[1], _completion_kind(n[2], server), MarkupContent(documentation), TextEdit(rng, n[1][nextind(n[1],sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                add_completion_item(state, CompletionItem(n[1], _completion_kind(n[2]), MarkupContent(documentation), texteditfor(state, spartial, n[1])))
             end
         end
     end
@@ -223,47 +239,46 @@ end
 
 function is_rebinding_of_module(x)
     x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
-    refof(x).val isa EXPR && typof(refof(x).val) === CSTParser.BinaryOpCall && kindof(refof(x).val.args[2]) === CSTParser.Tokens.EQ && # binding expr is an assignment
-    StaticLint.hasref(refof(x).val.args[3]) && refof(refof(x).val.args[3]).type === StaticLint.CoreTypes.Module &&
-    refof(refof(x).val.args[3]).val isa EXPR && typof(refof(refof(x).val.args[3]).val) === CSTParser.ModuleH# double check the rhs points to a module
+    refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
+    StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
+    refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
 end
 get_overlapped_binding(b::StaticLint.Binding) = b.val isa StaticLint.Binding ? get_overlapped_binding(b.val) : b
 
-function _get_dot_completion(px, spartial, rng, CIs, server) end
-function _get_dot_completion(px::EXPR, spartial, rng, CIs, server)
+function _get_dot_completion(px, spartial, state::CompletionState) end
+function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
     if px !== nothing
         if refof(px) isa StaticLint.Binding
-            binding = get_overlapped_binding(refof(px))
-            if binding.val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(binding.val, spartial, rng, CIs, server, true)
-            elseif binding.val isa EXPR && typof(binding.val) === CSTParser.ModuleH && scopeof(binding.val) isa StaticLint.Scope
-                collect_completions(scopeof(binding.val), spartial, rng, CIs, server, true)
+            if refof(px).val isa StaticLint.SymbolServer.ModuleStore
+                collect_completions(refof(px).val, spartial, state, true)
+            elseif refof(px).val isa EXPR && CSTParser.defines_module(refof(px).val) && scopeof(refof(px).val) isa StaticLint.Scope
+                collect_completions(scopeof(refof(px).val), spartial, state, true)
             elseif is_rebinding_of_module(px)
-                collect_completions(scopeof(refof(refof(px).val.args[3]).val), spartial, rng, CIs, server, true)
-            elseif binding.type isa SymbolServer.DataTypeStore
-                for a in binding.type.fieldnames
+                collect_completions(scopeof(refof(refof(px).val.args[2]).val), spartial, state, true)
+            elseif refof(px).type isa SymbolServer.DataTypeStore
+                for a in refof(px).type.fieldnames
                     a = String(a)
-                    if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                    if is_completion_match(a, spartial)
+                        add_completion_item(state, CompletionItem(a, 2, MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif binding.type isa StaticLint.Binding && binding.type.val isa SymbolServer.DataTypeStore
                 for a in binding.type.val.fieldnames
                     a = String(a)
-                    if startswith(a, spartial)
-                        push!(CIs, CompletionItem(a, 2, MarkupContent(a), TextEdit(rng, a[nextind(a,sizeof(spartial)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                    if is_completion_match(a, spartial)
+                        add_completion_item(state, CompletionItem(a, 2, MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
-            elseif binding.type isa StaticLint.Binding && binding.type.val isa EXPR && CSTParser.defines_struct(binding.type.val) && scopeof(binding.type.val) isa StaticLint.Scope
-                collect_completions(scopeof(binding.type.val), spartial, rng, CIs, server, true)
+            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
+                collect_completions(scopeof(refof(px).type.val), spartial, state, true)
             end
         elseif refof(px) isa StaticLint.SymbolServer.ModuleStore
-            collect_completions(refof(px), spartial, rng, CIs, server, true)
+            collect_completions(refof(px), spartial, state, true)
         end
     end
 end
 
-function _completion_kind(b ,server)
+function _completion_kind(b)
     if b isa StaticLint.Binding
         if b.type == StaticLint.CoreTypes.String
             return 1
@@ -275,45 +290,42 @@ function _completion_kind(b ,server)
             return 12
         elseif b.type == StaticLint.CoreTypes.DataType
             return 22
-        else 
+        else
             return 13
         end
     elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.VarRef
         return 9
     elseif b isa SymbolServer.MethodStore
-        return 2        
+        return 2
     elseif b isa SymbolServer.FunctionStore
         return 3
     elseif b isa SymbolServer.DataTypeStore
         return 22
-    else 
+    else
         return 6
     end
 end
 
 function get_import_root(x::EXPR)
-    for i = 1:length(x.args)
-        if typof(x.args[i]) === CSTParser.OPERATOR && kindof(x.args[i]) === CSTParser.Tokens.COLON && i > 2
-            return x.args[i-1]
-        end
+    if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"
+        return last(x.args[1].args[1].args)
     end
-    return nothing
 end
 
-function string_completion(doc, offset, rng, t, CIs)
-    path_completion(doc, offset, rng, t, CIs)
+function string_completion(t, state::CompletionState)
+    path_completion(t, state)
     # Need to adjust things for quotation marks
-    if t.kind == CSTParser.Tokenize.Tokens.STRING
-        t.startbyte < offset <= t.endbyte || return
-        relative_offset = offset - t.startbyte - 1
+    if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
+        t.startbyte < state.offset <= t.endbyte || return
+        relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
     else
-        t.startbyte < offset <= t.endbyte - 2 || return
-        relative_offset = offset - t.startbyte - 3
+        t.startbyte < state.offset <= t.endbyte - 2 || return
+        relative_offset = state.offset - t.startbyte - 3
         content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
     end
     partial = is_latex_comp(content, relative_offset)
-    !isempty(partial) && latex_completions(doc, offset, partial, CIs)
+    !isempty(partial) && latex_completions(partial, state)
 end
 
 function is_latex_comp(s, i)
@@ -329,7 +341,7 @@ end
 is_latex_comp_char(c::Char) = UInt32(c) <= typemax(UInt8) ? is_latex_comp_char(UInt8(c)) : false
 function is_latex_comp_char(u)
     # Checks whether a Char (represented as a UInt8) is in the set of those those used to trigger
-    #latex completions.
+    # latex completions.
     # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in REPL.REPLCompletions.latex_symbols]))))
     u === 0x28 ||
     u === 0x29 ||
@@ -344,21 +356,30 @@ function is_latex_comp_char(u)
     0x61 <= u <= 0x7a
 end
 
-function path_completion(doc, offset, rng, t, CIs)
+function path_completion(t, state::CompletionState)
     if t.kind == CSTParser.Tokenize.Tokens.STRING
-        path, partial = _splitdir(t.val[2:prevind(t.val, lastindex(t.val))])
-        if !startswith(path, "/")
-            path = joinpath(_dirname(uri2filepath(doc._uri)), path)
+        path = t.val[2:prevind(t.val, lastindex(t.val))]
+        if startswith(path, "~")
+            path = replace(path, '~' => homedir())
+            dir, partial = _splitdir(path)
+        else
+            dir, partial = _splitdir(path)
+            if !startswith(dir, "/")
+                doc_path = getpath(state.doc)
+                isempty(doc_path) && return
+                dir = joinpath(_dirname(doc_path), dir)
+            end
         end
         try
-            fs = readdir(path)
+            fs = readdir(dir)
             for f in fs
                 if startswith(f, partial)
                     try
-                        if isdir(joinpath(path, f))
+                        if isdir(joinpath(dir, f))
                             f = string(f, "/")
                         end
-                        push!(CIs, CompletionItem(f, 17, f, TextEdit(rng, f[nextind(f, lastindex(partial)):end])))
+                        rng1 = Range(state.doc, state.offset - sizeof(partial):state.offset)
+                        add_completion_item(state, CompletionItem(f, 17, f, TextEdit(rng1, f)))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     end
@@ -370,17 +391,21 @@ function path_completion(doc, offset, rng, t, CIs)
     end
 end
 
-function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, server)
-    import_statement = parentof(x)
+is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :import))
+
+function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
+    import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+
     import_root = get_import_root(import_statement)
-    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING,CSTParser.Tokens.IMPORT,CSTParser.Tokens.IMPORTALL,CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON)) || 
-        (t.kind in (CSTParser.Tokens.COMMA,CSTParser.Tokens.COLON))
-        #no partial, no dot
+
+    if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
+        (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
+        # no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-            for (n,m) in refof(import_root).vals
+            for (n, m) in refof(import_root).vals
                 n = String(n)
-                if startswith(n, t.val)
-                    push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                if is_completion_match(n, t.val) && !startswith(n, "#")
+                    add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                 end
             end
         else
@@ -389,35 +414,37 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                     push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n)))
                 end
             end
-            for (n,m) in StaticLint.getsymbolserver(server)
+
+            for (n, m) in StaticLint.getsymbols(getenv(state))
+
                 n = String(n)
-                startswith(n, ".") && continue
-                push!(CIs, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(rng, n)))
+                (startswith(n, ".") || startswith(n, "#")) && continue
+                add_completion_item(state, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(state.range, n)))
             end
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
-        #no partial, dot
-        if haskey(getsymbolserver(server), Symbol(pt.val))
-            collect_completions(getsymbolserver(server)[Symbol(pt.val)], "", rng, CIs, server)
+        # no partial, dot
+        if haskey(getsymbols(getenv(state)), Symbol(pt.val))
+            collect_completions(getsymbols(getenv(state))[Symbol(pt.val)], "", state)
         end
-    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end 
-        #partial
+    elseif t.kind == CSTParser.Tokens.IDENTIFIER && is_at_end
+        # partial
         if pt.kind == CSTParser.Tokens.DOT && ppt.kind == CSTParser.Tokens.IDENTIFIER
-            if haskey(StaticLint.getsymbolserver(server), Symbol(ppt.val))
-                rootmod = StaticLint.getsymbolserver(server)[Symbol(ppt.val)]
-                for (n,m) in rootmod.vals
+            if haskey(StaticLint.getsymbols(getenv(state)), Symbol(ppt.val))
+                rootmod = StaticLint.getsymbols(getenv(state))[Symbol(ppt.val)]
+                for (n, m) in rootmod.vals
                     n = String(n)
-                    if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                    if is_completion_match(n, t.val) && !startswith(n, "#")
+                        add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                     end
                 end
             end
         else
             if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-                for (n,m) in refof(import_root).vals
+                for (n, m) in refof(import_root).vals
                     n = String(n)
-                    if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, _completion_kind(m, server), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), TextEdit(rng, n[length(t.val) + 1:end])))
+                    if is_completion_match(n, t.val) && !startswith(n, "#")
+                        add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                     end
                 end
             else
@@ -426,13 +453,104 @@ function import_completions(doc, offset, rng, ppt, pt, t, is_at_end ,x, CIs, ser
                         push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
                     end
                 end
-                for (n,m) in StaticLint.getsymbolserver(server)
+
+                for (n, m) in StaticLint.getsymbols(getenv(state))
                     n = String(n)
-                    if startswith(n, t.val)
-                        push!(CIs, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                    if is_completion_match(n, t.val)
+                        add_completion_item(state, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), texteditfor(state, t.val, n)))
                     end
                 end
             end
         end
+    end
+end
+
+
+
+function get_preexisting_using_stmts(x::EXPR, doc::Document)
+    using_stmts = Dict{String,Any}()
+    tls = StaticLint.retrieve_toplevel_scope(x)
+    file_level_arg = get_file_level_parent(x)
+
+    if scopeof(getcst(doc)) == tls
+        # check for :using stmts in current file
+        for a in getcst(doc).args
+            if headof(a) === :using
+                add_using_stmt(a, using_stmts)
+            end
+            a == file_level_arg && break
+        end
+    end
+
+    if tls !== nothing
+        args = get_tls_arglist(tls)
+        for a in args
+            if headof(a) === :using
+                add_using_stmt(a, using_stmts)
+            end
+
+        end
+    end
+    return using_stmts
+end
+
+function add_using_stmt(x::EXPR, using_stmts)
+    if length(x.args) > 0 && CSTParser.is_colon(x.args[1].head)
+        if CSTParser.is_dot(x.args[1].args[1].head) && length(x.args[1].args[1].args) == 1
+            using_stmts[valof(x.args[1].args[1].args[1])] = (x, get_file_loc(x))
+        end
+    end
+end
+
+function get_file_level_parent(x::EXPR)
+    if x.parent isa EXPR && x.parent.head === :file
+        x
+    else
+        if x.parent === nothing
+            return nothing
+        end
+        get_file_level_parent(x.parent)
+    end
+end
+
+function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, state::CompletionState)
+    tls = StaticLint.retrieve_toplevel_scope(state.x)
+    if haskey(state.using_stmts, String(m.name.name))
+        (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
+
+        l, c = get_position_at(using_doc, using_offset + using_stmt.span)
+        TextDocumentEdit(VersionedTextDocumentIdentifier(using_doc._uri, using_doc._version),
+            [TextEdit(Range(l, c, l, c), ", $n")])
+    elseif tls !== nothing
+        if tls.expr.head === :file
+            # Insert at the head of the file
+            tlsdoc, offset1 = get_file_loc(tls.expr)
+            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
+            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+        elseif tls.expr.head === :module
+            # Insert at start of module
+            tlsdoc, offset1 = get_file_loc(tls.expr)
+            offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
+            l, c = get_position_at(tlsdoc, offset1 + offset2)
+
+            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
+            [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")])
+        else
+            error()
+        end
+    else
+        # Fallback, add it to the start of the current file.
+        TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
+            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+    end
+end
+
+function get_tls_arglist(tls::StaticLint.Scope)
+    if tls.expr.head === :file
+        tls.expr.args
+    elseif tls.expr.head === :module
+        tls.expr.args[3].args
+    else
+        error()
     end
 end

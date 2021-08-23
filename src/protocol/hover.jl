@@ -1,12 +1,12 @@
-@dict_readable struct HoverClientCapabilities
+@dict_readable struct HoverClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     contentFormat::Union{Vector{String},Missing}
 end
 
-@dict_readable struct HoverParams
+@dict_readable struct HoverParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct HoverOptions <: Outbound

@@ -1,10 +1,21 @@
-const ProgressToken = Union{Int, String}
+mutable struct CancelParams
+    id::Union{String,Int64}
+end
+CancelParams(d::Dict) = CancelParams(d["id"])
+
+const TraceValue = String
+
+struct SetTraceParams
+    value::TraceValue
+end
+SetTraceParams(d::Dict) = SetTraceParams(d["value"])
+
 struct ProgressParams{T}
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
     value::T
 end
 
-mutable struct DocumentFilter
+mutable struct DocumentFilter <: Outbound
     language::Union{String,Missing}
     scheme::Union{String,Missing}
     pattern::Union{String,Missing}
@@ -20,7 +31,7 @@ Position(line::Integer) = Position(line, 0)
 
 struct Range
     start::Position
-    stop::Position 
+    stop::Position
 end
 # Special case to account for use of 'end' as a fieldname in LSP
 Range(d::Dict) = Range(Position(d["start"]), Position(d["end"]))
@@ -50,7 +61,7 @@ end
 end
 
 ##############################################################################
-# Diagnostics 
+# Diagnostics
 const DiagnosticSeverity = Int
 const DiagnosticSeverities = (Error = 1,
                               Warning = 2,
@@ -58,10 +69,8 @@ const DiagnosticSeverities = (Error = 1,
                               Hint = 4)
 
 const DiagnosticTag = Int
-const DiagnosticTags = (Error = 1,
-                        Warning = 2,
-                        Information = 3,
-                        Hint = 4)
+const DiagnosticTags = (Unnecessary = 1,
+                        Deprecated = 2)
 
 struct DiagnosticRelatedInformation
     location::Location
@@ -81,7 +90,7 @@ end
 
 ##############################################################################
 
-struct Command <: HasMissingFields # Use traits for this?
+struct Command <: Outbound # Use traits for this?
     title::String
     command::String
     arguments::Union{Vector{Any},Missing}
@@ -99,8 +108,8 @@ const MarkupKinds = (PlainText = "plaintext",
                      Markdown = "markdown")
 
 mutable struct MarkupContent
-   kind::MarkupKind
-   value::String
+    kind::MarkupKind
+    value::String
 end
 MarkupContent(value::String) = MarkupContent(MarkupKinds.Markdown, value)
 
@@ -145,14 +154,14 @@ end
 ##############################################################################
 # Progress
 struct WorkDoneProgressCreateParams <: Outbound
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
 end
 
 @dict_readable struct WorkDoneProgressCancelParams
-    token::ProgressToken
+    token::Union{Int,String} # ProgressToken
 end
 
-struct WorkDoneProgressBegin
+struct WorkDoneProgressBegin <: Outbound
     kind::String
     title::String
     cancellable::Union{Bool,Missing}
@@ -163,7 +172,7 @@ struct WorkDoneProgressBegin
     end
 end
 
-struct WorkDoneProgressReport
+struct WorkDoneProgressReport <: Outbound
     kind::String
     cancellable::Union{Bool,Missing}
     message::Union{String,Missing}
@@ -173,7 +182,7 @@ struct WorkDoneProgressReport
     end
 end
 
-struct WorkDoneProgressEnd
+struct WorkDoneProgressEnd <: Outbound
     kind::String
     message::Union{String,Missing}
     function WorkDoneProgressEnd(message)
@@ -181,17 +190,17 @@ struct WorkDoneProgressEnd
     end
 end
 
-struct WorkDoneProgressParams
-    workDoneToken::Union{ProgressToken,Missing}
+struct WorkDoneProgressParams <: Outbound
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
 end
 
-struct WorkDoneProgressOptions
+struct WorkDoneProgressOptions <: Outbound
     workDoneProgress::Union{Bool,Missing}
 end
 
 ##############################################################################
 # Partial
 
-struct PartialResultParams
-    partialResultToken::Union{ProgressToken,Missing}
+struct PartialResultParams <: Outbound
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end

@@ -41,7 +41,7 @@ const InsertTextFormats = (PlainText = 1,
     valueSet::Vector{CompletionItemTag}
 end
 
-@dict_readable struct CompletionItemClientCapabilities
+@dict_readable struct CompletionItemClientCapabilities <: Outbound
     snippetSupport::Union{Bool,Missing}
     commitCharactersSupport::Union{Bool,Missing}
     documentationFormat::Union{Vector{String},Missing}
@@ -50,11 +50,11 @@ end
     tagSupport::Union{CompletionTagClientCapabilities,Missing}
 end
 
-@dict_readable struct CompletionItemKindCapabilities
+@dict_readable struct CompletionItemKindCapabilities <: Outbound
     valueSet::Union{Vector{CompletionItemKind},Missing}
 end
 
-@dict_readable struct CompletionClientCapabilities
+@dict_readable struct CompletionClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     completionItem::Union{CompletionItemClientCapabilities,Missing}
     completionItemKind::Union{CompletionItemKindCapabilities,Missing}
@@ -64,7 +64,7 @@ end
 struct CompletionOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
     triggerCharacters::Union{Vector{String},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CompletionRegistrationOptions <: Outbound
@@ -74,12 +74,16 @@ struct CompletionRegistrationOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
 end
 
-@dict_readable struct CompletionContext
+struct CompletionContext <: Outbound
     triggerKind::CompletionTriggerKind
     triggerCharacter::Union{String,Missing}
 end
 
-@dict_readable struct CompletionParams
+function CompletionContext(d::Dict)
+    CompletionContext(d["triggerKind"], haskey(d, "triggerCharacter") && d["triggerCharacter"] isa String ? d["triggerCharacter"] : missing)
+end
+
+@dict_readable struct CompletionParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
     context::Union{CompletionContext,Missing}
@@ -96,14 +100,16 @@ struct CompletionItem <: Outbound
     sortText::Union{String,Missing}
     filterText::Union{String,Missing}
     insertText::Union{String,Missing}
-    insertTextFormat::Union{Int,Missing}
+    insertTextFormat::Union{InsertTextFormat,Missing}
     textEdit::Union{TextEdit,Missing}
     additionalTextEdits::Union{Vector{TextEdit},Missing}
     commitCharacters::Union{Vector{String},Missing}
     command::Union{Command,Missing}
     data::Union{Any,Missing}
 end
-CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, 2, textEdit, missing, missing, missing, missing)
+CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
+
+
 
 struct CompletionList <: Outbound
     isIncomplete::Bool

@@ -1,6 +1,5 @@
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWatchedFiles")}}, params) = DidChangeWatchedFilesParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles")},DidChangeWatchedFilesParams}, server)
-    for change in r.params.changes
+function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
+    for change in params.changes
         uri = change.uri
 
         startswith(uri, "file:") || continue
@@ -16,7 +15,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        if !isvalid(s)
+                        if !isvalid(s) || occursin('\0', s)
                             deletedocument!(server, URI2(uri))
                             continue
                         end
@@ -26,10 +25,10 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                         deletedocument!(server, URI2(uri))
                         continue
                     end
-        
+
                     set_text!(doc, content)
                     set_is_workspace_file(doc, true)
-                    parse_all(doc, server)    
+                    parse_all(doc, server)
                 end
             else
                 filepath = uri2filepath(uri)
@@ -41,7 +40,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     continue
                 end
-    
+
                 doc = Document(uri, content, true, server)
                 setdocument!(server, URI2(uri), doc)
                 parse_all(doc, server)
@@ -55,7 +54,7 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
                     deletedocument!(server, URI2(uri))
 
                     publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                    JSONRPCEndpoints.send_notification(server.jr_endpoint, "textDocument/publishDiagnostics", publishDiagnosticsParams)
+                    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
                 else
                     # TODO replace with accessor function once the other PR
                     # that introduces the accessor is merged
@@ -68,79 +67,90 @@ function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWatchedFiles"
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeConfiguration")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeConfiguration")},Dict{String,Any}}, server::LanguageServerInstance)
-    request_julia_config(server)
+function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
+    request_julia_config(server, conn)
 end
 
-function request_julia_config(server)
-    response = JSONRPCEndpoints.send_request(server.jr_endpoint, "workspace/configuration", ConfigurationParams([
-        (ConfigurationItem(missing, "julia.format.$opt") for opt in fieldnames(DocumentFormat.FormatOptions))...;
-        ConfigurationItem(missing, "julia.lint.run");
-        (ConfigurationItem(missing, "julia.lint.$opt") for opt in fieldnames(StaticLint.LintOptions))...
+@static if VERSION < v"1.1"
+    isnothing(::Any) = false
+    isnothing(::Nothing) = true
+end
+
+const LINT_DIABLED_DIRS = ["test", "docs"]
+
+function request_julia_config(server::LanguageServerInstance, conn)
+    (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
+
+    response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
+        ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
+        ConfigurationItem(missing, "julia.format.indents"),
+        ConfigurationItem(missing, "julia.format.ops"),
+        ConfigurationItem(missing, "julia.format.tuples"),
+        ConfigurationItem(missing, "julia.format.curly"),
+        ConfigurationItem(missing, "julia.format.calls"),
+        ConfigurationItem(missing, "julia.format.iterOps"),
+        ConfigurationItem(missing, "julia.format.comments"),
+        ConfigurationItem(missing, "julia.format.docs"),
+        ConfigurationItem(missing, "julia.format.lineends"),
+        ConfigurationItem(missing, "julia.format.keywords"),
+        ConfigurationItem(missing, "julia.format.kwarg"),
+        ConfigurationItem(missing, "julia.lint.call"), # LintOptions
+        ConfigurationItem(missing, "julia.lint.iter"),
+        ConfigurationItem(missing, "julia.lint.nothingcomp"),
+        ConfigurationItem(missing, "julia.lint.constif"),
+        ConfigurationItem(missing, "julia.lint.lazy"),
+        ConfigurationItem(missing, "julia.lint.datadecl"),
+        ConfigurationItem(missing, "julia.lint.typeparam"),
+        ConfigurationItem(missing, "julia.lint.modname"),
+        ConfigurationItem(missing, "julia.lint.pirates"),
+        ConfigurationItem(missing, "julia.lint.useoffuncargs"),
+        ConfigurationItem(missing, "julia.lint.run"),
+        ConfigurationItem(missing, "julia.lint.missingrefs"),
+        ConfigurationItem(missing, "julia.lint.disabledDirs"),
+        ConfigurationItem(missing, "julia.completionmode")
         ]))
-    
-    # TODO Make sure update_julia_config can deal with the response
-    if length(response) == length(fieldnames(DocumentFormat.FormatOptions)) + 1 + length(fieldnames(StaticLint.LintOptions))
-        server.format_options = DocumentFormat.FormatOptions(
-            response[1]===nothing ? 0 : response[1],
-            response[2]===nothing ? false : response[2],
-            response[3]===nothing ? false : response[3],
-            response[4]===nothing ? false : response[4],
-            response[5]===nothing ? false : response[5],
-            response[6]===nothing ? false : response[6],
-            response[7]===nothing ? false : response[7],
-            response[8]===nothing ? false : response[8],
-            response[9]===nothing ? false : response[9],
-            response[10]===nothing ? false : response[10],
-            response[11]===nothing ? false : response[11])
-        
-        N = length(fieldnames(DocumentFormat.FormatOptions)) + 1
-        x = response[N]
-        new_lint_opts = StaticLint.LintOptions(
-            response[N + 1]===nothing ? false : response[N + 1],
-            response[N + 2]===nothing ? false : response[N + 2],
-            response[N + 3]===nothing ? false : response[N + 3],
-            response[N + 4]===nothing ? false : response[N + 4],
-            response[N + 5]===nothing ? false : response[N + 5],
-            response[N + 6]===nothing ? false : response[N + 6],
-            response[N + 7]===nothing ? false : response[N + 7],
-            response[N + 8]===nothing ? false : response[N + 8],
-            response[N + 9]===nothing ? false : response[N + 9],
-        )
-        
-        new_run_lint_value = x===nothing ? false : true
-        if new_run_lint_value != server.runlinter || any(getfield(new_lint_opts, n) != getfield(server.lint_options, n) for n in fieldnames(StaticLint.LintOptions))
-            server.lint_options = new_lint_opts
-            server.runlinter = new_run_lint_value
-            for doc in getdocuments_value(server)
-                StaticLint.check_all(getcst(doc), server.lint_options, server)
-                empty!(doc.diagnostics)
-                mark_errors(doc, doc.diagnostics)
-                publish_diagnostics(doc, server)
-            end
-        end
+
+    server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
+    new_runlinter = something(response[23], true)
+    new_SL_opts = StaticLint.LintOptions(response[13:22]...)
+
+    new_lint_missingrefs = Symbol(something(response[24], :all))
+    new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[26], :import))
+
+    rerun_lint = begin
+        any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
+        server.runlinter != new_runlinter ||
+        server.lint_missingrefs != new_lint_missingrefs ||
+        server.lint_disableddirs != new_lint_disableddirs
+    end
+
+    server.lint_options = new_SL_opts
+    server.runlinter = new_runlinter
+    server.lint_missingrefs = new_lint_missingrefs
+    server.lint_disableddirs = new_lint_disableddirs
+    server.completion_mode = new_completion_mode
+
+    if rerun_lint
+        relintserver(server)
     end
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, params) = DidChangeWorkspaceFoldersParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("workspace/didChangeWorkspaceFolders")}}, server)
-    for wksp in r.params.event.added
+function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
+    for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
     end
-    for wksp in r.params.event.removed
+    for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
     end
 end
 
-
-JSONRPC.parse_params(::Type{Val{Symbol("workspace/symbol")}}, params) = WorkspaceSymbolParams(params) 
-function process(r::JSONRPC.Request{Val{Symbol("workspace/symbol")},WorkspaceSymbolParams}, server) 
+function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)
     syms = SymbolInformation[]
     for doc in getdocuments_value(server)
-        bs = collect_toplevel_bindings_w_loc(getcst(doc), query = r.params.query)
+        bs = collect_toplevel_bindings_w_loc(getcst(doc), query=params.query)
         for x in bs
             p, b = x[1], x[2]
             push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))

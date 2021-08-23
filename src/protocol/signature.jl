@@ -1,13 +1,13 @@
-@dict_readable struct ParameterInformationCapabilities
+@dict_readable struct ParameterInformationCapabilities <: Outbound
     labelOffsetSupport::Union{Bool,Missing}
 end
 
-@dict_readable struct SignatureInformationCapabilities
+@dict_readable struct SignatureInformationCapabilities <: Outbound
     documentationFormat::Union{Vector{String},Missing}
     parameterInformation::Union{ParameterInformationCapabilities,Missing}
 end
 
-@dict_readable struct SignatureHelpClientCapabilities
+@dict_readable struct SignatureHelpClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     signatureInformation::Union{SignatureInformationCapabilities,Missing}
     contextSupport::Union{Bool,Missing}
@@ -46,16 +46,16 @@ struct SignatureHelp <: Outbound
     activeParameter::Union{Int,Missing}
 end
 
-@dict_readable struct SignatureHelpContext
+@dict_readable struct SignatureHelpContext <: Outbound
     triggerKind::SignatureHelpTriggerKind
     triggerCharacter::Union{String,Missing}
     isRetrigger::Bool
     activeSignatureHelp::Union{SignatureHelp,Missing}
 end
 
-@dict_readable struct SignatureHelpParams
+@dict_readable struct SignatureHelpParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
     context::Union{SignatureHelpContext,Missing}
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
 end

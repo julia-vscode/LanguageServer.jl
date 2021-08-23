@@ -1,18 +1,18 @@
 # Document
-@dict_readable struct DocumentFormattingClientCapabilities
+@dict_readable struct DocumentFormattingClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
 struct DocumentFormattingOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentFormattingRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
-@dict_readable struct FormattingOptions
+@dict_readable struct FormattingOptions <: Outbound
     tabSize::Integer
     insertSpaces::Bool
     trimTrailingWhitespace::Union{Bool,Missing}
@@ -20,24 +20,24 @@ end
     trimFinalNewlines::Union{Bool,Missing}
 end
 
-@dict_readable struct DocumentFormattingParams
+@dict_readable struct DocumentFormattingParams <: Outbound
     textDocument::TextDocumentIdentifier
     options::FormattingOptions
 end
 
 
 # Range
-@dict_readable struct DocumentRangeFormattingClientCapabilities
+@dict_readable struct DocumentRangeFormattingClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
 struct DocumentRangeFormattingOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentRangeFormattingRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentRangeFormattingParams
@@ -48,7 +48,7 @@ end
 
 
 # On type
-@dict_readable struct DocumentOnTypeFormattingClientCapabilities
+@dict_readable struct DocumentOnTypeFormattingClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 

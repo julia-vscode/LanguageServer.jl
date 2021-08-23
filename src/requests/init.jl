@@ -1,10 +1,13 @@
-const serverCapabilities = ServerCapabilities(
+function ServerCapabilities(client::ClientCapabilities)
+    prepareSupport = !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
+
+    ServerCapabilities(
     TextDocumentSyncOptions(true,
-    TextDocumentSyncKinds.Incremental,
+    TextDocumentSyncKinds.Full,
     false,
     false,
     SaveOptions(true)),
-    CompletionOptions(false, ["."], missing),
+    CompletionOptions(false, [".", "@", "\"", "^"], missing),
     true,
     SignatureHelpOptions(["(", ","], missing),
     false,
@@ -12,7 +15,7 @@ const serverCapabilities = ServerCapabilities(
     false,
     false,
     true,
-    false,
+    true,
     true,
     true,
     missing,
@@ -21,13 +24,15 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     missing,
+    RenameOptions(missing, prepareSupport),
+    false,
+    ExecuteCommandOptions(missing, collect(keys(LSActions))),
     true,
-    false,
-    ExecuteCommandOptions(missing, String["ExplicitPackageVarImport", "ExpandFunction", "AddDefaultConstructor", "ReexportModule"]),
-    false,
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
+
+end
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
@@ -44,11 +49,11 @@ function isjuliabasedir(path)
     end
 end
 
-function has_too_many_files(path, N = 5000)
+function has_too_many_files(path, N=5000)
     i = 0
 
     try
-        for (root, dirs, files) in walkdir(path, onerror = x->x)
+        for (_, _, files) in walkdir(path, onerror=x -> x)
             for file in files
                 if endswith(file, ".jl")
                     i += 1
@@ -60,7 +65,7 @@ function has_too_many_files(path, N = 5000)
             end
         end
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 
@@ -76,7 +81,7 @@ function load_rootpath(path)
             !isjuliabasedir(path) &&
             !has_too_many_files(path)
     catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+        is_walkdir_error(err) || rethrow()
         return false
     end
 end
@@ -89,7 +94,7 @@ end
 function load_folder(path::String, server)
     if load_rootpath(path)
         try
-            for (root, dirs, files) in walkdir(path, onerror = x->x)
+            for (root, _, files) in walkdir(path, onerror=x -> x)
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
@@ -103,63 +108,81 @@ function load_folder(path::String, server)
                                 isvalid(s) || continue
                                 s
                             catch err
-                                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                                is_walkdir_error(err) || rethrow()
                                 continue
                             end
                             doc = Document(uri, content, true, server)
                             setdocument!(server, URI2(uri), doc)
-                            parse_all(doc, server)
+                            try
+                                parse_all(doc, server)
+                            catch ex
+                                @error "Error parsing file $(uri)"
+                                rethrow()
+                            end
                         end
                     end
                 end
             end
         catch err
-            isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            is_walkdir_error(err) || rethrow()
         end
     end
 end
 
+is_walkdir_error(_) = false
+is_walkdir_error(::Base.IOError) = true
+is_walkdir_error(::Base.SystemError) = true
+@static if VERSION > v"1.3.0-"
+    is_walkdir_error(err::Base.TaskFailedException) = is_walkdir_error(err.task.exception)
+end
 
-JSONRPC.parse_params(::Type{Val{Symbol("initialize")}}, params) = InitializeParams(params)
-function process(r::JSONRPC.Request{Val{Symbol("initialize")},InitializeParams}, server)
+function initialize_request(params::InitializeParams, server::LanguageServerInstance, conn)
     # Only look at rootUri and rootPath if the client doesn't support workspaceFolders
-    if ismissing(r.params.capabilities.workspace.workspaceFolders) || r.params.capabilities.workspace.workspaceFolders == false
-        if !(r.params.rootUri isa Nothing)
-            push!(server.workspaceFolders, uri2filepath(r.params.rootUri))
-        elseif !(r.params.rootPath isa Nothing)
-            push!(server.workspaceFolders,  r.params.rootPath)
+    if !ismissing(params.capabilities.workspace) && (ismissing(params.capabilities.workspace.workspaceFolders) || params.capabilities.workspace.workspaceFolders == false)
+        if !(params.rootUri isa Nothing)
+            push!(server.workspaceFolders, uri2filepath(params.rootUri))
+        elseif !(params.rootPath isa Nothing)
+            push!(server.workspaceFolders,  params.rootPath)
         end
-    elseif (r.params.workspaceFolders !== nothing) & (r.params.workspaceFolders !== missing)
-        for wksp in r.params.workspaceFolders
-            push!(server.workspaceFolders, uri2filepath(wksp.uri))
+    elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
+        for wksp in params.workspaceFolders
+            if wksp.uri !== nothing
+                fpath = uri2filepath(wksp.uri)
+                if fpath !== nothing
+                    push!(server.workspaceFolders, fpath)
+                end
+            end
         end
     end
-    
-    if !ismissing(r.params.capabilities.window) && r.params.capabilities.window.workDoneProgress
+
+    server.clientCapabilities = params.capabilities
+    server.clientInfo = params.clientInfo
+
+    if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
         server.clientcapability_window_workdoneprogress = false
     end
 
-    if !ismissing(r.params.capabilities.workspace.didChangeConfiguration) &&
-        !ismissing(r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
-        r.params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
+    if !ismissing(params.capabilities.workspace) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+        !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
+        params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 
         server.clientcapability_workspace_didChangeConfiguration = true
     end
 
-    return InitializeResult(serverCapabilities, missing)
+    return InitializeResult(ServerCapabilities(server.clientCapabilities), missing)
 end
 
 
-JSONRPC.parse_params(::Type{Val{Symbol("initialized")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
-    server.status=:running
+function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
+    server.status = :running
 
     if server.clientcapability_workspace_didChangeConfiguration
-        JSONRPCEndpoints.send_request(
-            server.jr_endpoint,
-            "client/registerCapability",
+        JSONRPC.send(
+            conn,
+            client_registerCapability_request_type,
             RegistrationParams([Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)])
         )
     end
@@ -169,21 +192,19 @@ function process(r::JSONRPC.Request{Val{Symbol("initialized")}}, server)
             load_folder(wkspc, server)
         end
     end
-    request_julia_config(server)
-    
+    request_julia_config(server, conn)
+
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)
     end
 end
 
-
-JSONRPC.parse_params(::Type{Val{Symbol("shutdown")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("shutdown")}}, server)
+function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
+    server.shutdown_requested = true
     return nothing
 end
 
-JSONRPC.parse_params(::Type{Val{Symbol("exit")}}, params) = params
-function process(r::JSONRPC.Request{Val{Symbol("exit")}}, server::LanguageServerInstance) 
+function exit_notification(params::Nothing, server::LanguageServerInstance, conn)
     server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
-    exit()
+    exit(server.shutdown_requested ? 0 : 1)
 end

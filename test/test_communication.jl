@@ -1,12 +1,51 @@
-init_request = JSON.parse("""
-{
-    "processId":9902,
-    "rootPath":null,
-    "rootUri":null,
-    "capabilities":{"workspace":{"applyEdit":true,"workspaceEdit":{"documentChanges":true},"didChangeConfiguration":{"dynamicRegistration":false},"didChangeWatchedFiles":{"dynamicRegistration":false},"symbol":{"dynamicRegistration":true},"executeCommand":{"dynamicRegistration":true}},"textDocument":{"synchronization":{"dynamicRegistration":true,"willSave":true,"willSaveWaitUntil":true,"didSave":true},"completion":{"dynamicRegistration":true,"completionItem":{"snippetSupport":true}},"hover":{"dynamicRegistration":true},"signatureHelp":{"dynamicRegistration":true},"references":{"dynamicRegistration":true},"documentHighlight":{"dynamicRegistration":true},"documentSymbol":{"dynamicRegistration":true},"formatting":{"dynamicRegistration":true},"rangeFormatting":{"dynamicRegistration":true},"onTypeFormatting":{"dynamicRegistration":true},"definition":{"dynamicRegistration":true},"codeAction":{"dynamicRegistration":true},"codeLens":{"dynamicRegistration":true},"documentLink":{"dynamicRegistration":true},"rename":{"dynamicRegistration":true}}},
-    "trace":"off"
-}
-""")
+init_request = LanguageServer.InitializeParams(
+    9902,
+    missing,
+    nothing,
+    nothing,
+    missing,
+    LanguageServer.ClientCapabilities(
+        LanguageServer.WorkspaceClientCapabilities(
+            true,
+            LanguageServer.WorkspaceEditClientCapabilities(true, missing, missing),
+            LanguageServer.DidChangeConfigurationClientCapabilities(false),
+            LanguageServer.DidChangeWatchedFilesClientCapabilities(false,),
+            LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
+            LanguageServer.ExecuteCommandClientCapabilities(true),
+            missing,
+            missing
+        ),
+        LanguageServer.TextDocumentClientCapabilities(
+            LanguageServer.TextDocumentSyncClientCapabilities(true, true, true, true),
+            LanguageServer.CompletionClientCapabilities(true, LanguageServer.CompletionItemClientCapabilities(true, missing, missing, missing, missing, missing), missing, missing),
+            LanguageServer.HoverClientCapabilities(true, missing),
+            LanguageServer.SignatureHelpClientCapabilities(true, missing, missing),
+            LanguageServer.DeclarationClientCapabilities(false, missing),
+            missing, # DefinitionClientCapabilities(),
+            missing, # TypeDefinitionClientCapabilities(),
+            missing, # ImplementationClientCapabilities(),
+            missing, # ReferenceClientCapabilities(),
+            LanguageServer.DocumentHighlightClientCapabilities(true),
+            LanguageServer.DocumentSymbolClientCapabilities(true, missing, missing),
+            LanguageServer.CodeActionClientCapabilities(true, missing, missing),
+            LanguageServer.CodeLensClientCapabilities(true),
+            missing, # DocumentLinkClientCapabilities(),
+            missing, # DocumentColorClientCapabilities(),
+            LanguageServer.DocumentFormattingClientCapabilities(true),
+            missing, # DocumentRangeFormattingClientCapabilities(),
+            missing, # DocumentOnTypeFormattingClientCapabilities(),
+            LanguageServer.RenameClientCapabilities(true, true),
+            missing, # PublishDiagnosticsClientCapabilities(),
+            missing, # FoldingRangeClientCapabilities(),
+            missing, # SelectionRangeClientCapabilities()
+        ),
+        missing,
+        missing
+    ),
+    "off",
+    missing,
+    missing
+)
 
 init_response = JSON.parse("""
 {
@@ -34,7 +73,9 @@ init_response = JSON.parse("""
         "codeActionProvider": true,
         "documentFormattingProvider": true,
         "documentRangeFormattingProvider": false,
-        "renameProvider": true,
+        "renameProvider": {
+            "prepareProvider": true
+        },
         "documentLinkProvider": {
             "resolveProvider": false
         },
@@ -66,8 +107,7 @@ end
     try
         sock = accept(server)
         try
-            ls = LanguageServerInstance(sock, sock, false, dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-            run(ls)
+            runserver(sock, sock, Pkg.Types.Context().env.project_file, first(DEPOT_PATH))
         finally
             close(sock)
         end
@@ -83,14 +123,14 @@ sleep(1)
 
 client = connect(global_socket_name)
 try
-    endpoint = LanguageServer.JSONRPCEndpoints.JSONRPCEndpoint(client, client)
+    endpoint = JSONRPC.JSONRPCEndpoint(client, client)
     run(endpoint)
 
-    response = LanguageServer.JSONRPCEndpoints.send_request(endpoint, "initialize", init_request)
+    response = JSONRPC.send_request(endpoint, "initialize", init_request)
 
     @test_broken init_response == response
     @test response["capabilities"]["typeDefinitionProvider"] == false
-    @test response["capabilities"]["renameProvider"] == true
+    @test response["capabilities"]["renameProvider"] == Dict("prepareProvider" => true)
 finally
     close(client)
 end

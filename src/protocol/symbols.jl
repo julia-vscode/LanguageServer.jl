@@ -26,56 +26,56 @@ const SymbolKinds = (File = 1,
                     Operator = 25,
                     TypeParameter = 26)
 
-@dict_readable struct SymbolKindCapabilities
+@dict_readable struct SymbolKindCapabilities <: Outbound
     valueSet::Union{Vector{SymbolKind},Missing}
 end
 
-@dict_readable struct DocumentSymbolClientCapabilities
+@dict_readable struct DocumentSymbolClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     symbolKind::Union{SymbolKindCapabilities,Missing}
     hierarchicalDocumentSymbolSupport::Union{Bool,Missing}
 end
 
-@dict_readable mutable struct WorkspaceSymbolClientCapabilities
+@dict_readable mutable struct WorkspaceSymbolClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     symbolKind::Union{SymbolKindCapabilities,Missing}
 end
 
 struct DocumentSymbolOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentSymbolRegistrationOptions <: Outbound
-    documentSelector::Union{DocumentSelector, Nothing}
-    workDoneProgress::Union{Bool, Missing}
-end
-
-struct WorkspaceSymbolOptions
+    documentSelector::Union{DocumentSelector,Nothing}
     workDoneProgress::Union{Bool,Missing}
 end
 
-struct WorkspaceSymbolRegistrationOptions
+struct WorkspaceSymbolOptions <: Outbound
+    workDoneProgress::Union{Bool,Missing}
+end
+
+struct WorkspaceSymbolRegistrationOptions <: Outbound
     workDoneProgress::Union{Bool,Missing}
 end
 
 
-@dict_readable struct DocumentSymbolParams 
+@dict_readable struct DocumentSymbolParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
-end 
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
+end
 
-@dict_readable struct WorkspaceSymbolParams 
-    query::String 
-    workDoneToken::Union{ProgressToken,Missing}
-    partialResultToken::Union{ProgressToken,Missing}
-end 
+@dict_readable struct WorkspaceSymbolParams <: Outbound
+    query::String
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
+end
 
 struct SymbolInformation <: Outbound
-    name::String 
+    name::String
     kind::SymbolKind
     deprecated::Union{Bool,Missing}
-    location::Location 
+    location::Location
     containerName::Union{String,Missing}
 end
 

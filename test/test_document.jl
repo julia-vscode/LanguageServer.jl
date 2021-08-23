@@ -50,9 +50,9 @@ d6 = Document("untitled", s6, false)
 
 @testset "applytextdocumentchanges" begin
     doc = LS.Document("file:///example/path/example.jl", "function foo()", false)
-    c1 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(0,14), LS.Position(0,14)),
+    c1 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(0, 14), LS.Position(0, 14)),
                                         0, "\n")
-    c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1,0), LS.Position(1,0)),
+    c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1, 0), LS.Position(1, 0)),
                                            0, "    ")
     c3 = LS.TextDocumentContentChangeEvent(missing, missing, "println(\"Hello World\")")
 
@@ -64,7 +64,7 @@ d6 = Document("untitled", s6, false)
     LS.applytextdocumentchanges(doc, c3)
     @test LS.get_text(doc) == "println(\"Hello World\")"
     # doc currently has only one line, applying change to 2nd line should throw
-    @test_throws ErrorException LS.applytextdocumentchanges(doc, c2)
+    @test_throws LanguageServer.LSOffsetError LS.applytextdocumentchanges(doc, c2)
 end
 
 @testset "UTF16 handling" begin
@@ -78,7 +78,7 @@ end
     @test LanguageServer.get_position_at(doc, 2) == (0, 2)
     @test LanguageServer.get_offset(doc, 0, 3) == 3
     @test LanguageServer.get_position_at(doc, 3) == (0, 3)
-    
+
 
     doc = LanguageServer.Document("", "ααα", false)
     @test sizeof(LanguageServer.get_text(doc)) == 6
@@ -112,7 +112,7 @@ end
     @test LanguageServer.get_position_at(doc, 5) == (0, 4)
     @test LanguageServer.get_offset(doc, 0, 6) == 9
     @test LanguageServer.get_position_at(doc, 9) == (0, 6)
-    
+
     doc = LanguageServer.Document("", "𐀀𐀀𐀀", false) # 0x010000
     @test sizeof(LanguageServer.get_text(doc)) == 12
     @test LanguageServer.get_offset(doc, 0, 0) == 0
@@ -122,5 +122,5 @@ end
     @test LanguageServer.get_offset(doc, 0, 4) == 5
     @test LanguageServer.get_position_at(doc, 5) == (0, 4)
     @test LanguageServer.get_offset(doc, 0, 6) == 9
-    @test LanguageServer.get_position_at(doc, 9) == (0, 6) 
+    @test LanguageServer.get_position_at(doc, 9) == (0, 6)
 end

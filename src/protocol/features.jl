@@ -4,7 +4,7 @@ struct PublishDiagnosticsParams <: Outbound
     diagnostics::Vector{Diagnostic}
 end
 
-import Base.==  
+import Base.==
 ==(x::CompletionItem, y::CompletionItem) = x.label == y.label
 ==(m1::MarkedString, m2::MarkedString) = m1.language == m2.language && m1.value == m2.value
 
@@ -28,7 +28,7 @@ end
     codeActionKind::CodeActionKindCapabilities
 end
 
-@dict_readable struct CodeActionClientCapabilities
+@dict_readable struct CodeActionClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     codeActionLiteralSupport::Union{CodeActionLiteralCapabilities,Missing}
     isPreferredSupport::Union{Bool,Missing}
@@ -36,18 +36,18 @@ end
 
 struct CodeActionOptions <: Outbound
     codeActionKinds::Union{Vector{CodeActionKind},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CodeActionRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     codeActionKinds::Union{Vector{CodeActionKind},Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
-@dict_readable struct CodeActionContext
+@dict_readable struct CodeActionContext <: Outbound
     diagnostics::Vector{Diagnostic}
-    only::Union{Vector{CodeActionKind}, Missing}
+    only::Union{Vector{CodeActionKind},Missing}
 end
 
 @dict_readable struct CodeActionParams
@@ -68,19 +68,19 @@ end
 
 ##############################################################################
 # Code Lens
-@dict_readable struct CodeLensClientCapabilities
+@dict_readable struct CodeLensClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
 struct CodeLensOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct CodeLensRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct CodeLensParams
@@ -96,20 +96,20 @@ end
 
 ##############################################################################
 # Document Link Provider
-@dict_readable struct DocumentLinkClientCapabilities
+@dict_readable struct DocumentLinkClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     tooltipSupport::Union{Bool,Missing}
 end
 
 struct DocumentLinkOptions <: Outbound
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct DocumentLinkRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     resolveProvider::Union{Bool,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 @dict_readable struct DocumentLinkParams
@@ -126,24 +126,24 @@ end
 ##############################################################################
 # Document Colour
 
-@dict_readable struct DocumentColorClientCapabilities
+@dict_readable struct DocumentColorClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
-struct DocumentColorOptions
-    workDoneProgress::Union{Bool, Missing}
+struct DocumentColorOptions <: Outbound
+    workDoneProgress::Union{Bool,Missing}
 end
 
-struct DocumentColorRegistrationOptions
+struct DocumentColorRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
-@dict_readable struct DocumentColorParams
+@dict_readable struct DocumentColorParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct Color <: Outbound
@@ -177,26 +177,26 @@ end
 ##############################################################################
 # Rename
 
-@dict_readable struct RenameClientCapabilities
+@dict_readable struct RenameClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     prepareSupport::Union{Bool,Missing}
 end
 
 struct RenameOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     prepareProvider::Union{Bool,Missing}
 end
 
 struct RenameRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     prepareProvider::Union{Bool,Missing}
 end
 
-@dict_readable struct RenameParams
+@dict_readable struct RenameParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
     newName::String
 end
 
@@ -213,26 +213,26 @@ const FoldingRangeKinds = (Comment = "comment",
                            Imports = "imports",
                            Region = "region")
 
-@dict_readable struct FoldingRangeClientCapabilities
+@dict_readable struct FoldingRangeClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
     rangeLimit::Union{Int,Missing}
     lineFoldingOnly::Union{Bool,Missing}
 end
 
 struct FoldingRangeOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct FoldingRangeRegistrationOptions <: Outbound
     documentSelector::Union{DocumentSelector,Nothing}
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     id::Union{String,Missing}
 end
 
-@dict_readable struct FoldingRangeParams
+@dict_readable struct FoldingRangeParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
 end
 
 struct FoldingRange <: Outbound
@@ -245,23 +245,23 @@ end
 
 ##############################################################################
 # Selection Range
-@dict_readable struct SelectionRangeClientCapabilities
+@dict_readable struct SelectionRangeClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
 struct SelectionRangeOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
 end
 
 struct SelectionRangeRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     documentSelector::Union{DocumentSelector,Nothing}
     id::Union{String,Missing}
 end
 
-@dict_readable struct SelectionRangeParams
-    workDoneToken::Union{ProgressToken, Missing}
-    partialResultToken::Union{ProgressToken, Missing}
+@dict_readable struct SelectionRangeParams <: Outbound
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int,String,Missing} # ProgressToken
     textDocument::TextDocumentIdentifier
     positions::Vector{Position}
 end
@@ -274,7 +274,7 @@ end
 
 ##############################################################################
 # Execute command
-@dict_readable struct ExecuteCommandClientCapabilities
+@dict_readable struct ExecuteCommandClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
 end
 
@@ -284,12 +284,12 @@ struct ExecuteCommandOptions <: Outbound
 end
 
 mutable struct ExecuteCommandRegistrationOptions <: Outbound
-    workDoneProgress::Union{Bool, Missing}
+    workDoneProgress::Union{Bool,Missing}
     commands::Vector{String}
 end
 
-@dict_readable struct ExecuteCommandParams
-    workDoneToken::Union{ProgressToken, Missing}
+@dict_readable struct ExecuteCommandParams <: Outbound
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
     command::String
     arguments::Union{Vector{Any},Missing}
 end
@@ -302,7 +302,7 @@ struct ApplyWorkspaceEditParams <: Outbound
     edit::WorkspaceEdit
 end
 
-@dict_readable struct ApplyWorkspaceEditResponse
+@dict_readable struct ApplyWorkspaceEditResponse <: Outbound
     applied::Bool
     failureReason::Union{String,Missing}
 end

@@ -15,7 +15,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        if !isvalid(s)
+                        if !isvalid(s) || occursin('\0', s)
                             deletedocument!(server, URI2(uri))
                             continue
                         end

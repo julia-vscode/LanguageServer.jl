@@ -41,5 +41,11 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-
-
+@testset "farg unused" begin
+    doc = settestdoc("function f(arg::T) end\n")
+    
+    @test any(c.command == "DeleteUnusedFunctionArgumentName" for c in action_request_test(0, 12))
+    c = filter(c -> c.command == "DeleteUnusedFunctionArgumentName", action_request_test(0, 12))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end

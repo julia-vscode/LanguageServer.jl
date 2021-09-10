@@ -145,7 +145,11 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
     config = get_juliaformatter_config(doc, server)
 
     newcontent = if config === nothing
-        JuliaFormatter.format_text(get_text(doc); indent=params.options.tabSize)
+        JuliaFormatter.format_text(get_text(doc);
+            indent=params.options.tabSize,
+            ignore_maximum_width = true,
+            margin = 10_000
+        )
     else
         JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
     end

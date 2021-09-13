@@ -221,10 +221,6 @@ function get_closer_hover(x::EXPR, documentation)
             else
                 documentation = "Closes `$(headof(parentof(x)))` expression."
             end
-        elseif headof(x) === :RPAREN
-            if CSTParser.iscall(parentof(x)) && length(parentof(x).args) > 0
-                documentation = string(documentation, "Closes call of ", Expr(parentof(x).args[1]), "\n")
-            end
         end
     end
     return documentation

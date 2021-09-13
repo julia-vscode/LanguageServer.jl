@@ -1,4 +1,7 @@
-const serverCapabilities = ServerCapabilities(
+function ServerCapabilities(client::ClientCapabilities)
+    prepareSupport = !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
+
+    ServerCapabilities(
     TextDocumentSyncOptions(true,
     TextDocumentSyncKinds.Full,
     false,
@@ -21,7 +24,7 @@ const serverCapabilities = ServerCapabilities(
     true,
     false,
     missing,
-    true,
+    RenameOptions(missing, prepareSupport),
     false,
     ExecuteCommandOptions(missing, collect(keys(LSActions))),
     true,
@@ -29,6 +32,8 @@ const serverCapabilities = ServerCapabilities(
     true,
     WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
     missing)
+
+end
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
@@ -168,7 +173,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_workspace_didChangeConfiguration = true
     end
 
-    return InitializeResult(serverCapabilities, missing)
+    return InitializeResult(ServerCapabilities(server.clientCapabilities), missing)
 end
 
 

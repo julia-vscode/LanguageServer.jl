@@ -52,6 +52,7 @@ mutable struct LanguageServerInstance
     status::Symbol
 
     number_of_outstanding_symserver_requests::Int
+    symserver_use_download::Bool
 
     current_symserver_progress_token::Union{Nothing,String}
 
@@ -63,7 +64,7 @@ mutable struct LanguageServerInstance
 
     shutdown_requested::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
@@ -80,11 +81,12 @@ mutable struct LanguageServerInstance
             StaticLint.LintOptions(),
             :all,
             LINT_DIABLED_DIRS,
-            :import, # options: :import or :qualify, anything else turns this off
+            :qualify, # options: :import or :qualify, anything else turns this off
             Channel{Any}(Inf),
             err_handler,
             :created,
             0,
+            download,
             nothing,
             false,
             false,
@@ -171,6 +173,10 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
     server.number_of_outstanding_symserver_requests += 1
 
+    if server.symserver_use_download
+        @debug "Will download symbol server caches for this instance."
+    end
+
     @async try
         # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(
@@ -187,7 +193,8 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                     @info "Indexing $i..."
                 end
             end,
-            server.err_handler
+            server.err_handler,
+            download = server.symserver_use_download
         )
 
         server.number_of_outstanding_symserver_requests -= 1
@@ -314,6 +321,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
     msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
     msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+    msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
     msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
     msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
     msg_dispatcher[textDocument_semanticTokens_request_type] = request_wrapper(textDocument_semanticTokens_request, server)

@@ -252,6 +252,21 @@ function applymissingreffix(x, server, conn)
     end
 end
 
+function remove_farg_name(x, server, conn)
+    x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument)
+    file, offset = get_file_loc(x1)
+    if CSTParser.isdeclaration(x1)
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                        TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
+                    ])
+    else
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "::Any")
+                    ])
+    end
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 # Adding a CodeAction requires defining:
 # * a Command (title and description);
 # * a function (.when) called on the currently selected expression and parameters of the CodeAction call;
@@ -268,5 +283,6 @@ const LSActions = Dict(
                                     applymissingreffix),
     "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
                                      (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
-                                     reexport_package)
+                                     reexport_package),
+    "DeleteUnusedFunctionArgumentName" => ServerAction(Command("Delete name of unused function argument.", "DeleteUnusedFunctionArgumentName", missing), (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument), remove_farg_name)
 )

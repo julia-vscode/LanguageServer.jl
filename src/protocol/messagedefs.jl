@@ -5,6 +5,7 @@ const textDocument_definition_request_type = JSONRPC.RequestType("textDocument/d
 const textDocument_formatting_request_type = JSONRPC.RequestType("textDocument/formatting", DocumentFormattingParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_references_request_type = JSONRPC.RequestType("textDocument/references", ReferenceParams, Union{Vector{Location}, Nothing})
 const textDocument_rename_request_type = JSONRPC.RequestType("textDocument/rename", RenameParams, Union{WorkspaceEdit, Nothing})
+const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocument/prepareRename", PrepareRenameParams, Range)
 const textDocument_documentSymbol_request_type = JSONRPC.RequestType("textDocument/documentSymbol", DocumentSymbolParams, Union{Vector{DocumentSymbol}, Vector{SymbolInformation}, Nothing})
 const textDocument_documentHighlight_request_type = JSONRPC.RequestType("textDocument/documentHighlight", DocumentHighlightParams, Union{Vector{DocumentHighlight}, Nothing})
 const textDocument_semanticTokens_request_type = JSONRPC.RequestType("textDocument/semanticTokens", SemanticTokensParams, Union{SemanticTokens, Nothing})
@@ -41,7 +42,8 @@ const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTr
 const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setTraceNotification", Nothing)
 
 const window_workDoneProgress_create_request_type = JSONRPC.RequestType("window/workDoneProgress/create", WorkDoneProgressCreateParams, Nothing)
-const window_showMessage_notification_type = JSONRPC.NotificationType("window/showMessage", ShowMessageRequestParams)
+const window_showMessage_notification_type = JSONRPC.NotificationType("window/showMessage", ShowMessageParams)
+const window_showMessage_request_type = JSONRPC.RequestType("window/showMessageRequest", ShowMessageRequestParams, Union{MessageActionItem, Nothing})
 
 const progress_notification_type = JSONRPC.NotificationType("\$/progress", ProgressParams)
 

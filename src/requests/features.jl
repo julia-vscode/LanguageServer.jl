@@ -168,6 +168,14 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
     return WorkspaceEdit(missing, collect(values(tdes)))
 end
 
+function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    x = get_expr1(getcst(doc), get_offset(doc, params.position))
+    x isa EXPR || return nothing
+    _, x_start_offset = get_file_loc(x)
+    x_range = Range(doc, x_start_offset .+ (0:x.span))
+    return x_range
+end
 
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)
@@ -367,11 +375,14 @@ end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
-    map(params.positions) do position
+    ret = map(params.positions) do position
         offset = get_offset(doc, position)
         x = get_expr1(getcst(doc), offset)
         get_selection_range_of_expr(x)
     end
+    return ret isa Vector{SelectionRange} ?
+        ret :
+        nothing
 end
 
 # Just returns a selection for each parent EXPR, should be more selective

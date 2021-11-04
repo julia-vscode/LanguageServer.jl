@@ -38,9 +38,9 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 if method isa EXPR
                     documentation = get_preceding_docs(method, documentation)
                     if CSTParser.defines_function(method)
-                        documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(CSTParser.get_sig(method)), "\n```\n")
+                        documentation = string(ensure_ends_with(documentation), "```julia\n", to_codeobject(CSTParser.get_sig(method)), "\n```\n")
                     elseif CSTParser.defines_datatype(method)
-                        documentation = string(ensure_ends_with(documentation), "```julia\n", Expr(method), "\n```\n")
+                        documentation = string(ensure_ends_with(documentation), "```julia\n", to_codeobject(method), "\n```\n")
                     end
                 elseif method isa SymbolServer.SymStore
                     documentation = get_hover(method, documentation, server)
@@ -49,13 +49,13 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
         else
             documentation = try
                 documentation = if binding_has_preceding_docs(b)
-                    string(documentation, Expr(parentof(b.val).args[3]))
+                    string(documentation, to_codeobject(parentof(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
-                    string(documentation, Expr(parentof(parentof(b.val)).args[3]))
+                    string(documentation, to_codeobject(parentof(parentof(b.val)).args[3]))
                 else
                     documentation
                 end
-                documentation = string(documentation, "```julia\n", prettify_expr(Expr(b.val)), "\n```\n")
+                documentation = string(documentation, "```julia\n", prettify_expr(to_codeobject(b.val)), "\n```\n")
             catch err
                 @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
                 throw(LSHoverError(string("get_hover failed to convert Expr")))
@@ -128,9 +128,9 @@ get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, d
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
-        string(documentation, Expr(parentof(expr).args[3]))
+        string(documentation, to_codeobject(parentof(expr).args[3]))
     elseif is_const_expr(parentof(expr)) && expr_has_preceding_docs(parentof(expr))
-        string(documentation, Expr(parentof(parentof(expr)).args[3]))
+        string(documentation, to_codeobject(parentof(parentof(expr)).args[3]))
     else
         documentation
     end
@@ -209,15 +209,15 @@ function get_closer_hover(x::EXPR, documentation)
     if parentof(x) isa EXPR
         if headof(x) === :END
             if headof(parentof(x)) === :function
-                documentation = string(documentation, "Closes function definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
+                documentation = string(documentation, "Closes function definition for `", to_codeobject(CSTParser.get_sig(parentof(x))), "`\n")
             elseif CSTParser.defines_module(parentof(x)) && length(parentof(x).args) > 1
-                documentation = string(documentation, "Closes module definition for `", Expr(parentof(x).args[2]), "`\n")
+                documentation = string(documentation, "Closes module definition for `", to_codeobject(parentof(x).args[2]), "`\n")
             elseif CSTParser.defines_struct(parentof(x))
-                documentation = string(documentation, "Closes struct definition for `", Expr(CSTParser.get_sig(parentof(x))), "`\n")
+                documentation = string(documentation, "Closes struct definition for `", to_codeobject(CSTParser.get_sig(parentof(x))), "`\n")
             elseif headof(parentof(x)) === :for && length(parentof(x).args) > 2
-                documentation = string(documentation, "Closes for-loop expression over `", Expr(parentof(x).args[2]), "`\n")
+                documentation = string(documentation, "Closes for-loop expression over `", to_codeobject(parentof(x).args[2]), "`\n")
             elseif headof(parentof(x)) === :while && length(parentof(x).args) > 2
-                documentation = string(documentation, "Closes while-loop expression over `", Expr(parentof(x).args[2]), "`\n")
+                documentation = string(documentation, "Closes while-loop expression over `", to_codeobject(parentof(x).args[2]), "`\n")
             else
                 documentation = "Closes `$(headof(parentof(x)))` expression."
             end

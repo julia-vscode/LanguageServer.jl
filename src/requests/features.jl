@@ -4,7 +4,7 @@
 resolve_shadow_binding(b) = b
 function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Binding[])
     if b in visited
-        throw(LSInfiniteLoop("Inifinite loop in bindings."))
+        throw(LSInfiniteLoop("Infinite loop in bindings."))
     else
         push!(visited, b)
     end
@@ -177,11 +177,15 @@ function textDocument_prepareRename_request(params::PrepareRenameParams, server:
     return x_range
 end
 
+function is_callable_object_binding(name::EXPR)
+    CSTParser.isoperator(headof(name)) && valof(headof(name)) === "::" && length(name.args) >= 1
+end
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)
     (headof(name) === :IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
     CSTParser.isoperator(name) ||
-    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2])))
+    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2]))) ||
+    is_callable_object_binding(name)
 end
 function get_name_of_binding(name::EXPR)
     if headof(name) === :IDENTIFIER
@@ -190,6 +194,8 @@ function get_name_of_binding(name::EXPR)
         string(Expr(name))
     elseif headof(name) === :NONSTDIDENTIFIER
         valof(name.args[2])
+    elseif is_callable_object_binding(name)
+        "::" * valof(name.args[end])
     else
         ""
     end

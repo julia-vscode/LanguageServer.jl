@@ -32,6 +32,9 @@ function set_doc(x::EXPR, doc)
     x.meta.error = doc
 end
 
+function get_path(doc)
+    return doc._path
+end
 
 function get_text(doc::Document)
     return doc._content
@@ -65,7 +68,7 @@ end
 """
     get_offset(doc, line, char)
 
-Returns the byte offset position corresponding to a line/character position.
+Returns the 0 based byte offset position corresponding to a line/character position.
 This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """

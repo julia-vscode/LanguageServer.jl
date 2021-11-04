@@ -3,6 +3,7 @@ const textDocument_completion_request_type = JSONRPC.RequestType("textDocument/c
 const textDocument_signatureHelp_request_type = JSONRPC.RequestType("textDocument/signatureHelp", TextDocumentPositionParams, Union{SignatureHelp, Nothing})
 const textDocument_definition_request_type = JSONRPC.RequestType("textDocument/definition", TextDocumentPositionParams, Union{Location, Vector{Location}, Vector{LocationLink}, Nothing})
 const textDocument_formatting_request_type = JSONRPC.RequestType("textDocument/formatting", DocumentFormattingParams, Union{Vector{TextEdit}, Nothing})
+const textDocument_range_formatting_request_type = JSONRPC.RequestType("textDocument/rangeFormatting", DocumentRangeFormattingParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_references_request_type = JSONRPC.RequestType("textDocument/references", ReferenceParams, Union{Vector{Location}, Nothing})
 const textDocument_rename_request_type = JSONRPC.RequestType("textDocument/rename", RenameParams, Union{WorkspaceEdit, Nothing})
 const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocument/prepareRename", PrepareRenameParams, Range)

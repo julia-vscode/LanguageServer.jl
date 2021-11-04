@@ -82,18 +82,6 @@ function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
-        ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
-        ConfigurationItem(missing, "julia.format.indents"),
-        ConfigurationItem(missing, "julia.format.ops"),
-        ConfigurationItem(missing, "julia.format.tuples"),
-        ConfigurationItem(missing, "julia.format.curly"),
-        ConfigurationItem(missing, "julia.format.calls"),
-        ConfigurationItem(missing, "julia.format.iterOps"),
-        ConfigurationItem(missing, "julia.format.comments"),
-        ConfigurationItem(missing, "julia.format.docs"),
-        ConfigurationItem(missing, "julia.format.lineends"),
-        ConfigurationItem(missing, "julia.format.keywords"),
-        ConfigurationItem(missing, "julia.format.kwarg"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),
@@ -108,15 +96,14 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.missingrefs"),
         ConfigurationItem(missing, "julia.lint.disabledDirs"),
         ConfigurationItem(missing, "julia.completionmode")
-        ]))
+    ]))
 
-    server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
-    new_runlinter = something(response[23], true)
-    new_SL_opts = StaticLint.LintOptions(response[13:22]...)
+    new_runlinter = something(response[11], true)
+    new_SL_opts = StaticLint.LintOptions(response[1:10]...)
 
-    new_lint_missingrefs = Symbol(something(response[24], :all))
-    new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
-    new_completion_mode = Symbol(something(response[26], :import))
+    new_lint_missingrefs = Symbol(something(response[12], :all))
+    new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[14], :import))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||

@@ -139,19 +139,33 @@ function get_juliaformatter_config(doc, server)
     return JuliaFormatter.parse_config(config_path)
 end
 
+function default_juliaformatter_config(params)
+    return (
+        indent = params.options.tabSize,
+        annotate_untyped_fields_with_any = false,
+        join_lines_based_on_source = true,
+        trailing_comma = nothing,
+        margin = 10_000
+    )
+end
+
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
 
     config = get_juliaformatter_config(doc, server)
 
-    newcontent = if config === nothing
-        JuliaFormatter.format_text(get_text(doc);
-            indent=params.options.tabSize,
-            ignore_maximum_width = true,
-            margin = 10_000
+    newcontent = try
+        if config === nothing
+            JuliaFormatter.format_text(get_text(doc); default_juliaformatter_config(params)...)
+        else
+            JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
+        end
+    catch err
+        return JSONRPC.JSONRPCError(
+            -32000,
+            "Failed to format document: $err.",
+            nothing
         )
-    else
-        JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
     end
 
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
@@ -205,14 +219,17 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     config = get_juliaformatter_config(doc, server)
 
     newcontent = try
-         if config === nothing
-            JuliaFormatter.format_text(text; indent=params.options.tabSize)
+        if config === nothing
+            JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
         else
             JuliaFormatter.format_text(text; JuliaFormatter.kwargs(config)...)
         end
     catch err
-        @debug "Formatter errored:" exception=(err, catch_backtrace())
-        return nothing
+        return JSONRPC.JSONRPCError(
+            -33000,
+            "Failed to format document: $err.",
+            nothing
+        )
     end
 
     if longest_prefix !== nothing && !isempty(longest_prefix)

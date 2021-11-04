@@ -309,7 +309,7 @@ function get_name_of_binding(name::EXPR)
     if headof(name) === :IDENTIFIER
         valof(name)
     elseif CSTParser.isoperator(name)
-        string(Expr(name))
+        string(to_codeobject(name))
     elseif headof(name) === :NONSTDIDENTIFIER
         valof(name.args[2])
     else

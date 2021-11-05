@@ -4,7 +4,7 @@
 resolve_shadow_binding(b) = b
 function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Binding[])
     if b in visited
-        throw(LSInfiniteLoop("Inifinite loop in bindings."))
+        throw(LSInfiniteLoop("Infinite loop in bindings."))
     else
         push!(visited, b)
     end
@@ -114,11 +114,133 @@ function get_file_loc(x::EXPR, offset=0, c=nothing)
     end
 end
 
+function search_file(filename, dir, topdir)
+    parent_dir = dirname(dir)
+    return if (!startswith(dir, topdir) || parent_dir == dir || isempty(dir))
+        nothing
+    else
+        path = joinpath(dir, filename)
+        isfile(path) ? path : search_file(filename, parent_dir, topdir)
+    end
+end
+
+function get_juliaformatter_config(doc, server)
+    path = get_path(doc)
+
+    # search through workspace for a `.JuliaFormatter.toml`
+    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
+    config_path = length(workspace_dirs) > 0 ?
+        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
+        nothing
+
+    config_path === nothing && return nothing
+
+    @debug "Found JuliaFormatter config at $(config_path)"
+    return JuliaFormatter.parse_config(config_path)
+end
+
+function default_juliaformatter_config(params)
+    return (
+        indent = params.options.tabSize,
+        annotate_untyped_fields_with_any = false,
+        join_lines_based_on_source = true,
+        trailing_comma = nothing,
+        margin = 10_000
+    )
+end
+
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
-    newcontent = DocumentFormat.format(get_text(doc), server.format_options)
+
+    config = get_juliaformatter_config(doc, server)
+
+    newcontent = try
+        if config === nothing
+            JuliaFormatter.format_text(get_text(doc); default_juliaformatter_config(params)...)
+        else
+            JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
+        end
+    catch err
+        return JSONRPC.JSONRPCError(
+            -32000,
+            "Failed to format document: $err.",
+            nothing
+        )
+    end
+
     end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
+
+    return lsedits
+end
+
+function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    cst = getcst(doc)
+
+    expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
+
+    if expr === nothing
+        return nothing
+    end
+
+    while !(expr.head in (:for, :if, :function, :module, :file))
+        if expr.parent !== nothing
+            expr = expr.parent
+        else
+            return nothing
+        end
+    end
+
+    _, offset = get_file_loc(expr)
+    l1, c1 = get_position_at(doc, offset)
+    c1 = 0
+    start_offset = get_offset2(doc, l1, c1)
+    l2, c2 = get_position_at(doc, offset + expr.span)
+    end_offset = get_offset(doc, l2, c2)
+
+    text = get_text(doc)[start_offset:end_offset]
+
+    longest_prefix = nothing
+    for line in eachline(IOBuffer(text))
+        (isempty(line) || occursin(r"^\s*$", line)) && continue
+        idx = 0
+        for c in line
+            if c == ' ' || c == '\t'
+                idx += 1
+            else
+                break
+            end
+        end
+        line = line[1:idx]
+        longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
+    end
+
+    config = get_juliaformatter_config(doc, server)
+
+    newcontent = try
+        if config === nothing
+            JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
+        else
+            JuliaFormatter.format_text(text; JuliaFormatter.kwargs(config)...)
+        end
+    catch err
+        return JSONRPC.JSONRPCError(
+            -33000,
+            "Failed to format document: $err.",
+            nothing
+        )
+    end
+
+    if longest_prefix !== nothing && !isempty(longest_prefix)
+        io = IOBuffer()
+        for line in eachline(IOBuffer(newcontent), keep = true)
+            print(io, longest_prefix, line)
+        end
+        newcontent = String(take!(io))
+    end
+
+    lsedits = TextEdit[TextEdit(Range(l1, c1, l2, c2), newcontent)]
 
     return lsedits
 end
@@ -177,19 +299,25 @@ function textDocument_prepareRename_request(params::PrepareRenameParams, server:
     return x_range
 end
 
+function is_callable_object_binding(name::EXPR)
+    CSTParser.isoperator(headof(name)) && valof(headof(name)) === "::" && length(name.args) >= 1
+end
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)
     (headof(name) === :IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
     CSTParser.isoperator(name) ||
-    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2])))
+    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2]))) ||
+    is_callable_object_binding(name)
 end
 function get_name_of_binding(name::EXPR)
     if headof(name) === :IDENTIFIER
         valof(name)
     elseif CSTParser.isoperator(name)
-        string(Expr(name))
+        string(to_codeobject(name))
     elseif headof(name) === :NONSTDIDENTIFIER
         valof(name.args[2])
+    elseif is_callable_object_binding(name)
+        "::" * valof(name.args[end])
     else
         ""
     end

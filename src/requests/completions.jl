@@ -6,7 +6,7 @@ struct CompletionState
     offset::Int
     completions::Dict{String,CompletionItem}
     range::Range
-    x::EXPR
+    x::Union{Nothing, EXPR}
     doc::Document
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
@@ -89,9 +89,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         state.x !== nothing && collect_completions(state.x, "@", state, false)
     elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
         kw_completion(CSTParser.Tokenize.untokenize(t), state)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end && state.x !== nothing
         collect_completions(state.x, "in", state, false)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end && state.x !== nothing
         collect_completions(state.x, "isa", state, false)
     end
 

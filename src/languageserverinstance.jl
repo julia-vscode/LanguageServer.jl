@@ -38,7 +38,7 @@ mutable struct LanguageServerInstance
     roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
     workspacepackages::Dict{String,Document}
-    format_options::DocumentFormat.FormatOptions
+
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
@@ -77,7 +77,6 @@ mutable struct LanguageServerInstance
             Dict(),
             false,
             Dict{String,Document}(),
-            DocumentFormat.FormatOptions(),
             true,
             StaticLint.LintOptions(),
             :all,
@@ -172,7 +171,7 @@ function create_symserver_progress_ui(server)
         JSONRPC.send(
             server.jr_endpoint,
             progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia Language Server", missing, "Indexing packages...", missing))
+            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", 0))
         )
     end
 end
@@ -201,19 +200,20 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 
     @async try
-        # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function (i)
+            function (msg, percentage = missing)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
+                    msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
                     JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, percentage))
                     )
+                    @info msg percentage
                 else
-                    @info "Indexing $i..."
+                    @info msg percentage
                 end
             end,
             server.err_handler,
@@ -342,6 +342,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
     msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
     msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+    msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
     msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
     msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
     msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
@@ -373,9 +374,9 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
 
+    @debug "starting main loop"
     while true
         message = take!(server.combined_msg_queue)
-
         if message.type == :close
             @info "Shutting down server instance."
             return

@@ -317,7 +317,7 @@ function get_name_of_binding(name::EXPR)
     elseif headof(name) === :NONSTDIDENTIFIER
         valof(name.args[2])
     elseif is_callable_object_binding(name)
-        "::" * valof(name.args[end])
+        string(to_codeobject(name))
     else
         ""
     end

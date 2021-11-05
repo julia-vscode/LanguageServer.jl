@@ -96,6 +96,7 @@ end
     b = 2
     function func() end
     function (::Bar)() end
+    function (::Type{Foo})() end
     """)
-    @test all(item.name in ("a", "b", "func", "::Bar") for item in LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier("testdoc"), missing, missing), server, server.jr_endpoint))
+    @test all(item.name in ("a", "b", "func", "::Bar", "::Type{Foo}") for item in LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier("testdoc"), missing, missing), server, server.jr_endpoint))
 end

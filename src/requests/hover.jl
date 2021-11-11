@@ -161,7 +161,7 @@ end
 
 get_fcall_position(x, documentation, visited=nothing) = documentation
 
-function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
+function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
     if x in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -169,19 +169,25 @@ function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
     end                                                  # TODO: remove
     if parentof(x) isa EXPR
         if CSTParser.iscall(parentof(x))
-            call_counts = StaticLint.call_nargs(parentof(x))
-            call_counts[1] < 5 && return documentation
+            minargs, _, _ = StaticLint.call_nargs(parentof(x))
             arg_i = 0
-            for (i, arg) = enumerate(parentof(x))
+            for (i, arg) in enumerate(parentof(x))
                 if arg == x
                     arg_i = div(i - 1, 2)
                     break
                 end
             end
-            arg_i == 0 && return documentation
+
+            # hovering over the function name, so we might as well check the parent
+            if arg_i == 0
+                return get_fcall_position(parentof(x), documentation, visited)
+            end
+
+            minargs < 4 && return documentation
+
             fname = CSTParser.get_name(parentof(x))
             if StaticLint.hasref(fname) &&
-                (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == call_counts[1])
+                (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == minargs)
                 dt_ex = refof(fname).val
                 args = dt_ex.args[3]
                 args.args === nothing || arg_i > length(args.args) && return documentation
@@ -189,11 +195,11 @@ function get_fcall_position(x::EXPR, documentation, visited=EXPR[])
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
             elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
                 dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
-                if length(dts.fieldnames) == call_counts[1] && arg_i <= length(dts.fieldnames)
+                if length(dts.fieldnames) == minargs && arg_i <= length(dts.fieldnames)
                     documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
             else
-                documentation = string("Argument $arg_i of $(call_counts[1]) in call to `", CSTParser.str_value(fname), "`\n", documentation)
+                documentation = string("Argument $arg_i of $(minargs) in call to `", CSTParser.str_value(fname), "`\n", documentation)
             end
             return documentation
         else

@@ -63,14 +63,14 @@ mutable struct LanguageServerInstance
 
     shutdown_requested::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
             Channel(Inf),
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             Dict(),
@@ -147,7 +147,7 @@ function create_symserver_progress_ui(server)
         JSONRPC.send(
             server.jr_endpoint,
             progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", 0))
+            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", missing))
         )
     end
 end
@@ -185,11 +185,11 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                     JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, percentage))
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, missing))
                     )
-                    @info msg percentage
+                    @info msg
                 else
-                    @info msg percentage
+                    @info msg
                 end
             end,
             server.err_handler,
@@ -261,6 +261,7 @@ function Base.run(server::LanguageServerInstance)
     server.status = :started
 
     run(server.jr_endpoint)
+    @debug "Connected at $(round(Int, time()))"
 
     trigger_symbolstore_reload(server)
 
@@ -310,6 +311,8 @@ function Base.run(server::LanguageServerInstance)
         @debug "LS: Symbol server listener task done."
     end
 
+    @debug "Symbol Server started at $(round(Int, time()))"
+
     msg_dispatcher = JSONRPC.MsgDispatcher()
 
     msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
@@ -351,6 +354,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
 
     @debug "starting main loop"
+    @debug "Starting event listener loop at $(round(Int, time()))"
     while true
         message = take!(server.combined_msg_queue)
         if message.type == :close
@@ -380,6 +384,7 @@ function Base.run(server::LanguageServerInstance)
             @debug "starting re-lint of everything"
             relintserver(server)
             @debug "re-lint done"
+            @debug "Linting finished at $(round(Int, time()))"
         end
     end
 end

@@ -145,7 +145,8 @@ function default_juliaformatter_config(params)
         annotate_untyped_fields_with_any = false,
         join_lines_based_on_source = true,
         trailing_comma = nothing,
-        margin = 10_000
+        margin = 10_000,
+        always_for_in = nothing
     )
 end
 

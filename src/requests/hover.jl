@@ -49,13 +49,13 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
         else
             documentation = try
                 documentation = if binding_has_preceding_docs(b)
-                    string(documentation, to_codeobject(parentof(b.val).args[3]))
+                    string(documentation, to_codeobject(maybe_get_doc_expr(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
-                    string(documentation, to_codeobject(parentof(parentof(b.val)).args[3]))
+                    string(documentation, to_codeobject(maybe_get_doc_expr(parentof(b.val)).args[3]))
                 else
                     documentation
                 end
-                documentation = string(documentation, "```julia\n", prettify_expr(to_codeobject(b.val)), "\n```\n")
+                documentation = string(ensure_ends_with(documentation), "```julia\n", prettify_expr(to_codeobject(b.val)), "\n```\n")
             catch err
                 @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
                 throw(LSHoverError(string("get_hover failed to convert Expr")))
@@ -128,9 +128,9 @@ get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, d
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
-        string(documentation, to_codeobject(parentof(expr).args[3]))
+        string(documentation, to_codeobject(maybe_get_doc_expr(expr).args[3]))
     elseif is_const_expr(parentof(expr)) && expr_has_preceding_docs(parentof(expr))
-        string(documentation, to_codeobject(parentof(parentof(expr)).args[3]))
+        string(documentation, to_codeobject(maybe_get_doc_expr(parentof(expr)).args[3]))
     else
         documentation
     end
@@ -145,8 +145,18 @@ function const_binding_has_preceding_docs(b::StaticLint.Binding)
     is_const_expr(p) && expr_has_preceding_docs(p)
 end
 
+function maybe_get_doc_expr(x)
+    # The expression may be nested in any number of macros
+    while CSTParser.hasparent(x) &&
+        CSTParser.ismacrocall(parentof(x))
+        x = parentof(x)
+        headof(x.args[1]) === :globalrefdoc && return x
+    end
+    return x
+end
+
 expr_has_preceding_docs(x) = false
-expr_has_preceding_docs(x::EXPR) = is_doc_expr(parentof(x))
+expr_has_preceding_docs(x::EXPR) = is_doc_expr(maybe_get_doc_expr(x))
 
 is_const_expr(x) = false
 is_const_expr(x::EXPR) = headof(x) === :const
@@ -154,9 +164,9 @@ is_const_expr(x::EXPR) = headof(x) === :const
 is_doc_expr(x) = false
 function is_doc_expr(x::EXPR)
     return CSTParser.ismacrocall(x) &&
-        length(x.args) == 4 &&
-        headof(x.args[1]) === :globalrefdoc &&
-        CSTParser.isstring(x.args[3])
+           length(x.args) == 4 &&
+           headof(x.args[1]) === :globalrefdoc &&
+           CSTParser.isstring(x.args[3])
 end
 
 get_fcall_position(x, documentation, visited=nothing) = documentation
@@ -187,7 +197,7 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
 
             fname = CSTParser.get_name(parentof(x))
             if StaticLint.hasref(fname) &&
-                (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == minargs)
+               (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == minargs)
                 dt_ex = refof(fname).val
                 args = dt_ex.args[3]
                 args.args === nothing || arg_i > length(args.args) && return documentation

@@ -52,7 +52,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(t)), state)
-    elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
+    elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && (pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT || pt.kind === CSTParser.Tokens.COLON)
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
         partial = is_latex_comp(t.val, state.offset - t.startbyte)
@@ -106,7 +106,7 @@ function get_partial_completion(state::CompletionState)
 end
 
 function latex_completions(partial::String, state::CompletionState)
-    for (k, v) in REPL.REPLCompletions.latex_symbols
+    for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
             # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
             add_completion_item(state, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
@@ -345,13 +345,15 @@ is_latex_comp_char(c::Char) = UInt32(c) <= typemax(UInt8) ? is_latex_comp_char(U
 function is_latex_comp_char(u)
     # Checks whether a Char (represented as a UInt8) is in the set of those those used to trigger
     # latex completions.
-    # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in REPL.REPLCompletions.latex_symbols]))))
+    # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))]))))
+    u === 0x21 ||
     u === 0x28 ||
     u === 0x29 ||
     u === 0x2b ||
     u === 0x2d ||
     u === 0x2f ||
     0x30 <= u <= 0x39 ||
+    u === 0x3a ||
     u === 0x3d ||
     0x41 <= u <= 0x5a ||
     u === 0x5e ||

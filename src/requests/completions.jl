@@ -181,13 +181,15 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement.
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
-                cmd = Command("Apply text edit", "language-julia.applytextedit", [
-                    WorkspaceEdit(missing, [textedit_to_insert_using_stmt(m, n, state)])
-                ])
-                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, n), missing, missing, cmd, "import")
+                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
+                    MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
+                    texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, n, state), missing, missing, "import")
                 add_completion_item(state, ci)
             elseif state.server.completion_mode === :qualify
-                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)), missing, missing, missing, missing))
+                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
+                    missing, MarkupContent(sanitize_docstring(v.doc)), missing,
+                    missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
+                    missing, missing, missing, missing))
             end
         end
     end
@@ -507,29 +509,25 @@ function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, s
         (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
 
         l, c = get_position_at(using_doc, using_offset + using_stmt.span)
-        TextDocumentEdit(VersionedTextDocumentIdentifier(using_doc._uri, using_doc._version),
-            [TextEdit(Range(l, c, l, c), ", $n")])
+        return [TextEdit(Range(l, c, l, c), ", $n")]
     elseif tls !== nothing
         if tls.expr.head === :file
             # Insert at the head of the file
             tlsdoc, offset1 = get_file_loc(tls.expr)
-            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
-            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+            return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
         elseif tls.expr.head === :module
             # Insert at start of module
             tlsdoc, offset1 = get_file_loc(tls.expr)
             offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
             l, c = get_position_at(tlsdoc, offset1 + offset2)
 
-            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
-            [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")])
+            return [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")]
         else
             error()
         end
     else
         # Fallback, add it to the start of the current file.
-        TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
-            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+        return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
     end
 end
 

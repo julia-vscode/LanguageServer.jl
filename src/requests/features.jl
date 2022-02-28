@@ -156,11 +156,7 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
     config = get_juliaformatter_config(doc, server)
 
     newcontent = try
-        if config === nothing
-            JuliaFormatter.format_text(get_text(doc); default_juliaformatter_config(params)...)
-        else
-            JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
-        end
+        format_text(get_text(doc), params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -32000,
@@ -173,6 +169,17 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
+end
+
+function format_text(text::AbstractString, params, config)
+    if config === nothing
+        return JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
+    else
+        # Some valid options in config file are not valid for format_text
+        VALID_OPTIONS = fieldnames(JuliaFormatter.Options)
+        config = filter(p -> in(first(p), VALID_OPTIONS), JuliaFormatter.kwargs(config))
+        return JuliaFormatter.format_text(text; config...)
+    end
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
@@ -220,11 +227,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     config = get_juliaformatter_config(doc, server)
 
     newcontent = try
-        if config === nothing
-            JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
-        else
-            JuliaFormatter.format_text(text; JuliaFormatter.kwargs(config)...)
-        end
+        format_text(text, params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -33000,

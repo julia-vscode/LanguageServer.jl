@@ -259,6 +259,31 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     end
 end
 
+# full (not only trivia) expr containing rng, modulo whitespace
+function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
+    if all(pos .> rng)
+        return nothing
+    end
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        pos_span′ = pos_span
+        for a in x
+            if a in x.args && all(pos_span′ .< rng .<= (pos + a.fullspan))
+                return get_inner_expr(a, rng, pos, pos_span′)
+            end
+            pos += a.fullspan
+            pos_span′ = pos - (a.fullspan - a.span)
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+end
+
 function get_expr1(x, offset, pos=0)
     if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
@@ -464,4 +489,3 @@ function is_in_target_dir_of_package(pkgpath, target)
         return false
     end
 end
-

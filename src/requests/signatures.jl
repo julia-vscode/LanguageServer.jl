@@ -65,7 +65,7 @@ function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureIn
                     push!(params, ParameterInformation(valof(argbinding.name) isa String ? valof(argbinding.name) : "", missing))
                 end
             end
-            push!(sigs, SignatureInformation(string(Expr(sig)), "", params))
+            push!(sigs, SignatureInformation(string(to_codeobject(sig)), "", params))
         end
     elseif CSTParser.defines_struct(x)
         args = x.args[3]
@@ -76,7 +76,7 @@ function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureIn
                     field_name = CSTParser.rem_decl(field)
                     push!(params, ParameterInformation(field_name isa EXPR && CSTParser.isidentifier(field_name) ? valof(field_name) : "", missing))
                 end
-                push!(sigs, SignatureInformation(string(Expr(x)), "", params))
+                push!(sigs, SignatureInformation(string(to_codeobject(x)), "", params))
             end
         end
     end

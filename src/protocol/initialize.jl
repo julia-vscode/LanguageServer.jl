@@ -111,7 +111,9 @@ function InitializeParams(dict::Dict)
     InitializeParams(dict["processId"],
     haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
     !haskey(dict, "rootPath") ? missing : dict["rootPath"] === nothing ? nothing : DocumentUri(dict["rootPath"]),
-    dict["rootUri"] === nothing ? nothing : DocumentUri(dict["rootUri"]),
+    # LS specification says this key should always exist, but neovim 0.5.1 doesn't seem to
+    # send it (seems fixed in neovim 0.6). For now, just assume it might not exist here.
+    (rootUri = get(dict, "rootUri", nothing); rootUri === nothing) ? nothing : DocumentUri(rootUri),
     get(dict, "initializationOptions", missing),
     ClientCapabilities(dict["capabilities"]),
     haskey(dict, "trace") ? String(dict["trace"]) : missing ,

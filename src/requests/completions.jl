@@ -6,7 +6,7 @@ struct CompletionState
     offset::Int
     completions::Dict{String,CompletionItem}
     range::Range
-    x::EXPR
+    x::Union{Nothing, EXPR}
     doc::Document
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
@@ -52,7 +52,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(t)), state)
-    elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT
+    elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && (pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT || pt.kind === CSTParser.Tokens.COLON)
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(pt), CSTParser.Tokenize.untokenize(t)), state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokenize.Tokens.COMMENT
         partial = is_latex_comp(t.val, state.offset - t.startbyte)
@@ -89,9 +89,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         state.x !== nothing && collect_completions(state.x, "@", state, false)
     elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
         kw_completion(CSTParser.Tokenize.untokenize(t), state)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end && state.x !== nothing
         collect_completions(state.x, "in", state, false)
-    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end
+    elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.ISA && is_at_end && state.x !== nothing
         collect_completions(state.x, "isa", state, false)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.COMMA &&
            pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER &&
@@ -114,7 +114,7 @@ function get_partial_completion(state::CompletionState)
 end
 
 function latex_completions(partial::String, state::CompletionState)
-    for (k, v) in REPL.REPLCompletions.latex_symbols
+    for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
             # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
             add_completion_item(state, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
@@ -144,6 +144,7 @@ const snippet_completions = Dict{String,String}(
     "elseif" => "elseif ",
     "end" => "end",
     "export" => "export ",
+    "false" => "false",
     "finally" => "finally",
     "for" => "for \$1 in \$2\n\t\$0\nend",
     "function" => "function \$1(\$2)\n\t\$0\nend",
@@ -160,6 +161,7 @@ const snippet_completions = Dict{String,String}(
     "quote" => "quote\n\t\$0\nend",
     "return" => "return",
     "struct" => "struct \$0 end",
+    "true" => "true",
     "try" => "try\n\t\$0\ncatch\nend",
     "using" => "using ",
     "while" => "while \$1\n\t\$0\nend"
@@ -187,13 +189,15 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement.
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
-                cmd = Command("Apply text edit", "language-julia.applytextedit", [
-                    WorkspaceEdit(missing, [textedit_to_insert_using_stmt(m, n, state)])
-                ])
-                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, n), missing, missing, cmd, "import")
+                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
+                    MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
+                    texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, n, state), missing, missing, "import")
                 add_completion_item(state, ci)
             elseif state.server.completion_mode === :qualify
-                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.", MarkupContent(sanitize_docstring(v.doc)), missing, missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)), missing, missing, missing, missing))
+                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
+                    missing, MarkupContent(sanitize_docstring(v.doc)), missing,
+                    missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
+                    missing, missing, missing, missing))
             end
         end
     end
@@ -349,13 +353,15 @@ is_latex_comp_char(c::Char) = UInt32(c) <= typemax(UInt8) ? is_latex_comp_char(U
 function is_latex_comp_char(u)
     # Checks whether a Char (represented as a UInt8) is in the set of those those used to trigger
     # latex completions.
-    # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in REPL.REPLCompletions.latex_symbols]))))
+    # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))]))))
+    u === 0x21 ||
     u === 0x28 ||
     u === 0x29 ||
     u === 0x2b ||
     u === 0x2d ||
     u === 0x2f ||
     0x30 <= u <= 0x39 ||
+    u === 0x3a ||
     u === 0x3d ||
     0x41 <= u <= 0x5a ||
     u === 0x5e ||
@@ -513,29 +519,25 @@ function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, s
         (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
 
         l, c = get_position_at(using_doc, using_offset + using_stmt.span)
-        TextDocumentEdit(VersionedTextDocumentIdentifier(using_doc._uri, using_doc._version),
-            [TextEdit(Range(l, c, l, c), ", $n")])
+        return [TextEdit(Range(l, c, l, c), ", $n")]
     elseif tls !== nothing
         if tls.expr.head === :file
             # Insert at the head of the file
             tlsdoc, offset1 = get_file_loc(tls.expr)
-            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
-            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+            return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
         elseif tls.expr.head === :module
             # Insert at start of module
             tlsdoc, offset1 = get_file_loc(tls.expr)
             offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
             l, c = get_position_at(tlsdoc, offset1 + offset2)
 
-            TextDocumentEdit(VersionedTextDocumentIdentifier(tlsdoc._uri, tlsdoc._version),
-            [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")])
+            return [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")]
         else
             error()
         end
     else
         # Fallback, add it to the start of the current file.
-        TextDocumentEdit(VersionedTextDocumentIdentifier(state.doc._uri, state.doc._version),
-            [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")])
+        return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
     end
 end
 

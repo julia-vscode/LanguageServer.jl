@@ -176,7 +176,7 @@ function format_text(text::AbstractString, params, config)
         return JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
     else
         # Some valid options in config file are not valid for format_text
-        VALID_OPTIONS = fieldnames(JuliaFormatter.Options)
+        VALID_OPTIONS = (fieldnames(JuliaFormatter.Options)..., :style)
         config = filter(p -> in(first(p), VALID_OPTIONS), JuliaFormatter.kwargs(config))
         return JuliaFormatter.format_text(text; config...)
     end

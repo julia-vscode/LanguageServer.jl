@@ -130,6 +130,6 @@ end
     bβ
     """)
     @test any(item.label == "myvar" for item in completion_test(3, 3).items)
-    @test any(item.label == "βbb" for item in completion_test(4, 3).items)
-    @test any(item.label == "bβb" for item in completion_test(5, 3).items)
+    @test any(item.label == "βbb" for item in completion_test(4, 2).items)
+    @test any(item.label == "bβb" for item in completion_test(5, 2).items)
 end

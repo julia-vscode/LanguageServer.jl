@@ -100,7 +100,7 @@ end
 
 
 function get_partial_completion(state::CompletionState)
-    ppt, pt, t = toks = get_toks(state.doc, state.offset)
+    ppt, pt, t = get_toks(state.doc, state.offset)
     is_at_end = state.offset == t.endbyte + 1
     return ppt, pt, t, is_at_end
 end
@@ -161,7 +161,7 @@ const snippet_completions = Dict{String,String}(
 
 
 function texteditfor(state::CompletionState, partial, n)
-    TextEdit(Range(Position(state.range.start.line, state.range.start.character - sizeof(partial)), state.range.stop), n)
+    TextEdit(Range(Position(state.range.start.line, max(state.range.start.character - length(partial), 0)), state.range.stop), n)
 end
 
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)

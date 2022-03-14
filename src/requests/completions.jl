@@ -41,7 +41,7 @@ end
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
         doc = getdocument(server, URI2(params.textDocument.uri))
-        offset = get_offset(doc, params.position)
+        offset = get_offset2(doc, params.position) - 1
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
         using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()

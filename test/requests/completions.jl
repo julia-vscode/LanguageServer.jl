@@ -124,7 +124,7 @@ end
     settestdoc("""
     myvar = 1
     βbb = 2
-    bβb = βbb
+    bβb = 3
     myv
     βb
     bβ

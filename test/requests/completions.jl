@@ -118,16 +118,18 @@ end
 
     settestdoc("isa")
     @test any(item.label == "isa" for item in completion_test(0, 3).items)
-
-    settestdoc("βbb")
-    @test any(item.label == "βbb" for item in completion_test(0, 3).items)
-
-    settestdoc("bβb")
-    @test any(item.label == "bβb" for item in completion_test(0, 3).items)
 end
 
 @testset "scope var completions" begin
-    settestdoc("""myvar = 1
-    myv""")
-    @test any(item.label == "myvar" for item in completion_test(1, 3).items)
+    settestdoc("""
+    myvar = 1
+    βbb = 2
+    bβb = βbb
+    myv
+    βb
+    bβ
+    """)
+    @test any(item.label == "myvar" for item in completion_test(4, 3).items)
+    @test any(item.label == "βbb" for item in completion_test(5, 3).items)
+    @test any(item.label == "bβb" for item in completion_test(6, 3).items)
 end

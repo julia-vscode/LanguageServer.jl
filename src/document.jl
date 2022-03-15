@@ -138,6 +138,9 @@ function get_offset2(doc::Document, line::Integer, character::Integer, forgiving
     return pos
 end
 
+# get_offset, but correct
+get_offset3(args...) = get_offset2(args...) - 1
+
 # Note: to be removed
 function obscure_text(s)
     i = 1

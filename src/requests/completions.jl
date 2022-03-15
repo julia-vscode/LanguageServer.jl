@@ -41,7 +41,7 @@ end
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
         doc = getdocument(server, URI2(params.textDocument.uri))
-        offset = get_offset2(doc, params.position) - 1
+        offset = get_offset3(doc, params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
         using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
@@ -323,7 +323,7 @@ function string_completion(t, state::CompletionState)
         relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
     else
-        t.startbyte < state.offset <= t.endbyte - 2 || return
+        t.startbyte + 2 < state.offset <= t.endbyte - 2 || return
         relative_offset = state.offset - t.startbyte - 3
         content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
     end
@@ -332,10 +332,12 @@ function string_completion(t, state::CompletionState)
 end
 
 function is_latex_comp(s, i)
+    i = thisind(s, i)
     i0 = i
     while firstindex(s) <= i
-        s[i] == '\\' && return s[i:i0]
-        !is_latex_comp_char(s[i]) && return ""
+        ind = thisind(s, i)
+        s[ind] == '\\' && return s[ind:i0]
+        !is_latex_comp_char(s[ind]) && return ""
         i = prevind(s, i)
     end
     return ""

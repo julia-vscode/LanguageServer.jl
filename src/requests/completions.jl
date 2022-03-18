@@ -319,25 +319,24 @@ function string_completion(t, state::CompletionState)
     path_completion(t, state)
     # Need to adjust things for quotation marks
     if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
-        t.startbyte < state.offset <= t.endbyte || return
+        t.startbyte + 1 < state.offset <= t.endbyte || return
         relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
     else
-        t.startbyte + 2 < state.offset <= t.endbyte - 2 || return
+        t.startbyte + 3 < state.offset <= t.endbyte - 2 || return
         relative_offset = state.offset - t.startbyte - 3
         content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
     end
+    relative_offset = clamp(relative_offset, firstindex(content), lastindex(content))
     partial = is_latex_comp(content, relative_offset)
     !isempty(partial) && latex_completions(partial, state)
 end
 
 function is_latex_comp(s, i)
-    i = thisind(s, i)
     i0 = i
     while firstindex(s) <= i
-        ind = thisind(s, i)
-        s[ind] == '\\' && return s[ind:i0]
-        !is_latex_comp_char(s[ind]) && return ""
+        s[i] == '\\' && return s[i:i0]
+        !is_latex_comp_char(s[i]) && return ""
         i = prevind(s, i)
     end
     return ""

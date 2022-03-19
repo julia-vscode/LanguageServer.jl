@@ -41,7 +41,7 @@ end
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
         doc = getdocument(server, URI2(params.textDocument.uri))
-        offset = get_offset(doc, params.position)
+        offset = get_offset3(doc, params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
         using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
@@ -100,7 +100,7 @@ end
 
 
 function get_partial_completion(state::CompletionState)
-    ppt, pt, t = toks = get_toks(state.doc, state.offset)
+    ppt, pt, t = get_toks(state.doc, state.offset)
     is_at_end = state.offset == t.endbyte + 1
     return ppt, pt, t, is_at_end
 end
@@ -161,7 +161,7 @@ const snippet_completions = Dict{String,String}(
 
 
 function texteditfor(state::CompletionState, partial, n)
-    TextEdit(Range(Position(state.range.start.line, state.range.start.character - sizeof(partial)), state.range.stop), n)
+    TextEdit(Range(Position(state.range.start.line, max(state.range.start.character - length(partial), 0)), state.range.stop), n)
 end
 
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
@@ -319,14 +319,15 @@ function string_completion(t, state::CompletionState)
     path_completion(t, state)
     # Need to adjust things for quotation marks
     if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
-        t.startbyte < state.offset <= t.endbyte || return
+        t.startbyte + 1 < state.offset <= t.endbyte || return
         relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
     else
-        t.startbyte < state.offset <= t.endbyte - 2 || return
+        t.startbyte + 3 < state.offset <= t.endbyte - 2 || return
         relative_offset = state.offset - t.startbyte - 3
         content = t.val[4:prevind(t.val, lastindex(t.val), 3)]
     end
+    relative_offset = clamp(relative_offset, firstindex(content), lastindex(content))
     partial = is_latex_comp(content, relative_offset)
     !isempty(partial) && latex_completions(partial, state)
 end

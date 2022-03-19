@@ -12,16 +12,16 @@ completion_test(line, char) = LanguageServer.textDocument_completion_request(Lan
     """)
     @test completion_test(0, 9).items[1].textEdit.newText == "∴"
     @test completion_test(0, 9).items[1].textEdit.range == LanguageServer.Range(0, 0, 0, 9)
-    
+
     @test completion_test(1, 10).items[1].textEdit.newText == "∴"
     @test completion_test(1, 10).items[1].textEdit.range == LanguageServer.Range(1, 1, 1, 10)
-    
+
     @test completion_test(2, 10).items[1].textEdit.newText == "∴"
     @test completion_test(2, 10).items[1].textEdit.range == LanguageServer.Range(2, 1, 2, 10)
-    
+
     @test completion_test(3, 10).items[1].textEdit.newText == "∴"
     @test completion_test(3, 10).items[1].textEdit.range == LanguageServer.Range(3, 1, 3, 10)
-    
+
     @test completion_test(4, 12).items[1].textEdit.newText == "∴"
     @test completion_test(4, 12).items[1].textEdit.range == LanguageServer.Range(4, 3, 4, 12)
 
@@ -41,7 +41,7 @@ end
 
     settestdoc("import ")
     @test all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)
-    
+
     settestdoc("""module M end
     import .""")
     @test_broken completion_test(1, 8).items[1].label == "M"
@@ -70,7 +70,7 @@ end
     @test any(item.label == "quot" for item in completion_test(1, 10).items)
 
     settestdoc("""
-    module M 
+    module M
     inner = 1
     end
     M.
@@ -94,8 +94,6 @@ end
     @test all(item.label in ("f1", "f2") for item in completion_test(1, 2).items)
 end
 
-
-
 @testset "token completions" begin
     settestdoc("B")
     @test any(item.label == "Base" for item in completion_test(0, 1).items)
@@ -105,25 +103,33 @@ end
 
     settestdoc("@t")
     @test any(item.label == "@time" for item in completion_test(0, 2).items)
-    
+
     settestdoc("i")
     @test any(item.label == "if" for item in completion_test(0, 1).items)
-    
+
     settestdoc("i")
     @test any(item.label == "in" for item in completion_test(0, 1).items)
-    
+
     settestdoc("for")
     @test any(item.label == "for" for item in completion_test(0, 3).items)
 
     settestdoc("in")
     @test any(item.label == "in" for item in completion_test(0, 2).items)
-    
+
     settestdoc("isa")
     @test any(item.label == "isa" for item in completion_test(0, 3).items)
 end
 
 @testset "scope var completions" begin
-    settestdoc("""myvar = 1
-    myv""")
-    @test any(item.label == "myvar" for item in completion_test(1, 3).items)
+    settestdoc("""
+    myvar = 1
+    βbb = 2
+    bβb = 3
+    myv
+    βb
+    bβ
+    """)
+    @test any(item.label == "myvar" for item in completion_test(3, 3).items)
+    @test any(item.label == "βbb" for item in completion_test(4, 2).items)
+    @test any(item.label == "bβb" for item in completion_test(5, 2).items)
 end

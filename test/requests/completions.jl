@@ -8,6 +8,7 @@ completion_test(line, char) = LanguageServer.textDocument_completion_request(Lan
     "\\therefor"
     \"\"\"\\therefor\"\"\"
     ^\\therefor
+    \\:water_buffal
     """)
     @test completion_test(0, 9).items[1].textEdit.newText == "∴"
     @test completion_test(0, 9).items[1].textEdit.range == LanguageServer.Range(0, 0, 0, 9)
@@ -26,6 +27,9 @@ completion_test(line, char) = LanguageServer.textDocument_completion_request(Lan
 
     @test completion_test(5, 10).items[1].textEdit.newText == "∴"
     @test completion_test(5, 10).items[1].textEdit.range == LanguageServer.Range(5, 1, 5, 10)
+
+    @test completion_test(6, 14).items[1].textEdit.newText == "🐃"
+    @test completion_test(6, 14).items[1].textEdit.range == LanguageServer.Range(6, 0, 6, 14)
 end
 
 @testset "path completions" begin

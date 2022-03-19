@@ -1,6 +1,6 @@
 module LanguageServer
-using JSON, REPL, CSTParser, DocumentFormat, SymbolServer, StaticLint
-using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof
+using JSON, REPL, CSTParser, JuliaFormatter, SymbolServer, StaticLint
+using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof, to_codeobject
 using StaticLint: refof, scopeof, bindingof
 using UUIDs
 using Base.Docs, Markdown

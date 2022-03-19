@@ -1,5 +1,5 @@
 function ServerCapabilities(client::ClientCapabilities)
-    prepareSupport = !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
+    prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
     ServerCapabilities(
     TextDocumentSyncOptions(true,
@@ -22,7 +22,7 @@ function ServerCapabilities(client::ClientCapabilities)
     missing,
     false,
     true,
-    false,
+    true,
     missing,
     RenameOptions(missing, prepareSupport),
     false,

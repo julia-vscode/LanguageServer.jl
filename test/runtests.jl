@@ -98,4 +98,8 @@ end
     end
 
     include("test_uris2.jl")
+    
+    @testset "misc" begin
+        include("test_misc.jl")
+    end
 end

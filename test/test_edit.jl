@@ -30,7 +30,7 @@ mktempdir() do dir
 
         new_cst = CSTParser.parse(LanguageServer.get_text(doc), true)
 
-        Expr(doc.cst) == Expr(new_cst), doc.cst, new_cst
+        CSTParser.to_codeobject(doc.cst) == CSTParser.to_codeobject(new_cst), doc.cst, new_cst
     end
 
     # techinically tests the same as test_document.jl, but should be changed to incremental re-parsing

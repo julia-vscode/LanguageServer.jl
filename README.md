@@ -34,7 +34,7 @@ Julia as follows:
 
 ```sh
 julia --project=/path/to/LanguageServer.jl/environment \
-  -e "using LanguageServer, LanguageServer.SymbolServer; runserver()" \
+  -e "using LanguageServer; runserver()" \
   <env_path>
 ```
 

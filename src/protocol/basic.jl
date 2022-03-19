@@ -72,7 +72,7 @@ const DiagnosticTag = Int
 const DiagnosticTags = (Unnecessary = 1,
                         Deprecated = 2)
 
-struct DiagnosticRelatedInformation
+@dict_readable struct DiagnosticRelatedInformation
     location::Location
     message::String
 end

@@ -19,14 +19,9 @@ The following invocation of Julia would set `env_path` to
 
 ```sh
 julia --project=/path/to/LanguageServer.jl \\
-  -e "using LanguageServer, SymbolServer; runserver()" \\
+  -e "using LanguageServer; runserver()" \\
   /home/example/repos/Example.jl
 ```
-
-!!! note
-    Due to [a current
-    bug](https://github.com/julia-vscode/LanguageServer.jl/issues/750),
-    `SymbolServer` must be imported into `Main`.
 
 If there was a `Project.toml` or `JuliaProject.toml` in
 `/home/example/repos/Example.jl/`, the following invocation would set
@@ -36,7 +31,7 @@ version of Julia being invoked.
 
 ```sh
 julia --project=/path/to/LanguageServer.jl \\
-  -e "using LanguageServer, SymbolServer; runserver()"
+  -e "using LanguageServer; runserver()"
 ```
 """
 function runserver(pipe_in=stdin, pipe_out=stdout, env_path=choose_env(),

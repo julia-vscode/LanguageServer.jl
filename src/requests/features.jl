@@ -98,20 +98,36 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return locations
 end
 
-function get_file_loc(x::EXPR, offset=0, c=nothing)
-    if c !== nothing
-        for a in x
-            a == c && break
-            offset += a.fullspan
+function descend(x::EXPR, target::EXPR, offset = 0)
+    for c in x
+        if c == target
+            return true, offset
         end
+
+        found, o = descend(c, target, offset)
+        if found
+            return true, o
+        end
+        offset += c.fullspan
     end
-    if parentof(x) !== nothing
-        return get_file_loc(parentof(x), offset, x)
-    elseif headof(x) === :file && StaticLint.hasmeta(x)
-        return x.meta.error, offset
-    else
+    false, offset
+end
+function get_file_loc(x::EXPR, offset=0, c=nothing)
+    parent = x
+    while parentof(parent) !== nothing
+        parent = parentof(parent)
+    end
+
+    if parent === nothing
         return nothing, offset
     end
+
+    _, offset = descend(parent, x)
+
+    if headof(parent) === :file && StaticLint.hasmeta(parent)
+        return parent.meta.error, offset
+    end
+    return nothing, offset
 end
 
 function search_file(filename, dir, topdir)

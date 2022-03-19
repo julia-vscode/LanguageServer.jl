@@ -95,4 +95,7 @@ end
     @testset "paths" begin
         include("test_paths.jl")
     end
+    @testset "misc" begin
+        include("test_misc.jl")
+    end
 end

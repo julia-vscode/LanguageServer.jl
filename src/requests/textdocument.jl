@@ -68,11 +68,11 @@ end
 
 comp(x, y) = x == y
 function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
-    comp(x.head, y.head) && 
-    x.span == y.span && 
-    x.fullspan == y.fullspan && 
-    x.val == y.val && 
-    length(x) == length(y) && 
+    comp(x.head, y.head) &&
+    x.span == y.span &&
+    x.fullspan == y.fullspan &&
+    x.val == y.val &&
+    length(x) == length(y) &&
     all(comp(x[i], y[i]) for i = 1:length(x))
 end
 
@@ -99,7 +99,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         comp(cst1, getcst(doc)) || @error "File didn't update properly." # expensive check, remove
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
-        
+
         target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
         semantic_pass(getroot(doc), target_exprs)
         lint!(doc, server)
@@ -260,7 +260,7 @@ function parse_jmd(ps, str)
 
     for (startbyte, b) in blocks
         if CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :TRIPLESTRING && (startswith(b.args[3].val, "julia") || startswith(b.args[3].val, "{julia"))
-            
+
             blockstr = b.args[3].val
             ps = CSTParser.ParseState(blockstr)
             # skip first line
@@ -289,7 +289,7 @@ function parse_jmd(ps, str)
             for a in args.args
                 push!(top, a)
             end
-            
+
             CSTParser.update_span!(top)
             currentbyte = top.fullspan + 1
         end
@@ -377,4 +377,38 @@ function try_to_load_parents(child_path, server)
             return try_to_load_parents(p, server)
         end
     end
+end
+
+function find_test_items_detail!(doc, node, testitems)
+    node isa EXPR || return
+
+    if node.head == :macrocall && length(node.args)==4 && CSTParser.valof(node.args[1]) == "@testitem"
+
+        pos = get_file_loc(node.args[4])[2]
+
+        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.span)))
+    elseif node.args !== nothing
+        for i in node.args
+            find_test_items_detail!(doc, i, testitems)
+        end
+    end
+end
+
+function find_testitems!(doc, server)
+    cst = getcst(doc)
+
+    testitems = []
+
+    for i in cst.args
+        find_test_items_detail!(doc, i, testitems)
+    end
+
+    for i in testitems
+        @debug "Name is $(i.name) at $(i.loc)"
+    end
+
+    # empty!(doc.diagnostics)
+    # mark_errors(doc, doc.diagnostics)
+    # # TODO Ideally we would not want to acces jr_endpoint here
+    # publish_diagnostics(doc, server, server.jr_endpoint)
 end

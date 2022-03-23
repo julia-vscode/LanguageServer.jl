@@ -6,4 +6,15 @@
     position::Position
 end
 
+@dict_readable struct Testitem <: Outbound
+    name::String
+    range::Range
+end
+
+struct PublishTestitemsParams <: Outbound
+    uri::DocumentUri
+    version::Union{Int,Missing}
+    testitems::Vector{Testitem}
+end
+
 include("messagedefs.jl")

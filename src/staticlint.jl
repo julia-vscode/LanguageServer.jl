@@ -78,5 +78,5 @@ function lint!(doc, server)
     # TODO Ideally we would not want to acces jr_endpoint here
     publish_diagnostics(doc, server, server.jr_endpoint)
 
-    find_testitems!(doc, server)
+    find_testitems!(doc, server, server.jr_endpoint)
 end

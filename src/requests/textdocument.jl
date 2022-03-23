@@ -394,7 +394,7 @@ function find_test_items_detail!(doc, node, testitems)
     end
 end
 
-function find_testitems!(doc, server)
+function find_testitems!(doc, server, jr_endpoint)
     cst = getcst(doc)
 
     testitems = []
@@ -403,12 +403,10 @@ function find_testitems!(doc, server)
         find_test_items_detail!(doc, i, testitems)
     end
 
-    for i in testitems
-        @debug "Name is $(i.name) at $(i.loc)"
-    end
-
-    # empty!(doc.diagnostics)
-    # mark_errors(doc, doc.diagnostics)
-    # # TODO Ideally we would not want to acces jr_endpoint here
-    # publish_diagnostics(doc, server, server.jr_endpoint)
+    params = PublishTestitemsParams(
+        doc._uri,
+        doc._version,
+        [Testitem(i.name, i.loc) for i in testitems]
+    )
+    JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
 end

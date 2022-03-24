@@ -386,7 +386,7 @@ function find_test_items_detail!(doc, node, testitems)
 
         pos = get_file_loc(node.args[4])[2]
 
-        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.span)))
+        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
     elseif node.args !== nothing
         for i in node.args
             find_test_items_detail!(doc, i, testitems)

@@ -395,6 +395,47 @@ function find_test_items_detail!(doc, node, testitems)
 end
 
 function find_testitems!(doc, server, jr_endpoint)
+    # Find which workspace folder the doc is in.
+    parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+
+    # If the file is not in the workspace, we don't report nothing
+    isempty(parent_workspaceFolders) && return
+
+    # arbitrarily pick one
+    parent_workspaceFolder = first(parent_workspaceFolders)
+
+    doc_path_parts = splitpath(dirname(getpath(doc)))
+    workspace_path_parts = splitpath(parent_workspaceFolder)
+
+    if workspace_path_parts != doc_path_parts[1:length(workspace_path_parts)]
+        # In this case there is something weirdly wrong
+        return
+    end
+
+    @info "The workspace folder is" parent_workspaceFolder
+
+    project_path = nothing
+
+    for i = length(doc_path_parts):-1:length(workspace_path_parts)
+        path_to_test = joinpath(doc_path_parts[1:i]...)
+
+        @info "Now looking for a project in" path_to_test
+        if safe_isfile(joinpath(path_to_test, "Project.toml"))
+            project_path = joinpath(path_to_test, "Project.toml")
+            break
+        elseif safe_isfile(joinpath(path_to_test, "JuliaProject.toml"))
+            project_path = joinpath(path_to_test, "JuliaProject.toml")
+            break
+        end
+    end
+
+    pkg_uuid = ""
+
+    if project_path !== nothing
+        project_content = Pkg.TOML.parsefile(project_path)
+        pkg_uuid = get(project_content, "uuid", "")
+    end
+
     cst = getcst(doc)
 
     testitems = []
@@ -406,6 +447,7 @@ function find_testitems!(doc, server, jr_endpoint)
     params = PublishTestitemsParams(
         doc._uri,
         doc._version,
+        pkg_uuid,
         [Testitem(i.name, i.loc) for i in testitems]
     )
     JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)

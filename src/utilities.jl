@@ -12,13 +12,27 @@ function mismatched_version_error(uri, doc, params, msg, data=nothing)
     )
 end
 
+# lookup
+# ------
+
+traverse_by_name(f, cache = SymbolServer.stdlibs) = traverse_store!.(f, values(cache))
+
+traverse_store!(_, _) = return
+traverse_store!(f, store::SymbolServer.EnvStore) = traverse_store!.(f, values(store))
+function traverse_store!(f, store::SymbolServer.ModuleStore)
+    for (sym, val) in store.vals
+        f(sym, val)
+        traverse_store!(f, val)
+    end
+end
+
 # misc
 # ----
 
 function uri2filepath(uri::AbstractString)
     parsed_uri = try
         URIParser.URI(uri)
-    catch err
+    catch
         throw(LSUriConversionFailure("Cannot parse `$uri`."))
     end
 
@@ -127,14 +141,11 @@ function remove_workspace_files(root, server)
         fpath = getpath(doc)
         isempty(fpath) && continue
         get_open_in_editor(doc) && continue
-        for folder in server.workspaceFolders
-            if startswith(fpath, folder)
-                continue
-            end
+        # If the file is in any other workspace folder, don't delete it
+        any(folder -> startswith(fpath, folder), server.workspaceFolders) && continue
             deletedocument!(server, uri)
         end
     end
-end
 
 
 function Base.getindex(server::LanguageServerInstance, r::Regex)
@@ -181,8 +192,8 @@ function get_expr(x, offset, pos=0, ignorewhitespace=false)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if pos < offset <= (pos + a.fullspan)
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -196,12 +207,40 @@ function get_expr(x, offset, pos=0, ignorewhitespace=false)
     end
 end
 
+# like get_expr, but only returns a expr if offset is not on the edge of its span
+function get_expr_or_parent(x, offset, pos=0)
+    if pos > offset
+        return nothing, pos
+    end
+    ppos = pos
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
+            if pos < offset <= (pos + a.fullspan)
+                if pos < offset < (pos + a.span)
+                    return get_expr_or_parent(a, offset, pos)
+                else
+                    return x, ppos
+                end
+            end
+            pos += a.fullspan
+        end
+    elseif pos == 0
+        return x, pos
+    elseif (pos < offset <= (pos + x.fullspan))
+        if pos + x.span < offset
+            return x.parent, ppos
+        end
+        return x, pos
+    end
+    return nothing, pos
+end
+
 function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     if all(pos .> offset)
         return nothing
     end
-    if x.args !== nothing && typof(x) !== CSTParser.NONSTDIDENTIFIER
-        for a in x.args
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        for a in x
             if all(pos .< offset .<= (pos + a.fullspan))
                 return get_expr(a, offset, pos, ignorewhitespace)
             end
@@ -220,36 +259,61 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     end
 end
 
+# full (not only trivia) expr containing rng, modulo whitespace
+function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
+    if all(pos .> rng)
+        return nothing
+    end
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        pos_span′ = pos_span
+        for a in x
+            if a in x.args && all(pos_span′ .< rng .<= (pos + a.fullspan))
+                return get_inner_expr(a, rng, pos, pos_span′)
+            end
+            pos += a.fullspan
+            pos_span′ = pos - (a.fullspan - a.span)
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+end
+
 function get_expr1(x, offset, pos=0)
-    if x.args === nothing || isempty(x.args) || typof(x) === CSTParser.NONSTDIDENTIFIER
+    if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
             return x
         else
             return nothing
         end
     else
-        for i = 1:length(x.args)
-            arg = x.args[i]
+        for i = 1:length(x)
+            arg = x[i]
             if pos < offset < (pos + arg.span) # def within span
                 return get_expr1(arg, offset, pos)
             elseif arg.span == arg.fullspan
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
-                elseif i == length(x.args) # offset == pos + arg.fullspan
+                elseif i == length(x) # offset == pos + arg.fullspan
                     return get_expr1(arg, offset, pos)
                 end
             else
                 if offset == pos
                     if i == 1
                         return get_expr1(arg, offset, pos)
-                    elseif CSTParser.typof(x.args[i - 1]) === CSTParser.IDENTIFIER
-                        return get_expr1(x.args[i - 1], offset, pos)
+                    elseif headof(x[i - 1]) === :IDENTIFIER
+                        return get_expr1(x[i - 1], offset, pos)
                     else
                         return get_expr1(arg, offset, pos)
                     end
@@ -271,16 +335,67 @@ function get_identifier(x, offset, pos=0)
     if pos > offset
         return nothing
     end
-    if x.args !== nothing
-        for a in x.args
+    if length(x) > 0
+        for a in x
             if pos <= offset <= (pos + a.span)
                 return get_identifier(a, offset, pos)
             end
             pos += a.fullspan
         end
-    elseif typof(x) === CSTParser.IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
+    elseif headof(x) === :IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
         return x
     end
+end
+
+
+if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
+    _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
+    function _splitdir_nodrive(a::String, b::String)
+        m = match(Base.Filesystem.path_dir_splitter, b)
+        m === nothing && return (a, b)
+        a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
+        a, String(m.captures[3])
+    end
+    splitpath(p::AbstractString) = splitpath(String(p))
+
+    function splitpath(p::String)
+        drive, p = _splitdrive(p)
+        out = String[]
+        isempty(p) && (pushfirst!(out, p))  # "" means the current directory.
+        while !isempty(p)
+            dir, base = _splitdir_nodrive(p)
+            dir == p && (pushfirst!(out, dir); break)  # Reached root node.
+            if !isempty(base)  # Skip trailing '/' in basename
+                pushfirst!(out, base)
+            end
+            p = dir
+        end
+        if !isempty(drive)  # Tack the drive back on to the first element.
+            out[1] = drive * out[1]  # Note that length(out) is always >= 1.
+        end
+        return out
+    end
+    _path_separator    = "\\"
+    _path_separator_re = r"[/\\]+"
+    function _pathsep(paths::AbstractString...)
+        for path in paths
+            m = match(_path_separator_re, String(path))
+            m !== nothing && return m.match[1:1]
+        end
+        return _path_separator
+    end
+    function joinpath(a::String, b::String)
+        isabspath(b) && return b
+        A, a = _splitdrive(a)
+        B, b = _splitdrive(b)
+        !isempty(B) && A != B && return string(B,b)
+        C = isempty(B) ? A : B
+        isempty(a)                              ? string(C,b) :
+        occursin(_path_separator_re, a[end:end]) ? string(C,a,b) :
+                                                  string(C,a,_pathsep(a,b),b)
+    end
+    joinpath(a::AbstractString, b::AbstractString) = joinpath(String(a), String(b))
+    joinpath(a, b, c, paths...) = joinpath(joinpath(a, b), c, paths...)
 end
 
 @static if Sys.iswindows() && VERSION < v"1.3"
@@ -292,11 +407,13 @@ end
     end
     function _dirname(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return ""
         a, b = String(m.captures[1]), String(m.captures[2])
         _splitdir_nodrive(a, b)[1]
     end
     function _splitdrive(path::String)
         m = match(r"^([^\\]+:|\\\\[^\\]+\\[^\\]+|\\\\\?\\UNC\\[^\\]+\\[^\\]+|\\\\\?\\[^\\]+:|)(.*)$"s, path)
+        m === nothing && return "", path
         String(m.captures[1]), String(m.captures[2])
     end
     function _splitdir(path::String)
@@ -306,6 +423,7 @@ end
 else
     _dirname = dirname
     _splitdir = splitdir
+    _splitdrive = splitdrive
 end
 
 function valid_id(s::String)
@@ -328,37 +446,37 @@ function parent_file(x::EXPR)
     end
 end
 
-function resolve_op_ref(x::EXPR, server)
+function resolve_op_ref(x::EXPR, env)
     StaticLint.hasref(x) && return true
-    typof(x) !== CSTParser.OPERATOR && return false
+    !CSTParser.isoperator(x) && return false
     pf = parent_file(x)
     pf === nothing && return false
     scope = StaticLint.retrieve_scope(x)
     scope === nothing && return false
 
-    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, server)
+    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env)
 end
 
-function op_resolve_up_scopes(x, mn, scope, server)
+function op_resolve_up_scopes(x, mn, scope, env)
+    scope isa StaticLint.Scope || return false
     if StaticLint.scopehasbinding(scope, mn)
         StaticLint.setref!(x, scope.names[mn])
         return true
     elseif scope.modules isa Dict && length(scope.modules) > 0
         for (_, m) in scope.modules
             if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                StaticLint.setref!(x, maybe_lookup(m[Symbol(mn)], server))
+                StaticLint.setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env))
                 return true
             elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                StaticLint.setref!(x, maybe_lookup(m.names[mn], server))
+                StaticLint.setref!(x, StaticLint.maybe_lookup(m.names[mn], env))
                 return true
             end
         end
     end
     CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
-    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), server)
+    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env)
 end
 
-maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbolserver(server), true) : x # TODO: needs to go to SymbolServer
 
 function is_in_target_dir_of_package(pkgpath, target)
     try # Safe failure - attempts to read disc.
@@ -369,34 +487,5 @@ function is_in_target_dir_of_package(pkgpath, target)
         return false
     catch
         return false
-    end
-end
-
-if VERSION < v"1.1"
-    _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)
-    function _splitdir_nodrive(a::String, b::String)
-        m = match(Base.Filesystem.path_dir_splitter, b)
-        m === nothing && return (a, b)
-        a = string(a, isempty(m.captures[1]) ? m.captures[2][1] : m.captures[1])
-        a, String(m.captures[3])
-    end
-    splitpath(p::AbstractString) = splitpath(String(p))
-
-    function splitpath(p::String)
-        drive, p = splitdrive(p)
-        out = String[]
-        isempty(p) && (pushfirst!(out, p))  # "" means the current directory.
-        while !isempty(p)
-            dir, base = _splitdir_nodrive(p)
-            dir == p && (pushfirst!(out, dir); break)  # Reached root node.
-            if !isempty(base)  # Skip trailing '/' in basename
-                pushfirst!(out, base)
-            end
-            p = dir
-        end
-        if !isempty(drive)  # Tack the drive back on to the first element.
-            out[1] = drive * out[1]  # Note that length(out) is always >= 1.
-        end
-        return out
     end
 end

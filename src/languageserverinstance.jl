@@ -1,5 +1,3 @@
-T = 0.0
-
 """
     LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
@@ -36,15 +34,15 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::SymbolServer.EnvStore
-    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
+    global_env::StaticLint.ExternalEnv
+    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
 
-    format_options::DocumentFormat.FormatOptions
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
+    completion_mode::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -53,6 +51,7 @@ mutable struct LanguageServerInstance
     status::Symbol
 
     number_of_outstanding_symserver_requests::Int
+    symserver_use_download::Bool
 
     current_symserver_progress_token::Union{Nothing,String}
 
@@ -62,32 +61,36 @@ mutable struct LanguageServerInstance
     clientCapabilities::Union{ClientCapabilities,Missing}
     clientInfo::Union{InfoParams,Missing}
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing)
+    shutdown_requested::Bool
+
+    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
             Channel(Inf),
-            deepcopy(SymbolServer.stdlibs),
-            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
+            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
+            Dict(),
             false,
-            DocumentFormat.FormatOptions(),
             true,
             StaticLint.LintOptions(),
             :all,
             LINT_DIABLED_DIRS,
+            :qualify, # options: :import or :qualify, anything else turns this off
             Channel{Any}(Inf),
             err_handler,
             :created,
             0,
+            download,
             nothing,
             false,
             false,
             missing,
-            missing
+            missing,
+            false
         )
     end
 end
@@ -128,9 +131,9 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     delete!(server._documents, uri)
 
     for d in getdocuments_value(server)
-        if d.root === doc
-            d.root = d
-            scopepass(getroot(d), d)
+        if getroot(d) === doc
+            setroot(d, d)
+            semantic_pass(getroot(d))
         end
     end
 end
@@ -139,12 +142,12 @@ function create_symserver_progress_ui(server)
     if server.clientcapability_window_workdoneprogress
         token = string(uuid4())
         server.current_symserver_progress_token = token
-        response = JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
+        JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
 
         JSONRPC.send(
             server.jr_endpoint,
             progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia Language Server", missing, "Indexing packages...", missing))
+            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", missing))
         )
     end
 end
@@ -168,23 +171,29 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
     server.number_of_outstanding_symserver_requests += 1
 
+    if server.symserver_use_download
+        @debug "Will download symbol server caches for this instance."
+    end
+
     @async try
-        # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function (i)
-            if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-                JSONRPC.send(
+            function (msg, percentage = missing)
+                if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
+                    msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
+                    JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, missing))
                     )
-            else
-                @info "Indexing $i..."
-            end
-        end,
-            server.err_handler
+                    @info msg
+                else
+                    @info msg
+                end
+            end,
+            server.err_handler,
+            download = server.symserver_use_download
         )
 
         server.number_of_outstanding_symserver_requests -= 1
@@ -228,6 +237,21 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 end
 
+function request_wrapper(func, server::LanguageServerInstance)
+    return function (conn, params)
+        if server.shutdown_requested
+            # it's fine to always return a value here, even for notifications, because
+            # JSONRPC discards it anyways in that case
+            return JSONRPC.JSONRPCError(
+                -32600,
+                "LS shutdown was requested.",
+                nothing
+            )
+        end
+        func(params, server, conn)
+    end
+end
+
 """
     run(server::LanguageServerInstance)
 
@@ -237,10 +261,12 @@ function Base.run(server::LanguageServerInstance)
     server.status = :started
 
     run(server.jr_endpoint)
+    @debug "Connected at $(round(Int, time()))"
 
     trigger_symbolstore_reload(server)
 
     @async try
+        @debug "LS: Starting client listener task."
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
@@ -250,11 +276,20 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
+    finally
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Client listener task done."
     end
 
     @async try
+        @debug "LS: Starting symbol server listener task."
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
@@ -264,66 +299,116 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
+    finally
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Symbol server listener task done."
     end
 
-    msg_dispatcher = JSONRPC.MsgDispatcher()
-    msg_dispatcher[textDocument_codeAction_request_type] = (conn, params) -> textDocument_codeAction_request(params, server, conn)
-    msg_dispatcher[workspace_executeCommand_request_type] = (conn, params) -> workspace_executeCommand_request(params, server, conn)
-    msg_dispatcher[textDocument_completion_request_type] = (conn, params) -> textDocument_completion_request(params, server, conn)
-    msg_dispatcher[textDocument_signatureHelp_request_type] = (conn, params) -> textDocument_signatureHelp_request(params, server, conn)
-    msg_dispatcher[textDocument_definition_request_type] = (conn, params) -> textDocument_definition_request(params, server, conn)
-    msg_dispatcher[textDocument_formatting_request_type] = (conn, params) -> textDocument_formatting_request(params, server, conn)
-    msg_dispatcher[textDocument_references_request_type] = (conn, params) -> textDocument_references_request(params, server, conn)
-    msg_dispatcher[textDocument_rename_request_type] = (conn, params) -> textDocument_rename_request(params, server, conn)
-    msg_dispatcher[textDocument_documentSymbol_request_type] = (conn, params) -> textDocument_documentSymbol_request(params, server, conn)
-    msg_dispatcher[julia_getModuleAt_request_type] = (conn, params) -> julia_getModuleAt_request(params, server, conn)
-    msg_dispatcher[julia_getDocAt_request_type] = (conn, params) -> julia_getDocAt_request(params, server, conn)
-    msg_dispatcher[textDocument_hover_request_type] = (conn, params) -> textDocument_hover_request(params, server, conn)
-    msg_dispatcher[initialize_request_type] = (conn, params) -> initialize_request(params, server, conn)
-    msg_dispatcher[initialized_notification_type] = (conn, params) -> initialized_notification(params, server, conn)
-    msg_dispatcher[shutdown_request_type] = (conn, params) -> shutdown_request(params, server, conn)
-    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
-    msg_dispatcher[cancel_notification_type] = (conn, params) -> cancel_notification(params, server, conn)
-    msg_dispatcher[setTraceNotification_notification_type] = (conn, params) -> setTraceNotification_notification(params, server, conn)
-    msg_dispatcher[julia_getCurrentBlockRange_request_type] = (conn, params) -> julia_getCurrentBlockRange_request(params, server, conn)
-    msg_dispatcher[julia_activateenvironment_notification_type] = (conn, params) -> julia_activateenvironment_notification(params, server, conn)
-    msg_dispatcher[textDocument_didOpen_notification_type] = (conn, params) -> textDocument_didOpen_notification(params, server, conn)
-    msg_dispatcher[textDocument_didClose_notification_type] = (conn, params) -> textDocument_didClose_notification(params, server, conn)
-    msg_dispatcher[textDocument_didSave_notification_type] = (conn, params) -> textDocument_didSave_notification(params, server, conn)
-    msg_dispatcher[textDocument_willSave_notification_type] = (conn, params) -> textDocument_willSave_notification(params, server, conn)
-    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = (conn, params) -> textDocument_willSaveWaitUntil_request(params, server, conn)
-    msg_dispatcher[textDocument_didChange_notification_type] = (conn, params) -> textDocument_didChange_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = (conn, params) -> workspace_didChangeWatchedFiles_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = (conn, params) -> workspace_didChangeConfiguration_notification(params, server, conn)
-    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = (conn, params) -> workspace_didChangeWorkspaceFolders_notification(params, server, conn)
-    msg_dispatcher[workspace_symbol_request_type] = (conn, params) -> workspace_symbol_request(params, server, conn)
+    @debug "Symbol Server started at $(round(Int, time()))"
 
+    msg_dispatcher = JSONRPC.MsgDispatcher()
+
+    msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
+    msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
+    msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
+    msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
+    msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
+    msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+    msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
+    msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
+    msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+    msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
+    msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
+    msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
+    msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
+    msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
+    msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
+    msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
+    msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)
+    msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
+    msg_dispatcher[cancel_notification_type] = request_wrapper(cancel_notification, server)
+    msg_dispatcher[setTrace_notification_type] = request_wrapper(setTrace_notification, server)
+    msg_dispatcher[setTraceNotification_notification_type] = request_wrapper(setTraceNotification_notification, server)
+    msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
+    msg_dispatcher[julia_activateenvironment_notification_type] = request_wrapper(julia_activateenvironment_notification, server)
+    msg_dispatcher[textDocument_didOpen_notification_type] = request_wrapper(textDocument_didOpen_notification, server)
+    msg_dispatcher[textDocument_didClose_notification_type] = request_wrapper(textDocument_didClose_notification, server)
+    msg_dispatcher[textDocument_didSave_notification_type] = request_wrapper(textDocument_didSave_notification, server)
+    msg_dispatcher[textDocument_willSave_notification_type] = request_wrapper(textDocument_willSave_notification, server)
+    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
+    msg_dispatcher[textDocument_didChange_notification_type] = request_wrapper(textDocument_didChange_notification, server)
+    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = request_wrapper(workspace_didChangeWatchedFiles_notification, server)
+    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = request_wrapper(workspace_didChangeConfiguration_notification, server)
+    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = request_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
+    msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
+    msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
+    msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
+    msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+
+    # The exit notification message should not be wrapped in request_wrapper (which checks
+    # if the server have been requested to be shut down). Instead, this message needs to be
+    # handled directly.
+    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
+
+    @debug "starting main loop"
+    @debug "Starting event listener loop at $(round(Int, time()))"
     while true
         message = take!(server.combined_msg_queue)
-
-        if message.type == :clientmsg
+        if message.type == :close
+            @info "Shutting down server instance."
+            return
+        elseif message.type == :clientmsg
             msg = message.msg
-
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
             @info "Received new data from Julia Symbol Server."
-            msg = message.msg
 
-            server.symbol_store = msg
-            server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
-            roots = Document[]
-            for doc in getdocuments_value(server)
-                # only do a pass on documents once
-                root = getroot(doc)
-                if !(root in roots)
-                    push!(roots, root)
-                    scopepass(root, doc)
+            server.global_env.symbols = message.msg
+            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            server.global_env.project_deps = collect(keys(server.global_env.symbols))
+
+            # redo roots_env_map
+            for (root, _) in server.roots_env_map
+                @debug "resetting get_env_for_root"
+                newenv = get_env_for_root(root, server)
+                if newenv === nothing
+                    delete!(server.roots_env_map, root)
+                else
+                    server.roots_env_map[root] = newenv
                 end
-
-                lint!(doc, server)
             end
+
+            @debug "starting re-lint of everything"
+            relintserver(server)
+            @debug "re-lint done"
+            @debug "Linting finished at $(round(Int, time()))"
         end
+    end
+end
+
+function relintserver(server)
+    roots = Set{Document}()
+    documents = getdocuments_value(server)
+    for doc in documents
+        StaticLint.clear_meta(getcst(doc))
+        set_doc(getcst(doc), doc)
+    end
+    for doc in documents
+        # only do a pass on documents once
+        root = getroot(doc)
+        if !(root in roots)
+            push!(roots, root)
+            semantic_pass(root)
+        end
+    end
+    for doc in documents
+        lint!(doc, server)
     end
 end

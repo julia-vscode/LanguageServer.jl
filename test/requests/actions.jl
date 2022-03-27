@@ -33,7 +33,7 @@ end
 
 @testset "explicit import" begin
     doc = settestdoc("using Base.Meta\nMeta.quot")
-    @test LanguageServer.find_using_statement(doc.cst[2][1]) !== nothing
+    @test LanguageServer.find_using_statement(doc.cst.args[2].args[1]) !== nothing
     
     @test any(c.command == "ExplicitPackageVarImport" for c in action_request_test(1, 1))
     c = filter(c -> c.command == "ExplicitPackageVarImport", action_request_test(1, 1))[1]
@@ -41,5 +41,11 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-
-
+@testset "farg unused" begin
+    doc = settestdoc("function f(arg::T) end\n")
+    
+    @test any(c.command == "DeleteUnusedFunctionArgumentName" for c in action_request_test(0, 12))
+    c = filter(c -> c.command == "DeleteUnusedFunctionArgumentName", action_request_test(0, 12))[1]
+    
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end

@@ -24,12 +24,18 @@ mktempdir() do dir
         tdcce = params.contentChanges[1]
         doc._line_offsets = nothing
 
-        LanguageServer._partial_update(doc, tdcce)
+        # TODO: This should only re-parse necessary parts of the document
+        LanguageServer.applytextdocumentchanges(doc, tdcce)
+        LanguageServer.parse_all(doc, server)
+
         new_cst = CSTParser.parse(LanguageServer.get_text(doc), true)
-        Expr(doc.cst) == Expr(new_cst), doc.cst, new_cst
+
+        CSTParser.to_codeobject(doc.cst) == CSTParser.to_codeobject(new_cst), doc.cst, new_cst
     end
 
-    @testset "partial parse" begin
+    # techinically tests the same as test_document.jl, but should be changed to incremental re-parsing
+    # once that's implemented again
+    @testset "text edits" begin
         @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
         @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
         @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]

@@ -1,5 +1,3 @@
-using JSONRPC
-
 init_request = LanguageServer.InitializeParams(
     9902,
     missing,
@@ -36,7 +34,7 @@ init_request = LanguageServer.InitializeParams(
             LanguageServer.DocumentFormattingClientCapabilities(true),
             missing, # DocumentRangeFormattingClientCapabilities(),
             missing, # DocumentOnTypeFormattingClientCapabilities(),
-            LanguageServer.RenameClientCapabilities(true, missing),
+            LanguageServer.RenameClientCapabilities(true, true),
             missing, # PublishDiagnosticsClientCapabilities(),
             missing, # FoldingRangeClientCapabilities(),
             missing, # SelectionRangeClientCapabilities()
@@ -75,7 +73,9 @@ init_response = JSON.parse("""
         "codeActionProvider": true,
         "documentFormattingProvider": true,
         "documentRangeFormattingProvider": false,
-        "renameProvider": true,
+        "renameProvider": {
+            "prepareProvider": true
+        },
         "documentLinkProvider": {
             "resolveProvider": false
         },
@@ -130,7 +130,7 @@ try
 
     @test_broken init_response == response
     @test response["capabilities"]["typeDefinitionProvider"] == false
-    @test response["capabilities"]["renameProvider"] == true
+    @test response["capabilities"]["renameProvider"] == Dict("prepareProvider" => true)
 finally
     close(client)
 end

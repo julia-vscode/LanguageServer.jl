@@ -15,7 +15,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        if !isvalid(s)
+                        if !isvalid(s) || occursin('\0', s)
                             deletedocument!(server, URI2(uri))
                             continue
                         end
@@ -79,21 +79,9 @@ end
 const LINT_DIABLED_DIRS = ["test", "docs"]
 
 function request_julia_config(server::LanguageServerInstance, conn)
-    server.clientCapabilities.workspace.configuration !== true && return
+    (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
-        ConfigurationItem(missing, "julia.format.indent"), # FormatOptions
-        ConfigurationItem(missing, "julia.format.indents"),
-        ConfigurationItem(missing, "julia.format.ops"),
-        ConfigurationItem(missing, "julia.format.tuples"),
-        ConfigurationItem(missing, "julia.format.curly"),
-        ConfigurationItem(missing, "julia.format.calls"),
-        ConfigurationItem(missing, "julia.format.iterOps"),
-        ConfigurationItem(missing, "julia.format.comments"),
-        ConfigurationItem(missing, "julia.format.docs"),
-        ConfigurationItem(missing, "julia.format.lineends"),
-        ConfigurationItem(missing, "julia.format.keywords"),
-        ConfigurationItem(missing, "julia.format.kwarg"),
         ConfigurationItem(missing, "julia.lint.call"), # LintOptions
         ConfigurationItem(missing, "julia.lint.iter"),
         ConfigurationItem(missing, "julia.lint.nothingcomp"),
@@ -106,20 +94,16 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.useoffuncargs"),
         ConfigurationItem(missing, "julia.lint.run"),
         ConfigurationItem(missing, "julia.lint.missingrefs"),
-        ConfigurationItem(missing, "julia.lint.disabledDirs")
-        ]))
+        ConfigurationItem(missing, "julia.lint.disabledDirs"),
+        ConfigurationItem(missing, "julia.completionmode")
+    ]))
 
-    if server.clientInfo isa InfoParams && server.clientInfo.name == "vscode"
-        server.format_options = DocumentFormat.FormatOptions([isnothing(a) ? (DocumentFormat.default_options[i] isa Bool ? false : DocumentFormat.default_options[i]) : a for (i, a) in enumerate(response[1:12])]...)
-        new_runlinter = isnothing(response[23]) ? false : true
-        new_SL_opts = StaticLint.LintOptions([isnothing(a) ? (StaticLint.default_options[i] isa Bool ? false : StaticLint.default_options[i]) : a for (i, a) in enumerate(response[13:22])]...)
-    else
-        server.format_options = DocumentFormat.FormatOptions(response[1:12]...)
-        new_runlinter = something(response[23], true)
-        new_SL_opts = StaticLint.LintOptions(response[13:22]...)
-    end
-    new_lint_missingrefs = Symbol(something(response[24], :all))
-    new_lint_disableddirs = something(response[25], LINT_DIABLED_DIRS)
+    new_runlinter = something(response[11], true)
+    new_SL_opts = StaticLint.LintOptions(response[1:10]...)
+
+    new_lint_missingrefs = Symbol(something(response[12], :all))
+    new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
+    new_completion_mode = Symbol(something(response[14], :import))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
@@ -132,11 +116,10 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.runlinter = new_runlinter
     server.lint_missingrefs = new_lint_missingrefs
     server.lint_disableddirs = new_lint_disableddirs
+    server.completion_mode = new_completion_mode
 
     if rerun_lint
-        for doc in getdocuments_value(server)
-            lint!(doc, server)
-        end
+        relintserver(server)
     end
 end
 

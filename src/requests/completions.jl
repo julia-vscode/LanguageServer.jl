@@ -333,7 +333,8 @@ function string_completion(t, state::CompletionState)
 end
 
 function is_latex_comp(s, i)
-    i0 = i
+    firstindex(s) <= i <= lastindex(s) || return ""
+    i0 = i = thisind(s, i)
     while firstindex(s) <= i
         s[i] == '\\' && return s[i:i0]
         !is_latex_comp_char(s[i]) && return ""

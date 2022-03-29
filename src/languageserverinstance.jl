@@ -258,18 +258,20 @@ end
 Run the language `server`.
 """
 function Base.run(server::LanguageServerInstance)
+    _time0 = time()
+    elapsed_time = () -> string(round(Int, time() - _time0), "s after instance startup.")
     server.status = :started
 
     run(server.jr_endpoint)
-    @debug "Connected at $(round(Int, time()))"
+    @debug "LS: Connected $(elapsed_time())"
 
     trigger_symbolstore_reload(server)
 
     @async try
-        @debug "LS: Starting client listener task."
+        @debug "LS: Starting client listener task $(elapsed_time())"
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
-            put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -282,17 +284,17 @@ function Base.run(server::LanguageServerInstance)
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
-        @debug "LS: Client listener task done."
+        @debug "LS: Client listener task done $(elapsed_time())"
     end
 
     @async try
-        @debug "LS: Starting symbol server listener task."
+        @debug "LS: Starting symbol server listener task $(elapsed_time())"
         while true
             msg = take!(server.symbol_results_channel)
-            put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -305,13 +307,13 @@ function Base.run(server::LanguageServerInstance)
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
-        @debug "LS: Symbol server listener task done."
+        @debug "LS: Symbol server listener task done $(elapsed_time())"
     end
 
-    @debug "Symbol Server started at $(round(Int, time()))"
+    @debug "LS: Symbol Server started $(elapsed_time())"
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
 
@@ -357,8 +359,7 @@ function Base.run(server::LanguageServerInstance)
     # handled directly.
     msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
 
-    @debug "starting main loop"
-    @debug "Starting event listener loop at $(round(Int, time()))"
+    @debug "LS: Starting event listener loop $(elapsed_time())"
     while true
         message = take!(server.combined_msg_queue)
         if message.type == :close
@@ -368,15 +369,17 @@ function Base.run(server::LanguageServerInstance)
             msg = message.msg
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
-            @info "Received new data from Julia Symbol Server."
+            @info "LS: Received new data from Julia Symbol Server $(elapsed_time())"
 
             server.global_env.symbols = message.msg
             server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            @info "LS: Collected extended methods $(elapsed_time())"
             server.global_env.project_deps = collect(keys(server.global_env.symbols))
+            @info "LS: Collected project deps $(elapsed_time())"
 
             # redo roots_env_map
+            @debug "LS: Resetting get_env_for_root $(elapsed_time())"
             for (root, _) in server.roots_env_map
-                @debug "resetting get_env_for_root"
                 newenv = get_env_for_root(root, server)
                 if newenv === nothing
                     delete!(server.roots_env_map, root)
@@ -385,10 +388,9 @@ function Base.run(server::LanguageServerInstance)
                 end
             end
 
-            @debug "starting re-lint of everything"
+            @debug "LS: Starting re-lint of everything $(elapsed_time())"
             relintserver(server)
-            @debug "re-lint done"
-            @debug "Linting finished at $(round(Int, time()))"
+            @debug "LS: Linting finished $(elapsed_time())"
         end
     end
 end

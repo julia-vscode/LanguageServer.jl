@@ -72,7 +72,10 @@ function setserver(file::Document, server::LanguageServerInstance)
 end
 
 function lint!(doc, server)
-    StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
+    cst = getcst(doc)
+    cst.fullspan > StaticLint.LARGE_FILE_LIMIT && return
+
+    StaticLint.check_all(cst, server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
     # TODO Ideally we would not want to acces jr_endpoint here

@@ -98,7 +98,8 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return locations
 end
 
-function descend(x::EXPR, target::EXPR, offset = 0)
+function descend(x::EXPR, target::EXPR, offset=0)
+    x == target && return (true, offset)
     for c in x
         if c == target
             return true, offset
@@ -110,7 +111,7 @@ function descend(x::EXPR, target::EXPR, offset = 0)
         end
         offset += c.fullspan
     end
-    false, offset
+    return false, offset
 end
 function get_file_loc(x::EXPR, offset=0, c=nothing)
     parent = x
@@ -209,7 +210,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call))
         if expr.parent !== nothing
             expr = expr.parent
         else
@@ -222,9 +223,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     c1 = 0
     start_offset = get_offset2(doc, l1, c1)
     l2, c2 = get_position_at(doc, offset + expr.span)
-    end_offset = get_offset(doc, l2, c2)
 
-    text = get_text(doc)[start_offset:end_offset]
+    text = get_text(doc)[start_offset:offset+expr.span]
 
     longest_prefix = nothing
     for line in eachline(IOBuffer(text))
@@ -255,7 +255,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     if longest_prefix !== nothing && !isempty(longest_prefix)
         io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep = true)
+        for line in eachline(IOBuffer(newcontent), keep=true)
             print(io, longest_prefix, line)
         end
         newcontent = String(take!(io))

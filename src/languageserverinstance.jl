@@ -333,7 +333,6 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
     msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)
     msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
-    msg_dispatcher[exit_notification_type] = request_wrapper(exit_notification, server)
     msg_dispatcher[cancel_notification_type] = request_wrapper(cancel_notification, server)
     msg_dispatcher[setTrace_notification_type] = request_wrapper(setTrace_notification, server)
     msg_dispatcher[setTraceNotification_notification_type] = request_wrapper(setTraceNotification_notification, server)
@@ -352,6 +351,11 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+
+    # The exit notification message should not be wrapped in request_wrapper (which checks
+    # if the server have been requested to be shut down). Instead, this message needs to be
+    # handled directly.
+    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
 
     @debug "starting main loop"
     @debug "Starting event listener loop at $(round(Int, time()))"

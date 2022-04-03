@@ -164,32 +164,60 @@ function texteditfor(state::CompletionState, partial, n)
     TextEdit(Range(Position(state.range.start.line, max(state.range.start.character - length(partial), 0)), state.range.stop), n)
 end
 
+function string_macro_altname(s)
+    if startswith(s, "@") && endswith(s, "_str")
+        return chop(s; head=1, tail=4) * '"'
+    else
+        return nothing
+    end
+end
+
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
+    possible_names = String[]
     for val in m.vals
         n, v = String(val[1]), val[2]
         (startswith(n, ".") || startswith(n, "#")) && continue
-        !is_completion_match(n, spartial) && continue
+        # Keep track of the canonical name and some possible alternatives
+        # (e.g. string macros can complete as '@foo_str' and also 'foo"')
+        canonical_name = n
+        resize!(possible_names, 0)
+        if is_completion_match(n, spartial)
+            push!(possible_names, n) # Direct match
+        end
+        if (nn = string_macro_altname(n); nn !== nothing) && is_completion_match(nn, spartial)
+            # Match for string macro without initial @ and trailing _str
+            push!(possible_names, nn)
+        end
+        length(possible_names) == 0 && continue # No matches, continue
         if v isa SymbolServer.VarRef
             v = SymbolServer._lookup(v, getsymbols(getenv(state)), true)
             v === nothing && return
         end
-        if StaticLint.isexportedby(n, m) || inclexported
-            add_completion_item(state, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
+        if StaticLint.isexportedby(canonical_name, m) || inclexported
+            foreach(possible_names) do n
+                add_completion_item(state, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
+            end
         elseif dotcomps
-            push!(state.completions, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
-        elseif length(spartial) > 3 && !variable_already_imported(m, n, state)
+            foreach(possible_names) do n
+                push!(state.completions, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
+            end
+        elseif length(spartial) > 3 && !variable_already_imported(m, canonical_name, state)
             if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement.
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
-                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
-                    MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
-                    texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, n, state), missing, missing, "import")
-                add_completion_item(state, ci)
+                foreach(possible_names) do n
+                    ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
+                        MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
+                        texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, canonical_name, state), missing, missing, "import")
+                    add_completion_item(state, ci)
+                end
             elseif state.server.completion_mode === :qualify
-                add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
-                    missing, MarkupContent(sanitize_docstring(v.doc)), missing,
-                    missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
-                    missing, missing, missing, missing))
+                foreach(possible_names) do n
+                    add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
+                        missing, MarkupContent(sanitize_docstring(v.doc)), missing,
+                        missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
+                        missing, missing, missing, missing))
+                end
             end
         end
     end
@@ -227,14 +255,24 @@ end
 
 function collect_completions(x::StaticLint.Scope, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     if x.names !== nothing
+        possible_names = String[]
         for n in x.names
+            resize!(possible_names, 0)
             if is_completion_match(n[1], spartial)
+                push!(possible_names, n[1])
+            end
+            if (nn = string_macro_altname(n[1]); nn !== nothing) && is_completion_match(nn, spartial)
+                push!(possible_names, nn)
+            end
+            if length(possible_names) > 0
                 documentation = ""
                 if n[2] isa StaticLint.Binding
                     documentation = get_hover(n[2], documentation, state.server)
                     sanitize_docstring(documentation)
                 end
-                add_completion_item(state, CompletionItem(n[1], _completion_kind(n[2]), MarkupContent(documentation), texteditfor(state, spartial, n[1])))
+                foreach(possible_names) do nn
+                    add_completion_item(state, CompletionItem(nn, _completion_kind(n[2]), MarkupContent(documentation), texteditfor(state, spartial, nn)))
+                end
             end
         end
     end

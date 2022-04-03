@@ -118,6 +118,21 @@ end
 
     settestdoc("isa")
     @test any(item.label == "isa" for item in completion_test(0, 3).items)
+
+    # String macros
+    settestdoc("uint12")
+    @test any(item.label == "uint128\"" for item in completion_test(0, 6).items)
+    @test any(item.label == "@uint128_str" for item in completion_test(0, 6).items)
+
+    settestdoc("@uint12")
+    @test any(item.label == "@uint128_str" for item in completion_test(0, 7).items)
+
+    settestdoc("""
+    macro foobar_str(ex) ex end
+    fooba
+    """)
+    @test any(item.label == "foobar\"" for item in completion_test(1, 5).items)
+    @test any(item.label == "@foobar_str" for item in completion_test(1, 5).items)
 end
 
 @testset "scope var completions" begin

@@ -109,7 +109,7 @@ function latex_completions(partial::String, state::CompletionState)
     for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
             # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
-            add_completion_item(state, CompletionItem(k, 11, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
         end
     end
 end
@@ -118,7 +118,7 @@ function kw_completion(partial::String, state::CompletionState)
     length(partial) == 0 && return
     for (kw, comp) in snippet_completions
         if startswith(kw, partial)
-            add_completion_item(state, CompletionItem(kw, 14, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(kw, CompletionItemKinds.Keyword, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
         end
     end
 end
@@ -174,20 +174,20 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
             v === nothing && return
         end
         if StaticLint.isexportedby(n, m) || inclexported
-            add_completion_item(state, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
+            add_completion_item(state, CompletionItem(n, _completion_kind(v), _completion_type(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, n)))
         elseif dotcomps
-            push!(state.completions, CompletionItem(n, _completion_kind(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
+            push!(state.completions, CompletionItem(n, _completion_kind(v), _completion_type(v), MarkupContent(sanitize_docstring(v.doc)), texteditfor(state, spartial, string(m.name, ".", n))))
         elseif length(spartial) > 3 && !variable_already_imported(m, n, state)
             if state.server.completion_mode === :import
                 # These are non-exported names and require the insertion of a :using statement.
                 # We need to insert this statement at the start of the current top-level scope (e.g. Main or a module) and tag it onto existing :using statements if possible.
-                ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
+                ci = CompletionItem(n, _completion_kind(v), missing, string(coalesce(_completion_type(v), ""), " (explicit import)"),
                     MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
                     texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, n, state), missing, missing, "import")
                 add_completion_item(state, ci)
             elseif state.server.completion_mode === :qualify
                 add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
-                    missing, MarkupContent(sanitize_docstring(v.doc)), missing,
+                    _completion_type(v), MarkupContent(sanitize_docstring(v.doc)), missing,
                     missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
                     missing, missing, missing, missing))
             end
@@ -234,7 +234,7 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
                     documentation = get_hover(n[2], documentation, state.server)
                     sanitize_docstring(documentation)
                 end
-                add_completion_item(state, CompletionItem(n[1], _completion_kind(n[2]), MarkupContent(documentation), texteditfor(state, spartial, n[1])))
+                add_completion_item(state, CompletionItem(n[1], _completion_kind(n[2]), _completion_type(n[2]), MarkupContent(documentation), texteditfor(state, spartial, n[1])))
             end
         end
     end
@@ -262,14 +262,14 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                 for a in refof(px).type.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, 2, MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, _completion_type(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, 2, MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, _completion_type(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
@@ -310,6 +310,20 @@ function _completion_kind(b)
         return CompletionItemKinds.Variable
     end
 end
+
+function _completion_type(b::StaticLint.Binding)
+    typ = _inner_completion_type(b.type)
+    typ === missing && return missing
+    if startswith(typ, "Core.")
+        typ = typ[6:end]
+    end
+    return "::$typ"
+end
+_completion_type(_) = missing
+
+_inner_completion_type(b::SymbolServer.DataTypeStore) = sprint(print, b.name)
+_inner_completion_type(b::StaticLint.Binding) = sprint(print, to_codeobject(b.name))
+_inner_completion_type(_) = missing
 
 function get_import_root(x::EXPR)
     if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"
@@ -388,7 +402,7 @@ function path_completion(t, state::CompletionState)
                             f = string(f, "/")
                         end
                         rng1 = Range(state.doc, state.offset - sizeof(partial):state.offset)
-                        add_completion_item(state, CompletionItem(f, 17, f, TextEdit(rng1, f)))
+                        add_completion_item(state, CompletionItem(f, CompletionItemKinds.File, f, TextEdit(rng1, f)))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     end
@@ -414,14 +428,14 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
             for (n, m) in refof(import_root).vals
                 n = String(n)
                 if is_completion_match(n, t.val) && !startswith(n, "#")
-                    add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
+                    add_completion_item(state, CompletionItem(n, _completion_kind(m), _completion_type(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                 end
             end
         else
             for (n, m) in StaticLint.getsymbols(getenv(state))
                 n = String(n)
                 (startswith(n, ".") || startswith(n, "#")) && continue
-                add_completion_item(state, CompletionItem(n, 9, MarkupContent(sanitize_docstring(m.doc)), TextEdit(state.range, n)))
+                add_completion_item(state, CompletionItem(n, CompletionItemKinds.Module, _completion_type(m), MarkupContent(sanitize_docstring(m.doc)), TextEdit(state.range, n)))
             end
         end
     elseif t.kind == CSTParser.Tokens.DOT && pt.kind == CSTParser.Tokens.IDENTIFIER
@@ -437,7 +451,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 for (n, m) in rootmod.vals
                     n = String(n)
                     if is_completion_match(n, t.val) && !startswith(n, "#")
-                        add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
+                        add_completion_item(state, CompletionItem(n, _completion_kind(m), _completion_type(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                     end
                 end
             end
@@ -446,14 +460,14 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 for (n, m) in refof(import_root).vals
                     n = String(n)
                     if is_completion_match(n, t.val) && !startswith(n, "#")
-                        add_completion_item(state, CompletionItem(n, _completion_kind(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
+                        add_completion_item(state, CompletionItem(n, _completion_kind(m), _completion_type(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
                     end
                 end
             else
                 for (n, m) in StaticLint.getsymbols(getenv(state))
                     n = String(n)
                     if is_completion_match(n, t.val)
-                        add_completion_item(state, CompletionItem(n, 9, MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), texteditfor(state, t.val, n)))
+                        add_completion_item(state, CompletionItem(n, CompletionItemKinds.Module, _completion_type(m), MarkupContent(m isa SymbolServer.SymStore ? m.doc : n), texteditfor(state, t.val, n)))
                     end
                 end
             end

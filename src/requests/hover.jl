@@ -55,7 +55,7 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 else
                     documentation
                 end
-                documentation = string(ensure_ends_with(documentation), "```julia\n", prettify_expr(to_codeobject(b.val)), "\n```\n")
+                documentation = string(ensure_ends_with(documentation), "```julia\n", prettify_expr(to_codeobject(b.val)), coalesce(_completion_type(b), ""), "\n```\n")
             catch err
                 @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
                 throw(LSHoverError(string("get_hover failed to convert Expr")))

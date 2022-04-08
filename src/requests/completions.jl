@@ -293,6 +293,8 @@ function _completion_kind(b)
             return CompletionItemKinds.Value
         elseif b.type == StaticLint.CoreTypes.DataType
             return CompletionItemKinds.Struct
+        elseif b.type === nothing || b.type isa SymbolServer.DataTypeStore
+            return CompletionItemKinds.Variable
         else
             return CompletionItemKinds.Enum
         end

@@ -6,4 +6,5 @@
     position::Position
 end
 
+include("versionlens.jl")
 include("messagedefs.jl")

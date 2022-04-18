@@ -3,7 +3,13 @@
 # a new view on the current registry.
 
 module RegistryQuery
-using Base: UUID, SHA1, TOML
+using Base: UUID, SHA1
+@static if VERSION < v"1.6"
+    using Base: TOML
+else
+    import TOML
+end
+import Tar
 using Pkg
 
 function to_tar_path_format(file::AbstractString)

@@ -322,28 +322,30 @@ end
 function _completion_kind(b)
     if b isa StaticLint.Binding
         if b.type == StaticLint.CoreTypes.String
-            return 1
+            return CompletionItemKinds.Text
         elseif b.type == StaticLint.CoreTypes.Function
-            return 2
+            return CompletionItemKinds.Method
         elseif b.type == StaticLint.CoreTypes.Module
-            return 9
+            return CompletionItemKinds.Module
         elseif b.type == Int || b.type == StaticLint.CoreTypes.Float64
-            return 12
+            return CompletionItemKinds.Value
         elseif b.type == StaticLint.CoreTypes.DataType
-            return 22
+            return CompletionItemKinds.Struct
+        elseif b.type === nothing || b.type isa SymbolServer.DataTypeStore
+            return CompletionItemKinds.Variable
         else
-            return 13
+            return CompletionItemKinds.Enum
         end
     elseif b isa SymbolServer.ModuleStore || b isa SymbolServer.VarRef
-        return 9
+        return CompletionItemKinds.Module
     elseif b isa SymbolServer.MethodStore
-        return 2
+        return CompletionItemKinds.Method
     elseif b isa SymbolServer.FunctionStore
-        return 3
+        return CompletionItemKinds.Function
     elseif b isa SymbolServer.DataTypeStore
-        return 22
+        return CompletionItemKinds.Struct
     else
-        return 6
+        return CompletionItemKinds.Variable
     end
 end
 

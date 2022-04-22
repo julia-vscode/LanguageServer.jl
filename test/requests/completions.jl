@@ -148,3 +148,17 @@ end
     @test any(item.label == "βbb" for item in completion_test(4, 2).items)
     @test any(item.label == "bβb" for item in completion_test(5, 2).items)
 end
+
+@testset "completion kinds" begin
+    Kinds = LanguageServer.CompletionItemKinds
+    # issue #872
+    settestdoc("""
+        function f(kind_variable_arg)
+            kind_variable_local = 1
+            kind_variable_
+        end
+        """)
+    items = completion_test(2, 18).items
+    @test any(i -> i.label == "kind_variable_local" && i.kind == Kinds.Variable, items)
+    @test any(i -> i.label == "kind_variable_arg" && i.kind == Kinds.Variable, items)
+end

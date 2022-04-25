@@ -27,7 +27,7 @@ function get_hover(x::EXPR, documentation::String, server)
     return documentation
 end
 
-function get_hover(b::StaticLint.Binding, documentation::String, server)
+function get_tooltip(b::StaticLint.Binding, documentation::String, server; show_definition = false)
     if b.val isa StaticLint.Binding
         documentation = get_hover(b.val, documentation, server)
     elseif b.val isa EXPR
@@ -48,6 +48,15 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
             end
         else
             documentation = try
+                if show_definition
+                    documentation = string(
+                        ensure_ends_with(documentation),
+                        """```julia
+                        $(get_typed_definition(b))
+                        ```\n
+                        """
+                    )
+                end
                 documentation = if binding_has_preceding_docs(b)
                     string(documentation, to_codeobject(maybe_get_doc_expr(b.val).args[3]))
                 elseif const_binding_has_preceding_docs(b)
@@ -55,7 +64,6 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
                 else
                     documentation
                 end
-                documentation = string(ensure_ends_with(documentation), "```julia\n", prettify_expr(to_codeobject(b.val)), coalesce(_completion_type(b), ""), "\n```\n")
             catch err
                 @error "get_hover failed to convert Expr" exception = (err, catch_backtrace())
                 throw(LSHoverError(string("get_hover failed to convert Expr")))
@@ -66,6 +74,56 @@ function get_hover(b::StaticLint.Binding, documentation::String, server)
     end
     return documentation
 end
+
+get_hover(b::StaticLint.Binding, documentation::String, server) = get_tooltip(b, documentation, server; show_definition = true)
+
+get_typed_definition(b) = _completion_type(b)
+get_typed_definition(b::StaticLint.Binding) =
+    prettify_expr(maybe_insert_type_declaration(b))
+
+function maybe_insert_type_declaration(b::StaticLint.Binding)
+    if b.val isa CSTParser.EXPR
+        maybe_insert_type_declaration(to_codeobject(b.val), _completion_type(b))
+    else
+        _completion_type(b)
+    end
+end
+
+maybe_insert_type_declaration(_, type) = coalesce(type, "")
+maybe_insert_type_declaration(s::Symbol, ::Missing) = s
+maybe_insert_type_declaration(s::Symbol, type) = Expr(
+    :(::),
+    s,
+    Symbol(type)
+)
+maybe_insert_type_declaration(ex::Expr, ::Missing) = ex
+function maybe_insert_type_declaration(ex::Expr, type)
+    if ex.head === :(=) && length(ex.args) >= 2
+        lhs = ex.args[1]
+        if !(lhs isa Expr && lhs.head === :(::))
+            ex.args[1] = Expr(
+                :(::),
+                lhs,
+                Symbol(type)
+            )
+        end
+    end
+    return ex
+end
+
+function _completion_type(b::StaticLint.Binding)
+    typ = _inner_completion_type(b.type)
+    typ === missing && return missing
+    if startswith(typ, "Core.")
+        typ = typ[6:end]
+    end
+    return Symbol(typ)
+end
+_completion_type(_) = missing
+
+_inner_completion_type(b::SymbolServer.DataTypeStore) = sprint(print, b.name)
+_inner_completion_type(b::StaticLint.Binding) = sprint(print, to_codeobject(b.name))
+_inner_completion_type(_) = missing
 
 function prettify_expr(ex::Expr)
     if ex.head === :kw && length(ex.args) == 2

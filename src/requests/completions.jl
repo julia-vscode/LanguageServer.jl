@@ -86,7 +86,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         end
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.AT_SIGN
         # only `@` given
-        state.x !== nothing && get_typed_definition(state.x, "@", state, false)
+        state.x !== nothing && collect_completions(state.x, "@", state, false)
     elseif t isa CSTParser.Tokens.Token && Tokens.iskeyword(t.kind) && is_at_end
         kw_completion(CSTParser.Tokenize.untokenize(t), state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IN && is_at_end && state.x !== nothing
@@ -282,7 +282,6 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
 end
 
 function _completion_kind(b)
-    @info "_completion_kind" b.type
     if b isa StaticLint.Binding
         if b.type == StaticLint.CoreTypes.String
             return CompletionItemKinds.Text

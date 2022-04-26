@@ -499,26 +499,39 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     return documentation
 end
 
+function _score(needle::Symbol, haystack::Symbol)
+    if needle === haystack
+        return 0
+    end
+    needle, haystack = lowercase(string(needle)), lowercase(string(haystack))
+    ldist = REPL.levenshtein(needle, haystack)
+
+    if startswith(haystack, needle)
+        ldist *= 0.5
+    end
+
+    return ldist
+end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    exact_matches = []
-    approx_matches = []
-    word_sym = Symbol(params.word)
+    matches = Pair{Float64, String}[]
+    needle = Symbol(params.word)
+    nfound = 0
     traverse_by_name(getsymbols(getenv(server))) do sym, val
-        is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
-        is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1
-        if is_match
+        score = _score(needle, sym)
+        if score < 2
             val = get_hover(val, "", server)
             if !isempty(val)
-                push!(is_exact_match ? exact_matches : approx_matches, val)
+                nfound += 1
+                push!(matches, score => val)
             end
         end
     end
-    if isempty(exact_matches) && isempty(approx_matches)
+    if isempty(matches)
         return "No results found."
     else
-        return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
+        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
     end
 end
 

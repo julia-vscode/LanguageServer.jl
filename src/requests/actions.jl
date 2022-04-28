@@ -1,23 +1,61 @@
 struct ServerAction
-    command::Command
+    id::String
+    desc::String
+    kind::Union{CodeActionKind,Missing}
     when::Function
     handler::Function
 end
 
+function client_support_action_kind(s::LanguageServerInstance, _::CodeActionKind=CodeActionKinds.Empty)
+    if s.clientCapabilities !== missing &&
+       s.clientCapabilities.textDocument !== missing &&
+       s.clientCapabilities.textDocument.codeAction !== missing &&
+       s.clientCapabilities.textDocument.codeAction.codeActionLiteralSupport !== missing
+       s.clientCapabilities.textDocument.codeAction.codeActionLiteralSupport.codeActionKind !== missing
+        # From the spec of CodeActionKind (https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionClientCapabilities):
+        #
+        #     The code action kind values the client supports. When this
+        #     property exists the client also guarantees that it will
+        #     handle values outside its set gracefully and falls back
+        #     to a default value when unknown.
+        #
+        # so we can always return true here(?).
+        return true
+    else
+        return false
+    end
+end
+
+# TODO: All currently supported CodeActions in LS.jl can be converted "losslessly" to
+#       Commands but this might not be true in the future so unless the client support
+#       literal code actions those need to be filtered out.
+function convert_to_command(ca::CodeAction)
+    return ca.command
+end
+
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
-    commands = Command[]
+    actions = CodeAction[]
     doc = getdocument(server, URI2(params.textDocument.uri))
-    offset = get_offset(doc, params.range.start) # Should usef get_offset2?
+    offset = get_offset2(doc, params.range.start)
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR
         for (_, sa) in LSActions
             if sa.when(x, params)
-                push!(commands, Command(sa.command.title, sa.command.command, arguments))
+                action = CodeAction(
+                    sa.desc, sa.kind, missing, missing, missing,
+                    Command(sa.desc, sa.id, arguments),
+                )
+                push!(actions, action)
             end
         end
     end
-    return commands
+    if client_support_action_kind(server)
+        return actions
+    else
+        # TODO: Future CodeActions might have to be filtered here.
+        return convert_to_command.(actions)
+    end
 end
 
 function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
@@ -267,22 +305,67 @@ function remove_farg_name(x, server, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function double_to_triple_equal(x, _, conn)
+    x1 = StaticLint.get_parent_fexpr(x, y -> StaticLint.haserror(y) && StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
+    file, offset = get_file_loc(x1)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        TextEdit(Range(file, offset .+ (0:x1.span)), StaticLint.errorof(x1) == StaticLint.NothingEquality ? "===" : "!==")
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 # Adding a CodeAction requires defining:
-# * a Command (title and description);
+# * a unique id
+# * a description
+# * an action kind (optionally)
 # * a function (.when) called on the currently selected expression and parameters of the CodeAction call;
 # * a function (.handler) called on three arguments (current expression, server and the jr connection) to implement the command.
-const LSActions = Dict(
-    "ExplicitPackageVarImport" => ServerAction(Command("Explicitly import used package variables.", "ExplicitPackageVarImport", missing), 
-                                               (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore, 
-                                               explicitly_import_used_variables),
-    "ExpandFunction" => ServerAction(Command("Expand function definition.", "ExpandFunction", missing),
-                                     (x, params) -> is_in_fexpr(x, is_single_line_func),
-                                     expand_inline_func),
-    "FixMissingRef" => ServerAction(Command("Fix missing reference", "FixMissingRef", missing),
-                                    (x, params) -> is_fixable_missing_ref(x, params.context),
-                                    applymissingreffix),
-    "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
-                                     (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
-                                     reexport_package),
-    "DeleteUnusedFunctionArgumentName" => ServerAction(Command("Delete name of unused function argument.", "DeleteUnusedFunctionArgumentName", missing), (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument), remove_farg_name)
+const LSActions = Dict{String,ServerAction}()
+
+LSActions["ExplicitPackageVarImport"] = ServerAction(
+    "ExplicitPackageVarImport",
+    "Explicitly import used package variables.",
+    missing,
+    (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore,
+    explicitly_import_used_variables
+)
+
+LSActions["ExpandFunction"] = ServerAction(
+    "ExpandFunction",
+    "Expand function definition.",
+    missing,
+    (x, params) -> is_in_fexpr(x, is_single_line_func),
+    expand_inline_func,
+)
+
+LSActions["FixMissingRef"] = ServerAction(
+    "FixMissingRef",
+    "Fix missing reference",
+    missing,
+    (x, params) -> is_fixable_missing_ref(x, params.context),
+    applymissingreffix,
+)
+
+LSActions["ReexportModule"] = ServerAction(
+    "ReexportModule",
+    "Re-export package variables.",
+    missing,
+    (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
+    reexport_package,
+)
+
+LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
+    "DeleteUnusedFunctionArgumentName",
+    "Delete name of unused function argument.",
+    missing,
+    (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument),
+    remove_farg_name,
+)
+
+LSActions["CompareNothingWithTripleEqual"] = ServerAction(
+    "CompareNothingWithTripleEqual",
+    "Change ==/!= to ===/!==.",
+    missing,
+    (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
+    double_to_triple_equal,
 )

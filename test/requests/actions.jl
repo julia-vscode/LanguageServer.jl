@@ -12,6 +12,10 @@ end
     settestdoc("f(x) = x")
     @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
     c = filter(c -> c.command == "ExpandFunction", action_request_test(0, 5))[1]
+
+    settestdoc("g(x) = x\nf(x) = x")
+    @test any(c.command == "ExpandFunction" for c in action_request_test(0, 0))
+    @test any(c.command == "ExpandFunction" for c in action_request_test(1, 0))
     
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 

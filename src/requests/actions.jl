@@ -333,7 +333,7 @@ LSActions["ExplicitPackageVarImport"] = ServerAction(
 LSActions["ExpandFunction"] = ServerAction(
     "ExpandFunction",
     "Expand function definition.",
-    missing,
+    CodeActionKinds.Refactor,
     (x, params) -> is_in_fexpr(x, is_single_line_func),
     expand_inline_func,
 )
@@ -357,7 +357,7 @@ LSActions["ReexportModule"] = ServerAction(
 LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
     "DeleteUnusedFunctionArgumentName",
     "Delete name of unused function argument.",
-    missing,
+    CodeActionKinds.QuickFix,
     (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument),
     remove_farg_name,
 )
@@ -365,7 +365,7 @@ LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
 LSActions["CompareNothingWithTripleEqual"] = ServerAction(
     "CompareNothingWithTripleEqual",
     "Change ==/!= to ===/!==.",
-    missing,
+    CodeActionsKinds.QuickFix,
     (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
     double_to_triple_equal,
 )

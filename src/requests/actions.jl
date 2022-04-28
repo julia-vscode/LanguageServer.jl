@@ -267,6 +267,15 @@ function remove_farg_name(x, server, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function double_to_triple_equal(x, _, conn)
+    x1 = StaticLint.get_parent_fexpr(x, y -> StaticLint.haserror(y) && StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
+    file, offset = get_file_loc(x1)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        TextEdit(Range(file, offset .+ (0:x1.span)), StaticLint.errorof(x1) == StaticLint.NothingEquality ? "===" : "!==")
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 # Adding a CodeAction requires defining:
 # * a Command (title and description);
 # * a function (.when) called on the currently selected expression and parameters of the CodeAction call;
@@ -284,5 +293,6 @@ const LSActions = Dict(
     "ReexportModule" => ServerAction(Command("Re-export package variables.", "ReexportModule", missing), 
                                      (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
                                      reexport_package),
-    "DeleteUnusedFunctionArgumentName" => ServerAction(Command("Delete name of unused function argument.", "DeleteUnusedFunctionArgumentName", missing), (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument), remove_farg_name)
+    "DeleteUnusedFunctionArgumentName" => ServerAction(Command("Delete name of unused function argument.", "DeleteUnusedFunctionArgumentName", missing), (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument), remove_farg_name),
+    "CompareNothingWithTripleEqual" => ServerAction(Command("Change ==/!= to ===/!==.", "CompareNothingWithTripleEqual", missing), (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))), double_to_triple_equal),
 )

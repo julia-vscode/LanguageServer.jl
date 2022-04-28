@@ -237,6 +237,9 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 end
 
+# Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
+const USE_REVISE = Ref(false)
+
 function request_wrapper(func, server::LanguageServerInstance)
     return function (conn, params)
         if server.shutdown_requested
@@ -248,7 +251,16 @@ function request_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        func(params, server, conn)
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            Base.invokelatest(func, params, server, conn)
+        else
+            func(params, server, conn)
+        end
     end
 end
 

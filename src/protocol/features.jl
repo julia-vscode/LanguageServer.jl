@@ -114,6 +114,8 @@ end
 
 @dict_readable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
+    workDoneToken::Union{Int,String,Missing}
+    partialResultToken::Union{Int,String,Missing}
 end
 
 struct DocumentLink <: Outbound

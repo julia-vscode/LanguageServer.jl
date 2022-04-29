@@ -365,7 +365,7 @@ LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
 LSActions["CompareNothingWithTripleEqual"] = ServerAction(
     "CompareNothingWithTripleEqual",
     "Change ==/!= to ===/!==.",
-    CodeActionsKinds.QuickFix,
+    CodeActionKinds.QuickFix,
     (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
     double_to_triple_equal,
 )

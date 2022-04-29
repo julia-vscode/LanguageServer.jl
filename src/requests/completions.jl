@@ -118,7 +118,8 @@ function kw_completion(partial::String, state::CompletionState)
     length(partial) == 0 && return
     for (kw, comp) in snippet_completions
         if startswith(kw, partial)
-            add_completion_item(state, CompletionItem(kw, CompletionItemKinds.Keyword, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
+            kind = occursin("\$0", comp) ? CompletionItemKinds.Snippet : CompletionItemKinds.Keyword
+            add_completion_item(state, CompletionItem(kw, kind, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
         end
     end
 end

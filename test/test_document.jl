@@ -133,5 +133,6 @@ end
     links = LS.DocumentLink[]
     LS.find_document_links(LS.getcst(doc), doc, 0, links)
     @test length(links) == 1
-    @test links[1].target == LS.filepath2uri(@__FILE__)
+    # lowercase because windows drives can apparently be inconsistently capitalized
+    @test lowercase(links[1].target) == lowercase(LS.filepath2uri(@__FILE__))
 end

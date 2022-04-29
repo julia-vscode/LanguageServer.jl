@@ -285,6 +285,7 @@ function is_rebinding_of_module(x)
     StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
     refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
 end
+get_overlapped_binding(b::StaticLint.Binding) = b.val isa StaticLint.Binding ? get_overlapped_binding(b.val) : b
 
 function _get_dot_completion(px, spartial, state::CompletionState) end
 function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
@@ -303,8 +304,8 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                         add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
-                for a in refof(px).type.val.fieldnames
+            elseif binding.type isa StaticLint.Binding && binding.type.val isa SymbolServer.DataTypeStore
+                for a in binding.type.val.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
                         add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
@@ -456,7 +457,14 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 end
             end
         else
+            for (n,doc1) in server.workspacepackages
+                if StaticLint.has_workspace_package(server, n)
+                    push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n)))
+                end
+            end
+
             for (n, m) in StaticLint.getsymbols(getenv(state))
+
                 n = String(n)
                 (startswith(n, ".") || startswith(n, "#")) && continue
                 add_completion_item(state, CompletionItem(n, CompletionItemKinds.Module, get_typed_definition(m), MarkupContent(sanitize_docstring(m.doc)), TextEdit(state.range, n)))
@@ -488,6 +496,12 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                     end
                 end
             else
+                for (n,doc1) in server.workspacepackages
+                    if startswith(n, t.val) && StaticLint.has_workspace_package(server, n)
+                        push!(CIs, CompletionItem(n, 9, MarkupContent("Workspace package: $n"), TextEdit(rng, n[nextind(n,sizeof(t.val)):end]))) # AUDIT: nextind(n,sizeof(n)) equiv to nextind(n, lastindex(n))
+                    end
+                end
+
                 for (n, m) in StaticLint.getsymbols(getenv(state))
                     n = String(n)
                     if is_completion_match(n, t.val)

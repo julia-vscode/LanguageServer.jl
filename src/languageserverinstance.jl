@@ -37,6 +37,7 @@ mutable struct LanguageServerInstance
     global_env::StaticLint.ExternalEnv
     roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
+    workspacepackages::Dict{String,Document}
 
     runlinter::Bool
     lint_options::StaticLint.LintOptions
@@ -75,6 +76,7 @@ mutable struct LanguageServerInstance
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             Dict(),
             false,
+            Dict{String,Document}(),
             true,
             StaticLint.LintOptions(),
             :all,
@@ -123,9 +125,31 @@ end
 
 function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
     server._documents[uri] = doc
+    # Add possible workspace packages
+    path = uri2filepath(uri._uri)
+    for wk_folder in server.workspaceFolders
+        if startswith(path, wk_folder) && normpath(wk_folder) == normpath(server.env_path)
+            sub_path = splitpath(path)
+            first(sub_path) == "/" && popfirst!(sub_path)
+            length(sub_path) < 3 && continue
+            fname = splitext(last(sub_path))[1]
+            if sub_path[end-1] == "src" && sub_path[end-2] == fname
+                @info "Setting $path as source of 'live' package"
+                server.workspacepackages[fname] = doc
+            end
+        end
+    end
+    return doc
 end
 
 function deletedocument!(server::LanguageServerInstance, uri::URI2)
+    # clear reference to doc from workspacepackages
+    for (n,d) in server.workspacepackages
+        if d._uri == uri._uri
+            delete!(server.workspacepackages, n)
+            break
+        end
+    end
     doc = getdocument(server, uri)
     StaticLint.clear_meta(getcst(doc))
     delete!(server._documents, uri)

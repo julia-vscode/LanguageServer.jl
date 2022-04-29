@@ -18,6 +18,7 @@ const textDocument_willSave_notification_type = JSONRPC.NotificationType("textDo
 const textDocument_willSaveWaitUntil_request_type = JSONRPC.RequestType("textDocument/willSaveWaitUntil", WillSaveTextDocumentParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_publishDiagnostics_notification_type = JSONRPC.NotificationType("textDocument/publishDiagnostics", PublishDiagnosticsParams)
 const textDocument_selectionRange_request_type = JSONRPC.RequestType("textDocument/selectionRange", SelectionRangeParams, Union{Vector{SelectionRange}, Nothing})
+const textDocument_documentLink_request_type = JSONRPC.RequestType("textDocument/documentLink", DocumentLinkParams, Union{Vector{DocumentLink}, Nothing})
 
 const workspace_executeCommand_request_type = JSONRPC.RequestType("workspace/executeCommand", ExecuteCommandParams, Any)
 const workspace_symbol_request_type = JSONRPC.RequestType("workspace/symbol", WorkspaceSymbolParams, Union{Vector{SymbolInformation}, Nothing})

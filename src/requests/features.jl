@@ -77,22 +77,6 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
         get_definitions(b, tls, getenv(doc, server), locations)
-    elseif x isa EXPR && CSTParser.isstringliteral(x)
-        # TODO: move to its own function
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
-            try
-                if isabspath(valof(x)) && safe_isfile(valof(x))
-                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
-                end
-            catch err
-                isa(err, Base.IOError) ||
-                    isa(err, Base.SystemError) ||
-                    (VERSION == v"1.2.0" && isa(err, ErrorException) && err.msg == "type Nothing has no field captures ") ||
-                    rethrow()
-            end
-        end
     end
 
     return locations

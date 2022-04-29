@@ -259,6 +259,31 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     end
 end
 
+# full (not only trivia) expr containing rng, modulo whitespace
+function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
+    if all(pos .> rng)
+        return nothing
+    end
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        pos_span′ = pos_span
+        for a in x
+            if a in x.args && all(pos_span′ .< rng .<= (pos + a.fullspan))
+                return get_inner_expr(a, rng, pos, pos_span′)
+            end
+            pos += a.fullspan
+            pos_span′ = pos - (a.fullspan - a.span)
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+end
+
 function get_expr1(x, offset, pos=0)
     if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
         if pos <= offset <= pos + x.span
@@ -421,7 +446,7 @@ function parent_file(x::EXPR)
     end
 end
 
-function resolve_op_ref(x::EXPR, server)
+function resolve_op_ref(x::EXPR, env)
     StaticLint.hasref(x) && return true
     !CSTParser.isoperator(x) && return false
     pf = parent_file(x)
@@ -429,10 +454,10 @@ function resolve_op_ref(x::EXPR, server)
     scope = StaticLint.retrieve_scope(x)
     scope === nothing && return false
 
-    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, server)
+    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env)
 end
 
-function op_resolve_up_scopes(x, mn, scope, server)
+function op_resolve_up_scopes(x, mn, scope, env)
     scope isa StaticLint.Scope || return false
     if StaticLint.scopehasbinding(scope, mn)
         StaticLint.setref!(x, scope.names[mn])
@@ -440,19 +465,18 @@ function op_resolve_up_scopes(x, mn, scope, server)
     elseif scope.modules isa Dict && length(scope.modules) > 0
         for (_, m) in scope.modules
             if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                StaticLint.setref!(x, maybe_lookup(m[Symbol(mn)], server))
+                StaticLint.setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env))
                 return true
             elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                StaticLint.setref!(x, maybe_lookup(m.names[mn], server))
+                StaticLint.setref!(x, StaticLint.maybe_lookup(m.names[mn], env))
                 return true
             end
         end
     end
     CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
-    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), server)
+    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env)
 end
 
-maybe_lookup(x, server) = x isa SymbolServer.VarRef ? SymbolServer._lookup(x, getsymbolserver(server), true) : x # TODO: needs to go to SymbolServer
 
 function is_in_target_dir_of_package(pkgpath, target)
     try # Safe failure - attempts to read disc.
@@ -465,4 +489,3 @@ function is_in_target_dir_of_package(pkgpath, target)
         return false
     end
 end
-

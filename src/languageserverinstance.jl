@@ -34,11 +34,10 @@ mutable struct LanguageServerInstance
     depot_path::String
     symbol_server::SymbolServer.SymbolServerInstance
     symbol_results_channel::Channel{Any}
-    symbol_store::SymbolServer.EnvStore
-    symbol_extends::Dict{SymbolServer.VarRef,Vector{SymbolServer.VarRef}}
+    global_env::StaticLint.ExternalEnv
+    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
     symbol_store_ready::Bool
 
-    format_options::DocumentFormat.FormatOptions
     runlinter::Bool
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
@@ -52,6 +51,7 @@ mutable struct LanguageServerInstance
     status::Symbol
 
     number_of_outstanding_symserver_requests::Int
+    symserver_use_download::Bool
 
     current_symserver_progress_token::Union{Nothing,String}
 
@@ -63,28 +63,28 @@ mutable struct LanguageServerInstance
 
     shutdown_requested::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI2,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path),
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
             Channel(Inf),
-            deepcopy(SymbolServer.stdlibs),
-            SymbolServer.collect_extended_methods(SymbolServer.stdlibs),
+            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
+            Dict(),
             false,
-            DocumentFormat.FormatOptions(),
             true,
             StaticLint.LintOptions(),
             :all,
             LINT_DIABLED_DIRS,
-            :import, # options: :import or :qualify, anything else turns this off
+            :qualify, # options: :import or :qualify, anything else turns this off
             Channel{Any}(Inf),
             err_handler,
             :created,
             0,
+            download,
             nothing,
             false,
             false,
@@ -131,8 +131,8 @@ function deletedocument!(server::LanguageServerInstance, uri::URI2)
     delete!(server._documents, uri)
 
     for d in getdocuments_value(server)
-        if d.root === doc
-            d.root = d
+        if getroot(d) === doc
+            setroot(d, d)
             semantic_pass(getroot(d))
         end
     end
@@ -147,7 +147,7 @@ function create_symserver_progress_ui(server)
         JSONRPC.send(
             server.jr_endpoint,
             progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia Language Server", missing, "Indexing packages...", missing))
+            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", missing))
         )
     end
 end
@@ -171,23 +171,29 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
     server.number_of_outstanding_symserver_requests += 1
 
+    if server.symserver_use_download
+        @debug "Will download symbol server caches for this instance."
+    end
+
     @async try
-        # TODO Add try catch handler that links into crash reporting
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function (i)
+            function (msg, percentage = missing)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
+                    msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
                     JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, "Indexing $i...", missing))
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, missing))
                     )
+                    @info msg
                 else
-                    @info "Indexing $i..."
+                    @info msg
                 end
             end,
-            server.err_handler
+            server.err_handler,
+            download = server.symserver_use_download
         )
 
         server.number_of_outstanding_symserver_requests -= 1
@@ -231,6 +237,9 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 end
 
+# Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
+const USE_REVISE = Ref(false)
+
 function request_wrapper(func, server::LanguageServerInstance)
     return function (conn, params)
         if server.shutdown_requested
@@ -242,7 +251,16 @@ function request_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        func(params, server, conn)
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            Base.invokelatest(func, params, server, conn)
+        else
+            func(params, server, conn)
+        end
     end
 end
 
@@ -255,10 +273,12 @@ function Base.run(server::LanguageServerInstance)
     server.status = :started
 
     run(server.jr_endpoint)
+    @debug "Connected at $(round(Int, time()))"
 
     trigger_symbolstore_reload(server)
 
     @async try
+        @debug "LS: Starting client listener task."
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
@@ -268,14 +288,20 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Client listener task done."
     end
 
     @async try
+        @debug "LS: Starting symbol server listener task."
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
@@ -285,12 +311,19 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            Base.display_error(stderr, err, bt)
+            io = IOBuffer()
+            Base.display_error(io, err, bt)
+            print(stderr, String(take!(io)))
         end
     finally
-        put!(server.combined_msg_queue, (type = :close,))
-        close(server.combined_msg_queue)
+        if isopen(server.combined_msg_queue)
+            put!(server.combined_msg_queue, (type = :close,))
+            close(server.combined_msg_queue)
+        end
+        @debug "LS: Symbol server listener task done."
     end
+
+    @debug "Symbol Server started at $(round(Int, time()))"
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
 
@@ -300,8 +333,10 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
     msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
     msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+    msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
     msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
     msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+    msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
     msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
     msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
     msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
@@ -310,7 +345,6 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
     msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)
     msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
-    msg_dispatcher[exit_notification_type] = request_wrapper(exit_notification, server)
     msg_dispatcher[cancel_notification_type] = request_wrapper(cancel_notification, server)
     msg_dispatcher[setTrace_notification_type] = request_wrapper(setTrace_notification, server)
     msg_dispatcher[setTraceNotification_notification_type] = request_wrapper(setTraceNotification_notification, server)
@@ -330,23 +364,43 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
 
+    # The exit notification message should not be wrapped in request_wrapper (which checks
+    # if the server have been requested to be shut down). Instead, this message needs to be
+    # handled directly.
+    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
+
+    @debug "starting main loop"
+    @debug "Starting event listener loop at $(round(Int, time()))"
     while true
         message = take!(server.combined_msg_queue)
-
         if message.type == :close
             @info "Shutting down server instance."
             return
         elseif message.type == :clientmsg
             msg = message.msg
-
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
             @info "Received new data from Julia Symbol Server."
-            msg = message.msg
 
-            server.symbol_store = msg
-            server.symbol_extends = SymbolServer.collect_extended_methods(server.symbol_store)
+            server.global_env.symbols = message.msg
+            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            server.global_env.project_deps = collect(keys(server.global_env.symbols))
+
+            # redo roots_env_map
+            for (root, _) in server.roots_env_map
+                @debug "resetting get_env_for_root"
+                newenv = get_env_for_root(root, server)
+                if newenv === nothing
+                    delete!(server.roots_env_map, root)
+                else
+                    server.roots_env_map[root] = newenv
+                end
+            end
+
+            @debug "starting re-lint of everything"
             relintserver(server)
+            @debug "re-lint done"
+            @debug "Linting finished at $(round(Int, time()))"
         end
     end
 end

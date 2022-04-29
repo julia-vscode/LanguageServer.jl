@@ -162,3 +162,22 @@ end
     @test any(i -> i.label == "kind_variable_local" && i.kind == Kinds.Variable, items)
     @test any(i -> i.label == "kind_variable_arg" && i.kind == Kinds.Variable, items)
 end
+
+@testset "completion details" begin
+    settestdoc("""
+        struct Bar end
+        struct Foo
+            xxx::Int
+            yyy::Bar
+        end
+        b = Bar()
+        f = Foo(1, b)
+        xxx = f.yyy
+        f.yy
+        xx
+        """)
+    items1 = completion_test(8, 4).items
+    items2 = completion_test(9, 2).items
+    @test any(i -> i.label == "yyy" && occursin("yyy::Bar", i.detail), items1)
+    @test any(i -> i.label == "xxx" && occursin("xxx::Bar = f.yyy", i.detail), items2)
+end

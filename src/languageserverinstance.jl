@@ -363,6 +363,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+    msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
 
     # The exit notification message should not be wrapped in request_wrapper (which checks
     # if the server have been requested to be shut down). Instead, this message needs to be

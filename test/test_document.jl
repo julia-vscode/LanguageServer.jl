@@ -124,3 +124,14 @@ end
     @test LanguageServer.get_offset(doc, 0, 6) == 9
     @test LanguageServer.get_position_at(doc, 9) == (0, 6)
 end
+
+@testset "document link provider" begin
+    doc = LS.Document(LS.filepath2uri(@__FILE__), """
+    include("test_document.jl")
+    include("runtests_does_not_exist.jl")
+    """, false)
+    links = LS.DocumentLink[]
+    LS.find_document_links(LS.getcst(doc), doc, 0, links)
+    @test length(links) == 1
+    @test links[1].target == LS.filepath2uri(@__FILE__)
+end

@@ -321,6 +321,15 @@ function remove_farg_name(x, server, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function remove_unused_assignment_name(x, _, conn)
+    x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER)
+    file, offset = get_file_loc(x1)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                    TextEdit(Range(file, offset .+ (0:x1.span)), "_")
+                ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 function double_to_triple_equal(x, _, conn)
     x1 = StaticLint.get_parent_fexpr(x, y -> StaticLint.haserror(y) && StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
     file, offset = get_file_loc(x1)
@@ -381,6 +390,15 @@ LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
     missing,
     (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument),
     remove_farg_name,
+)
+
+LSActions["ReplaceUnusedAssignmentName"] = ServerAction(
+    "ReplaceUnusedAssignmentName",
+    "Replace unused assignment name with _.",
+    CodeActionKinds.QuickFix,
+    missing,
+    (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER),
+    remove_unused_assignment_name,
 )
 
 LSActions["CompareNothingWithTripleEqual"] = ServerAction(

@@ -77,41 +77,42 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
         get_definitions(b, tls, getenv(doc, server), locations)
-    elseif x isa EXPR && CSTParser.isstringliteral(x)
-        # TODO: move to its own function
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
-            try
-                if isabspath(valof(x)) && safe_isfile(valof(x))
-                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
-                end
-            catch err
-                isa(err, Base.IOError) ||
-                    isa(err, Base.SystemError) ||
-                    (VERSION == v"1.2.0" && isa(err, ErrorException) && err.msg == "type Nothing has no field captures ") ||
-                    rethrow()
-            end
-        end
     end
 
     return locations
 end
 
-function get_file_loc(x::EXPR, offset=0, c=nothing)
-    if c !== nothing
-        for a in x
-            a == c && break
-            offset += a.fullspan
+function descend(x::EXPR, target::EXPR, offset=0)
+    x == target && return (true, offset)
+    for c in x
+        if c == target
+            return true, offset
         end
+
+        found, o = descend(c, target, offset)
+        if found
+            return true, o
+        end
+        offset += c.fullspan
     end
-    if parentof(x) !== nothing
-        return get_file_loc(parentof(x), offset, x)
-    elseif headof(x) === :file && StaticLint.hasmeta(x)
-        return x.meta.error, offset
-    else
+    return false, offset
+end
+function get_file_loc(x::EXPR, offset=0, c=nothing)
+    parent = x
+    while parentof(parent) !== nothing
+        parent = parentof(parent)
+    end
+
+    if parent === nothing
         return nothing, offset
     end
+
+    _, offset = descend(parent, x)
+
+    if headof(parent) === :file && StaticLint.hasmeta(parent)
+        return parent.meta.error, offset
+    end
+    return nothing, offset
 end
 
 function search_file(filename, dir, topdir)
@@ -145,7 +146,9 @@ function default_juliaformatter_config(params)
         annotate_untyped_fields_with_any = false,
         join_lines_based_on_source = true,
         trailing_comma = nothing,
-        margin = 10_000
+        margin = 10_000,
+        always_for_in = nothing,
+        whitespace_in_kwargs = false
     )
 end
 
@@ -155,11 +158,7 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
     config = get_juliaformatter_config(doc, server)
 
     newcontent = try
-        if config === nothing
-            JuliaFormatter.format_text(get_text(doc); default_juliaformatter_config(params)...)
-        else
-            JuliaFormatter.format_text(get_text(doc); JuliaFormatter.kwargs(config)...)
-        end
+        format_text(get_text(doc), params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -32000,
@@ -174,6 +173,17 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
     return lsedits
 end
 
+function format_text(text::AbstractString, params, config)
+    if config === nothing
+        return JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
+    else
+        # Some valid options in config file are not valid for format_text
+        VALID_OPTIONS = (fieldnames(JuliaFormatter.Options)..., :style)
+        config = filter(p -> in(first(p), VALID_OPTIONS), JuliaFormatter.kwargs(config))
+        return JuliaFormatter.format_text(text; config...)
+    end
+end
+
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, URI2(params.textDocument.uri))
     cst = getcst(doc)
@@ -184,7 +194,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call))
         if expr.parent !== nothing
             expr = expr.parent
         else
@@ -197,9 +207,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     c1 = 0
     start_offset = get_offset2(doc, l1, c1)
     l2, c2 = get_position_at(doc, offset + expr.span)
-    end_offset = get_offset(doc, l2, c2)
 
-    text = get_text(doc)[start_offset:end_offset]
+    text = get_text(doc)[start_offset:offset+expr.span]
 
     longest_prefix = nothing
     for line in eachline(IOBuffer(text))
@@ -219,11 +228,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     config = get_juliaformatter_config(doc, server)
 
     newcontent = try
-        if config === nothing
-            JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
-        else
-            JuliaFormatter.format_text(text; JuliaFormatter.kwargs(config)...)
-        end
+        format_text(text, params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -33000,
@@ -234,7 +239,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     if longest_prefix !== nothing && !isempty(longest_prefix)
         io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep = true)
+        for line in eachline(IOBuffer(newcontent), keep=true)
             print(io, longest_prefix, line)
         end
         newcontent = String(take!(io))
@@ -317,7 +322,7 @@ function get_name_of_binding(name::EXPR)
     elseif headof(name) === :NONSTDIDENTIFIER
         valof(name.args[2])
     elseif is_callable_object_binding(name)
-        "::" * valof(name.args[end])
+        string(to_codeobject(name))
     else
         ""
     end
@@ -478,26 +483,39 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     return documentation
 end
 
+function _score(needle::Symbol, haystack::Symbol)
+    if needle === haystack
+        return 0
+    end
+    needle, haystack = lowercase(string(needle)), lowercase(string(haystack))
+    ldist = REPL.levenshtein(needle, haystack)
+
+    if startswith(haystack, needle)
+        ldist *= 0.5
+    end
+
+    return ldist
+end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    exact_matches = []
-    approx_matches = []
-    word_sym = Symbol(params.word)
+    matches = Pair{Float64, String}[]
+    needle = Symbol(params.word)
+    nfound = 0
     traverse_by_name(getsymbols(getenv(server))) do sym, val
-        is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
-        is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1
-        if is_match
+        score = _score(needle, sym)
+        if score < 2
             val = get_hover(val, "", server)
             if !isempty(val)
-                push!(is_exact_match ? exact_matches : approx_matches, val)
+                nfound += 1
+                push!(matches, score => val)
             end
         end
     end
-    if isempty(exact_matches) && isempty(approx_matches)
+    if isempty(matches)
         return "No results found."
     else
-        return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
+        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
     end
 end
 

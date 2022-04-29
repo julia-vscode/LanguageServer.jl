@@ -1,36 +1,38 @@
 function ServerCapabilities(client::ClientCapabilities)
-    prepareSupport = !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
+    prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
     ServerCapabilities(
-    TextDocumentSyncOptions(true,
-    TextDocumentSyncKinds.Full,
-    false,
-    false,
-    SaveOptions(true)),
-    CompletionOptions(false, [".", "@", "\"", "^"], missing),
-    true,
-    SignatureHelpOptions(["(", ","], missing),
-    false,
-    true,
-    false,
-    false,
-    true,
-    true,
-    true,
-    true,
-    missing,
-    missing,
-    false,
-    true,
-    true,
-    missing,
-    RenameOptions(missing, prepareSupport),
-    false,
-    ExecuteCommandOptions(missing, collect(keys(LSActions))),
-    true,
-    true,
-    WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
-    missing)
+        TextDocumentSyncOptions(true,
+            TextDocumentSyncKinds.Full,
+            false,
+            false,
+            SaveOptions(true)
+        ),
+        CompletionOptions(false, [".", "@", "\"", "^"], missing),
+        true,
+        SignatureHelpOptions(["(", ","], missing),
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        missing,
+        DocumentLinkOptions(false, missing),
+        false,
+        true,
+        true,
+        missing,
+        RenameOptions(missing, prepareSupport),
+        false,
+        ExecuteCommandOptions(missing, collect(keys(LSActions))),
+        true,
+        true,
+        WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
+        missing
+    )
 
 end
 

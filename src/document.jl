@@ -102,6 +102,7 @@ get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
 # 1-based. Basically the index at which (line, character) can be found in the document.
+get_offset2(doc::Document, p::Position, forgiving_mode=false) =  get_offset2(doc, p.line, p.character, forgiving_mode)
 function get_offset2(doc::Document, line::Integer, character::Integer, forgiving_mode=false)
     line_offsets = get_line_offsets2!(doc)
     text = get_text(doc)
@@ -134,8 +135,11 @@ function get_offset2(doc::Document, line::Integer, character::Integer, forgiving
         pos = nextind(text, pos)
     end
 
-return pos
+    return pos
 end
+
+# get_offset, but correct
+get_offset3(args...) = get_offset2(args...) - 1
 
 # Note: to be removed
 function obscure_text(s)

@@ -46,3 +46,13 @@ S(a,b,c,d,e,f,g)
 @test hover_test(15, 2) !== nothing
 @test hover_test(15, 5) === nothing
 @test hover_test(25, 15) !== nothing
+
+@testset "hover docs" begin
+    settestdoc("""
+    "I have a docstring"
+    Base.@kwdef struct SomeStruct
+        a
+    end
+    """)
+    @test startswith(hover_test(1, 20).contents.value, "I have a docstring")
+end

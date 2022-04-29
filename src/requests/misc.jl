@@ -84,3 +84,34 @@ end
 
 julia_refreshLanguageServer_notification(_, server::LanguageServerInstance, conn) =
     trigger_symbolstore_reload(server)
+
+function textDocument_documentLink_request(params::DocumentLinkParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, URI2(params.textDocument.uri))
+    links = DocumentLink[]
+    find_document_links(getcst(doc), doc, 0, links)
+    return links
+end
+
+function find_document_links(x, doc, offset, links)
+    if x isa EXPR && CSTParser.isstringliteral(x)
+        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
+            try
+                if isabspath(valof(x)) && safe_isfile(valof(x))
+                    path = valof(x)
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(path), missing, missing))
+                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                    path = joinpath(_dirname(getpath(doc)), valof(x))
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(path), missing, missing))
+                end
+            catch err
+                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            end
+        end
+    end
+    if x.args !== nothing
+        for arg in x
+            find_document_links(arg, doc, offset, links)
+            offset += arg.fullspan
+        end
+    end
+end

@@ -6,7 +6,7 @@ const textDocument_formatting_request_type = JSONRPC.RequestType("textDocument/f
 const textDocument_range_formatting_request_type = JSONRPC.RequestType("textDocument/rangeFormatting", DocumentRangeFormattingParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_references_request_type = JSONRPC.RequestType("textDocument/references", ReferenceParams, Union{Vector{Location}, Nothing})
 const textDocument_rename_request_type = JSONRPC.RequestType("textDocument/rename", RenameParams, Union{WorkspaceEdit, Nothing})
-const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocument/prepareRename", PrepareRenameParams, Range)
+const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocument/prepareRename", PrepareRenameParams, Union{Range,Nothing})
 const textDocument_documentSymbol_request_type = JSONRPC.RequestType("textDocument/documentSymbol", DocumentSymbolParams, Union{Vector{DocumentSymbol}, Vector{SymbolInformation}, Nothing})
 const textDocument_documentHighlight_request_type = JSONRPC.RequestType("textDocument/documentHighlight", DocumentHighlightParams, Union{Vector{DocumentHighlight}, Nothing})
 const textDocument_hover_request_type = JSONRPC.RequestType("textDocument/hover", TextDocumentPositionParams, Union{Hover, Nothing})
@@ -18,6 +18,7 @@ const textDocument_willSave_notification_type = JSONRPC.NotificationType("textDo
 const textDocument_willSaveWaitUntil_request_type = JSONRPC.RequestType("textDocument/willSaveWaitUntil", WillSaveTextDocumentParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_publishDiagnostics_notification_type = JSONRPC.NotificationType("textDocument/publishDiagnostics", PublishDiagnosticsParams)
 const textDocument_selectionRange_request_type = JSONRPC.RequestType("textDocument/selectionRange", SelectionRangeParams, Union{Vector{SelectionRange}, Nothing})
+const textDocument_documentLink_request_type = JSONRPC.RequestType("textDocument/documentLink", DocumentLinkParams, Union{Vector{DocumentLink}, Nothing})
 
 const workspace_executeCommand_request_type = JSONRPC.RequestType("workspace/executeCommand", ExecuteCommandParams, Any)
 const workspace_symbol_request_type = JSONRPC.RequestType("workspace/symbol", WorkspaceSymbolParams, Union{Vector{SymbolInformation}, Nothing})

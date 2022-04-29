@@ -54,6 +54,15 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
+@testset "unused assignment" begin
+    doc = settestdoc("function f()\n    x = 1 + 2\n    return 3\nend\n")
+
+    @test any(c.command == "ReplaceUnusedAssignmentName" for c in action_request_test(1, 4))
+    c = filter(c -> c.command == "ReplaceUnusedAssignmentName", action_request_test(1, 4))[1]
+
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
 @testset "===/!== for nothing comparison" begin
     for str in ("x = 1\nif x == nothing end", "x = 1\nif x != nothing end")
         doc = settestdoc(str)

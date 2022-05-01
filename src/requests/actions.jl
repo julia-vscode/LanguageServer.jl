@@ -311,11 +311,11 @@ function remove_farg_name(x, server, conn)
     file, offset = get_file_loc(x1)
     if CSTParser.isdeclaration(x1)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
+                        TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), server.unused_argument === :underscore ? "_" : "")
                     ])
     else
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "::Any")
+                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), server.unused_argument === :underscore ? "_" : "::Any")
                     ])
     end
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))

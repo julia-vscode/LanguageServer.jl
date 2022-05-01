@@ -43,6 +43,7 @@ mutable struct LanguageServerInstance
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
     completion_mode::Symbol
+    unused_argument::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -80,6 +81,7 @@ mutable struct LanguageServerInstance
             :all,
             LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
+            :type,    # options: :type or :underscore
             Channel{Any}(Inf),
             err_handler,
             :created,

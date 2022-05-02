@@ -315,7 +315,7 @@ function remove_farg_name(x, server, conn)
                     ])
     else
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "::Any")
+                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "_")
                     ])
     end
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))

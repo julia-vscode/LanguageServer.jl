@@ -13,18 +13,18 @@ REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 StaticLint = "b3cc710f-9c33-5bdb-a03d-a94903873e97"
 SymbolServer = "cf896787-08d5-524d-9de7-132aaa0cb996"
 Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
-URIParser = "30578b45-9adc-5946-b283-645ec420af67"
+URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
 
 [compat]
 CSTParser = "3.3"
 JSON = "0.20, 0.21"
 JSONRPC = "1.1"
+URIs = "1.3"
 JuliaFormatter = "0.20.0, 0.21, 0.22"
 StaticLint = "8.0"
 SymbolServer = "7.1"
 Tokenize = "0.5.10"
-URIParser = "0.4.1"
 julia = "1"
 
 [extras]

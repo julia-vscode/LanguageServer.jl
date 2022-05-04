@@ -1,5 +1,4 @@
 module LanguageServer
-import URIParser
 using JSON, REPL, CSTParser, JuliaFormatter, SymbolServer, StaticLint
 using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof, to_codeobject
 using StaticLint: refof, scopeof, bindingof
@@ -10,8 +9,12 @@ using JSONRPC: Outbound, @dict_readable
 
 export LanguageServerInstance, runserver
 
+include("URIs2/URIs2.jl")
+using .URIs2
+
+JSON.lower(uri::URI) = string(uri)
+
 include("exception_types.jl")
-include("uri2.jl")
 include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("document.jl")

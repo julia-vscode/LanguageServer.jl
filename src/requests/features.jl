@@ -68,7 +68,7 @@ end
 
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
@@ -153,7 +153,7 @@ function default_juliaformatter_config(params)
 end
 
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
 
     config = get_juliaformatter_config(doc, server)
 
@@ -185,7 +185,7 @@ function format_text(text::AbstractString, params, config)
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     cst = getcst(doc)
 
     expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
@@ -252,7 +252,7 @@ end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
-    doc = getdocument(server, URI2(textDocument.uri))
+    doc = getdocument(server, textDocument.uri)
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     x === nothing && return locations
@@ -280,14 +280,14 @@ function textDocument_references_request(params::ReferenceParams, server::Langua
 end
 
 function textDocument_rename_request(params::RenameParams, server::LanguageServerInstance, conn)
-    tdes = Dict{String,TextDocumentEdit}()
+    tdes = Dict{URI,TextDocumentEdit}()
     locations = find_references(params.textDocument, params.position, server)
 
     for loc in locations
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
         else
-            doc = getdocument(server, URI2(loc.uri))
+            doc = getdocument(server, loc.uri)
             tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
         end
     end
@@ -296,7 +296,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
 end
 
 function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR || return nothing
     _, x_start_offset = get_file_loc(x)
@@ -330,7 +330,7 @@ end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
 
     return collect_document_symbols(getcst(doc), server, doc)
 end
@@ -421,7 +421,7 @@ function _binding_kind(b)
 end
 
 function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
@@ -467,7 +467,7 @@ function get_module_of(s::StaticLint.Scope, ms=[])
 end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
@@ -520,7 +520,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
 end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     ret = map(params.positions) do position
         offset = get_offset(doc, position)
         x = get_expr1(getcst(doc), offset)

@@ -28,7 +28,7 @@ For normal usage, the language server can be instantiated with
 mutable struct LanguageServerInstance
     jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
     workspaceFolders::Set{String}
-    _documents::Dict{URI2,Document}
+    _documents::Dict{URI,Document}
 
     env_path::String
     depot_path::String
@@ -67,7 +67,7 @@ mutable struct LanguageServerInstance
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
-            Dict{URI2,Document}(),
+            Dict{URI,Document}(),
             env_path,
             depot_path,
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
@@ -101,11 +101,11 @@ function Base.display(server::LanguageServerInstance)
     end
 end
 
-function hasdocument(server::LanguageServerInstance, uri::URI2)
+function hasdocument(server::LanguageServerInstance, uri::URI)
     return haskey(server._documents, uri)
 end
 
-function getdocument(server::LanguageServerInstance, uri::URI2)
+function getdocument(server::LanguageServerInstance, uri::URI)
     return server._documents[uri]
 end
 
@@ -121,11 +121,11 @@ function getdocuments_value(server::LanguageServerInstance)
     return values(server._documents)
 end
 
-function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
+function setdocument!(server::LanguageServerInstance, uri::URI, doc::Document)
     server._documents[uri] = doc
 end
 
-function deletedocument!(server::LanguageServerInstance, uri::URI2)
+function deletedocument!(server::LanguageServerInstance, uri::URI)
     doc = getdocument(server, uri)
     StaticLint.clear_meta(getcst(doc))
     delete!(server._documents, uri)

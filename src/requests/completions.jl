@@ -40,7 +40,7 @@ end
 
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
-        doc = getdocument(server, URI2(params.textDocument.uri))
+        doc = getdocument(server, params.textDocument.uri)
         offset = get_offset3(doc, params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)

@@ -1,5 +1,5 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     env = getenv(doc, server)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)

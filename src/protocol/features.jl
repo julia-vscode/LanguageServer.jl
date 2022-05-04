@@ -120,7 +120,7 @@ end
 
 struct DocumentLink <: Outbound
     range::Range
-    target::Union{String,Missing}
+    target::Union{DocumentUri,Missing}
     tooltip::Union{String,Missing}
     data::Union{Any,Missing}
 end

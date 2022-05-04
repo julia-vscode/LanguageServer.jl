@@ -1,5 +1,5 @@
 function textDocument_documentHighlight_request(params::DocumentHighlightParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset(doc, params.position)
     identifier = get_identifier(getcst(doc), offset)
     identifier !== nothing || return nothing

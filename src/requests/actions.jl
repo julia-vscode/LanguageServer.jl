@@ -47,7 +47,7 @@ end
 
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     actions = CodeAction[]
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset2(doc, params.range.start)
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
@@ -77,7 +77,7 @@ end
 function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
     uri = params.arguments[1]
     offset = params.arguments[2]
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
     x = get_expr(getcst(doc), offset)
     if haskey(LSActions, params.command)
         LSActions[params.command].handler(x, server, conn)
@@ -99,7 +99,7 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
     using_stmt = find_using_statement(x)
     using_stmt isa Nothing && return
 
-    tdes = Dict{String,TextDocumentEdit}()
+    tdes = Dict{URI,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
     # Find uses of `x` and mark edits
     for ref in refof(x).refs

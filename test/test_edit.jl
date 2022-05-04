@@ -14,8 +14,8 @@ mktempdir() do dir
     # LanguageServer.process(LanguageServer.JSONRPC.Request{Val{Symbol("initialized")},Any}(0, nothing), server)
 
     function test_edit(server, text, s1, s2, insert)
-        LanguageServer.textDocument_didOpen_notification(LanguageServer.LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("none", "julia", 0, text)), server, nothing)
-        doc = LanguageServer.getdocument(server, LanguageServer.URI2("none"))
+        LanguageServer.textDocument_didOpen_notification(LanguageServer.LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(uri"untitled:none", "julia", 0, text)), server, nothing)
+        doc = LanguageServer.getdocument(server, uri"untitled:none")
         LanguageServer.parse_all(doc, server)
         params = LanguageServer.DidChangeTextDocumentParams(
             LanguageServer.VersionedTextDocumentIdentifier(doc._uri, 5),

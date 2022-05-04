@@ -185,7 +185,7 @@ function format_text(text::AbstractString, params, config)
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     cst = getcst(doc)
 
     expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))

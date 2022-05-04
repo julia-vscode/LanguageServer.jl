@@ -12,6 +12,10 @@ end
     settestdoc("f(x) = x")
     @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
     c = filter(c -> c.command == "ExpandFunction", action_request_test(0, 5))[1]
+
+    settestdoc("g(x) = x\nf(x) = x")
+    @test any(c.command == "ExpandFunction" for c in action_request_test(0, 0))
+    @test any(c.command == "ExpandFunction" for c in action_request_test(1, 0))
     
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 
@@ -48,4 +52,22 @@ end
     c = filter(c -> c.command == "DeleteUnusedFunctionArgumentName", action_request_test(0, 12))[1]
     
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
+@testset "unused assignment" begin
+    doc = settestdoc("function f()\n    x = 1 + 2\n    return 3\nend\n")
+
+    @test any(c.command == "ReplaceUnusedAssignmentName" for c in action_request_test(1, 4))
+    c = filter(c -> c.command == "ReplaceUnusedAssignmentName", action_request_test(1, 4))[1]
+
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end
+
+@testset "===/!== for nothing comparison" begin
+    for str in ("x = 1\nif x == nothing end", "x = 1\nif x != nothing end")
+        doc = settestdoc(str)
+        @test any(c.command == "CompareNothingWithTripleEqual" for c in action_request_test(1, 6))
+        c = filter(c -> c.command == "CompareNothingWithTripleEqual", action_request_test(1, 6))[1]
+        LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+    end
 end

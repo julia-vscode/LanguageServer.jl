@@ -77,28 +77,13 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
         get_definitions(b, tls, getenv(doc, server), locations)
-    elseif x isa EXPR && CSTParser.isstringliteral(x)
-        # TODO: move to its own function
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
-            try
-                if isabspath(valof(x)) && safe_isfile(valof(x))
-                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
-                end
-            catch err
-                isa(err, Base.IOError) ||
-                    isa(err, Base.SystemError) ||
-                    (VERSION == v"1.2.0" && isa(err, ErrorException) && err.msg == "type Nothing has no field captures ") ||
-                    rethrow()
-            end
-        end
     end
 
     return locations
 end
 
-function descend(x::EXPR, target::EXPR, offset = 0)
+function descend(x::EXPR, target::EXPR, offset=0)
+    x == target && return (true, offset)
     for c in x
         if c == target
             return true, offset
@@ -110,7 +95,7 @@ function descend(x::EXPR, target::EXPR, offset = 0)
         end
         offset += c.fullspan
     end
-    false, offset
+    return false, offset
 end
 function get_file_loc(x::EXPR, offset=0, c=nothing)
     parent = x
@@ -209,7 +194,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call))
         if expr.parent !== nothing
             expr = expr.parent
         else
@@ -222,9 +207,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     c1 = 0
     start_offset = get_offset2(doc, l1, c1)
     l2, c2 = get_position_at(doc, offset + expr.span)
-    end_offset = get_offset(doc, l2, c2)
 
-    text = get_text(doc)[start_offset:end_offset]
+    text = get_text(doc)[start_offset:offset+expr.span]
 
     longest_prefix = nothing
     for line in eachline(IOBuffer(text))
@@ -255,7 +239,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     if longest_prefix !== nothing && !isempty(longest_prefix)
         io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep = true)
+        for line in eachline(IOBuffer(newcontent), keep=true)
             print(io, longest_prefix, line)
         end
         newcontent = String(take!(io))
@@ -499,26 +483,39 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     return documentation
 end
 
+function _score(needle::Symbol, haystack::Symbol)
+    if needle === haystack
+        return 0
+    end
+    needle, haystack = lowercase(string(needle)), lowercase(string(haystack))
+    ldist = REPL.levenshtein(needle, haystack)
+
+    if startswith(haystack, needle)
+        ldist *= 0.5
+    end
+
+    return ldist
+end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    exact_matches = []
-    approx_matches = []
-    word_sym = Symbol(params.word)
+    matches = Pair{Float64, String}[]
+    needle = Symbol(params.word)
+    nfound = 0
     traverse_by_name(getsymbols(getenv(server))) do sym, val
-        is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
-        is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1
-        if is_match
+        score = _score(needle, sym)
+        if score < 2
             val = get_hover(val, "", server)
             if !isempty(val)
-                push!(is_exact_match ? exact_matches : approx_matches, val)
+                nfound += 1
+                push!(matches, score => val)
             end
         end
     end
-    if isempty(exact_matches) && isempty(approx_matches)
+    if isempty(matches)
         return "No results found."
     else
-        return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
+        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
     end
 end
 

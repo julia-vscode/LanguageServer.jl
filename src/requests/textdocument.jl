@@ -96,7 +96,6 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
             StaticLint.clear_meta(cst0[i])
         end
         setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-        comp(cst1, getcst(doc)) || @error "File didn't update properly." # expensive check, remove
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 

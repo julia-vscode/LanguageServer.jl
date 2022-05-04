@@ -68,6 +68,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
+    if !server.clientcapability_workspace_didChangeConfiguration
+        @debug "Client sent a `workspace/didChangeConfiguration` request despite claiming no support for it. " *
+               "The request will be handled regardless, but this behavior can be reported to the client."
+    end
     request_julia_config(server, conn)
 end
 

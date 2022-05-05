@@ -41,7 +41,7 @@ const WatchKinds = (Create = 1,
 
 
 @dict_readable struct FileEvent
-    uri::String
+    uri::DocumentUri
     type::FileChangeType
 end
 

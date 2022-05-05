@@ -71,3 +71,14 @@ end
         LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
     end
 end
+
+@testset "Add license header" begin
+    doc = settestdoc("hello\nworld\n")
+
+    @test !any(c.command == "AddLicenseIdentifier" for c in action_request_test(1, 1))
+
+    @test any(c.command == "AddLicenseIdentifier" for c in action_request_test(0, 1))
+    c = filter(c -> c.command == "AddLicenseIdentifier", action_request_test(0, 1))[1]
+
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end

@@ -30,6 +30,8 @@ function URI(value::AbstractString)
     )
 end
 
+URI(uri::URI) = uri
+
 function URI(;
     scheme::Union{AbstractString,Nothing}=nothing,
     authority::Union{AbstractString,Nothing}=nothing,

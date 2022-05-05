@@ -75,7 +75,7 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
 end
 
 function workspace_executeCommand_request(params::ExecuteCommandParams, server::LanguageServerInstance, conn)
-    uri = params.arguments[1]
+    uri = URI(params.arguments[1])
     offset = params.arguments[2]
     doc = getdocument(server, uri)
     x = get_expr(getcst(doc), offset)

@@ -19,7 +19,7 @@ function loadfile(server::LanguageServerInstance, path::String)
         return
     end
     uri = filepath2uri(path)
-    doc = Document(uri, source, true, server)
+    doc = Document(TextDocument(uri, source, 0), true, server)
     StaticLint.setfile(server, path, doc)
 end
 function setfile(server::LanguageServerInstance, path::String, x::Document)

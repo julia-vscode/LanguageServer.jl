@@ -7,7 +7,7 @@ nodocuemnt_error(uri, data=nothing) =
 function mismatched_version_error(uri, doc, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
         -32099,
-        "version mismatch in $(msg) request for $(uri): JLS $(doc._version), client: $(params.version)",
+        "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
         data
     )
 end
@@ -79,13 +79,14 @@ function remove_workspace_files(root, server)
     end
 
 
-function Base.getindex(server::LanguageServerInstance, r::Regex)
-    out = []
-    for (uri, doc) in getdocuments_pair(server)
-        occursin(r, uri._uri) && push!(out, doc)
-    end
-    return out
-end
+# TODO DA removed this, make sure it really isn't needed
+# function Base.getindex(server::LanguageServerInstance, r::Regex)
+#     out = []
+#     for (uri, doc) in getdocuments_pair(server)
+#         occursin(r, uri._uri) && push!(out, doc)
+#     end
+#     return out
+# end
 
 function _offset_unitrange(r::UnitRange{Int}, first=true)
     return r.start - 1:r.stop

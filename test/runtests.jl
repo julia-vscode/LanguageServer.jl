@@ -1,5 +1,19 @@
 using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, LanguageServer.JSON, LanguageServer.JSONRPC
-using LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
+using LanguageServer: 
+    Document,
+    TextDocument,
+    apply_text_edits,
+    applytextdocumentchanges,
+    get_text_document,
+    set_text_document!,
+    get_text,
+    get_offset,
+    get_line_offsets,
+    get_position_at,
+    get_open_in_editor,
+    set_open_in_editor,
+    is_workspace_file,
+    get_uri
 using LanguageServer.URIs2
 const LS = LanguageServer
 const Range = LanguageServer.Range
@@ -23,9 +37,9 @@ end
 
 function on_all_offsets(doc, f)
     offset = 1
-    while offset <= lastindex(doc._content)
+    while offset <= lastindex(get_text(doc))
         f(doc, offset)
-        offset = nextind(doc._content, offset)
+        offset = nextind(get_text(doc), offset)
     end
 end
 
@@ -71,9 +85,9 @@ end
                 empty!(server._documents)
                 LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
                 on_all_docs(server, doc -> begin
-                    @info "Testing LS functionality at all offsets" file=doc._uri
+                    @info "Testing LS functionality at all offsets" file=get_uri(doc)
                     on_all_offsets(doc, function (doc, offset)
-                        tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
+                        tdi = LanguageServer.TextDocumentIdentifier(get_uri(doc))
                         pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
                         @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset
                         LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
@@ -86,8 +100,8 @@ end
                 end)
 
                 on_all_docs(server, doc -> begin
-                    symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint))
-                    @info "Found $symbols symbols" file=doc._uri
+                    symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(get_uri(doc)),missing, missing), server, server.jr_endpoint))
+                    @info "Found $symbols symbols" file=get_uri(doc)
                 end)
 
                 LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)

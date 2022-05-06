@@ -16,7 +16,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
 
     doc = getdocument(server, uri)
 
-    if doc._version !== tdpp.version
+    if get_version(doc) !== tdpp.version
         return mismatched_version_error(uri, doc, tdpp, "getCurrentBlockRange")
     end
 

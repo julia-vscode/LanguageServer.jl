@@ -5,7 +5,7 @@ function textDocument_documentHighlight_request(params::DocumentHighlightParams,
     identifier !== nothing || return nothing
     highlights = DocumentHighlight[]
     for_each_ref(identifier) do ref, doc1, o
-        if doc1._uri == doc._uri
+        if get_uri(doc1) == get_uri(doc)
             kind = StaticLint.hasbinding(ref) ? DocumentHighlightKinds.Write : DocumentHighlightKinds.Read
             push!(highlights, DocumentHighlight(Range(doc, o .+ (0:ref.span)), kind))
         end

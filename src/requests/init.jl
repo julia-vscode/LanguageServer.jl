@@ -113,7 +113,7 @@ function load_folder(path::String, server)
                                 is_walkdir_error(err) || rethrow()
                                 continue
                             end
-                            doc = Document(uri, content, true, server)
+                            doc = Document(TextDocument(uri, content, 0), true, server)
                             setdocument!(server, uri, doc)
                             try
                                 parse_all(doc, server)

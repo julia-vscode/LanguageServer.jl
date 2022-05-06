@@ -539,3 +539,57 @@ function get_selection_range_of_expr(x::EXPR)
     l2, c2 = get_position_at(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end
+
+function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint}, Nothing}
+    doc = getdocument(server, params.textDocument.uri)
+
+    # FIXME: this should take params.range into account!
+
+    return collect_inlay_hints(getcst(doc), server, doc)
+end
+
+function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0, hints=InlayHint[])
+    if x isa EXPR && parentof(x) isa EXPR && CSTParser.iscall(parentof(x))
+        if parentof(x).args[1] != x
+            sigs = collect_signatures(x, doc, server)
+            if !isempty(sigs)
+                args = length(parentof(x).args) - 1
+                if args > 0
+                    filter!(s -> length(s.parameters) == args, sigs)
+                    if !isempty(sigs)
+                        pars = first(sigs).parameters
+                        thisarg = 0
+                        for a in parentof(x).args
+                            if x == a
+                                break
+                            end
+                            thisarg += 1
+                        end
+                        if thisarg <= args && thisarg <= length(pars)
+                            push!(
+                                hints,
+                                InlayHint(
+                                    Position(get_position_at(doc, pos)...),
+                                    string(pars[thisarg].label, ':'),
+                                    InlayHintKinds.Parameter,
+                                    missing,
+                                    pars[thisarg].documentation,
+                                    false,
+                                    true,
+                                    missing
+                                )
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    end
+    if length(x) > 0
+        for a in x
+            collect_inlay_hints(a, server, doc, pos, hints)
+            pos += a.fullspan
+        end
+    end
+    return hints
+end

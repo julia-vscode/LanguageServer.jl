@@ -27,6 +27,12 @@ get_version(doc::TextDocument) = doc._version
 
 get_line_indices(doc::TextDocument) = doc._line_indices
 
+"""
+    index_at(doc::TextDocument, p::Position, forgiving_mode=false)
+
+Converts a 0-based `Position` that is UTF-16 encoded to a 1-based UTF-8
+encoded Julia string index.
+"""
 function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
     line = p.line
     character = p.character

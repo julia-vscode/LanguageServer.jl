@@ -41,7 +41,7 @@ end
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
         doc = getdocument(server, params.textDocument.uri)
-        offset = get_offset3(doc, params.position)
+        offset = get_offset3(get_text_document(doc), params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
         using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
@@ -553,7 +553,7 @@ function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, s
     if haskey(state.using_stmts, String(m.name.name))
         (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
 
-        l, c = get_position_at(using_doc, using_offset + using_stmt.span)
+        l, c = get_position_from_offset(using_doc, using_offset + using_stmt.span)
         return [TextEdit(Range(l, c, l, c), ", $n")]
     elseif tls !== nothing
         if tls.expr.head === :file
@@ -564,7 +564,7 @@ function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, s
             # Insert at start of module
             tlsdoc, offset1 = get_file_loc(tls.expr)
             offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
-            l, c = get_position_at(tlsdoc, offset1 + offset2)
+            l, c = get_position_from_offset(tlsdoc, offset1 + offset2)
 
             return [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")]
         else

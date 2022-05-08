@@ -48,7 +48,7 @@ end
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     actions = CodeAction[]
     doc = getdocument(server, params.textDocument.uri)
-    offset = get_offset2(doc, params.range.start)
+    offset = index_at(doc, params.range.start)
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR
@@ -195,7 +195,7 @@ function get_next_line_offset(x)
     file, offset = get_file_loc(x)
     # get next line after using_stmt
     insertpos = -1
-    line_offsets = get_line_offsets(file)
+    line_offsets = get_line_offsets(get_text_document(file))
     for i = 1:length(line_offsets) - 1
         if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
             insertpos = line_offsets[i + 1]

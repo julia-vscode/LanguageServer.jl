@@ -9,7 +9,7 @@ using LanguageServer:
     get_text,
     get_offset,
     get_line_offsets,
-    get_position_at,
+    get_position_from_offset,
     get_open_in_editor,
     set_open_in_editor,
     is_workspace_file,
@@ -88,8 +88,8 @@ end
                     @info "Testing LS functionality at all offsets" file=get_uri(doc)
                     on_all_offsets(doc, function (doc, offset)
                         tdi = LanguageServer.TextDocumentIdentifier(get_uri(doc))
-                        pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
-                        @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset
+                        pos = LanguageServer.Position(LanguageServer.get_position_from_offset(doc, offset)...)
+                        @test LanguageServer.get_offset(doc, LanguageServer.get_position_from_offset(doc, offset)...) == offset
                         LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
                         LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
                         LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)

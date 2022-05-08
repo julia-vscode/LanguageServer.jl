@@ -121,7 +121,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
 end
 
 function mark_errors(doc, out=Diagnostic[])
-    line_offsets = get_line_offsets(doc)
+    line_offsets = get_line_offsets(get_text_document(doc))
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out

@@ -167,7 +167,7 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         )
     end
 
-    end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
+    end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
@@ -203,10 +203,10 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     end
 
     _, offset = get_file_loc(expr)
-    l1, c1 = get_position_at(doc, offset)
+    l1, c1 = get_position_from_offset(doc, offset)
     c1 = 0
-    start_offset = get_offset2(doc, l1, c1)
-    l2, c2 = get_position_at(doc, offset + expr.span)
+    start_offset = index_at(doc, Position(l1, c1))
+    l2, c2 = get_position_from_offset(doc, offset + expr.span)
 
     text = get_text(doc)[start_offset:offset+expr.span]
 
@@ -426,7 +426,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
         if get_version(doc) == params.version
-            offset = get_offset2(doc, params.position.line, params.position.character, true)
+            offset = index_at(doc, params.position, true)
             x, p = get_expr_or_parent(getcst(doc), offset, 1)
             if x isa EXPR
                 if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
@@ -535,7 +535,7 @@ end
 get_selection_range_of_expr(x) = missing
 function get_selection_range_of_expr(x::EXPR)
     doc, offset = get_file_loc(x)
-    l1, c1 = get_position_at(doc, offset)
-    l2, c2 = get_position_at(doc, offset + x.span)
+    l1, c1 = get_position_from_offset(doc, offset)
+    l2, c2 = get_position_from_offset(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end

@@ -614,8 +614,8 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
                     InlayHintKinds.Type,
                     missing,
                     missing,
-                    false,
-                    true,
+                    missing,
+                    missing,
                     missing
                 )
             )

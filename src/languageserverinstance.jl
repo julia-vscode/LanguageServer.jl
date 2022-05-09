@@ -43,7 +43,7 @@ mutable struct LanguageServerInstance
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
     completion_mode::Symbol
-    parameter_hint_mode::Symbol # :none, :literals, :all
+    inlay_hint_mode::Symbol # :none, :literals, :all
 
     combined_msg_queue::Channel{Any}
 

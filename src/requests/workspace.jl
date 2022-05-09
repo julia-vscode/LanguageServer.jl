@@ -100,7 +100,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.missingrefs"),
         ConfigurationItem(missing, "julia.lint.disabledDirs"),
         ConfigurationItem(missing, "julia.completionmode"),
-        ConfigurationItem(missing, "julia.parameterHints"),
+        ConfigurationItem(missing, "julia.inlayHints"),
     ]))
 
     new_runlinter = something(response[11], true)
@@ -109,7 +109,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
     new_lint_missingrefs = Symbol(something(response[12], :all))
     new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
     new_completion_mode = Symbol(something(response[14], :import))
-    parameterHintMode = Symbol(something(response[14], :literals))
+    inlayHints = Symbol(something(response[15], :literals))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
@@ -123,7 +123,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.lint_missingrefs = new_lint_missingrefs
     server.lint_disableddirs = new_lint_disableddirs
     server.completion_mode = new_completion_mode
-    server.parameter_hint_mode = parameterHintMode
+    server.inlay_hint_mode = inlayHints
 
     if rerun_lint
         relintserver(server)

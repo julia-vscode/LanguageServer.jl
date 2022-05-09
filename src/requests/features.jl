@@ -541,7 +541,7 @@ function get_selection_range_of_expr(x::EXPR)
 end
 
 function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
-    if server.parameter_hint_mode === :none
+    if server.inlay_hint_mode === :none
         return nothing
     end
 
@@ -553,7 +553,7 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
 end
 
 function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
-    literals_only = server.parameter_hint_mode === :literals
+    literals_only = server.inlay_hint_mode === :literals
     if x isa EXPR && parentof(x) isa EXPR &&
             CSTParser.iscall(parentof(x)) &&
             !(

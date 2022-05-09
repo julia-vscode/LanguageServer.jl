@@ -144,7 +144,7 @@ function workspace_symbol_request(params::WorkspaceSymbolParams, server::Languag
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query=params.query)
         for x in bs
             p, b = x[1], x[2]
-            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))
+            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(get_uri(doc), Range(doc, p)), missing))
         end
     end
 

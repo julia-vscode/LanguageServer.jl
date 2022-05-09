@@ -1,28 +1,24 @@
 mutable struct Document
-    _uri::URI
     _path::String
-    _content::String
-    _line_offsets::Union{Nothing,Vector{Int}}
-    _line_offsets2::Union{Nothing,Vector{Int}}
+    _text_document::TextDocument
     _open_in_editor::Bool
     _workspace_file::Bool
     cst::EXPR
     diagnostics::Vector{Diagnostic}
-    _version::Int
     server
     root::Document
-    function Document(uri::URI, text::AbstractString, workspace_file::Bool, server=nothing)
-        path = something(uri2filepath(uri), "")
+    
+    function Document(text_document::TextDocument, workspace_file::Bool, server=nothing)
+        path = something(uri2filepath(get_uri(text_document)), "")
         path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
-        cst = CSTParser.parse(text, true)
-        doc = new(uri, path, text, nothing, nothing, false, workspace_file, cst, [], 0, server)
-        get_line_offsets(doc)
-        get_line_offsets2!(doc)
+        cst = CSTParser.parse(get_text(text_document), true)
+        doc = new(path, text_document, false, workspace_file, cst, [], server)
         set_doc(doc.cst, doc)
         setroot(doc, doc)
         return doc
     end
 end
+
 Base.display(doc::Document) = println("Doc: $(basename(doc._uri)) ")
 
 function set_doc(x::EXPR, doc)
@@ -37,15 +33,23 @@ function get_path(doc)
 end
 
 function get_text(doc::Document)
-    return doc._content
+    return get_text(doc._text_document)
 end
 
-function set_text!(doc::Document, text)
-    # TODO Remove this check eventually
-    occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
-    doc._content = text
-    doc._line_offsets = nothing
-    doc._line_offsets2 = nothing
+function get_uri(doc::Document)
+    return get_uri(doc._text_document)
+end
+
+function get_version(doc::Document)
+    return get_version(doc._text_document)
+end
+
+function get_text_document(doc::Document)
+    return doc._text_document
+end
+
+function set_text_document!(doc::Document, text_document)
+    doc._text_document = text_document
 end
 
 function set_open_in_editor(doc::Document, value::Bool)
@@ -64,199 +68,20 @@ function set_is_workspace_file(doc::Document, value::Bool)
     doc._workspace_file = value
 end
 
-
-"""
-    get_offset(doc, line, char)
-
-Returns the 0 based byte offset position corresponding to a line/character position.
-This takes 0 based line/char inputs. Corresponding functions are available for
-Position and Range arguments, the latter returning a UnitRange{Int}.
-"""
-function get_offset(doc::Document, line::Integer, character::Integer)
-    c = ' '
-    line_offsets = get_line_offsets(doc)
-    io = IOBuffer(get_text(doc))
-    try
-        seek(io, line_offsets[line + 1])
-        while character > 0
-            c = read(io, Char)
-            character -= 1
-            if UInt32(c) >= 0x010000
-                character -= 1
-            end
-        end
-        if UInt32(c) < 0x0080
-            return position(io)
-        elseif UInt32(c) < 0x0800
-            return position(io) - 1
-        elseif UInt32(c) < 0x010000
-            return position(io) - 2
-        else
-            return position(io) - 3
-        end
-    catch err
-        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))"))
-    end
+function applytextdocumentchanges(doc::Document, change)
+    text_document = apply_text_edits(doc._text_document, [change], get_version(doc._text_document))
+    set_text_document!(doc, text_document)
 end
-get_offset(doc, p::Position) = get_offset(doc, p.line, p.character)
-get_offset(doc, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
-# 1-based. Basically the index at which (line, character) can be found in the document.
-get_offset2(doc::Document, p::Position, forgiving_mode=false) =  get_offset2(doc, p.line, p.character, forgiving_mode)
-function get_offset2(doc::Document, line::Integer, character::Integer, forgiving_mode=false)
-    line_offsets = get_line_offsets2!(doc)
-    text = get_text(doc)
-
-    if line >= length(line_offsets)
-        forgiving_mode || throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
-        return nextind(text, lastindex(text))
-    elseif line < 0
-        throw(LSOffsetError("get_offset2 crashed. More diagnostics:\nline=$line\nline_offsets='$line_offsets'"))
-    end
-
-    line_offset = line_offsets[line + 1]
-
-    next_line_offset = line + 1 < length(line_offsets) ? line_offsets[line + 2] : nextind(text, lastindex(text))
-
-    pos = line_offset
-
-    while character > 0
-        if pos >= next_line_offset
-            pos = next_line_offset
-            break
-        end
-
-        if UInt32(text[pos]) >= 0x010000
-            character -= 2
-        else
-            character -= 1
-        end
-
-        pos = nextind(text, pos)
-    end
-
-    return pos
-end
+get_offset(doc::Document, line::Integer, character::Integer) = get_offset(doc._text_document, line, character)
+get_offset(doc::Document, p::Position) = get_offset(doc, p.line, p.character)
+get_offset(doc::Document, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
 # get_offset, but correct
-get_offset3(args...) = get_offset2(args...) - 1
+get_offset3(args...) = index_at(args...) - 1
 
-# Note: to be removed
-function obscure_text(s)
-    i = 1
-    io = IOBuffer()
-    while i <= sizeof(s) # AUDIT: OK, i is generated by nextind
-        di = nextind(s, i) - i
-        if di == 1
-            if s[i] in ('\n', '\r')
-                write(io, s[i])
-            else
-                write(io, "a")
-            end
-        elseif di == 2
-            write(io, "α")
-        elseif di == 3
-            write(io, "—")
-        else
-            write(io, s[i])
-        end
-        i += di
-    end
-    String(take!(io))
-end
+index_at(doc::Document, pos) = index_at(doc._text_document, pos)
 
-"""
-    get_line_offsets(doc::Document)
+get_position_from_offset(doc::Document, offset::Integer) = get_position_from_offset(doc._text_document, offset)
 
-Updates the doc._line_offsets field, an n length Array each entry of which
-gives the byte offset position of the start of each line. This always starts
-with 0 for the first line (even if empty).
-"""
-function get_line_offsets(doc::Document, force=false)
-    if force || doc._line_offsets === nothing
-        doc._line_offsets = Int[0]
-        text = get_text(doc)
-        ind = firstindex(text)
-            while ind <= lastindex(text)
-            c = text[ind]
-            nl = c == '\n' || c == '\r'
-            if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
-                ind += 1
-            end
-            nl && push!(doc._line_offsets, ind)
-            ind = nextind(text, ind)
-        end
-end
-    return doc._line_offsets
-end
-
-function get_line_offsets2!(doc::Document, force=false)
-    if force || doc._line_offsets2 === nothing
-        doc._line_offsets2 = Int[1]
-        text = get_text(doc)
-        ind = firstindex(text)
-            while ind <= lastindex(text)
-            c = text[ind]
-            if c == '\n' || c == '\r'
-                if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
-                    ind += 1
-                end
-                push!(doc._line_offsets2, ind + 1)
-            end
-
-            ind = nextind(text, ind)
-        end
-    end
-
-    return doc._line_offsets2
-end
-
-function get_line_of(line_offsets::Vector{Int}, offset::Integer)
-    nlines = length(line_offsets)
-    if offset > last(line_offsets)
-        line = nlines
-    else
-        line = 1
-        while line < nlines
-            if line_offsets[line] <= offset < line_offsets[line + 1]
-                break
-            end
-            line += 1
-        end
-end
-    return line, line_offsets[line]
-end
-
-"""
-    get_position_at(doc, offset)
-
-Returns the 0-based line and character position within a document of a given
-byte offset.
-"""
-function get_position_at(doc::Document, offset::Integer)
-    offset > sizeof(get_text(doc)) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(get_text(doc)))]")) # OK, offset comes from EXPR spans
-    line_offsets = get_line_offsets(doc)
-    line, _ = get_line_of(line_offsets, offset)
-    io = IOBuffer(get_text(doc))
-    seek(io, line_offsets[line])
-    character = 0
-    while offset > position(io)
-        c = read(io, Char)
-        character += 1
-        if UInt32(c) >= 0x010000
-    character += 1
-        end
-    end
-    close(io)
-    return line - 1, character
-end
-
-"""
-    Range(Doc, rng)
-Converts a byte offset range to a LSP Range.
-"""
-function Range(doc::Document, rng::UnitRange)
-    start_l, start_c = get_position_at(doc, first(rng))
-    end_l, end_c = get_position_at(doc, last(rng))
-    rng = Range(start_l, start_c, end_l, end_c)
-end
+Range(doc::Document, rng::UnitRange) = Range(doc._text_document, rng)

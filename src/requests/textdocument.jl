@@ -2,14 +2,11 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     uri = params.textDocument.uri
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
-        set_text!(doc, params.textDocument.text)
-        doc._version = params.textDocument.version
+        set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version))
         set_open_in_editor(doc, true)
-        get_line_offsets(doc, true)
     else
-        doc = Document(uri, params.textDocument.text, false, server)
+        doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version), false, server)
         setdocument!(server, uri, doc)
-        doc._version = params.textDocument.version
         doc._workspace_file = any(i -> startswith(string(uri), string(filepath2uri(i))), server.workspaceFolders)
         set_open_in_editor(doc, true)
 
@@ -51,7 +48,7 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
     if params.text isa String
         if get_text(doc) != params.text
             JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
-            throw(LSSyncMismatch("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version)."))
+            throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
     end
     parse_all(doc, server)
@@ -78,16 +75,17 @@ end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    s0 = deepcopy(get_text(doc)) # I don't think deepcopy is needed
-    if params.textDocument.version < doc._version
-        error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
-    end
-    doc._version = params.textDocument.version
 
-    for tdcce in params.contentChanges
-        applytextdocumentchanges(doc, tdcce)
+    s0 = get_text(doc)
+
+    if params.textDocument.version < get_version(doc)
+        error("The client and server have different textDocument versions for $(get_uri(doc)). LS version is $(get_version(doc)), request version is $(params.textDocument.version).")
     end
-    if endswith(doc._uri.path, ".jmd")
+
+    new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
+    set_text_document!(doc, new_text_document)
+
+    if endswith(get_uri(doc).path, ".jmd")
         parse_all(doc, server)
     else
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
@@ -105,34 +103,10 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     end
 end
 
-function convert_lsrange_to_jlrange(doc::Document, range::Range)
-    start_offset_ls = get_offset2(doc, range.start.line, range.start.character)
-    stop_offset = get_offset2(doc, range.stop.line, range.stop.character)
-
-    text = get_text(doc)
-
-    # we use prevind for the stop value here because Julia stop values in
-    # a range are inclusive, while the stop value is exclusive in a LS
-    # range
-    return start_offset_ls:prevind(text, stop_offset)
-end
-
-function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
-    if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
-        # No range given, replace all text
-        set_text!(doc, tdcce.text)
-    else
-        editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
-        text = get_text(doc)
-        new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
-        set_text!(doc, new_text)
-    end
-end
-
 function parse_all(doc::Document, server::LanguageServerInstance)
     ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
-    if endswith(doc._uri.path, ".jmd")
+    if endswith(get_uri(get_text_document(doc)).path, ".jmd")
         doc.cst, ps = parse_jmd(ps, get_text(doc))
     else
         doc.cst, ps = CSTParser.parse(ps, true)
@@ -147,7 +121,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
 end
 
 function mark_errors(doc, out=Diagnostic[])
-    line_offsets = get_line_offsets(doc)
+    line_offsets = get_line_offsets(get_text_document(doc))
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
@@ -202,7 +176,7 @@ function mark_errors(doc, out=Diagnostic[])
     return out
 end
 
-isunsavedfile(doc::Document) = doc._uri.scheme == "untitled" # Not clear if this is consistent across editors.
+isunsavedfile(doc::Document) = get_uri(doc).scheme == "untitled" # Not clear if this is consistent across editors.
 
 """
 is_diag_dependent_on_env(diag::Diagnostic)::Bool
@@ -226,14 +200,15 @@ function publish_diagnostics(doc::Document, server, conn)
     else
         Diagnostic[]
     end
-    params = PublishDiagnosticsParams(doc._uri, doc._version, diagnostics)
+    text_document = get_text_document(doc)
+    params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
 end
 
 function clear_diagnostics(uri::URI, server, conn)
     doc = getdocument(server, uri)
     empty!(doc.diagnostics)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
+    publishDiagnosticsParams = PublishDiagnosticsParams(get_uri(doc), get_version(doc), Diagnostic[])
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
 end
 

@@ -48,7 +48,7 @@ end
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     actions = CodeAction[]
     doc = getdocument(server, params.textDocument.uri)
-    offset = get_offset2(doc, params.range.start)
+    offset = index_at(doc, params.range.start)
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR
@@ -109,10 +109,10 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
             !haskey(refof(x).val.vals, Symbol(valof(childname))) && continue # skip, perhaps mark as missing ref ?
 
             file, offset = get_file_loc(ref)
-            if !haskey(tdes, file._uri)
-                tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
+            if !haskey(tdes, get_uri(file))
+                tdes[get_uri(file)] = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[])
             end
-            push!(tdes[file._uri].edits, TextEdit(Range(file, offset .+ (0:parentof(ref).span)), valof(childname)))
+            push!(tdes[get_uri(file)].edits, TextEdit(Range(file, offset .+ (0:parentof(ref).span)), valof(childname)))
             push!(vars, valof(childname))
         end
     end
@@ -134,10 +134,10 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
         insertpos = get_next_line_offset(using_stmt)
         insertpos == -1 && return
 
-        if !haskey(tdes, file._uri)
-            tdes[file._uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[])
+        if !haskey(tdes, get_uri(file))
+            tdes[get_uri(file)] = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[])
         end
-        push!(tdes[file._uri].edits, TextEdit(Range(file, insertpos .+ (0:0)), string("using ", valof(x), ": ", join(vars, ", "), "\n")))
+        push!(tdes[get_uri(file)].edits, TextEdit(Range(file, insertpos .+ (0:0)), string("using ", valof(x), ": ", join(vars, ", "), "\n")))
     else
         return
     end
@@ -155,7 +155,7 @@ function expand_inline_func(x, server, conn)
     body = func.args[2]
     if headof(body) == :block && length(body) == 1
         file, offset = get_file_loc(func)
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
             TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
@@ -169,7 +169,7 @@ function expand_inline_func(x, server, conn)
             blockoffset += body.args[1].args[i].fullspan
         end
         newtext = string(newtext, "\nend\n")
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     end
 end
@@ -195,7 +195,7 @@ function get_next_line_offset(x)
     file, offset = get_file_loc(x)
     # get next line after using_stmt
     insertpos = -1
-    line_offsets = get_line_offsets(file)
+    line_offsets = get_line_offsets(get_text_document(file))
     for i = 1:length(line_offsets) - 1
         if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
             insertpos = line_offsets[i + 1]
@@ -218,7 +218,9 @@ function reexport_package(x::EXPR, server, conn)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return
 
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    text_document = get_text_document(file)
+
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(text_document), get_version(text_document)), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n, v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
@@ -254,7 +256,7 @@ function reexport_module(x::EXPR, server, conn)
     insertpos = get_next_line_offset(using_stmt)
     insertpos == -1 && return
     names = filter!(s -> !isempty(s), collect(CSTParser.str_value.(exported_names)))
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
         TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])
 
@@ -265,7 +267,7 @@ function wrap_block(x, server, type, conn) end
 function wrap_block(x::EXPR, server, type, conn)
     file, offset = get_file_loc(x) # rese
     if type == :if
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
             TextEdit(Range(file, offset .+ (0:0)), "if CONDITION\n"),
             TextEdit(Range(file, offset + x.span .+ (0:0)), "\nend")
         ])
@@ -297,7 +299,7 @@ function applymissingreffix(x, server, conn)
     if tls.modules !== nothing
         for (n, m) in tls.modules
             if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
-                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
                     TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
                 ])
                 JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
@@ -310,11 +312,11 @@ function remove_farg_name(x, server, conn)
     x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument)
     file, offset = get_file_loc(x1)
     if CSTParser.isdeclaration(x1)
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
                         TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
                     ])
     else
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
                         TextEdit(Range(file, offset .+ (0:x1.fullspan)), "_")
                     ])
     end
@@ -324,7 +326,7 @@ end
 function remove_unused_assignment_name(x, _, conn)
     x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER)
     file, offset = get_file_loc(x1)
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
                     TextEdit(Range(file, offset .+ (0:x1.span)), "_")
                 ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
@@ -333,7 +335,7 @@ end
 function double_to_triple_equal(x, _, conn)
     x1 = StaticLint.get_parent_fexpr(x, y -> StaticLint.haserror(y) && StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
     file, offset = get_file_loc(x1)
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(file._uri, file._version), TextEdit[
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
         TextEdit(Range(file, offset .+ (0:x1.span)), StaticLint.errorof(x1) == StaticLint.NothingEquality ? "===" : "!==")
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))

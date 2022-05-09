@@ -188,7 +188,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     doc = getdocument(server, params.textDocument.uri)
     cst = getcst(doc)
 
-    expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
+    expr = get_inner_expr(cst, get_offset(doc, params.range))
 
     if expr === nothing
         return nothing
@@ -540,16 +540,18 @@ function get_selection_range_of_expr(x::EXPR)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end
 
-function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint}, Nothing}
+function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
     doc = getdocument(server, params.textDocument.uri)
 
-    # FIXME: this should take params.range into account!
+    start, stop = get_offset(doc, params.range.start), get_offset(doc, params.range.stop)
 
-    return collect_inlay_hints(getcst(doc), server, doc)
+    return collect_inlay_hints(getcst(doc), server, doc, start, stop)
 end
 
-function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0, hints=InlayHint[])
-    if x isa EXPR && parentof(x) isa EXPR && CSTParser.iscall(parentof(x))
+function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
+    if x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.iscall(parentof(x)) &&
+            !(parentof(parentof(x)) isa EXPR && CSTParser.defines_function(parentof(parentof(x))))
         if parentof(x).args[1] != x
             sigs = collect_signatures(x, doc, server)
             if !isempty(sigs)
@@ -566,11 +568,15 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0
                             thisarg += 1
                         end
                         if thisarg <= args && thisarg <= length(pars)
+                            label = pars[thisarg].label
+                            if label == "#unused#"
+                                label = "_"
+                            end
                             push!(
                                 hints,
                                 InlayHint(
                                     Position(get_position_at(doc, pos)...),
-                                    string(pars[thisarg].label, ':'),
+                                    string(label, ':'),
                                     InlayHintKinds.Parameter,
                                     missing,
                                     pars[thisarg].documentation,
@@ -587,8 +593,11 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0
     end
     if length(x) > 0
         for a in x
-            collect_inlay_hints(a, server, doc, pos, hints)
+            if pos < stop && pos + a.fullspan > start
+                collect_inlay_hints(a, server, doc, start, stop, pos, hints)
+            end
             pos += a.fullspan
+            pos > stop && break
         end
     end
     return hints

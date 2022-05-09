@@ -190,6 +190,7 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     end
 end
 
+get_inner_expr(doc::Document, rng::Range) = get_inner_expr(getcst(doc), get_offset(doc, rng))
 # full (not only trivia) expr containing rng, modulo whitespace
 function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
     if all(pos .> rng)

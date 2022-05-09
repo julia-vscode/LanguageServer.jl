@@ -590,6 +590,25 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
                 end
             end
         end
+    elseif x isa EXPR && parentof(x) isa EXPR && CSTParser.isassignment(parentof(x)) && parentof(x).args[1] == x
+        if StaticLint.hasbinding(x)
+            typ = _completion_type(StaticLint.bindingof(x))
+            if typ !== missing
+                push!(
+                    hints,
+                    InlayHint(
+                        Position(get_position_at(doc, pos + x.span)...),
+                        string("::", typ),
+                        InlayHintKinds.Type,
+                        missing,
+                        missing,
+                        false,
+                        true,
+                        missing
+                    )
+                )
+            end
+        end
     end
     if length(x) > 0
         for a in x

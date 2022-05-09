@@ -541,6 +541,10 @@ function get_selection_range_of_expr(x::EXPR)
 end
 
 function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
+    if server.parameter_hint_mode === :none
+        return nothing
+    end
+
     doc = getdocument(server, params.textDocument.uri)
 
     start, stop = get_offset(doc, params.range.start), get_offset(doc, params.range.stop)
@@ -549,10 +553,16 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
 end
 
 function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
+    literals_only = server.parameter_hint_mode === :literals
     if x isa EXPR && parentof(x) isa EXPR &&
             CSTParser.iscall(parentof(x)) &&
-            !(parentof(parentof(x)) isa EXPR && CSTParser.defines_function(parentof(parentof(x))))
-        if parentof(x).args[1] != x
+            !(
+                parentof(parentof(x)) isa EXPR &&
+                CSTParser.defines_function(parentof(parentof(x)))
+            ) &&
+            parentof(x).args[1] != x # function calls
+
+        if !literals_only || CSTParser.isliteral(x)
             sigs = collect_signatures(x, doc, server)
             if !isempty(sigs)
                 args = length(parentof(x).args) - 1
@@ -590,24 +600,25 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
                 end
             end
         end
-    elseif x isa EXPR && parentof(x) isa EXPR && CSTParser.isassignment(parentof(x)) && parentof(x).args[1] == x
-        if StaticLint.hasbinding(x)
-            typ = _completion_type(StaticLint.bindingof(x))
-            if typ !== missing
-                push!(
-                    hints,
-                    InlayHint(
-                        Position(get_position_at(doc, pos + x.span)...),
-                        string("::", typ),
-                        InlayHintKinds.Type,
-                        missing,
-                        missing,
-                        false,
-                        true,
-                        missing
-                    )
+    elseif x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.isassignment(parentof(x)) &&
+            parentof(x).args[1] == x &&
+            StaticLint.hasbinding(x) # assignment
+        typ = _completion_type(StaticLint.bindingof(x))
+        if typ !== missing
+            push!(
+                hints,
+                InlayHint(
+                    Position(get_position_at(doc, pos + x.span)...),
+                    string("::", typ),
+                    InlayHintKinds.Type,
+                    missing,
+                    missing,
+                    false,
+                    true,
+                    missing
                 )
-            end
+            )
         end
     end
     if length(x) > 0

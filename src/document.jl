@@ -7,7 +7,7 @@ mutable struct Document
     diagnostics::Vector{Diagnostic}
     server
     root::Document
-    
+
     function Document(text_document::TextDocument, workspace_file::Bool, server=nothing)
         path = something(uri2filepath(get_uri(text_document)), "")
         path == "" || isabspath(path) || throw(LSRelativePath("Relative path `$path` is not valid."))
@@ -80,7 +80,7 @@ get_offset(doc::Document, r::Range) = get_offset(doc, r.start):get_offset(doc, r
 # get_offset, but correct
 get_offset3(args...) = index_at(args...) - 1
 
-index_at(doc::Document, pos) = index_at(doc._text_document, pos)
+index_at(doc::Document, pos, args...) = index_at(doc._text_document, pos, args...)
 
 get_position_from_offset(doc::Document, offset::Integer) = get_position_from_offset(doc._text_document, offset)
 

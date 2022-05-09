@@ -100,3 +100,63 @@ end
     """)
     @test all(item.name in ("a", "b", "func", "::Bar", "::Type{Foo}") for item in LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), missing, missing), server, server.jr_endpoint))
 end
+
+@testset "inlay hints" begin
+    doc = settestdoc("""
+    a = 1
+    b = 2.0
+    f(xx) = xx
+    f(xxx, yyy) = xx + yy
+    f(2)
+    f(2, 3)
+    f(2, f(3))
+
+    f(2, 3) # this request is outside of the requested range
+    """)
+    function hints_with_mode(mode)
+        old_mode = server.inlay_hint_mode
+        server.inlay_hint_mode = mode
+        hints = LanguageServer.textDocument_inlayHint_request(
+            LanguageServer.InlayHintParams(
+                LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
+                LanguageServer.Range(LanguageServer.Position(0, 0), LanguageServer.Position(7, 0)),
+                missing
+            ),
+            server,
+            server.jr_endpoint
+        )
+        server.inlay_hint_mode = old_mode
+        return hints
+    end
+    @test hints_with_mode(:none) === nothing
+    @test map(x -> x.label, hints_with_mode(:literals)) == [
+        string("::", Int),
+        "::Float64",
+        "xx:",
+        "xxx:",
+        "yyy:",
+        "xxx:",
+        "xx:"
+    ]
+    @test map(x -> x.label, hints_with_mode(:all)) == [
+        string("::", Int),
+        "::Float64",
+        "xx:",
+        "xxx:",
+        "yyy:",
+        "xxx:",
+        "yyy:", # not a literal
+        "xx:"
+    ]
+    map(x -> x.position, hints_with_mode(:all)) == [
+        LanguageServer.Position(0, 1),
+        LanguageServer.Position(1, 1),
+        LanguageServer.Position(2, 4),
+        LanguageServer.Position(4, 2),
+        LanguageServer.Position(5, 2),
+        LanguageServer.Position(5, 5),
+        LanguageServer.Position(6, 2),
+        LanguageServer.Position(6, 5),
+        LanguageServer.Position(6, 7),
+    ]
+end

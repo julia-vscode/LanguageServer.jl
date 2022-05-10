@@ -7,7 +7,7 @@ function ServerCapabilities(client::ClientCapabilities)
             TextDocumentSyncKinds.Full,
             false,
             false,
-            SaveOptions(true)
+            SaveOptions(false)
         ),
         CompletionOptions(false, [".", "@", "\"", "^"], missing),
         true,

@@ -382,7 +382,7 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
     # This is just a heuristic, but should be OK since this is not something automated, and
     # the programmer will see directly if the wrong license is added.
     # TODO: Add more licenses...
-    if any(contains(license, x) for x in ("MIT License", "MIT \"Expat\" License"))
+    if contains(license, r"MIT\s+(\"?Expat\"?\s+)?License")
         return "MIT"
     end
     return nothing

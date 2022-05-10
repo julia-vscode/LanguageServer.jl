@@ -54,9 +54,16 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
     if x isa EXPR
         for (_, sa) in LSActions
             if sa.when(x, params)
+                kind = sa.kind
+                if sa.kind !== missing && sa.kind == CodeActionKinds.SourceOrganizeImports &&
+                    server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
+                    # SourceOrganizeImports doesn't show up in the VS Code UI, so make this a
+                    # RefactorRewrite instead
+                    kind = CodeActionKinds.RefactorRewrite
+                end
                 action = CodeAction(
                     sa.desc, # title
-                    sa.kind, # kind
+                    kind,    # kind
                     missing, # diagnostics
                     client_preferred_support(server) ? sa.preferred : missing, # isPreferred
                     missing, # edit
@@ -399,6 +406,96 @@ function add_license_header(x, server::LanguageServerInstance, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function organize_import_block(x, _, conn)
+    if !StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+        return
+    end
+
+    # Collect all sibling blocks that are also using/import expressions
+    siblings = EXPR[]
+    using_stmt = StaticLint.get_parent_fexpr(x, y -> headof(y) === :using || headof(y) === :import)
+    push!(siblings, using_stmt)
+    block = using_stmt.parent
+    if block !== nothing
+        myidx = findfirst(x -> x === using_stmt, block.args)
+        # Find older and younger siblings
+        for direction in (-1, 1)
+            i = direction
+            while true
+                s = get(block.args, myidx + i, nothing)
+                if s isa EXPR && (s.head === :using || s.head === :import)
+                    (direction == 1 ? push! : pushfirst!)(siblings, s)
+                    i += direction
+                else
+                    break
+                end
+            end
+        end
+    end
+
+    # Collect all modules and symbols
+    using_mods = Set{String}()
+    using_syms = Dict{String,Set{String}}()
+    import_mods = Set{String}()
+    import_syms = Dict{String,Set{String}}()
+
+    for s in siblings
+        isusing = s.head === :using
+        for a in s.args
+            if CSTParser.is_colon(a.head)
+                mod = a.args[1].args[1].val
+                set = get!(Set, isusing ? using_syms : import_syms, mod)
+                for i in 2:length(a.args)
+                    push!(set, join(y.val for y in a.args[i]))
+                end
+            elseif CSTParser.is_dot(a.head)
+                push!(isusing ? using_mods : import_mods, join((y.val for y in a.args), "."))
+            else
+                error("unreachable?")
+            end
+        end
+    end
+
+    # Rejoin and sort
+    # TODO: Currently regular string sorting is used, which roughly will correspond to
+    #       BlueStyle (modules, types, ..., functions) since usually CamelCase is used for
+    #       modules, types, etc, but possibly this can be improved by using information
+    #       available from SymbolServer
+    import_lines = String[]
+    for m in import_mods
+        push!(import_lines, "import " * m)
+    end
+    for (m, s) in import_syms
+        push!(import_lines, "import " * m * ": " * join(sort!(collect(s)), ", "))
+    end
+    using_lines = String[]
+    for m in using_mods
+        push!(using_lines, "using " * m)
+    end
+    for (m, s) in using_syms
+        push!(using_lines, "using " * m * ": " * join(sort!(collect(s)), ", "))
+    end
+    io = IOBuffer()
+    join(io, sort!(import_lines), "\n")
+    length(import_lines) > 0 && print(io, "\n\n")
+    join(io, sort!(using_lines), "\n")
+    str_to_fmt = String(take!(io))
+
+    # Format the new string
+    # TODO: Fetch user configuration?
+    formatted = JuliaFormatter.format_text(str_to_fmt; join_lines_based_on_source=true)
+
+    # Compute range of original blocks
+    file, firstoffset = get_file_loc(first(siblings))
+    _, lastoffset = get_file_loc(last(siblings))
+    lastoffset += last(siblings).span
+
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, firstoffset:lastoffset), formatted)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -477,4 +574,13 @@ LSActions["AddLicenseIdentifier"] = ServerAction(
     missing,
     (_, params) -> params.range.start.line == 0,
     add_license_header,
+)
+
+LSActions["OrganizeImports"] = ServerAction(
+    "OrganizeImports",
+    "Organize `using` and `import` statements.",
+    CodeActionKinds.SourceOrganizeImports,
+    true,
+    (x, _) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import),
+    organize_import_block,
 )

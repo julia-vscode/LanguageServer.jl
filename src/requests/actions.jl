@@ -341,6 +341,64 @@ function double_to_triple_equal(x, _, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function get_spdx_header(doc::Document)
+    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\s+((?:[\w\.-]+)(?:\s+[\w\.-]+)*)\s*$"m, get_text(doc))
+    return m === nothing ? m : String(m[1])
+end
+
+function in_same_workspace_folder(server::LanguageServerInstance, file1::URI, file2::URI)
+    for ws in server.workspaceFolders
+        if startswith(uri2filepath(file1), ws) &&
+           startswith(uri2filepath(file2), ws)
+           return true
+       end
+    end
+    return false
+end
+
+function identify_short_identifier(server::LanguageServerInstance, file::Document)
+    # First look in tracked files (in the same workspace folder) for existing headers
+    candidate_identifiers = Set{String}()
+    for doc in getdocuments_value(server)
+        in_same_workspace_folder(server, get_uri(file), get_uri(doc)) || continue
+        id = get_spdx_header(doc)
+        id === nothing || push!(candidate_identifiers, id)
+    end
+    if length(candidate_identifiers) == 1
+        return first(candidate_identifiers)
+    end
+    # Fallback to looking for a license file in the same workspace folder
+    candidate_files = String[]
+    for dir in server.workspaceFolders
+        for f in joinpath.(dir, ["LICENSE", "LICENSE.md"])
+            if in_same_workspace_folder(server, get_uri(file), filepath2uri(f)) && safe_isfile(f)
+                push!(candidate_files, f)
+            end
+        end
+    end
+    length(candidate_files) == 1 || return nothing
+    license = read(first(candidate_files), String)
+
+    # This is just a heuristic, but should be OK since this is not something automated, and
+    # the programmer will see directly if the wrong license is added.
+    # TODO: Add more licenses...
+    if contains(license, r"MIT\s+(\"?Expat\"?\s+)?License")
+        return "MIT"
+    end
+    return nothing
+end
+
+function add_license_header(x, server::LanguageServerInstance, conn)
+    file, _ = get_file_loc(x)
+    get_spdx_header(file) === nothing || return # TODO: Would be nice to check this already before offering the action
+    short_identifier = identify_short_identifier(server, file)
+    short_identifier === nothing && return
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, 0:0), "# SPDX-License-Identifier: $(short_identifier)\n\n")
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -410,4 +468,13 @@ LSActions["CompareNothingWithTripleEqual"] = ServerAction(
     true,
     (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
     double_to_triple_equal,
+)
+
+LSActions["AddLicenseIdentifier"] = ServerAction(
+    "AddLicenseIdentifier",
+    "Add SPDX license identifier.",
+    missing,
+    missing,
+    (_, params) -> params.range.start.line == 0,
+    add_license_header,
 )

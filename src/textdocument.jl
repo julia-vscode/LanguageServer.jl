@@ -17,7 +17,9 @@ struct TextDocument
     end
 end
 
-Base.display(doc::TextDocument) = println("TextDocument: $(basename(doc._uri)) ")
+function Base.show(io::IO, ::MIME"text/plain", doc::TextDocument)
+    print(io, "TextDocument: ", doc._uri)
+end
 
 get_text(doc::TextDocument) = doc._content
 

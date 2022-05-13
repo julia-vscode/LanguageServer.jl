@@ -135,3 +135,10 @@ end
     @test length(links) == 1
     @test links[1].target == LS.filepath2uri(@__FILE__)
 end
+
+@testset "Base.show for (Text)Document" begin
+    tdoc = LanguageServer.TextDocument(LanguageServer.URIs2.URI("file:///tmp/foo.jl"), "foo", 0)
+    @test sprint(show, MIME("text/plain"), tdoc) == "TextDocument: file:///tmp/foo.jl"
+    doc = LanguageServer.Document(tdoc, false)
+    @test sprint(show, MIME("text/plain"), doc) == "Document: file:///tmp/foo.jl"
+end

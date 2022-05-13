@@ -496,6 +496,76 @@ function organize_import_block(x, _, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function is_string_literal(x::EXPR; inraw::Bool=false)
+    if headof(x) === :STRING # CSTParser.isstringliteral(x) # TODO: """/raw""" strings not supported yet
+        if x.parent isa EXPR && x.parent.head === :string
+            # x is part of a string with interpolation
+            return false
+        end
+        # check for literal string macro: return false for eg. foo"bar" even though "bar" is considered a string literal
+        if x.parent isa EXPR && CSTParser.ismacrocall(x.parent) && endswith(x.parent.args[1].val, "_str") &&
+            ncodeunits(x.parent.args[1].val) - ncodeunits("@_str") == x.parent.args[1].span
+            return inraw ? x.parent.args[1].val == "@raw_str" : false
+        end
+        return inraw ? false : true
+    end
+    return false
+end
+
+if isdefined(Base, :escape_raw_string)
+    using Base: escape_raw_string
+else
+    # https://github.com/JuliaLang/julia/pull/35309
+    function escape_raw_string(io, str::AbstractString)
+        escapes = 0
+        for c in str
+            if c == '\\'
+                escapes += 1
+            else
+                if c == '"'
+                    escapes = escapes * 2 + 1
+                end
+                while escapes > 0
+                    write(io, '\\')
+                    escapes -= 1
+                end
+                escapes = 0
+                write(io, c)
+            end
+        end
+        while escapes > 0
+            write(io, '\\')
+            write(io, '\\')
+            escapes -= 1
+        end
+    end
+end
+
+function convert_to_raw(x, _, conn)
+    is_string_literal(x) || return
+    file, offset = get_file_loc(x)
+    quotes = headof(x) === :TRIPLESTRING ? "\"\"\"" : "\"" # TODO: """ not supported yet
+    raw = string("raw", quotes, sprint(escape_raw_string, valof(x)), quotes)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, offset .+ (0:x.span)), raw)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return nothing
+end
+
+function convert_from_raw(x, _, conn)
+    is_string_literal(x; inraw = true) || return
+    xparent = x.parent
+    file, offset = get_file_loc(xparent)
+    quotes = headof(x) === :TRIPLESTRING ? "\"\"" : "" # TODO: raw""" not supported yet
+    regular = quotes * repr(valof(x)) * quotes
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, offset .+ (0:xparent.span)), regular)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return nothing
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -580,7 +650,25 @@ LSActions["OrganizeImports"] = ServerAction(
     "OrganizeImports",
     "Organize `using` and `import` statements.",
     CodeActionKinds.SourceOrganizeImports,
-    true,
+    missing,
     (x, _) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import),
     organize_import_block,
+)
+
+LSActions["RewriteAsRawString"] = ServerAction(
+    "RewriteAsRawString",
+    "Rewrite as raw string",
+    CodeActionKinds.RefactorRewrite,
+    missing,
+    (x, _) -> is_string_literal(x),
+    convert_to_raw,
+)
+
+LSActions["RewriteAsRegularString"] = ServerAction(
+    "RewriteAsRegularString",
+    "Rewrite as regular string",
+    CodeActionKinds.RefactorRewrite,
+    missing,
+    (x, _) -> is_string_literal(x; inraw=true),
+    convert_from_raw,
 )

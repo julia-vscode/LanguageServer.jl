@@ -151,16 +151,25 @@ function mark_errors(doc, out=Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
+                    rng = Range(r[1] - 1, r[2], line - 1, char)
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, missing, "Julia", "Parsing error", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        if StaticLint.errorof(errs[i][2]) in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
+                        code = StaticLint.errorof(errs[i][2])
+                        description = get(StaticLint.LintCodeDescriptions, code, "")
+                        severity, tags = if code in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
+                            DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]
                         else
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                            DiagnosticSeverities.Information, missing
                         end
+                        code_details = if code === StaticLint.LoopOverLength
+                            CodeDescription(URI("https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex"))
+                        else
+                            missing
+                        end
+                        push!(out, Diagnostic(rng, severity, string(code), code_details, "Julia", description, tags, missing))
                     end
                     i += 1
                     i > n && break

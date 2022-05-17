@@ -576,6 +576,45 @@ function convert_from_raw(x, _, conn)
     return nothing
 end
 
+# Checks if parent is a parent/grandparent/... of child
+function is_parent_of(parent::EXPR, child::EXPR)
+    while child isa EXPR
+        if child == parent
+            return true
+        end
+        child = child.parent
+    end
+    return false
+end
+
+function is_in_function_signature(x::EXPR, params; with_docstring=false)
+    # TODO: Perhaps also allow this if the cursor is inside a docstring?
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return false
+    sig = func.args[1]
+    if x.head === :FUNCTION || is_parent_of(sig, x)
+        hasdoc = func.parent isa EXPR && func.parent.head === :macrocall && func.parent.args[1] isa EXPR &&
+                 func.parent.args[1].head === :globalrefdoc
+        return with_docstring == hasdoc
+    end
+    return false
+end
+
+function add_docstring_template(x, _, conn)
+    is_in_function_signature(x, nothing) || return
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return
+    file, func_offset = get_file_loc(func)
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    docstr = "\"\"\"\n    " * get_text(file)[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, func_offset:func_offset), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -681,4 +720,13 @@ LSActions["RewriteAsRegularString"] = ServerAction(
     missing,
     (x, _) -> is_string_literal(x; inraw=true),
     convert_from_raw,
+)
+
+LSActions["AddDocstringTemplate"] = ServerAction(
+    "AddDocstringTemplate",
+    "Add docstring template for this method",
+    missing,
+    missing,
+    is_in_function_signature,
+    add_docstring_template,
 )

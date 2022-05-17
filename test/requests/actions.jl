@@ -148,5 +148,48 @@ end
     raw_str = "he\$l\"lo"
     str = "\"he\\\$l\\\"lo\"" # Will be `"he\$l\"lo` when unescaped/printed
     @test repr(raw_str) == str
+end
 
+@testset "Add docstring template" begin
+    doc = settestdoc("""
+        f(x) = x
+
+        @inline f(x) = x
+
+        f(x::T) where T <: Int = x
+
+        function g(x)
+        end
+
+        function g(x::T) where T <: Int
+        end
+
+        "docstring"
+        h(x) = x
+
+        "docstring"
+        function h(x)
+        end
+        """)
+
+    ok_locations = [
+        [(0, i) for i in 0:3],
+        [(2, i) for i in 8:11],
+        [(4, i) for i in 0:21],
+        [(6, i) for i in 0:12],
+        [(9, i) for i in 0:30],
+    ]
+    not_ok_locations = [
+        [(13, i) for i in 0:4],
+        [(16, i) for i in 0:12],
+    ]
+    for loc in Iterators.flatten(ok_locations)
+        @test any(c.command == "AddDocstringTemplate" for c in action_request_test(loc...))
+    end
+    for loc in Iterators.flatten(not_ok_locations)
+        @test !any(c.command == "AddDocstringTemplate" for c in action_request_test(loc...))
+    end
+
+    c = filter(c -> c.command == "AddDocstringTemplate", action_request_test(0, 1))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end

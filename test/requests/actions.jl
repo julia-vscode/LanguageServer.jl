@@ -93,3 +93,56 @@ end
     c = filter(c -> c.command == "OrganizeImports", action_request_test(0, 1))[1]
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
+
+@testset "Convert between string and raw strings" begin
+    # "..." -> raw"..."
+    doc = settestdoc("""
+        "this is fine"
+
+        @show "this is fine"
+
+        @raw_str "this is fine"
+
+        r"not fine"
+
+        "not \$(fine) either"
+        """)
+
+    @test any(c.command == "RewriteAsRawString" for c in action_request_test(0, 2))
+    @test any(c.command == "RewriteAsRawString" for c in action_request_test(2, 10))
+    @test any(c.command == "RewriteAsRawString" for c in action_request_test(4, 12))
+    @test !any(c.command == "RewriteAsRawString" for c in action_request_test(6, 4))
+    @test !any(c.command == "RewriteAsRawString" for c in action_request_test(8, 2))
+
+    c = filter(c -> c.command == "RewriteAsRawString", action_request_test(0, 2))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+
+    # Test the internal method doing the conversion, with `quotes = "\""`
+    # raw = string("raw", quotes, sprint(escape_raw_string, valof(x)), quotes)
+    str = "he\$\"llo"
+    raw_str = "he\$\\\"llo" # Will be `he$\"llo` when unescaped/printed
+    @test sprint(LanguageServer.escape_raw_string, str) == raw_str
+
+    # raw"..." -> "..."
+    doc = settestdoc("""
+        raw"this is fine"
+
+        @raw_str "not fine"
+
+        "not fine"
+        """)
+
+    @test any(c.command == "RewriteAsRegularString" for c in action_request_test(0, 5))
+    @test !any(c.command == "RewriteAsRegularString" for c in action_request_test(2, 12))
+    @test !any(c.command == "RewriteAsRegularString" for c in action_request_test(4, 3))
+
+    c = filter(c -> c.command == "RewriteAsRegularString", action_request_test(0, 5))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+
+    # Test the internal method doing the conversion, with `quotes = ""`
+    # regular = quotes * repr(valof(x)) * quotes
+    raw_str = "he\$l\"lo"
+    str = "\"he\\\$l\\\"lo\"" # Will be `"he\$l\"lo` when unescaped/printed
+    @test repr(raw_str) == str
+
+end

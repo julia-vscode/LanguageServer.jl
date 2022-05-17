@@ -193,3 +193,31 @@ end
     c = filter(c -> c.command == "AddDocstringTemplate", action_request_test(0, 1))[1]
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
+
+@testset "Update docstring signature" begin
+    doc = settestdoc("""
+        "hello"
+        f(x) = x
+
+        \"\"\"hello\"\"\"
+        g(x) = x
+
+        \"\"\"
+            h()
+
+        hello
+        \"\"\"
+        function h(x)
+        end
+
+        i(x) = x
+        """)
+
+    @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(1, 0))
+    @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(4, 0))
+    @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(11, 0))
+    @test !any(c.command == "UpdateDocstringSignature" for c in action_request_test(14, 0))
+
+    c = filter(c -> c.command == "UpdateDocstringSignature", action_request_test(1, 0))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+end

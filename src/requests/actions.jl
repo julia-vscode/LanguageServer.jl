@@ -615,6 +615,34 @@ function add_docstring_template(x, _, conn)
     return
 end
 
+function update_docstring_sig(x, _, conn)
+    is_in_function_signature(x, nothing; with_docstring=true) || return
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    # Current docstring
+    docstr_expr = func.parent.args[3]
+    docstr = valof(docstr_expr)
+    file, docstr_offset = get_file_loc(docstr_expr)
+    # New signature in the code
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    sig_str = get_text(file)[sig_offset .+ (1:sig.span)]
+    # Heuristic for finding a signature in the current docstring
+    reg = r"\A    .*$"m
+    if (m = match(reg, valof(docstr_expr)); m !== nothing)
+        docstr = replace(docstr, reg => string("    ", sig_str))
+    else
+        docstr = string("    ", sig_str, "\n\n", docstr)
+    end
+    newline = endswith(docstr, "\n") ? "" : "\n"
+    # Rewrap in """"
+    docstr = string("\"\"\"\n", docstr, newline, "\"\"\"")
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, docstr_offset .+ (0:docstr_expr.span)), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -729,4 +757,13 @@ LSActions["AddDocstringTemplate"] = ServerAction(
     missing,
     is_in_function_signature,
     add_docstring_template,
+)
+
+LSActions["UpdateDocstringSignature"] = ServerAction(
+    "UpdateDocstringSignature",
+    "Update method signature in docstring",
+    missing,
+    missing,
+    (args...) -> is_in_function_signature(args...; with_docstring=true),
+    update_docstring_sig,
 )

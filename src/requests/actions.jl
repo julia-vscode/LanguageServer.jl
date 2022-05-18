@@ -502,10 +502,19 @@ function is_string_literal(x::EXPR; inraw::Bool=false)
             # x is part of a string with interpolation
             return false
         end
-        # check for literal string macro: return false for eg. foo"bar" even though "bar" is considered a string literal
-        if x.parent isa EXPR && CSTParser.ismacrocall(x.parent) && endswith(x.parent.args[1].val, "_str") &&
-            ncodeunits(x.parent.args[1].val) - ncodeunits("@_str") == x.parent.args[1].span
-            return inraw ? x.parent.args[1].val == "@raw_str" : false
+        # Special handling if the string was found inside a macro
+        if x.parent isa EXPR && CSTParser.ismacrocall(x.parent)
+            if x.parent.args[1] isa EXPR && headof(x.parent.args[1]) === :IDENTIFIER &&
+               endswith(x.parent.args[1].val, "_str") &&
+               ncodeunits(x.parent.args[1].val) - ncodeunits("@_str") == x.parent.args[1].span
+                # Disable for literal string macros, foo"...", but allow @foo_str "..."
+                return inraw ? x.parent.args[1].val == "@raw_str" : false
+            elseif x.parent.args[1] isa EXPR && headof(x.parent.args[1]) === :globalrefdoc
+                # Disable action for docstrings
+                return false
+            else
+                # Just some other macro, e.g. @show "hello", allow
+            end
         end
         return inraw ? false : true
     end

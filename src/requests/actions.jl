@@ -310,6 +310,7 @@ function applymissingreffix(x, server, conn)
                     TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
                 ])
                 JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+                return # TODO: This should probably offer multiple actions instead of just inserting the first hit
             end
         end
     end

@@ -164,7 +164,7 @@ function mark_errors(doc, out=Diagnostic[])
                         else
                             DiagnosticSeverities.Information, missing
                         end
-                        code_details = if code === StaticLint.IndexFromLength
+                        code_details = if isdefined(StaticLint, :IndexFromLength) && code === StaticLint.IndexFromLength
                             CodeDescription(URI("https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex"))
                         else
                             missing

@@ -41,7 +41,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     continue
                 end
 
-                doc = Document(uri, content, true, server)
+                doc = Document(TextDocument(uri, content, 0), true, server)
                 setdocument!(server, uri, doc)
                 parse_all(doc, server)
             end

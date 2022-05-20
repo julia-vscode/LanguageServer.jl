@@ -106,6 +106,9 @@ end
         r"not fine"
 
         "not \$(fine) either"
+
+        "docstring"
+        f(x) = x
         """)
 
     @test any(c.command == "RewriteAsRawString" for c in action_request_test(0, 2))
@@ -113,6 +116,7 @@ end
     @test any(c.command == "RewriteAsRawString" for c in action_request_test(4, 12))
     @test !any(c.command == "RewriteAsRawString" for c in action_request_test(6, 4))
     @test !any(c.command == "RewriteAsRawString" for c in action_request_test(8, 2))
+    @test !any(c.command == "RewriteAsRawString" for c in action_request_test(10, 3))
 
     c = filter(c -> c.command == "RewriteAsRawString", action_request_test(0, 2))[1]
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)

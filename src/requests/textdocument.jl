@@ -329,7 +329,7 @@ function is_parentof(parent_path, child_path, server)
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
             return false
         end
-        pdoc = Document(puri, content, false, server)
+        pdoc = Document(TextDocument(puri, content, 0), false, server)
         setdocument!(server, puri, pdoc)
         CSTParser.parse(get_text(pdoc), true)
         if headof(pdoc.cst) === :file

@@ -576,6 +576,73 @@ function convert_from_raw(x, _, conn)
     return nothing
 end
 
+# Checks if parent is a parent/grandparent/... of child
+function is_parent_of(parent::EXPR, child::EXPR)
+    while child isa EXPR
+        if child == parent
+            return true
+        end
+        child = child.parent
+    end
+    return false
+end
+
+function is_in_function_signature(x::EXPR, params; with_docstring=false)
+    # TODO: Perhaps also allow this if the cursor is inside a docstring?
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return false
+    sig = func.args[1]
+    if x.head === :FUNCTION || is_parent_of(sig, x)
+        hasdoc = func.parent isa EXPR && func.parent.head === :macrocall && func.parent.args[1] isa EXPR &&
+                 func.parent.args[1].head === :globalrefdoc
+        return with_docstring == hasdoc
+    end
+    return false
+end
+
+function add_docstring_template(x, _, conn)
+    is_in_function_signature(x, nothing) || return
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return
+    file, func_offset = get_file_loc(func)
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    docstr = "\"\"\"\n    " * get_text(file)[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, func_offset:func_offset), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
+function update_docstring_sig(x, _, conn)
+    is_in_function_signature(x, nothing; with_docstring=true) || return
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    # Current docstring
+    docstr_expr = func.parent.args[3]
+    docstr = valof(docstr_expr)
+    file, docstr_offset = get_file_loc(docstr_expr)
+    # New signature in the code
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    sig_str = get_text(file)[sig_offset .+ (1:sig.span)]
+    # Heuristic for finding a signature in the current docstring
+    reg = r"\A    .*$"m
+    if (m = match(reg, valof(docstr_expr)); m !== nothing)
+        docstr = replace(docstr, reg => string("    ", sig_str))
+    else
+        docstr = string("    ", sig_str, "\n\n", docstr)
+    end
+    newline = endswith(docstr, "\n") ? "" : "\n"
+    # Rewrap in """"
+    docstr = string("\"\"\"\n", docstr, newline, "\"\"\"")
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, docstr_offset .+ (0:docstr_expr.span)), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -681,4 +748,22 @@ LSActions["RewriteAsRegularString"] = ServerAction(
     missing,
     (x, _) -> is_string_literal(x; inraw=true),
     convert_from_raw,
+)
+
+LSActions["AddDocstringTemplate"] = ServerAction(
+    "AddDocstringTemplate",
+    "Add docstring template for this method",
+    missing,
+    missing,
+    is_in_function_signature,
+    add_docstring_template,
+)
+
+LSActions["UpdateDocstringSignature"] = ServerAction(
+    "UpdateDocstringSignature",
+    "Update method signature in docstring",
+    missing,
+    missing,
+    (args...) -> is_in_function_signature(args...; with_docstring=true),
+    update_docstring_sig,
 )

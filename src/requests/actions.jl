@@ -588,7 +588,6 @@ function is_parent_of(parent::EXPR, child::EXPR)
 end
 
 function is_in_function_signature(x::EXPR, params; with_docstring=false)
-    # TODO: Perhaps also allow this if the cursor is inside a docstring?
     func = _get_parent_fexpr(x, CSTParser.defines_function)
     func === nothing && return false
     sig = func.args[1]
@@ -615,9 +614,21 @@ function add_docstring_template(x, _, conn)
     return
 end
 
+function is_in_docstring_for_function(x::EXPR, _)
+    return CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
+       length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
+       headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
+end
+
 function update_docstring_sig(x, _, conn)
-    is_in_function_signature(x, nothing; with_docstring=true) || return
-    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    if is_in_function_signature(x, nothing; with_docstring=true)
+        func = _get_parent_fexpr(x, CSTParser.defines_function)
+    elseif is_in_docstring_for_function(x, nothing)
+        # The validity of this access is verified in is_in_docstring_for_function
+        func = x.parent.args[4]
+    else
+        return
+    end
     # Current docstring
     docstr_expr = func.parent.args[3]
     docstr = valof(docstr_expr)
@@ -764,6 +775,6 @@ LSActions["UpdateDocstringSignature"] = ServerAction(
     "Update method signature in docstring",
     missing,
     missing,
-    (args...) -> is_in_function_signature(args...; with_docstring=true),
+    (args...) -> is_in_function_signature(args...; with_docstring=true) || is_in_docstring_for_function(args...),
     update_docstring_sig,
 )

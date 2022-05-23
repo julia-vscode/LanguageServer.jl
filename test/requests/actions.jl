@@ -211,13 +211,26 @@ end
         end
 
         i(x) = x
+
+        "not a docstring for function"
+        foobar
         """)
 
+    # In signature
     @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(1, 0))
     @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(4, 0))
     @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(11, 0))
     @test !any(c.command == "UpdateDocstringSignature" for c in action_request_test(14, 0))
+    @test !any(c.command == "UpdateDocstringSignature" for c in action_request_test(17, 0))
 
     c = filter(c -> c.command == "UpdateDocstringSignature", action_request_test(1, 0))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+
+    # In docstring
+    @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(0, 0))
+    @test any(c.command == "UpdateDocstringSignature" for c in action_request_test(7, 0))
+    @test !any(c.command == "UpdateDocstringSignature" for c in action_request_test(16, 0))
+
+    c = filter(c -> c.command == "UpdateDocstringSignature", action_request_test(0, 0))[1]
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end

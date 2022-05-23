@@ -615,12 +615,9 @@ function add_docstring_template(x, _, conn)
 end
 
 function is_in_docstring_for_function(x::EXPR, _)
-    if CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
+    return CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
        length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
        headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
-       return true
-    end
-    return false
 end
 
 function update_docstring_sig(x, _, conn)

@@ -72,21 +72,25 @@ const DiagnosticTag = Int
 const DiagnosticTags = (Unnecessary = 1,
                         Deprecated = 2)
 
-@dict_readable struct DiagnosticRelatedInformation
+@dict_readable struct DiagnosticRelatedInformation <: Outbound
     location::Location
     message::String
+end
+
+@dict_readable struct CodeDescription <: Outbound
+    href::URI
 end
 
 @dict_readable struct Diagnostic <: Outbound
     range::Range
     severity::Union{DiagnosticSeverity,Missing}
     code::Union{String,Missing}
+    codeDescription::Union{CodeDescription,Missing}
     source::Union{String,Missing}
     message::String
     tags::Union{Vector{DiagnosticTag},Missing}
     relatedInformation::Union{Vector{DiagnosticRelatedInformation},Missing}
 end
-
 
 ##############################################################################
 

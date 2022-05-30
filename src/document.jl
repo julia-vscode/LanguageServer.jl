@@ -19,7 +19,9 @@ mutable struct Document
     end
 end
 
-Base.display(doc::Document) = println("Doc: $(basename(doc._uri)) ")
+function Base.show(io::IO, ::MIME"text/plain", doc::Document)
+    print(io, "Document: ", get_uri(doc))
+end
 
 function set_doc(x::EXPR, doc)
     if !StaticLint.hasmeta(x)

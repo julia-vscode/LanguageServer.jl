@@ -54,9 +54,16 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
     if x isa EXPR
         for (_, sa) in LSActions
             if sa.when(x, params)
+                kind = sa.kind
+                if sa.kind !== missing && sa.kind == CodeActionKinds.SourceOrganizeImports &&
+                    server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
+                    # SourceOrganizeImports doesn't show up in the VS Code UI, so make this a
+                    # RefactorRewrite instead
+                    kind = CodeActionKinds.RefactorRewrite
+                end
                 action = CodeAction(
                     sa.desc, # title
-                    sa.kind, # kind
+                    kind,    # kind
                     missing, # diagnostics
                     client_preferred_support(server) ? sa.preferred : missing, # isPreferred
                     missing, # edit
@@ -303,6 +310,7 @@ function applymissingreffix(x, server, conn)
                     TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
                 ])
                 JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+                return # TODO: This should probably offer multiple actions instead of just inserting the first hit
             end
         end
     end
@@ -399,6 +407,253 @@ function add_license_header(x, server::LanguageServerInstance, conn)
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
+function organize_import_block(x, _, conn)
+    if !StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+        return
+    end
+
+    # Collect all sibling blocks that are also using/import expressions
+    siblings = EXPR[]
+    using_stmt = StaticLint.get_parent_fexpr(x, y -> headof(y) === :using || headof(y) === :import)
+    push!(siblings, using_stmt)
+    block = using_stmt.parent
+    if block !== nothing
+        myidx = findfirst(x -> x === using_stmt, block.args)
+        # Find older and younger siblings
+        for direction in (-1, 1)
+            i = direction
+            while true
+                s = get(block.args, myidx + i, nothing)
+                if s isa EXPR && (s.head === :using || s.head === :import)
+                    (direction == 1 ? push! : pushfirst!)(siblings, s)
+                    i += direction
+                else
+                    break
+                end
+            end
+        end
+    end
+
+    # Collect all modules and symbols
+    using_mods = Set{String}()
+    using_syms = Dict{String,Set{String}}()
+    import_mods = Set{String}()
+    import_syms = Dict{String,Set{String}}()
+
+    for s in siblings
+        isusing = s.head === :using
+        for a in s.args
+            if CSTParser.is_colon(a.head)
+                mod = a.args[1].args[1].val
+                set = get!(Set, isusing ? using_syms : import_syms, mod)
+                for i in 2:length(a.args)
+                    push!(set, join(y.val for y in a.args[i]))
+                end
+            elseif CSTParser.is_dot(a.head)
+                push!(isusing ? using_mods : import_mods, join((y.val for y in a.args), "."))
+            else
+                error("unreachable?")
+            end
+        end
+    end
+
+    # Rejoin and sort
+    # TODO: Currently regular string sorting is used, which roughly will correspond to
+    #       BlueStyle (modules, types, ..., functions) since usually CamelCase is used for
+    #       modules, types, etc, but possibly this can be improved by using information
+    #       available from SymbolServer
+    import_lines = String[]
+    for m in import_mods
+        push!(import_lines, "import " * m)
+    end
+    for (m, s) in import_syms
+        push!(import_lines, "import " * m * ": " * join(sort!(collect(s)), ", "))
+    end
+    using_lines = String[]
+    for m in using_mods
+        push!(using_lines, "using " * m)
+    end
+    for (m, s) in using_syms
+        push!(using_lines, "using " * m * ": " * join(sort!(collect(s)), ", "))
+    end
+    io = IOBuffer()
+    join(io, sort!(import_lines), "\n")
+    length(import_lines) > 0 && print(io, "\n\n")
+    join(io, sort!(using_lines), "\n")
+    str_to_fmt = String(take!(io))
+
+    # Format the new string
+    # TODO: Fetch user configuration?
+    formatted = JuliaFormatter.format_text(str_to_fmt; join_lines_based_on_source=true)
+
+    # Compute range of original blocks
+    file, firstoffset = get_file_loc(first(siblings))
+    _, lastoffset = get_file_loc(last(siblings))
+    lastoffset += last(siblings).span
+
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, firstoffset:lastoffset), formatted)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+end
+
+function is_string_literal(x::EXPR; inraw::Bool=false)
+    if headof(x) === :STRING # CSTParser.isstringliteral(x) # TODO: """/raw""" strings not supported yet
+        if x.parent isa EXPR && x.parent.head === :string
+            # x is part of a string with interpolation
+            return false
+        end
+        # Special handling if the string was found inside a macro
+        if x.parent isa EXPR && CSTParser.ismacrocall(x.parent)
+            if x.parent.args[1] isa EXPR && headof(x.parent.args[1]) === :IDENTIFIER &&
+               endswith(x.parent.args[1].val, "_str") &&
+               ncodeunits(x.parent.args[1].val) - ncodeunits("@_str") == x.parent.args[1].span
+                # Disable for literal string macros, foo"...", but allow @foo_str "..."
+                return inraw ? x.parent.args[1].val == "@raw_str" : false
+            elseif x.parent.args[1] isa EXPR && headof(x.parent.args[1]) === :globalrefdoc
+                # Disable action for docstrings
+                return false
+            else
+                # Just some other macro, e.g. @show "hello", allow
+            end
+        end
+        return inraw ? false : true
+    end
+    return false
+end
+
+if isdefined(Base, :escape_raw_string)
+    using Base: escape_raw_string
+else
+    # https://github.com/JuliaLang/julia/pull/35309
+    function escape_raw_string(io, str::AbstractString)
+        escapes = 0
+        for c in str
+            if c == '\\'
+                escapes += 1
+            else
+                if c == '"'
+                    escapes = escapes * 2 + 1
+                end
+                while escapes > 0
+                    write(io, '\\')
+                    escapes -= 1
+                end
+                escapes = 0
+                write(io, c)
+            end
+        end
+        while escapes > 0
+            write(io, '\\')
+            write(io, '\\')
+            escapes -= 1
+        end
+    end
+end
+
+function convert_to_raw(x, _, conn)
+    is_string_literal(x) || return
+    file, offset = get_file_loc(x)
+    quotes = headof(x) === :TRIPLESTRING ? "\"\"\"" : "\"" # TODO: """ not supported yet
+    raw = string("raw", quotes, sprint(escape_raw_string, valof(x)), quotes)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, offset .+ (0:x.span)), raw)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return nothing
+end
+
+function convert_from_raw(x, _, conn)
+    is_string_literal(x; inraw = true) || return
+    xparent = x.parent
+    file, offset = get_file_loc(xparent)
+    quotes = headof(x) === :TRIPLESTRING ? "\"\"" : "" # TODO: raw""" not supported yet
+    regular = quotes * repr(valof(x)) * quotes
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, offset .+ (0:xparent.span)), regular)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return nothing
+end
+
+# Checks if parent is a parent/grandparent/... of child
+function is_parent_of(parent::EXPR, child::EXPR)
+    while child isa EXPR
+        if child == parent
+            return true
+        end
+        child = child.parent
+    end
+    return false
+end
+
+function is_in_function_signature(x::EXPR, params; with_docstring=false)
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return false
+    sig = func.args[1]
+    if x.head === :FUNCTION || is_parent_of(sig, x)
+        hasdoc = func.parent isa EXPR && func.parent.head === :macrocall && func.parent.args[1] isa EXPR &&
+                 func.parent.args[1].head === :globalrefdoc
+        return with_docstring == hasdoc
+    end
+    return false
+end
+
+function add_docstring_template(x, _, conn)
+    is_in_function_signature(x, nothing) || return
+    func = _get_parent_fexpr(x, CSTParser.defines_function)
+    func === nothing && return
+    file, func_offset = get_file_loc(func)
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    docstr = "\"\"\"\n    " * get_text(file)[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, func_offset:func_offset), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
+function is_in_docstring_for_function(x::EXPR, _)
+    return CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
+       length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
+       headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
+end
+
+function update_docstring_sig(x, _, conn)
+    if is_in_function_signature(x, nothing; with_docstring=true)
+        func = _get_parent_fexpr(x, CSTParser.defines_function)
+    elseif is_in_docstring_for_function(x, nothing)
+        # The validity of this access is verified in is_in_docstring_for_function
+        func = x.parent.args[4]
+    else
+        return
+    end
+    # Current docstring
+    docstr_expr = func.parent.args[3]
+    docstr = valof(docstr_expr)
+    file, docstr_offset = get_file_loc(docstr_expr)
+    # New signature in the code
+    sig = func.args[1]
+    _, sig_offset = get_file_loc(sig)
+    sig_str = get_text(file)[sig_offset .+ (1:sig.span)]
+    # Heuristic for finding a signature in the current docstring
+    reg = r"\A    .*$"m
+    if (m = match(reg, valof(docstr_expr)); m !== nothing)
+        docstr = replace(docstr, reg => string("    ", sig_str))
+    else
+        docstr = string("    ", sig_str, "\n\n", docstr)
+    end
+    newline = endswith(docstr, "\n") ? "" : "\n"
+    # Rewrap in """"
+    docstr = string("\"\"\"\n", docstr, newline, "\"\"\"")
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
+        TextEdit(Range(file, docstr_offset .+ (0:docstr_expr.span)), docstr)
+    ])
+    JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
+    return
+end
+
 # Adding a CodeAction requires defining:
 # * a unique id
 # * a description
@@ -477,4 +732,49 @@ LSActions["AddLicenseIdentifier"] = ServerAction(
     missing,
     (_, params) -> params.range.start.line == 0,
     add_license_header,
+)
+
+LSActions["OrganizeImports"] = ServerAction(
+    "OrganizeImports",
+    "Organize `using` and `import` statements.",
+    CodeActionKinds.SourceOrganizeImports,
+    missing,
+    (x, _) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import),
+    organize_import_block,
+)
+
+LSActions["RewriteAsRawString"] = ServerAction(
+    "RewriteAsRawString",
+    "Rewrite as raw string",
+    CodeActionKinds.RefactorRewrite,
+    missing,
+    (x, _) -> is_string_literal(x),
+    convert_to_raw,
+)
+
+LSActions["RewriteAsRegularString"] = ServerAction(
+    "RewriteAsRegularString",
+    "Rewrite as regular string",
+    CodeActionKinds.RefactorRewrite,
+    missing,
+    (x, _) -> is_string_literal(x; inraw=true),
+    convert_from_raw,
+)
+
+LSActions["AddDocstringTemplate"] = ServerAction(
+    "AddDocstringTemplate",
+    "Add docstring template for this method",
+    missing,
+    missing,
+    is_in_function_signature,
+    add_docstring_template,
+)
+
+LSActions["UpdateDocstringSignature"] = ServerAction(
+    "UpdateDocstringSignature",
+    "Update method signature in docstring",
+    missing,
+    missing,
+    (args...) -> is_in_function_signature(args...; with_docstring=true) || is_in_docstring_for_function(args...),
+    update_docstring_sig,
 )

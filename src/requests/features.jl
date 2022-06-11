@@ -155,9 +155,8 @@ end
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
 
-    config = get_juliaformatter_config(doc, server)
-
     newcontent = try
+        config = get_juliaformatter_config(doc, server)
         format_text(get_text(doc), params, config)
     catch err
         return JSONRPC.JSONRPCError(
@@ -225,9 +224,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
     end
 
-    config = get_juliaformatter_config(doc, server)
-
     newcontent = try
+        config = get_juliaformatter_config(doc, server)
         format_text(text, params, config)
     catch err
         return JSONRPC.JSONRPCError(

@@ -74,7 +74,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
 
-    if endswith(get_uri(doc).path, ".jmd")
+    if endswith(get_uri(doc).path, ".jmd") || endswith(get_uri(doc).path, ".md")
         parse_all(doc, server)
     else
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
@@ -95,7 +95,8 @@ end
 function parse_all(doc::Document, server::LanguageServerInstance)
     ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
-    if endswith(get_uri(get_text_document(doc)).path, ".jmd")
+    path = get_uri(get_text_document(doc)).path
+    if endswith(path, ".jmd") || endswith(path, ".md")
         doc.cst, ps = parse_jmd(ps, get_text(doc))
     else
         doc.cst, ps = CSTParser.parse(ps, true)

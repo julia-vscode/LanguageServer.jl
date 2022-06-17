@@ -4,10 +4,10 @@ function ServerCapabilities(client::ClientCapabilities)
     ServerCapabilities(
         TextDocumentSyncOptions(
             true,
-            TextDocumentSyncKinds.Full,
+            TextDocumentSyncKinds.Incremental,
             false,
             false,
-            SaveOptions(false)
+            SaveOptions(true)
         ),
         CompletionOptions(false, [".", "@", "\"", "^"], missing),
         true,

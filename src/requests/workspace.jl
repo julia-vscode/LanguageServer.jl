@@ -5,6 +5,12 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
+            if change.type == FileChangeTypes.Created
+                server.workspace = add_file(server.workspace, uri)
+            elseif change.type == FileChangeTypes.Changed
+                server.workspace = update_file(server.workspace, uri)
+            end
+
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
 
@@ -46,6 +52,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
+            server.workspace = delete_file(server.workspace, uri)
+
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
 

@@ -23,6 +23,20 @@ function is_path_manifest_file(path)
     return basename_lower_case=="manifest.toml" || basename_lower_case=="juliamanifest.toml"
 end
 
+function read_textdocument_from_uri(uri::URI)
+    path = uri2filepath(uri)
+
+    content = try
+        s = read(path, String)
+        isvalid(s) || return nothing
+        s
+    catch err
+        is_walkdir_error(err) || rethrow()
+        return nothing
+    end
+    return TextDocument(uri, content, 0)
+end
+
 function read_path_into_textdocuments(uri::URI)
     path = uri2filepath(uri)
     result = Dict{URI,TextDocument}()
@@ -34,15 +48,8 @@ function read_path_into_textdocuments(uri::URI)
                     filepath = joinpath(root, file)
                     if is_path_project_file(filepath) || is_path_manifest_file(filepath)
                         uri = filepath2uri(filepath)
-                        content = try
-                            s = read(filepath, String)
-                            isvalid(s) || continue
-                            s
-                        catch err
-                            is_walkdir_error(err) || rethrow()
-                            continue
-                        end
-                        doc = TextDocument(uri, content, 0)
+                        doc = read_textdocument_from_uri(uri)
+                        doc === nothing && continue
                         result[uri] = doc
                     end
                 end
@@ -72,4 +79,37 @@ function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
     end
 
     return JuliaWorkspace(new_roots, new_text_documents)
+end
+
+function add_file(jw::JuliaWorkspace, uri::URI)
+    new_doc = read_textdocument_from_uri(uri)
+
+    if new_doc!==nothing
+        new_text_documents = copy(jw._text_documents)
+        new_text_documents[uri] = new_doc
+
+        return JuliaWorkspace(jw._workspace_folders, new_text_documents)
+    else
+        return jw
+    end
+end
+
+function update_file(jw::JuliaWorkspace, uri::URI)
+    new_doc = read_textdocument_from_uri(uri)
+
+    if new_doc!==nothing
+        new_text_documents = copy(jw._text_documents)
+        new_text_documents[uri] = new_doc
+
+        return JuliaWorkspace(jw._workspace_folders, new_text_documents)
+    else
+        return jw
+    end
+end
+
+function delete_file(jw::JuliaWorkspace, uri::URI)
+    new_text_documents = copy(jw._text_documents)
+    delete!(new_text_documents, uri)
+
+    return JuliaWorkspace(jw._workspace_folders, new_text_documents)
 end

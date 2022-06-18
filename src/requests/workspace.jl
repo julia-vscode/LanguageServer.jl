@@ -131,10 +131,12 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
+        server.workspace = add_workspace_folder(server.workspace, wksp.uri)
     end
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
+        server.workspace = remove_workspace_folder(server.workspace, wksp.uri)
     end
 end
 

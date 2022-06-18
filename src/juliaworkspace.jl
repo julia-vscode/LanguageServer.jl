@@ -23,7 +23,8 @@ function is_path_manifest_file(path)
     return basename_lower_case=="manifest.toml" || basename_lower_case=="juliamanifest.toml"
 end
 
-function read_path_into_textdocuments(path::String)
+function read_path_into_textdocuments(uri::URI)
+    path = uri2filepath(uri)
     result = Dict{URI,TextDocument}()
 
     if load_rootpath(path)
@@ -54,12 +55,21 @@ function read_path_into_textdocuments(path::String)
     return result
 end
 
-function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
-    new_roots = delete!(jw._workspace_folders, folder)
+function add_workspace_folder(jw::JuliaWorkspace, folder::URI)
+    new_roots = push(copy(jw._workspace_folders), folder)
 
-    text_documents = filter(jw._text_documents) do i
-        return any(startswith(i.first), )
+    new_text_documents = merge(jw._text_documents, read_path_into_textdocuments(folder))
+
+    return JuliaWorkspace(new_roots, new_text_documents)
+end
+
+function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
+    new_roots = delete!(copy(jw._workspace_folders), folder)
+
+    new_text_documents = filter(jw._text_documents) do i
+        # TODO Eventually use FilePathsBase functionality to properly test this
+        return any(startswith(i.first, j) for j in new_roots )
     end
 
-    return JuliaWorkspace(new_roots, text_documents)
+    return JuliaWorkspace(new_roots, new_text_documents)
 end

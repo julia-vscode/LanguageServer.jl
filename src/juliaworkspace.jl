@@ -6,7 +6,7 @@ end
 JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
-    text_documents = merge(read_path_into_textdocuments(path) for path in workspace_folders)
+    text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
 
     return JuliaWorkspace(workspace_folders, text_documents)
 end

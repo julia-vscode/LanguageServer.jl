@@ -196,7 +196,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
-    server.workspace = JuliaWorkspace(server.workspaceFolders)
+    server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
 
     request_julia_config(server, conn)
 

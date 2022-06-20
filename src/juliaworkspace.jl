@@ -1,14 +1,30 @@
 struct JuliaWorkspace
     _workspace_folders::Set{URI}
     _text_documents::Dict{URI,TextDocument}
+    _toml_syntax_trees::Dict{URI,Dict}
 end
 
-JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}())
+JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
     text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
 
-    return JuliaWorkspace(workspace_folders, text_documents)
+    toml_syntax_trees = Dict{URI,Dict}()
+    for (k,v) in paris(text_documents)
+        if endswith(lowercase(string(k)), ".toml")
+            try
+                toml_syntax_trees[k] = parse_toml_file(get_text(v))
+            catch err
+                # TODO Add some diagnostics
+            end
+        end
+    end
+
+    return JuliaWorkspace(workspace_folders, text_documents, toml_syntax_trees)
+end
+
+function parse_toml_file(content)
+    return Pkg.TOML.parse(content)
 end
 
 function is_path_project_file(path)
@@ -64,10 +80,23 @@ end
 
 function add_workspace_folder(jw::JuliaWorkspace, folder::URI)
     new_roots = push(copy(jw._workspace_folders), folder)
+    new_toml_syntax_trees = copy(jw._toml_syntax_trees)
 
-    new_text_documents = merge(jw._text_documents, read_path_into_textdocuments(folder))
+    additional_documents = read_path_into_textdocuments(folder)
+    for (k,v) in paris(text_documents)
+        if endswith(lowercase(string(k)), ".toml")
+            try
+                new_toml_syntax_trees[k] = parse_toml_file(get_text(v))
+            catch err
+                # TODO Add some diagnostics
+            end
+        end
+    end
 
-    return JuliaWorkspace(new_roots, new_text_documents)
+    new_text_documents = merge(jw._text_documents, additional_documents)
+
+
+    return JuliaWorkspace(new_roots, new_text_documents, new_toml_syntax_trees)
 end
 
 function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
@@ -78,7 +107,11 @@ function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
         return any(startswith(i.first, j) for j in new_roots )
     end
 
-    return JuliaWorkspace(new_roots, new_text_documents)
+    new_toml_syntax_trees = filter(jw._toml_syntax_trees) do i
+        return haskey(new_text_documents, i.first)
+    end
+
+    return JuliaWorkspace(new_roots, new_text_documents, new_toml_syntax_trees)
 end
 
 function add_file(jw::JuliaWorkspace, uri::URI)

@@ -12,6 +12,36 @@ struct URI
     fragment::Union{String,Nothing}
 end
 
+@static if Sys.iswindows()
+    function Base.:(==)(a::URI, b::URI)
+        if a.scheme=="file" && b.scheme=="file"
+            a_path_norm = lowercase(a.path)
+            b_path_norm = lowercase(b.path)
+
+            return a.scheme == b.scheme &&
+                a.authority == b.authority &&
+                a_path_norm == b_path_norm &&
+                a.query == b.query &&
+                a.fragment == b.fragment
+        else
+            return a.scheme == b.scheme &&
+                a.authority == b.authority &&
+                a.path == b.path &&
+                a.query == b.query &&
+                a.fragment == b.fragment
+        end
+    end
+
+    function Base.hash(a::URI, h::UInt)
+        if a.scheme=="file"
+            path_norm = lowercase(a.path)
+            return hash((a.scheme, a.authority, path_norm, a.query, a.fragment), h)
+        else
+            return hash((a.scheme, a.authority, a.path, a.query, a.fragment), h)
+        end
+    end
+end
+
 function percent_decode(str::AbstractString)
     return URIs.unescapeuri(str)
 end

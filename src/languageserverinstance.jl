@@ -63,14 +63,14 @@ mutable struct LanguageServerInstance
 
     shutdown_requested::Bool
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
+    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream=nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
             Dict{URI,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream=symbolcache_upstream),
             Channel(Inf),
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             Dict(),
@@ -179,7 +179,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function (msg, percentage = missing)
+            function (msg, percentage=missing)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
                     msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
                     JSONRPC.send(
@@ -193,7 +193,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 end
             end,
             server.err_handler,
-            download = server.symserver_use_download
+            download=server.symserver_use_download
         )
 
         server.number_of_outstanding_symserver_requests -= 1
@@ -281,7 +281,7 @@ function Base.run(server::LanguageServerInstance)
         @debug "LS: Starting client listener task."
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
-            put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -294,7 +294,7 @@ function Base.run(server::LanguageServerInstance)
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
         @debug "LS: Client listener task done."
@@ -304,7 +304,7 @@ function Base.run(server::LanguageServerInstance)
         @debug "LS: Starting symbol server listener task."
         while true
             msg = take!(server.symbol_results_channel)
-            put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -317,7 +317,7 @@ function Base.run(server::LanguageServerInstance)
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
         @debug "LS: Symbol server listener task done."
@@ -341,6 +341,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
     msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
     msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
+    msg_dispatcher[julia_pkg_version_lens_request_type] = request_wrapper(lens_request, server)
     msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
     msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
     msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)

@@ -48,23 +48,36 @@ s6 = "\n"
 d6 = Document(TextDocument(uri"untitled:none", s6, 0), false)
 @test get_line_offsets(get_text_document(d6)) == [0,1]
 
-@testset "applytextdocumentchanges" begin
-    doc = LS.Document(TextDocument(uri"file:///example/path/example.jl", "function foo()", 0), false)
-    c1 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(0, 14), LS.Position(0, 14)),
-                                        0, "\n")
-    c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1, 0), LS.Position(1, 0)),
-                                           0, "    ")
+@testset "apply_text_edits" begin
+    version = 0
+    doc = TextDocument(uri"file:///example/path/example.jl", "function foo()", version)
+    c1 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(0, 14), LS.Position(0, 14)), 0, "\n")
+    c2 = LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(1, 0), LS.Position(1, 0)), 0, "    ")
     c3 = LS.TextDocumentContentChangeEvent(missing, missing, "println(\"Hello World\")")
 
-    LS.applytextdocumentchanges(doc, c1)
+    doc = LS.apply_text_edits(doc, [c1], version += 1)
     @test LS.get_text(doc) == "function foo()\n"
     # Implicitly test for issue #403
-    LS.applytextdocumentchanges(doc, c2)
+    doc = LS.apply_text_edits(doc, [c2], version += 1)
     @test LS.get_text(doc) == "function foo()\n    "
-    LS.applytextdocumentchanges(doc, c3)
+    doc = LS.apply_text_edits(doc, [c3], version += 1)
     @test LS.get_text(doc) == "println(\"Hello World\")"
+
+    # Test muliple edits (#1118)
+    doc = TextDocument(uri"file:///example/path/example.jl", "module Crash\n\n\n\nend # module Crash\n", version)
+    edits = [
+        LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(2, 0), LS.Position(2, 0)), 0, "p"),
+        LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(2, 1), LS.Position(2, 1)), 0, "r"),
+        LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(2, 2), LS.Position(2, 2)), 0, "i"),
+        LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(2, 3), LS.Position(2, 3)), 0, "n"),
+        LS.TextDocumentContentChangeEvent(LS.Range(LS.Position(2, 4), LS.Position(2, 4)), 0, "t"),
+    ]
+    doc = LS.apply_text_edits(doc, edits, version += 1)
+    @test LS.get_text(doc) == "module Crash\n\nprint\n\nend # module Crash\n"
+
     # doc currently has only one line, applying change to 2nd line should throw
-    @test_throws LanguageServer.LSOffsetError LS.applytextdocumentchanges(doc, c2)
+    doc = LS.apply_text_edits(doc, [c3], version += 1)
+    @test_throws LanguageServer.LSOffsetError LS.apply_text_edits(doc, [c2], version += 1)
 end
 
 @testset "UTF16 handling" begin

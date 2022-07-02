@@ -82,6 +82,9 @@ function apply_text_edits(doc::TextDocument, edits, new_version)
             # No range given, replace all text
             content = edit.text
         else
+            # Rebind doc here so that we compute the range for the updated document in
+            # _convert_lsrange_to_jlrange when applying multiple edits
+            doc = TextDocument(doc._uri, content, new_version)
             editrange = _convert_lsrange_to_jlrange(doc, edit.range)
             content = string(content[1:prevind(content, editrange.start)], edit.text, content[nextind(content, editrange.stop):lastindex(content)])
         end

@@ -3,7 +3,6 @@ using LanguageServer:
     Document,
     TextDocument,
     apply_text_edits,
-    applytextdocumentchanges,
     get_text_document,
     set_text_document!,
     get_text,

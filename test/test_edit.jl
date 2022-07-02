@@ -21,10 +21,10 @@ mktempdir() do dir
             LanguageServer.VersionedTextDocumentIdentifier(get_uri(doc), 5),
             [LanguageServer.TextDocumentContentChangeEvent(LanguageServer.Range(LanguageServer.Position(s1...), LanguageServer.Position(s2...)), 0, insert)]
         )
-        tdcce = params.contentChanges[1]
+        tdcce = params.contentChanges
 
         # TODO: This should only re-parse necessary parts of the document
-        LanguageServer.applytextdocumentchanges(doc, tdcce)
+        LanguageServer.set_text_document!(doc, LanguageServer.apply_text_edits(get_text_document(doc), tdcce, 1))
         LanguageServer.parse_all(doc, server)
 
         new_cst = CSTParser.parse(LanguageServer.get_text(doc), true)

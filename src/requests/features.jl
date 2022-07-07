@@ -115,27 +115,20 @@ function get_file_loc(x::EXPR, offset=0, c=nothing)
     return nothing, offset
 end
 
-function search_file(filename, dir, topdir)
+function search_file(filename, dir)
     parent_dir = dirname(dir)
-    return if (!startswith(dir, topdir) || parent_dir == dir || isempty(dir))
+    return if (parent_dir == dir || isempty(dir))
         nothing
     else
         path = joinpath(dir, filename)
-        isfile(path) ? path : search_file(filename, parent_dir, topdir)
+        isfile(path) ? path : search_file(filename, parent_dir)
     end
 end
 
 function get_juliaformatter_config(doc, server)
     path = get_path(doc)
-
-    # search through workspace for a `.JuliaFormatter.toml`
-    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
-    config_path = length(workspace_dirs) > 0 ?
-        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
-        nothing
-
+    config_path = search_file(JuliaFormatter.CONFIG_FILE_NAME, path)
     config_path === nothing && return nothing
-
     @debug "Found JuliaFormatter config at $(config_path)"
     return JuliaFormatter.parse_config(config_path)
 end

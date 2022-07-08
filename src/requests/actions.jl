@@ -350,7 +350,7 @@ function double_to_triple_equal(x, _, conn)
 end
 
 function get_spdx_header(doc::Document)
-    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\s+((?:[\w\.-]+)(?:\s+[\w\.-]+)*)\s*$"m, get_text(doc))
+    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\h+((?:[\w\.-]+)(?:\h+[\w\.-]+)*)\h*$", get_text(doc))
     return m === nothing ? m : String(m[1])
 end
 

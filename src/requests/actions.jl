@@ -440,17 +440,29 @@ function organize_import_block(x, _, conn)
     import_mods = Set{String}()
     import_syms = Dict{String,Set{String}}()
 
+    # Joins e.g. [".", ".", "Foo", "Bar"] (from "using ..Foo.Bar") to "..Foo.Bar"
+    function module_join(x)
+        io = IOBuffer()
+        for y in x.args[1:end-1]
+            print(io, y.val)
+            y.val == "." && continue
+            print(io, ".")
+        end
+        print(io, x.args[end].val)
+        return String(take!(io))
+    end
+
     for s in siblings
         isusing = s.head === :using
         for a in s.args
             if CSTParser.is_colon(a.head)
-                mod = a.args[1].args[1].val
+                mod = module_join(a.args[1])
                 set = get!(Set, isusing ? using_syms : import_syms, mod)
                 for i in 2:length(a.args)
                     push!(set, join(y.val for y in a.args[i]))
                 end
             elseif CSTParser.is_dot(a.head)
-                push!(isusing ? using_mods : import_mods, join((y.val for y in a.args), "."))
+                push!(isusing ? using_mods : import_mods, module_join(a))
             else
                 error("unreachable?")
             end

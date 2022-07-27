@@ -42,7 +42,7 @@ function on_all_offsets(doc, f)
     end
 end
 
-@testset "LanguageServer" begin
+@testset "LanguageServer" begin    
     @testset "document" begin
         include("test_document.jl")
     end
@@ -115,6 +115,7 @@ end
     end
 
     include("test_uris2.jl")
+    include("test_juliaworkspace.jl")
     
     @testset "misc" begin
         include("test_misc.jl")

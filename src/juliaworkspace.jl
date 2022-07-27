@@ -25,7 +25,7 @@ function JuliaWorkspace(workspace_folders::Set{URI})
     text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
 
     toml_syntax_trees = Dict{URI,Dict}()
-    for (k,v) in paris(text_documents)
+    for (k,v) in pairs(text_documents)
         if endswith(lowercase(string(k)), ".toml")
             try
                 toml_syntax_trees[k] = parse_toml_file(get_text(v))

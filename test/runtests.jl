@@ -1,5 +1,19 @@
 using Test, Sockets, LanguageServer, CSTParser, SymbolServer, SymbolServer.Pkg, StaticLint, LanguageServer.JSON, LanguageServer.JSONRPC
-using LanguageServer: Document, get_text, get_offset, get_line_offsets, get_position_at, get_open_in_editor, set_open_in_editor, is_workspace_file, applytextdocumentchanges
+using LanguageServer: 
+    Document,
+    TextDocument,
+    apply_text_edits,
+    get_text_document,
+    set_text_document!,
+    get_text,
+    get_offset,
+    get_line_offsets,
+    get_position_from_offset,
+    get_open_in_editor,
+    set_open_in_editor,
+    is_workspace_file,
+    get_uri
+using LanguageServer.URIs2
 const LS = LanguageServer
 const Range = LanguageServer.Range
 
@@ -7,9 +21,9 @@ const Range = LanguageServer.Range
 JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 function settestdoc(text)
     empty!(server._documents)
-    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem("testdoc", "julia", 0, text)), server, nothing)
+    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(uri"untitled:testdoc", "julia", 0, text)), server, nothing)
 
-    doc = LanguageServer.getdocument(server, LanguageServer.URI2("testdoc"))
+    doc = LanguageServer.getdocument(server, uri"untitled:testdoc")
     LanguageServer.parse_all(doc, server)
     doc
 end
@@ -22,9 +36,9 @@ end
 
 function on_all_offsets(doc, f)
     offset = 1
-    while offset <= lastindex(doc._content)
+    while offset <= lastindex(get_text(doc))
         f(doc, offset)
-        offset = nextind(doc._content, offset)
+        offset = nextind(get_text(doc), offset)
     end
 end
 
@@ -63,30 +77,34 @@ end
         end
         @testset "brute force tests" begin
             @info "Self-parse test"
-            # run tests against each position in each document
-            empty!(server._documents)
-            LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
-            on_all_docs(server, doc -> begin
-                @info "Testing LS functionality at all offsets" file=doc._uri
-                on_all_offsets(doc, function (doc, offset)
-                    tdi = LanguageServer.TextDocumentIdentifier(doc._uri)
-                    pos = LanguageServer.Position(LanguageServer.get_position_at(doc, offset)...)
-                    @test LanguageServer.get_offset(doc, LanguageServer.get_position_at(doc, offset)...) == offset
-                    LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
-                    LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                    LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                    LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
-                    LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
-                    LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
+            if get(ENV, "CI", false) != false
+                @info "skipping brute-force tests on CI"
+            else
+                # run tests against each position in each document
+                empty!(server._documents)
+                LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
+                on_all_docs(server, doc -> begin
+                    @info "Testing LS functionality at all offsets" file=get_uri(doc)
+                    on_all_offsets(doc, function (doc, offset)
+                        tdi = LanguageServer.TextDocumentIdentifier(get_uri(doc))
+                        pos = LanguageServer.Position(LanguageServer.get_position_from_offset(doc, offset)...)
+                        @test LanguageServer.get_offset(doc, LanguageServer.get_position_from_offset(doc, offset)...) == offset
+                        LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
+                        LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                        LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                        LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
+                        LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
+                        LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
+                    end)
                 end)
-            end)
 
-            on_all_docs(server, doc -> begin
-                symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(doc._uri),missing, missing), server, server.jr_endpoint))
-                @info "Found $symbols symbols" file=doc._uri
-            end)
+                on_all_docs(server, doc -> begin
+                    symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(get_uri(doc)),missing, missing), server, server.jr_endpoint))
+                    @info "Found $symbols symbols" file=get_uri(doc)
+                end)
 
-            LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
+                LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
+            end
         end
     end
     @testset "edit" begin
@@ -95,6 +113,9 @@ end
     @testset "paths" begin
         include("test_paths.jl")
     end
+
+    include("test_uris2.jl")
+    
     @testset "misc" begin
         include("test_misc.jl")
     end

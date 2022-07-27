@@ -2,35 +2,38 @@ function ServerCapabilities(client::ClientCapabilities)
     prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
     ServerCapabilities(
-    TextDocumentSyncOptions(true,
-    TextDocumentSyncKinds.Full,
-    false,
-    false,
-    SaveOptions(true)),
-    CompletionOptions(false, [".", "@", "\"", "^"], missing),
-    true,
-    SignatureHelpOptions(["(", ","], missing),
-    false,
-    true,
-    false,
-    false,
-    true,
-    true,
-    true,
-    true,
-    missing,
-    missing,
-    false,
-    true,
-    true,
-    missing,
-    RenameOptions(missing, prepareSupport),
-    false,
-    ExecuteCommandOptions(missing, collect(keys(LSActions))),
-    true,
-    true,
-    WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
-    missing)
+        TextDocumentSyncOptions(
+            true,
+            TextDocumentSyncKinds.Incremental,
+            false,
+            false,
+            SaveOptions(true)
+        ),
+        CompletionOptions(false, [".", "@", "\"", "^"], missing),
+        true,
+        SignatureHelpOptions(["(", ","], missing),
+        false,
+        true,
+        false,
+        false,
+        true,
+        true,
+        true,
+        true,
+        missing,
+        DocumentLinkOptions(false, missing),
+        false,
+        true,
+        true,
+        missing,
+        RenameOptions(missing, prepareSupport),
+        false,
+        ExecuteCommandOptions(missing, collect(keys(LSActions))),
+        true,
+        true,
+        WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
+        missing
+    )
 
 end
 
@@ -99,20 +102,20 @@ function load_folder(path::String, server)
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
                         uri = filepath2uri(filepath)
-                        if hasdocument(server, URI2(uri))
-                            set_is_workspace_file(getdocument(server, URI2(uri)), true)
+                        if hasdocument(server, uri)
+                            set_is_workspace_file(getdocument(server, uri), true)
                             continue
                         else
                             content = try
                                 s = read(filepath, String)
-                                isvalid(s) || continue
+                                (isvalid(s) && !occursin('\0', s)) || continue
                                 s
                             catch err
                                 is_walkdir_error(err) || rethrow()
                                 continue
                             end
-                            doc = Document(uri, content, true, server)
-                            setdocument!(server, URI2(uri), doc)
+                            doc = Document(TextDocument(uri, content, 0), true, server)
+                            setdocument!(server, uri, doc)
                             try
                                 parse_all(doc, server)
                             catch ex

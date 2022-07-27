@@ -28,7 +28,7 @@ For normal usage, the language server can be instantiated with
 mutable struct LanguageServerInstance
     jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
     workspaceFolders::Set{String}
-    _documents::Dict{URI2,Document}
+    _documents::Dict{URI,Document}
 
     env_path::String
     depot_path::String
@@ -67,7 +67,7 @@ mutable struct LanguageServerInstance
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
-            Dict{URI2,Document}(),
+            Dict{URI,Document}(),
             env_path,
             depot_path,
             SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
@@ -101,11 +101,11 @@ function Base.display(server::LanguageServerInstance)
     end
 end
 
-function hasdocument(server::LanguageServerInstance, uri::URI2)
+function hasdocument(server::LanguageServerInstance, uri::URI)
     return haskey(server._documents, uri)
 end
 
-function getdocument(server::LanguageServerInstance, uri::URI2)
+function getdocument(server::LanguageServerInstance, uri::URI)
     return server._documents[uri]
 end
 
@@ -121,11 +121,11 @@ function getdocuments_value(server::LanguageServerInstance)
     return values(server._documents)
 end
 
-function setdocument!(server::LanguageServerInstance, uri::URI2, doc::Document)
+function setdocument!(server::LanguageServerInstance, uri::URI, doc::Document)
     server._documents[uri] = doc
 end
 
-function deletedocument!(server::LanguageServerInstance, uri::URI2)
+function deletedocument!(server::LanguageServerInstance, uri::URI)
     doc = getdocument(server, uri)
     StaticLint.clear_meta(getcst(doc))
     delete!(server._documents, uri)
@@ -237,6 +237,9 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
     end
 end
 
+# Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
+const USE_REVISE = Ref(false)
+
 function request_wrapper(func, server::LanguageServerInstance)
     return function (conn, params)
         if server.shutdown_requested
@@ -248,7 +251,16 @@ function request_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        func(params, server, conn)
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            Base.invokelatest(func, params, server, conn)
+        else
+            func(params, server, conn)
+        end
     end
 end
 
@@ -351,6 +363,7 @@ function Base.run(server::LanguageServerInstance)
     msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+    msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
 
     # The exit notification message should not be wrapped in request_wrapper (which checks
     # if the server have been requested to be shut down). Instead, this message needs to be

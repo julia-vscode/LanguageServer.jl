@@ -1,6 +1,6 @@
 import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbols, getsymbolextendeds, getenv
 import StaticLint: getpath, getroot, setroot, getcst, setcst, semantic_pass, getserver, setserver
-hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, URI2(filepath2uri(path)))
+hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, filepath2uri(path))
 function canloadfile(server::LanguageServerInstance, path::String)
     try
         return !isempty(path) && safe_isfile(path)
@@ -19,18 +19,18 @@ function loadfile(server::LanguageServerInstance, path::String)
         return
     end
     uri = filepath2uri(path)
-    doc = Document(uri, source, true, server)
+    doc = Document(TextDocument(uri, source, 0), true, server)
     StaticLint.setfile(server, path, doc)
 end
 function setfile(server::LanguageServerInstance, path::String, x::Document)
-    uri = URI2(filepath2uri(path))
+    uri = filepath2uri(path)
     if hasdocument(server, uri)
         error("StaticLint should not try to set documents that are already tracked.")
     end
 
     setdocument!(server, uri, x)
 end
-getfile(server::LanguageServerInstance, path::String) = getdocument(server, URI2(filepath2uri(path)))
+getfile(server::LanguageServerInstance, path::String) = getdocument(server, filepath2uri(path))
 
 function getenv(doc::Document, server::LanguageServerInstance)
     get(server.roots_env_map, doc.root, server.global_env)

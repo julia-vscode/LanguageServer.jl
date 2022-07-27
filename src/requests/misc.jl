@@ -10,13 +10,13 @@ end
 
 function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     fallback = (Position(0, 0), Position(0, 0), tdpp.position)
-    uri = URI2(tdpp.textDocument.uri)
+    uri = tdpp.textDocument.uri
 
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
 
-    if doc._version !== tdpp.version
+    if get_version(doc) !== tdpp.version
         return mismatched_version_error(uri, doc, tdpp, "getCurrentBlockRange")
     end
 
@@ -32,7 +32,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                 # to a new line
                 if !(loc <= offset <= loc + a.span) || headof(a) === :NOTHING
                     if length(x) > i
-                        thisline, _ = get_position_at(doc, loc + a.span)
+                        thisline, _ = get_position_from_offset(doc, loc + a.span)
                         if tdpp.position.line > thisline || headof(a) === :NOTHING
                             loc += a.fullspan
                             a = x[i + 1]
@@ -49,25 +49,25 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
 
                 if CSTParser.defines_module(a) # Within module at the top-level, lets see if we can select on of the block arguments
                     if loc <= offset <= loc + a.trivia[1].span # Within `module` keyword, so return entire expression
-                        return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
+                        return Position(get_position_from_offset(doc, loc)...), Position(get_position_from_offset(doc, loc + a.span)...), Position(get_position_from_offset(doc, loc + a.fullspan)...)
                     end
                     if loc + a.trivia[1].fullspan <= offset <= loc + a.trivia[1].fullspan + a.args[2].span # Within name of the module, so return entire expression
-                        return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
+                        return Position(get_position_from_offset(doc, loc)...), Position(get_position_from_offset(doc, loc + a.span)...), Position(get_position_from_offset(doc, loc + a.fullspan)...)
                     end
 
                     if loc + a.trivia[1].fullspan + a.args[2].fullspan <= offset <= loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].span # Within the body of a module
                         loc += a.trivia[1].fullspan + a.args[2].fullspan
                         for b in a.args[3].args
                             if loc <= offset <= loc + b.span
-                                return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + b.span)...), Position(get_position_at(doc, loc + b.fullspan)...)
+                                return Position(get_position_from_offset(doc, loc)...), Position(get_position_from_offset(doc, loc + b.span)...), Position(get_position_from_offset(doc, loc + b.fullspan)...)
                             end
                             loc += b.fullspan
                         end
                     elseif loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan < offset <= loc + a.trivia[1].fullspan + a.args[2].fullspan + a.args[3].fullspan + a.trivia[2].span # Within `end` of the module, so return entire expression
-                        return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
+                        return Position(get_position_from_offset(doc, loc)...), Position(get_position_from_offset(doc, loc + a.span)...), Position(get_position_from_offset(doc, loc + a.fullspan)...)
                     end
                 else
-                    return Position(get_position_at(doc, loc)...), Position(get_position_at(doc, loc + a.span)...), Position(get_position_at(doc, loc + a.fullspan)...)
+                    return Position(get_position_from_offset(doc, loc)...), Position(get_position_from_offset(doc, loc + a.span)...), Position(get_position_from_offset(doc, loc + a.fullspan)...)
                 end
             end
             loc += a.fullspan
@@ -84,3 +84,34 @@ end
 
 julia_refreshLanguageServer_notification(_, server::LanguageServerInstance, conn) =
     trigger_symbolstore_reload(server)
+
+function textDocument_documentLink_request(params::DocumentLinkParams, server::LanguageServerInstance, conn)
+    doc = getdocument(server, params.textDocument.uri)
+    links = DocumentLink[]
+    find_document_links(getcst(doc), doc, 0, links)
+    return links
+end
+
+function find_document_links(x, doc, offset, links)
+    if x isa EXPR && CSTParser.isstringliteral(x)
+        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
+            try
+                if isabspath(valof(x)) && safe_isfile(valof(x))
+                    path = valof(x)
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(path), missing, missing))
+                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
+                    path = joinpath(_dirname(getpath(doc)), valof(x))
+                    push!(links, DocumentLink(Range(doc, offset .+ (0:x.span)), filepath2uri(path), missing, missing))
+                end
+            catch err
+                isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+            end
+        end
+    end
+    if x.args !== nothing
+        for arg in x
+            find_document_links(arg, doc, offset, links)
+            offset += arg.fullspan
+        end
+    end
+end

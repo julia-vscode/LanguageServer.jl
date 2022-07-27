@@ -1,4 +1,4 @@
-completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier("testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
+completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
 
 @testset "latex completions" begin
     settestdoc("""
@@ -118,6 +118,21 @@ end
 
     settestdoc("isa")
     @test any(item.label == "isa" for item in completion_test(0, 3).items)
+
+    # String macros
+    settestdoc("uint12")
+    @test any(item.label == "uint128\"" for item in completion_test(0, 6).items)
+    @test any(item.label == "@uint128_str" for item in completion_test(0, 6).items)
+
+    settestdoc("@uint12")
+    @test any(item.label == "@uint128_str" for item in completion_test(0, 7).items)
+
+    settestdoc("""
+    macro foobar_str(ex) ex end
+    fooba
+    """)
+    @test any(item.label == "foobar\"" for item in completion_test(1, 5).items)
+    @test any(item.label == "@foobar_str" for item in completion_test(1, 5).items)
 end
 
 @testset "scope var completions" begin
@@ -132,4 +147,37 @@ end
     @test any(item.label == "myvar" for item in completion_test(3, 3).items)
     @test any(item.label == "βbb" for item in completion_test(4, 2).items)
     @test any(item.label == "bβb" for item in completion_test(5, 2).items)
+end
+
+@testset "completion kinds" begin
+    Kinds = LanguageServer.CompletionItemKinds
+    # issue #872
+    settestdoc("""
+        function f(kind_variable_arg)
+            kind_variable_local = 1
+            kind_variable_
+        end
+        """)
+    items = completion_test(2, 18).items
+    @test any(i -> i.label == "kind_variable_local" && i.kind == Kinds.Variable, items)
+    @test any(i -> i.label == "kind_variable_arg" && i.kind == Kinds.Variable, items)
+end
+
+@testset "completion details" begin
+    settestdoc("""
+        struct Bar end
+        struct Foo
+            xxx::Int
+            yyy::Bar
+        end
+        b = Bar()
+        f = Foo(1, b)
+        xxx = f.yyy
+        f.yy
+        xx
+        """)
+    items1 = completion_test(8, 4).items
+    items2 = completion_test(9, 2).items
+    @test any(i -> i.label == "yyy" && occursin("yyy::Bar", i.detail), items1)
+    @test any(i -> i.label == "xxx" && occursin("xxx::Bar = f.yyy", i.detail), items2)
 end

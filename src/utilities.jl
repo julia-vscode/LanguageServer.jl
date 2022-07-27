@@ -7,7 +7,7 @@ nodocuemnt_error(uri, data=nothing) =
 function mismatched_version_error(uri, doc, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
         -32099,
-        "version mismatch in $(msg) request for $(uri): JLS $(doc._version), client: $(params.version)",
+        "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
         data
     )
 end
@@ -28,75 +28,6 @@ end
 
 # misc
 # ----
-
-function uri2filepath(uri::AbstractString)
-    parsed_uri = try
-        URIParser.URI(uri)
-    catch
-        throw(LSUriConversionFailure("Cannot parse `$uri`."))
-    end
-
-    if parsed_uri.scheme !== "file"
-        return nothing
-    end
-
-    path_unescaped = URIParser.unescape(parsed_uri.path)
-    host_unescaped = URIParser.unescape(parsed_uri.host)
-
-    value = ""
-
-    if host_unescaped != "" && length(path_unescaped) > 1
-        # unc path: file://shares/c$/far/boo
-        value = "//$host_unescaped$path_unescaped"
-    elseif length(path_unescaped) >= 3 &&
-            path_unescaped[1] == '/' &&
-            isascii(path_unescaped[2]) && isletter(path_unescaped[2]) &&
-            path_unescaped[3] == ':'
-        # windows drive letter: file:///c:/far/boo
-        value = lowercase(path_unescaped[2]) * path_unescaped[3:end]
-    else
-        # other path
-        value = path_unescaped
-    end
-
-    if Sys.iswindows()
-        value = replace(value, '/' => '\\')
-    end
-
-    value = normpath(value)
-
-    return value
-end
-
-function filepath2uri(file::String)
-    isabspath(file) || throw(LSRelativePath("Relative path `$file` is not valid."))
-    if Sys.iswindows()
-        file = normpath(file)
-        file = replace(file, "\\" => "/")
-        file = URIParser.escape(file)
-        file = replace(file, "%2F" => "/")
-        if startswith(file, "//")
-            # UNC path \\foo\bar\foobar
-            return string("file://", file[3:end])
-        else
-            # windows drive letter path
-            return string("file:///", file)
-        end
-    else
-        file = normpath(file)
-        file = URIParser.escape(file)
-        file = replace(file, "%2F" => "/")
-        return string("file://", file)
-    end
-end
-
-function escape_uri(uri::AbstractString)
-    if !startswith(uri, "file://") # escaping only file URI
-        return uri
-    end
-    escaped_uri = uri[8:end] |> URIParser.unescape |> URIParser.escape
-    return string("file://", replace(escaped_uri, "%2F" => "/"))
-end
 
 function should_file_be_linted(uri, server)
     !server.runlinter && return false
@@ -148,13 +79,14 @@ function remove_workspace_files(root, server)
     end
 
 
-function Base.getindex(server::LanguageServerInstance, r::Regex)
-    out = []
-    for (uri, doc) in getdocuments_pair(server)
-        occursin(r, uri._uri) && push!(out, doc)
-    end
-    return out
-end
+# TODO DA removed this, make sure it really isn't needed
+# function Base.getindex(server::LanguageServerInstance, r::Regex)
+#     out = []
+#     for (uri, doc) in getdocuments_pair(server)
+#         occursin(r, uri._uri) && push!(out, doc)
+#     end
+#     return out
+# end
 
 function _offset_unitrange(r::UnitRange{Int}, first=true)
     return r.start - 1:r.stop

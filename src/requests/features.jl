@@ -51,7 +51,7 @@ end
 function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
     doc1, o = get_file_loc(x)
     if doc1 isa Document
-        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:x.span))))
+        push!(locations, Location(get_uri(doc1), Range(doc1, o .+ (0:x.span))))
     end
 end
 
@@ -68,7 +68,7 @@ end
 
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     locations = Location[]
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     offset = get_offset(doc, params.position)
     x = get_expr1(getcst(doc), offset)
     if x isa EXPR && StaticLint.hasref(x)
@@ -77,22 +77,6 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         b = resolve_shadow_binding(b)
         (tls = StaticLint.retrieve_toplevel_scope(x)) === nothing && return locations
         get_definitions(b, tls, getenv(doc, server), locations)
-    elseif x isa EXPR && CSTParser.isstringliteral(x)
-        # TODO: move to its own function
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
-            try
-                if isabspath(valof(x)) && safe_isfile(valof(x))
-                    push!(locations, Location(filepath2uri(valof(x)), Range(0, 0, 0, 0)))
-                elseif !isempty(getpath(doc)) && safe_isfile(joinpath(_dirname(getpath(doc)), valof(x)))
-                    push!(locations, Location(filepath2uri(joinpath(_dirname(getpath(doc)), valof(x))), Range(0, 0, 0, 0)))
-                end
-            catch err
-                isa(err, Base.IOError) ||
-                    isa(err, Base.SystemError) ||
-                    (VERSION == v"1.2.0" && isa(err, ErrorException) && err.msg == "type Nothing has no field captures ") ||
-                    rethrow()
-            end
-        end
     end
 
     return locations
@@ -169,11 +153,10 @@ function default_juliaformatter_config(params)
 end
 
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
-
-    config = get_juliaformatter_config(doc, server)
+    doc = getdocument(server, params.textDocument.uri)
 
     newcontent = try
+        config = get_juliaformatter_config(doc, server)
         format_text(get_text(doc), params, config)
     catch err
         return JSONRPC.JSONRPCError(
@@ -183,7 +166,7 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         )
     end
 
-    end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
+    end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
@@ -201,7 +184,7 @@ function format_text(text::AbstractString, params, config)
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     cst = getcst(doc)
 
     expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
@@ -219,10 +202,10 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     end
 
     _, offset = get_file_loc(expr)
-    l1, c1 = get_position_at(doc, offset)
+    l1, c1 = get_position_from_offset(doc, offset)
     c1 = 0
-    start_offset = get_offset2(doc, l1, c1)
-    l2, c2 = get_position_at(doc, offset + expr.span)
+    start_offset = index_at(doc, Position(l1, c1))
+    l2, c2 = get_position_from_offset(doc, offset + expr.span)
 
     text = get_text(doc)[start_offset:offset+expr.span]
 
@@ -241,9 +224,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
     end
 
-    config = get_juliaformatter_config(doc, server)
-
     newcontent = try
+        config = get_juliaformatter_config(doc, server)
         format_text(text, params, config)
     catch err
         return JSONRPC.JSONRPCError(
@@ -268,12 +250,12 @@ end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
     locations = Location[]
-    doc = getdocument(server, URI2(textDocument.uri))
+    doc = getdocument(server, textDocument.uri)
     offset = get_offset(doc, position)
     x = get_expr1(getcst(doc), offset)
     x === nothing && return locations
     for_each_ref(x) do r, doc1, o
-        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+        push!(locations, Location(get_uri(doc1), Range(doc1, o .+ (0:r.span))))
     end
     return locations
 end
@@ -296,15 +278,15 @@ function textDocument_references_request(params::ReferenceParams, server::Langua
 end
 
 function textDocument_rename_request(params::RenameParams, server::LanguageServerInstance, conn)
-    tdes = Dict{String,TextDocumentEdit}()
+    tdes = Dict{URI,TextDocumentEdit}()
     locations = find_references(params.textDocument, params.position, server)
 
     for loc in locations
         if loc.uri in keys(tdes)
             push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
         else
-            doc = getdocument(server, URI2(loc.uri))
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
+            doc = getdocument(server, loc.uri)
+            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, get_version(doc)), [TextEdit(loc.range, params.newName)])
         end
     end
 
@@ -312,7 +294,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
 end
 
 function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR || return nothing
     _, x_start_offset = get_file_loc(x)
@@ -346,7 +328,7 @@ end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
 
     return collect_document_symbols(getcst(doc), server, doc)
 end
@@ -437,12 +419,12 @@ function _binding_kind(b)
 end
 
 function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
-        if doc._version == params.version
-            offset = get_offset2(doc, params.position.line, params.position.character, true)
+        if get_version(doc) == params.version
+            offset = index_at(doc, params.position, true)
             x, p = get_expr_or_parent(getcst(doc), offset, 1)
             if x isa EXPR
                 if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
@@ -483,12 +465,12 @@ function get_module_of(s::StaticLint.Scope, ms=[])
 end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
-    uri = URI2(params.textDocument.uri)
+    uri = params.textDocument.uri
     hasdocument(server, uri) || return nodocuemnt_error(uri)
 
     doc = getdocument(server, uri)
     env = getenv(doc, server)
-    if doc._version !== params.version
+    if get_version(doc) !== params.version
         return mismatched_version_error(uri, doc, params, "getDocAt")
     end
 
@@ -499,31 +481,44 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     return documentation
 end
 
+function _score(needle::Symbol, haystack::Symbol)
+    if needle === haystack
+        return 0
+    end
+    needle, haystack = lowercase(string(needle)), lowercase(string(haystack))
+    ldist = REPL.levenshtein(needle, haystack)
+
+    if startswith(haystack, needle)
+        ldist *= 0.5
+    end
+
+    return ldist
+end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    exact_matches = []
-    approx_matches = []
-    word_sym = Symbol(params.word)
+    matches = Pair{Float64, String}[]
+    needle = Symbol(params.word)
+    nfound = 0
     traverse_by_name(getsymbols(getenv(server))) do sym, val
-        is_exact_match = sym === word_sym
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
-        is_match = is_exact_match || REPL.levenshtein(string(sym), string(word_sym)) <= 1
-        if is_match
+        score = _score(needle, sym)
+        if score < 2
             val = get_hover(val, "", server)
             if !isempty(val)
-                push!(is_exact_match ? exact_matches : approx_matches, val)
+                nfound += 1
+                push!(matches, score => val)
             end
         end
     end
-    if isempty(exact_matches) && isempty(approx_matches)
+    if isempty(matches)
         return "No results found."
     else
-        return join(isempty(exact_matches) ? approx_matches[1:min(end, 10)] : exact_matches, "\n---\n")
+        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
     end
 end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
+    doc = getdocument(server, params.textDocument.uri)
     ret = map(params.positions) do position
         offset = get_offset(doc, position)
         x = get_expr1(getcst(doc), offset)
@@ -538,7 +533,7 @@ end
 get_selection_range_of_expr(x) = missing
 function get_selection_range_of_expr(x::EXPR)
     doc, offset = get_file_loc(x)
-    l1, c1 = get_position_at(doc, offset)
-    l2, c2 = get_position_at(doc, offset + x.span)
+    l1, c1 = get_position_from_offset(doc, offset)
+    l2, c2 = get_position_from_offset(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end

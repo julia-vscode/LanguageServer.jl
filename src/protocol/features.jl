@@ -18,7 +18,7 @@ const CodeActionKinds = (Empty = "",
                          RefactorInline = "refactor.inline",
                          RefactorRewrite = "refactor.rewrite",
                          Source = "source",
-                         SourceOrganizeImports = "source.organiseImports")
+                         SourceOrganizeImports = "source.organizeImports")
 
 @dict_readable struct CodeActionKindCapabilities
     valueSet::Vector{CodeActionKind}
@@ -114,11 +114,13 @@ end
 
 @dict_readable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
+    workDoneToken::Union{Int,String,Missing}
+    partialResultToken::Union{Int,String,Missing}
 end
 
 struct DocumentLink <: Outbound
     range::Range
-    target::Union{String,Missing}
+    target::Union{DocumentUri,Missing}
     tooltip::Union{String,Missing}
     data::Union{Any,Missing}
 end

@@ -1,16 +1,13 @@
 function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    if hasdocument(server, URI2(uri))
-        doc = getdocument(server, URI2(uri))
-        set_text!(doc, params.textDocument.text)
-        doc._version = params.textDocument.version
+    if hasdocument(server, uri)
+        doc = getdocument(server, uri)
+        set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version))
         set_open_in_editor(doc, true)
-        get_line_offsets(doc, true)
     else
-        doc = Document(uri, params.textDocument.text, false, server)
-        setdocument!(server, URI2(uri), doc)
-        doc._version = params.textDocument.version
-        doc._workspace_file = any(i -> startswith(uri, filepath2uri(i)), server.workspaceFolders)
+        doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version), false, server)
+        setdocument!(server, uri, doc)
+        doc._workspace_file = any(i -> startswith(string(uri), string(filepath2uri(i))), server.workspaceFolders)
         set_open_in_editor(doc, true)
 
         fpath = getpath(doc)
@@ -23,7 +20,7 @@ end
 
 function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
 
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
@@ -44,23 +41,20 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     end
 end
 
-
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    doc = getdocument(server, URI2(uri))
+    doc = getdocument(server, uri)
     if params.text isa String
         if get_text(doc) != params.text
             JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
-            throw(LSSyncMismatch("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version)."))
+            throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
     end
     parse_all(doc, server)
 end
 
-
 function textDocument_willSave_notification(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
 end
-
 
 function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
     return TextEdit[]
@@ -77,17 +71,18 @@ function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, URI2(params.textDocument.uri))
-    s0 = deepcopy(get_text(doc)) # I don't think deepcopy is needed
-    if params.textDocument.version < doc._version
-        error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
-    end
-    doc._version = params.textDocument.version
+    doc = getdocument(server, params.textDocument.uri)
 
-    for tdcce in params.contentChanges
-        applytextdocumentchanges(doc, tdcce)
+    s0 = get_text(doc)
+
+    if params.textDocument.version < get_version(doc)
+        error("The client and server have different textDocument versions for $(get_uri(doc)). LS version is $(get_version(doc)), request version is $(params.textDocument.version).")
     end
-    if endswith(doc._uri, ".jmd")
+
+    new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
+    set_text_document!(doc, new_text_document)
+
+    if endswith(get_uri(doc).path, ".jmd") || endswith(get_uri(doc).path, ".md")
         parse_all(doc, server)
     else
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
@@ -96,7 +91,6 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
             StaticLint.clear_meta(cst0[i])
         end
         setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-        comp(cst1, getcst(doc)) || @error "File didn't update properly." # expensive check, remove
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
@@ -106,34 +100,11 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     end
 end
 
-function convert_lsrange_to_jlrange(doc::Document, range::Range)
-    start_offset_ls = get_offset2(doc, range.start.line, range.start.character)
-    stop_offset = get_offset2(doc, range.stop.line, range.stop.character)
-
-    text = get_text(doc)
-
-    # we use prevind for the stop value here because Julia stop values in
-    # a range are inclusive, while the stop value is exclusive in a LS
-    # range
-    return start_offset_ls:prevind(text, stop_offset)
-end
-
-function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
-    if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
-        # No range given, replace all text
-        set_text!(doc, tdcce.text)
-    else
-        editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
-        text = get_text(doc)
-        new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
-        set_text!(doc, new_text)
-    end
-end
-
 function parse_all(doc::Document, server::LanguageServerInstance)
     ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
-    if endswith(doc._uri, ".jmd")
+    path = get_uri(get_text_document(doc)).path
+    if endswith(path, ".jmd") || endswith(path, ".md")
         doc.cst, ps = parse_jmd(ps, get_text(doc))
     else
         doc.cst, ps = CSTParser.parse(ps, true)
@@ -148,7 +119,7 @@ function parse_all(doc::Document, server::LanguageServerInstance)
 end
 
 function mark_errors(doc, out=Diagnostic[])
-    line_offsets = get_line_offsets(doc)
+    line_offsets = get_line_offsets(get_text_document(doc))
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
@@ -178,16 +149,25 @@ function mark_errors(doc, out=Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
+                    rng = Range(r[1] - 1, r[2], line - 1, char)
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, missing, "Julia", "Parsing error", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        if StaticLint.errorof(errs[i][2]) in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
+                        code = StaticLint.errorof(errs[i][2])
+                        description = get(StaticLint.LintCodeDescriptions, code, "")
+                        severity, tags = if code in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
+                            DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]
                         else
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                            DiagnosticSeverities.Information, missing
                         end
+                        code_details = if isdefined(StaticLint, :IndexFromLength) && code === StaticLint.IndexFromLength
+                            CodeDescription(URI("https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex"))
+                        else
+                            missing
+                        end
+                        push!(out, Diagnostic(rng, severity, string(code), code_details, "Julia", description, tags, missing))
                     end
                     i += 1
                     i > n && break
@@ -203,7 +183,7 @@ function mark_errors(doc, out=Diagnostic[])
     return out
 end
 
-isunsavedfile(doc::Document) = startswith(doc._uri, "untitled:") # Not clear if this is consistent across editors.
+isunsavedfile(doc::Document) = get_uri(doc).scheme == "untitled" # Not clear if this is consistent across editors.
 
 """
 is_diag_dependent_on_env(diag::Diagnostic)::Bool
@@ -227,14 +207,15 @@ function publish_diagnostics(doc::Document, server, conn)
     else
         Diagnostic[]
     end
-    params = PublishDiagnosticsParams(doc._uri, doc._version, diagnostics)
+    text_document = get_text_document(doc)
+    params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
 end
 
-function clear_diagnostics(uri::URI2, server, conn)
+function clear_diagnostics(uri::URI, server, conn)
     doc = getdocument(server, uri)
     empty!(doc.diagnostics)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
+    publishDiagnosticsParams = PublishDiagnosticsParams(get_uri(doc), get_version(doc), Diagnostic[])
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
 end
 
@@ -337,7 +318,7 @@ function is_parentof(parent_path, child_path, server)
     previous_server_docs = collect(getdocuments_key(server)) # additions to this to be removed at end
     # load parent file
     puri = filepath2uri(parent_path)
-    if !hasdocument(server, URI2(puri))
+    if !hasdocument(server, puri)
         content = try
             s = read(parent_path, String)
             isvalid(s) || return false
@@ -346,19 +327,19 @@ function is_parentof(parent_path, child_path, server)
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
             return false
         end
-        pdoc = Document(puri, content, false, server)
-        setdocument!(server, URI2(puri), pdoc)
+        pdoc = Document(TextDocument(puri, content, 0), false, server)
+        setdocument!(server, puri, pdoc)
         CSTParser.parse(get_text(pdoc), true)
         if headof(pdoc.cst) === :file
             set_doc(pdoc.cst, pdoc)
         end
     else
-        pdoc = getdocument(server, URI2(puri))
+        pdoc = getdocument(server, puri)
     end
     semantic_pass(getroot(pdoc))
     # check whether child has been included automatically
     if any(getpath(d) == child_path for (k, d) in getdocuments_pair(server) if !(k in previous_server_docs))
-        cdoc = getdocument(server, URI2(filepath2uri(child_path)))
+        cdoc = getdocument(server, filepath2uri(child_path))
         parse_all(cdoc, server)
         semantic_pass(getroot(cdoc))
         return true, "", CSTParser.Tokens.STRING

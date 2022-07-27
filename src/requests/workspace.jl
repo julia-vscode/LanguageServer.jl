@@ -2,11 +2,11 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for change in params.changes
         uri = change.uri
 
-        startswith(uri, "file:") || continue
+        uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            if hasdocument(server, URI2(uri))
-                doc = getdocument(server, URI2(uri))
+            if hasdocument(server, uri)
+                doc = getdocument(server, uri)
 
                 # Currently managed by the client, we don't do anything
                 if get_open_in_editor(doc)
@@ -16,17 +16,17 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     content = try
                         s = read(filepath, String)
                         if !isvalid(s) || occursin('\0', s)
-                            deletedocument!(server, URI2(uri))
+                            deletedocument!(server, uri)
                             continue
                         end
                         s
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                        deletedocument!(server, URI2(uri))
+                        deletedocument!(server, uri)
                         continue
                     end
 
-                    set_text!(doc, content)
+                    set_text_document!(doc, TextDocument(uri, content, 0))
                     set_is_workspace_file(doc, true)
                     parse_all(doc, server)
                 end
@@ -41,17 +41,17 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     continue
                 end
 
-                doc = Document(uri, content, true, server)
-                setdocument!(server, URI2(uri), doc)
+                doc = Document(TextDocument(uri, content, 0), true, server)
+                setdocument!(server, uri, doc)
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
-            if hasdocument(server, URI2(uri))
-                doc = getdocument(server, URI2(uri))
+            if hasdocument(server, uri)
+                doc = getdocument(server, uri)
 
                 # We only handle if currently not managed by client
                 if !get_open_in_editor(doc)
-                    deletedocument!(server, URI2(uri))
+                    deletedocument!(server, uri)
 
                     publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
                     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
@@ -68,6 +68,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
+    if !server.clientcapability_workspace_didChangeConfiguration
+        @debug "Client sent a `workspace/didChangeConfiguration` request despite claiming no support for it. " *
+               "The request will be handled regardless, but this behavior can be reported to the client."
+    end
     request_julia_config(server, conn)
 end
 
@@ -140,7 +144,7 @@ function workspace_symbol_request(params::WorkspaceSymbolParams, server::Languag
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query=params.query)
         for x in bs
             p, b = x[1], x[2]
-            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))
+            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(get_uri(doc), Range(doc, p)), missing))
         end
     end
 

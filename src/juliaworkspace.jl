@@ -89,11 +89,11 @@ function read_path_into_textdocuments(uri::URI)
 end
 
 function add_workspace_folder(jw::JuliaWorkspace, folder::URI)
-    new_roots = push(copy(jw._workspace_folders), folder)
+    new_roots = push!(copy(jw._workspace_folders), folder)
     new_toml_syntax_trees = copy(jw._toml_syntax_trees)
 
     additional_documents = read_path_into_textdocuments(folder)
-    for (k,v) in pairs(text_documents)
+    for (k,v) in pairs(additional_documents)
         if endswith(lowercase(string(k)), ".toml")
             try
                 new_toml_syntax_trees[k] = parse_toml_file(get_text(v))

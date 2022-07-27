@@ -4,10 +4,10 @@ function ServerCapabilities(client::ClientCapabilities)
     ServerCapabilities(
         TextDocumentSyncOptions(
             true,
-            TextDocumentSyncKinds.Full,
+            TextDocumentSyncKinds.Incremental,
             false,
             false,
-            SaveOptions(false)
+            SaveOptions(true)
         ),
         CompletionOptions(false, [".", "@", "\"", "^"], missing),
         true,
@@ -108,7 +108,7 @@ function load_folder(path::String, server)
                         else
                             content = try
                                 s = read(filepath, String)
-                                isvalid(s) || continue
+                                (isvalid(s) && !occursin('\0', s)) || continue
                                 s
                             catch err
                                 is_walkdir_error(err) || rethrow()

@@ -193,7 +193,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file, :call))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call) || CSTParser.isassignment(expr))
         if expr.parent !== nothing
             expr = expr.parent
         else
@@ -207,7 +207,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     start_offset = index_at(doc, Position(l1, c1))
     l2, c2 = get_position_from_offset(doc, offset + expr.span)
 
-    text = get_text(doc)[start_offset:offset+expr.span]
+    fulltext = get_text(doc)
+    text = fulltext[start_offset:prevind(fulltext, start_offset+expr.span)]
 
     longest_prefix = nothing
     for line in eachline(IOBuffer(text))

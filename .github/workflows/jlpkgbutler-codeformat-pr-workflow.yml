@@ -3,7 +3,9 @@ name: Code Formatting
 on:
   push:
     branches:
+      - main
       - master
+  workflow_dispatch:
 
 jobs:
   format:

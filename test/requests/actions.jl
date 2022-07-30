@@ -92,6 +92,10 @@ end
 
     c = filter(c -> c.command == "OrganizeImports", action_request_test(0, 1))[1]
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
+
+    settestdoc("using .LocalModule: foo\n")
+    c = filter(c -> c.command == "OrganizeImports", action_request_test(0, 1))[1]
+    LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
 @testset "Convert between string and raw strings" begin

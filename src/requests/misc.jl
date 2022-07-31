@@ -94,7 +94,7 @@ end
 
 function find_document_links(x, doc, offset, links)
     if x isa EXPR && CSTParser.isstringliteral(x)
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
+        if valof(x) isa String && isvalid(valof(x)) && sizeof(valof(x)) < 256 # AUDIT: OK
             try
                 if isabspath(valof(x)) && safe_isfile(valof(x))
                     path = valof(x)

@@ -1,3 +1,8 @@
+struct JuliaPackage
+    name::String
+    uuid::UUID
+end
+
 struct JuliaWorkspace
     _workspace_folders::Set{URI}
 
@@ -9,11 +14,11 @@ struct JuliaWorkspace
     _toml_syntax_trees::Dict{URI,Dict}
 
     # Semantic information
-    _packages::Set{URI} # For now we just record all the packages, later we would want to extract the semantic content
+    _packages::Dict{URI,JuliaPackage} # For now we just record all the packages, later we would want to extract the semantic content
     _projects::Set{URI} # For now we just record all the projects, later we would want to extract the semantic content
 end
 
-JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Set{URI}(), Set{URI}())
+JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Dict{URI,JuliaPackage}(), Set{URI}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
     text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
@@ -194,11 +199,11 @@ end
 
 function semantic_pass_toml_files(toml_syntax_trees)
     # Extract all packages & paths with a manifest
-    packages = Set{URI}()
+    packages = Dict{URI,JuliaPackage}()
     paths_with_manifest = Set{String}()
     for (k,v) in pairs(toml_syntax_trees)
         if haskey(v, "name") && haskey(v, "uuid") && haskey(v, "version")
-            push!(packages, k)
+            packages[k] = JuliaPackage(v["name"], UUID(v["uuid"]))
         end
 
         path = uri2filepath(k)

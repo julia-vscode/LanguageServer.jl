@@ -14,7 +14,8 @@ end
 struct PublishTestitemsParams <: Outbound
     uri::DocumentUri
     version::Union{Int,Missing}
-    packageuuid::String
+    project_path::Union{String,Nothing}
+    package_path::Union{String,Nothing}
     testitems::Vector{Testitem}
 end
 

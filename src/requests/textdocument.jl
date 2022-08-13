@@ -375,6 +375,55 @@ function find_test_items_detail!(doc, node, testitems)
     end
 end
 
+function vec_startswith(a, b)
+    if length(a) < length(b)
+        return false
+    end
+
+    for (i,v) in enumerate(b)
+        if b[i] != v
+            return false
+        end
+    end
+    return true
+end
+
+function find_package_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    package = jw._packages |>
+        x -> map(x) do i
+            package_folder_path = dirname(uri2filepath(i))
+            # TODO This function is Julia 1.1 and newer
+            parts = splitpath(package_folder_path)
+            return parts
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(file_path, i)
+        end |>
+        x -> sort(x, by=i->length(i), order=Backwards) |>
+        x -> length(x) == 0 ? nothing : first(x)
+        
+    return package
+end
+
+function find_project_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    package = jw._projects |>
+        x -> map(x) do i
+            package_folder_path = dirname(uri2filepath(i))
+            # TODO This function is Julia 1.1 and newer
+            parts = splitpath(package_folder_path)
+            return parts
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(file_path, i)
+        end |>
+        x -> sort(x, by=i->length(i), order=Backwards) |>
+        x -> length(x) == 0 ? nothing : first(x)
+        
+    return package
+end
+
 function find_testitems!(doc, server, jr_endpoint)
     # Find which workspace folder the doc is in.
     parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
@@ -382,40 +431,8 @@ function find_testitems!(doc, server, jr_endpoint)
     # If the file is not in the workspace, we don't report nothing
     isempty(parent_workspaceFolders) && return
 
-    # arbitrarily pick one
-    parent_workspaceFolder = first(parent_workspaceFolders)
-
-    doc_path_parts = splitpath(dirname(getpath(doc)))
-    workspace_path_parts = splitpath(parent_workspaceFolder)
-
-    if workspace_path_parts != doc_path_parts[1:length(workspace_path_parts)]
-        # In this case there is something weirdly wrong
-        return
-    end
-
-    @info "The workspace folder is" parent_workspaceFolder
-
-    project_path = nothing
-
-    for i = length(doc_path_parts):-1:length(workspace_path_parts)
-        path_to_test = joinpath(doc_path_parts[1:i]...)
-
-        @info "Now looking for a project in" path_to_test
-        if safe_isfile(joinpath(path_to_test, "Project.toml"))
-            project_path = joinpath(path_to_test, "Project.toml")
-            break
-        elseif safe_isfile(joinpath(path_to_test, "JuliaProject.toml"))
-            project_path = joinpath(path_to_test, "JuliaProject.toml")
-            break
-        end
-    end
-
-    pkg_uuid = ""
-
-    if project_path !== nothing
-        project_content = Pkg.TOML.parsefile(project_path)
-        pkg_uuid = get(project_content, "uuid", "")
-    end
+    project_path = find_project_for_file(server.workspace,  get_uri(doc))
+    package_path = find_package_for_file(server.workspace,  get_uri(doc))
 
     cst = getcst(doc)
 
@@ -428,7 +445,8 @@ function find_testitems!(doc, server, jr_endpoint)
     params = PublishTestitemsParams(
         doc._uri,
         doc._version,
-        pkg_uuid,
+        project_path,
+        package_path,
         [Testitem(i.name, i.loc) for i in testitems]
     )
     JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)

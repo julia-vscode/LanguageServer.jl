@@ -63,6 +63,8 @@ mutable struct LanguageServerInstance
 
     shutdown_requested::Bool
 
+    workspace::JuliaWorkspace
+
     function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
@@ -90,7 +92,8 @@ mutable struct LanguageServerInstance
             false,
             missing,
             missing,
-            false
+            false,
+            JuliaWorkspace()
         )
     end
 end

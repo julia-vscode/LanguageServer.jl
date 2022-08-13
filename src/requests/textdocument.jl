@@ -391,36 +391,41 @@ end
 function find_package_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
     package = jw._packages |>
+        keys |>
+        collect |>
         x -> map(x) do i
-            package_folder_path = dirname(uri2filepath(i))
+            package_path = uri2filepath(i)
+            package_folder_path = dirname(package_path)
             # TODO This function is Julia 1.1 and newer
             parts = splitpath(package_folder_path)
-            return parts
+            return (uri = i, parts = parts)
         end |>
         x -> filter(x) do i
-            return vec_startswith(file_path, i)
+            return vec_startswith(file_path, i.parts)
         end |>
-        x -> sort(x, by=i->length(i), order=Backwards) |>
-        x -> length(x) == 0 ? nothing : first(x)
-        
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).uri
+
     return package
 end
 
 function find_project_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
     package = jw._projects |>
+        collect |>
         x -> map(x) do i
-            package_folder_path = dirname(uri2filepath(i))
+            project_path = uri2filepath(i)
+            package_folder_path = dirname(project_path)
             # TODO This function is Julia 1.1 and newer
             parts = splitpath(package_folder_path)
-            return parts
+            return (path = project_path, parts = parts)
         end |>
         x -> filter(x) do i
-            return vec_startswith(file_path, i)
+            return vec_startswith(file_path, i.parts)
         end |>
-        x -> sort(x, by=i->length(i), order=Backwards) |>
-        x -> length(x) == 0 ? nothing : first(x)
-        
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).project_path
+
     return package
 end
 
@@ -432,7 +437,19 @@ function find_testitems!(doc, server, jr_endpoint)
     isempty(parent_workspaceFolders) && return
 
     project_path = find_project_for_file(server.workspace,  get_uri(doc))
-    package_path = find_package_for_file(server.workspace,  get_uri(doc))
+    package_uri = find_package_for_file(server.workspace,  get_uri(doc))
+
+    if project_path === nothing
+        project_path = server.env_path
+    end
+
+    if package_uri === nothing
+        package_path = ""
+        package_name = ""
+    else
+        package_path = uri2filepath(package_uri)
+        package_name = server.workspace._packages[package_uri].name
+    end
 
     cst = getcst(doc)
 
@@ -443,10 +460,11 @@ function find_testitems!(doc, server, jr_endpoint)
     end
 
     params = PublishTestitemsParams(
-        doc._uri,
-        doc._version,
+        get_uri(doc),
+        get_version(doc),
         project_path,
         package_path,
+        package_name,
         [Testitem(i.name, i.loc) for i in testitems]
     )
     JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)

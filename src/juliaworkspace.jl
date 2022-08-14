@@ -1,6 +1,17 @@
 struct JuliaPackage
+    project_file_uri::URI
     name::String
     uuid::UUID
+end
+
+struct JuliaDevedPackage
+    name::String
+    uuid::UUID
+end
+
+struct JuliaProject
+    project_file_uri::URI
+    deved_packages::Dict{URI,JuliaDevedPackage}
 end
 
 struct JuliaWorkspace
@@ -15,10 +26,10 @@ struct JuliaWorkspace
 
     # Semantic information
     _packages::Dict{URI,JuliaPackage} # For now we just record all the packages, later we would want to extract the semantic content
-    _projects::Set{URI} # For now we just record all the projects, later we would want to extract the semantic content
+    _projects::Dict{URI,JuliaProject} # For now we just record all the projects, later we would want to extract the semantic content
 end
 
-JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Dict{URI,JuliaPackage}(), Set{URI}())
+JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Dict{URI,JuliaPackage}(), Dict{URI,JuliaProject}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
     text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
@@ -200,10 +211,12 @@ end
 function semantic_pass_toml_files(toml_syntax_trees)
     # Extract all packages & paths with a manifest
     packages = Dict{URI,JuliaPackage}()
-    paths_with_manifest = Set{String}()
+    paths_with_manifest = Dict{String,Dict}()
     for (k,v) in pairs(toml_syntax_trees)
+        # TODO Maybe also check the filename here and only do the package detection for Project.toml and JuliaProject.toml
         if haskey(v, "name") && haskey(v, "uuid") && haskey(v, "version")
-            packages[k] = JuliaPackage(v["name"], UUID(v["uuid"]))
+            folder_uri = k |> uri2filepath |> dirname |> filepath2uri
+            packages[folder_uri] = JuliaPackage(k, v["name"], UUID(v["uuid"]))
         end
 
         path = uri2filepath(k)
@@ -211,20 +224,53 @@ function semantic_pass_toml_files(toml_syntax_trees)
         filename = basename(path)
         filename_lc = lowercase(filename)
         if filename_lc == "manifest.toml" || filename_lc == "juliamanifest.toml"
-            push!(paths_with_manifest, dname)
+            paths_with_manifest[dname] = v
         end
     end
 
     # Extract all projects
-    projects = Set{URI}()
+    projects = Dict{URI,JuliaProject}()
     for (k,_) in pairs(toml_syntax_trees)
         path = uri2filepath(k)
         dname = dirname(path)
         filename = basename(path)
         filename_lc = lowercase(filename)
 
-        if (filename_lc=="project.toml" || filename_lc=="juliaproject.toml" ) && in(dname, paths_with_manifest)
-            push!(projects, k)
+        if (filename_lc=="project.toml" || filename_lc=="juliaproject.toml" ) && haskey(paths_with_manifest, dname)
+            manifest_content = paths_with_manifest[dname]
+            manifest_content isa Dict || continue
+            deved_packages = Dict{URI,JuliaDevedPackage}()
+            manifest_version = get(manifest_content, "manifest_format", "1.0")
+
+            manifest_deps = if manifest_version=="1.0"
+                manifest_content
+            elseif manifest_version=="2.0" && haskey(manifest_content, "deps") && manifest_content["deps"] isa Dict
+                manifest_content["deps"]
+            else
+                continue
+            end
+
+            for (k_entry, v_entry) in pairs(manifest_deps)
+                v_entry isa Vector || continue
+                length(v_entry)==1 || continue
+                v_entry[1] isa Dict || continue
+                haskey(v_entry[1], "path") || continue
+                haskey(v_entry[1], "uuid") || continue
+                uuid_of_deved_package = tryparse(UUID, v_entry[1]["uuid"])
+                uuid_of_deved_package !== nothing || continue
+
+                path_of_deved_package = v_entry[1]["path"]
+                if !isabspath(path_of_deved_package)
+                    path_of_deved_package = joinpath(dname, path_of_deved_package)
+                end
+
+                uri_of_deved_package = filepath2uri(path_of_deved_package)
+
+                deved_packages[uri_of_deved_package] = JuliaDevedPackage(k_entry, uuid_of_deved_package)
+            end
+
+            folder_uri = k |> uri2filepath |> dirname |> filepath2uri
+            projects[folder_uri] = JuliaProject(k, deved_packages)
         end
     end
 

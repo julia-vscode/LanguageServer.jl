@@ -202,6 +202,14 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
 
+    if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
+        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
+        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
+    elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
+        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
+        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
+    end
+
     request_julia_config(server, conn)
 
     if server.number_of_outstanding_symserver_requests > 0

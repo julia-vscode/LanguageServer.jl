@@ -368,8 +368,8 @@ function find_test_items_detail!(doc, node, testitems)
         pos = get_file_loc(node.args[4])[2]
 
         push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
-    elseif node.args !== nothing
-        for i in node.args
+    elseif node.head == :module && length(node.args)>=3 && node.args[3] isa EXPR && node.args[3].head==:block
+        for i in node.args[3].args
             find_test_items_detail!(doc, i, testitems)
         end
     end
@@ -396,7 +396,6 @@ function find_package_for_file(jw::JuliaWorkspace, file::URI)
         x -> map(x) do i
             package_path = uri2filepath(i)
             package_folder_path = dirname(package_path)
-            # TODO This function is Julia 1.1 and newer
             parts = splitpath(package_folder_path)
             return (uri = i, parts = parts)
         end |>
@@ -411,13 +410,12 @@ end
 
 function find_project_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
-    package = jw._projects |>
+    project = jw._projects |>
         collect |>
         x -> map(x) do i
             project_path = uri2filepath(i)
-            package_folder_path = dirname(project_path)
-            # TODO This function is Julia 1.1 and newer
-            parts = splitpath(package_folder_path)
+            project_folder_path = dirname(project_path)
+            parts = splitpath(project_folder_path)
             return (path = project_path, parts = parts)
         end |>
         x -> filter(x) do i
@@ -426,7 +424,7 @@ function find_project_for_file(jw::JuliaWorkspace, file::URI)
         x -> sort(x, by=i->length(i.parts), rev=true) |>
         x -> length(x) == 0 ? nothing : first(x).project_path
 
-    return package
+    return project
 end
 
 function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)

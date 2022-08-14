@@ -394,8 +394,7 @@ function find_package_for_file(jw::JuliaWorkspace, file::URI)
         keys |>
         collect |>
         x -> map(x) do i
-            package_path = uri2filepath(i)
-            package_folder_path = dirname(package_path)
+            package_folder_path = uri2filepath(i)
             parts = splitpath(package_folder_path)
             return (uri = i, parts = parts)
         end |>
@@ -411,18 +410,18 @@ end
 function find_project_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
     project = jw._projects |>
+        keys |>
         collect |>
         x -> map(x) do i
-            project_path = uri2filepath(i)
-            project_folder_path = dirname(project_path)
+            project_folder_path = uri2filepath(i)
             parts = splitpath(project_folder_path)
-            return (path = project_path, parts = parts)
+            return (uri = i, parts = parts)
         end |>
         x -> filter(x) do i
             return vec_startswith(file_path, i.parts)
         end |>
         x -> sort(x, by=i->length(i.parts), rev=true) |>
-        x -> length(x) == 0 ? nothing : first(x).project_path
+        x -> length(x) == 0 ? nothing : first(x).uri
 
     return project
 end
@@ -435,11 +434,11 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         # If the file is not in the workspace, we don't report nothing
         isempty(parent_workspaceFolders) && return
 
-        project_path = find_project_for_file(server.workspace,  get_uri(doc))
+        project_uri = find_project_for_file(server.workspace,  get_uri(doc))
         package_uri = find_package_for_file(server.workspace,  get_uri(doc))
 
-        if project_path === nothing
-            project_path = server.env_path
+        if project_uri === nothing
+            project_uri = filepath2uri(server.env_path)
         end
 
         if package_uri === nothing
@@ -450,6 +449,18 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
             package_name = server.workspace._packages[package_uri].name
         end
 
+        @info "Now trying to figure out whether the project_uri has the package deved" project_uri keys(server.workspace._projects)
+        project_path = ""
+        if haskey(server.workspace._projects, project_uri)
+            @info "We made it to here!"
+            relevant_project = server.workspace._projects[project_uri]
+
+            if haskey(relevant_project.deved_packages, package_uri)
+                @info "And to here"
+                project_path = uri2filepath(project_uri)
+            end
+        end
+
         cst = getcst(doc)
 
         testitems = []
@@ -457,6 +468,8 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         for i in cst.args
             find_test_items_detail!(doc, i, testitems)
         end
+
+        @info "In the end we identified the following" project_path package_path package_name
 
         params = PublishTestitemsParams(
             get_uri(doc),

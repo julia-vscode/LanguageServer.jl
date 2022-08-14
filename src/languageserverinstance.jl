@@ -60,6 +60,7 @@ mutable struct LanguageServerInstance
     # Can probably drop the above 2 and use the below.
     clientCapabilities::Union{ClientCapabilities,Missing}
     clientInfo::Union{InfoParams,Missing}
+    initialization_options::Union{Missing,Dict}
 
     shutdown_requested::Bool
 
@@ -90,6 +91,7 @@ mutable struct LanguageServerInstance
             nothing,
             false,
             false,
+            missing,
             missing,
             missing,
             false,

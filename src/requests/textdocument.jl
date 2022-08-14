@@ -429,43 +429,45 @@ function find_project_for_file(jw::JuliaWorkspace, file::URI)
     return package
 end
 
-function find_testitems!(doc, server, jr_endpoint)
-    # Find which workspace folder the doc is in.
-    parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
+    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+        # Find which workspace folder the doc is in.
+        parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
 
-    # If the file is not in the workspace, we don't report nothing
-    isempty(parent_workspaceFolders) && return
+        # If the file is not in the workspace, we don't report nothing
+        isempty(parent_workspaceFolders) && return
 
-    project_path = find_project_for_file(server.workspace,  get_uri(doc))
-    package_uri = find_package_for_file(server.workspace,  get_uri(doc))
+        project_path = find_project_for_file(server.workspace,  get_uri(doc))
+        package_uri = find_package_for_file(server.workspace,  get_uri(doc))
 
-    if project_path === nothing
-        project_path = server.env_path
+        if project_path === nothing
+            project_path = server.env_path
+        end
+
+        if package_uri === nothing
+            package_path = ""
+            package_name = ""
+        else
+            package_path = uri2filepath(package_uri)
+            package_name = server.workspace._packages[package_uri].name
+        end
+
+        cst = getcst(doc)
+
+        testitems = []
+
+        for i in cst.args
+            find_test_items_detail!(doc, i, testitems)
+        end
+
+        params = PublishTestitemsParams(
+            get_uri(doc),
+            get_version(doc),
+            project_path,
+            package_path,
+            package_name,
+            [Testitem(i.name, i.loc) for i in testitems]
+        )
+        JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
     end
-
-    if package_uri === nothing
-        package_path = ""
-        package_name = ""
-    else
-        package_path = uri2filepath(package_uri)
-        package_name = server.workspace._packages[package_uri].name
-    end
-
-    cst = getcst(doc)
-
-    testitems = []
-
-    for i in cst.args
-        find_test_items_detail!(doc, i, testitems)
-    end
-
-    params = PublishTestitemsParams(
-        get_uri(doc),
-        get_version(doc),
-        project_path,
-        package_path,
-        package_name,
-        [Testitem(i.name, i.loc) for i in testitems]
-    )
-    JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
 end

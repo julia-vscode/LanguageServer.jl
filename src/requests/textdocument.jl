@@ -359,3 +359,126 @@ function try_to_load_parents(child_path, server)
         end
     end
 end
+
+function find_test_items_detail!(doc, node, testitems)
+    node isa EXPR || return
+
+    if node.head == :macrocall && length(node.args)==4 && CSTParser.valof(node.args[1]) == "@testitem"
+
+        pos = get_file_loc(node.args[4])[2]
+
+        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
+    elseif node.head == :module && length(node.args)>=3 && node.args[3] isa EXPR && node.args[3].head==:block
+        for i in node.args[3].args
+            find_test_items_detail!(doc, i, testitems)
+        end
+    end
+end
+
+function vec_startswith(a, b)
+    if length(a) < length(b)
+        return false
+    end
+
+    for (i,v) in enumerate(b)
+        if b[i] != v
+            return false
+        end
+    end
+    return true
+end
+
+function find_package_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    package = jw._packages |>
+        keys |>
+        collect |>
+        x -> map(x) do i
+            package_folder_path = uri2filepath(i)
+            parts = splitpath(package_folder_path)
+            return (uri = i, parts = parts)
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(file_path, i.parts)
+        end |>
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).uri
+
+    return package
+end
+
+function find_project_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    project = jw._projects |>
+        keys |>
+        collect |>
+        x -> map(x) do i
+            project_folder_path = uri2filepath(i)
+            parts = splitpath(project_folder_path)
+            return (uri = i, parts = parts)
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(file_path, i.parts)
+        end |>
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).uri
+
+    return project
+end
+
+function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
+    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+        # Find which workspace folder the doc is in.
+        parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+
+        # If the file is not in the workspace, we don't report nothing
+        isempty(parent_workspaceFolders) && return
+
+        project_uri = find_project_for_file(server.workspace,  get_uri(doc))
+        package_uri = find_package_for_file(server.workspace,  get_uri(doc))
+
+        if project_uri === nothing
+            project_uri = filepath2uri(server.env_path)
+        end
+
+        if package_uri === nothing
+            package_path = ""
+            package_name = ""
+        else
+            package_path = uri2filepath(package_uri)
+            package_name = server.workspace._packages[package_uri].name
+        end
+
+        @info "Now trying to figure out whether the project_uri has the package deved" project_uri keys(server.workspace._projects)
+        project_path = ""
+        if haskey(server.workspace._projects, project_uri)
+            @info "We made it to here!"
+            relevant_project = server.workspace._projects[project_uri]
+
+            if haskey(relevant_project.deved_packages, package_uri)
+                @info "And to here"
+                project_path = uri2filepath(project_uri)
+            end
+        end
+
+        cst = getcst(doc)
+
+        testitems = []
+
+        for i in cst.args
+            find_test_items_detail!(doc, i, testitems)
+        end
+
+        @info "In the end we identified the following" project_path package_path package_name
+
+        params = PublishTestitemsParams(
+            get_uri(doc),
+            get_version(doc),
+            project_path,
+            package_path,
+            package_name,
+            [Testitem(i.name, i.loc) for i in testitems]
+        )
+        JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
+    end
+end

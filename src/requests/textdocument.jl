@@ -2,10 +2,10 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     uri = params.textDocument.uri
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
-        set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version))
+        set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId))
         set_open_in_editor(doc, true)
     else
-        doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version), false, server)
+        doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId), false, server)
         setdocument!(server, uri, doc)
         doc._workspace_file = any(i -> startswith(string(uri), string(filepath2uri(i))), server.workspaceFolders)
         set_open_in_editor(doc, true)
@@ -82,7 +82,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
 
-    if endswith(get_uri(doc).path, ".jmd") || endswith(get_uri(doc).path, ".md")
+    if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
     else
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
@@ -101,12 +101,11 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
-    ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
-    path = get_uri(get_text_document(doc)).path
-    if endswith(path, ".jmd") || endswith(path, ".md")
-        doc.cst, ps = parse_jmd(ps, get_text(doc))
-    else
+    if get_language_id(doc) in ("markdown", "juliamarkdown")
+        doc.cst, ps = parse_jmd(get_text(doc))
+    elseif get_language_id(doc) == "julia"
+        ps = CSTParser.ParseState(get_text(doc))
         doc.cst, ps = CSTParser.parse(ps, true)
     end
     sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
@@ -225,62 +224,34 @@ function clear_diagnostics(server, conn)
     end
 end
 
-function parse_jmd(ps, str)
-    currentbyte = 1
-    blocks = []
-    while ps.nt.kind != Tokens.ENDMARKER
-        CSTParser.next(ps)
-        if ps.t.kind == Tokens.CMD || ps.t.kind == Tokens.TRIPLE_CMD
-            push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
+function print_substitute_line(io::IO, line)
+    if endswith(line, '\n')
+        println(io, ' '^(sizeof(line) - 1))
+    else
+        print(io, ' '^sizeof(line))
+    end
+end
+
+function parse_jmd(str)
+    cleaned = IOBuffer()
+    in_julia_block = false
+    for line in eachline(IOBuffer(str), keep=true)
+        if startswith(line, r"\s*```julia") || startswith(line, r"\s*```{julia")
+            in_julia_block = true
+            print_substitute_line(cleaned, line)
+            continue
+        elseif startswith(line, r"\s*```")
+            in_julia_block = false
         end
-    end
-    top = EXPR(:file, EXPR[], nothing)
-    if isempty(blocks)
-        return top, ps
-    end
-
-    for (startbyte, b) in blocks
-        if CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :TRIPLESTRING && (startswith(b.args[3].val, "julia") || startswith(b.args[3].val, "{julia"))
-
-            blockstr = b.args[3].val
-            ps = CSTParser.ParseState(blockstr)
-            # skip first line
-            while ps.nt.startpos[1] == 1
-                CSTParser.next(ps)
-            end
-            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
-
-            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-
-            args, ps = CSTParser.parse(ps, true)
-            for a in args.args
-                push!(top, a)
-            end
-
-            CSTParser.update_span!(top)
-            currentbyte = top.fullspan + 1
-        elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && b.val !== nothing && startswith(b.val, "j ")
-            blockstr = b.args[3].val
-            ps = CSTParser.ParseState(blockstr)
-            CSTParser.next(ps)
-            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-
-            args, ps = CSTParser.parse(ps, true)
-            for a in args.args
-                push!(top, a)
-            end
-
-            CSTParser.update_span!(top)
-            currentbyte = top.fullspan + 1
+        if in_julia_block
+            print(cleaned, line)
+        else
+            print_substitute_line(cleaned, line)
         end
     end
 
-    prec_str_size = currentbyte:sizeof(str) # OK
-    push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-    CSTParser.update_span!(top)
-
-    return top, ps
+    ps = CSTParser.ParseState(String(take!(cleaned)))
+    return CSTParser.parse(ps, true)
 end
 
 function search_for_parent(dir::String, file::String, drop=3, parents=String[])

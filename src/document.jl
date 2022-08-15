@@ -70,6 +70,8 @@ function set_is_workspace_file(doc::Document, value::Bool)
     doc._workspace_file = value
 end
 
+get_language_id(doc::Document) = doc._text_document._language_id
+
 get_offset(doc::Document, line::Integer, character::Integer) = get_offset(doc._text_document, line, character)
 get_offset(doc::Document, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc::Document, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)

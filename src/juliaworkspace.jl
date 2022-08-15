@@ -32,7 +32,7 @@ end
 JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Dict{URI,JuliaPackage}(), Dict{URI,JuliaProject}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
-    text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
+    text_documents = isempty(workspace_folders) ? Dict{URI,TextDocument}() : merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
 
     toml_syntax_trees = Dict{URI,Dict}()
     for (k,v) in pairs(text_documents)

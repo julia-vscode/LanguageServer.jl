@@ -22,6 +22,10 @@ using LanguageServer:
     jw = add_workspace_folder(jw, pkg_root_uri)
     @test haskey(jw._packages, project_uri)
 
+    jw = JuliaWorkspace(Set{LanguageServer.URI}([]))
+    jw = add_workspace_folder(jw, pkg_root_uri)
+    @test haskey(jw._packages, project_uri)
+
     jw = JuliaWorkspace()
     jw = add_workspace_folder(jw, pkg_root_uri)
     jw = remove_workspace_folder(jw, pkg_root_uri)

@@ -1,7 +1,7 @@
 # VSCode specific
 # ---------------
 
-nodocuemnt_error(uri, data=nothing) =
+nodocument_error(uri, data=nothing) =
     return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", data)
 
 function mismatched_version_error(uri, doc, params, msg, data=nothing)

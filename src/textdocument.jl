@@ -4,16 +4,28 @@ struct TextDocument
     _version::Int
     _line_offsets::Union{Nothing,Vector{Int}} # TODO Legacy, remove eventually
     _line_indices::Union{Nothing,Vector{Int}}
-    
+    _language_id::String
 
-    function TextDocument(uri::URI, text::AbstractString, version::Int)
+    function TextDocument(uri::URI, text::AbstractString, version::Int, lid = nothing)
         # TODO Remove this check eventually
         occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
 
         line_offsets = _compute_line_offsets(text)
         line_indices = _compute_line_indices(text)
 
-        return new(uri, text, version, line_offsets, line_indices)
+        if lid === nothing
+            if endswith(uri.path, ".jmd")
+                lid = "juliamarkdown"
+            elseif endswith(uri.path, ".md")
+                lid = "markdown"
+            elseif endswith(uri.path, ".jl")
+                lid = "julia"
+            else
+                lid = ""
+            end
+        end
+
+        return new(uri, text, version, line_offsets, line_indices, lid)
     end
 end
 
@@ -28,6 +40,8 @@ get_uri(doc::TextDocument) = doc._uri
 get_version(doc::TextDocument) = doc._version
 
 get_line_indices(doc::TextDocument) = doc._line_indices
+
+get_language_id(doc::TextDocument) = doc._language_id
 
 """
     index_at(doc::TextDocument, p::Position, forgiving_mode=false)
@@ -84,13 +98,13 @@ function apply_text_edits(doc::TextDocument, edits, new_version)
         else
             # Rebind doc here so that we compute the range for the updated document in
             # _convert_lsrange_to_jlrange when applying multiple edits
-            doc = TextDocument(doc._uri, content, new_version)
+            doc = TextDocument(doc._uri, content, new_version, get_language_id(doc))
             editrange = _convert_lsrange_to_jlrange(doc, edit.range)
             content = string(content[1:prevind(content, editrange.start)], edit.text, content[nextind(content, editrange.stop):lastindex(content)])
         end
     end
 
-    return TextDocument(doc._uri, content, new_version)
+    return TextDocument(doc._uri, content, new_version, get_language_id(doc))
 end
 
 # =====================

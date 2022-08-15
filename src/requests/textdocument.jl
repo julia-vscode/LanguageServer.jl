@@ -236,7 +236,7 @@ function parse_jmd(str)
     cleaned = IOBuffer()
     in_julia_block = false
     for line in eachline(IOBuffer(str), keep=true)
-        if startswith(line, r"\s*```julia") || startswith(line, r"\s*```{julia")
+        if startswith(line, r"^```({?julia|@example|@setup)")
             in_julia_block = true
             print_substitute_line(cleaned, line)
             continue

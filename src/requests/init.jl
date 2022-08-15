@@ -195,19 +195,19 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     if server.workspaceFolders !== nothing
+        server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
+
+        if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
+        elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
+        end
+
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server)
         end
-    end
-
-    server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
-
-    if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
-        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
-        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
-    elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
-        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
-        server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
     end
 
     request_julia_config(server, conn)

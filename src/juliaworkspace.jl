@@ -130,7 +130,7 @@ function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
 
     new_text_documents = filter(jw._text_documents) do i
         # TODO Eventually use FilePathsBase functionality to properly test this
-        return any(startswith(i.first, j) for j in new_roots )
+        return any(startswith(string(i.first), string(j)) for j in new_roots )
     end
 
     new_toml_syntax_trees = filter(jw._toml_syntax_trees) do i

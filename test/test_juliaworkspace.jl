@@ -28,6 +28,7 @@ using LanguageServer:
 
     jw = JuliaWorkspace()
     jw = add_workspace_folder(jw, pkg_root_uri)
+    jw = add_workspace_folder(jw, filepath2uri(joinpath(@__DIR__)))
     jw = remove_workspace_folder(jw, pkg_root_uri)
     @test !haskey(jw._packages, project_uri)
 

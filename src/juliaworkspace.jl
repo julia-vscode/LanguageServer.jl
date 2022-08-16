@@ -261,7 +261,10 @@ function semantic_pass_toml_files(toml_syntax_trees)
 
                 path_of_deved_package = v_entry[1]["path"]
                 if !isabspath(path_of_deved_package)
-                    path_of_deved_package = joinpath(dname, path_of_deved_package)
+                    path_of_deved_package = normpath(joinpath(dname, path_of_deved_package))
+                    if endswith(path_of_deved_package, '\\') || endswidth(path_of_deved_package, '/')
+                        path_of_deved_package = path_of_deved_package[1:end-1]
+                    end
                 end
 
                 uri_of_deved_package = filepath2uri(path_of_deved_package)

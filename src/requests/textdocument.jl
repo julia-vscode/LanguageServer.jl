@@ -352,7 +352,7 @@ function vec_startswith(a, b)
     end
 
     for (i,v) in enumerate(b)
-        if b[i] != v
+        if a[i] != v
             return false
         end
     end
@@ -370,7 +370,7 @@ function find_package_for_file(jw::JuliaWorkspace, file::URI)
             return (uri = i, parts = parts)
         end |>
         x -> filter(x) do i
-            return vec_startswith(file_path, i.parts)
+            return vec_startswith(splitpath(file_path), i.parts)
         end |>
         x -> sort(x, by=i->length(i.parts), rev=true) |>
         x -> length(x) == 0 ? nothing : first(x).uri
@@ -389,7 +389,7 @@ function find_project_for_file(jw::JuliaWorkspace, file::URI)
             return (uri = i, parts = parts)
         end |>
         x -> filter(x) do i
-            return vec_startswith(file_path, i.parts)
+            return vec_startswith(splitpath(file_path), i.parts)
         end |>
         x -> sort(x, by=i->length(i.parts), rev=true) |>
         x -> length(x) == 0 ? nothing : first(x).uri
@@ -420,14 +420,11 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
             package_name = server.workspace._packages[package_uri].name
         end
 
-        @info "Now trying to figure out whether the project_uri has the package deved" project_uri keys(server.workspace._projects)
         project_path = ""
         if haskey(server.workspace._projects, project_uri)
-            @info "We made it to here!"
             relevant_project = server.workspace._projects[project_uri]
 
             if haskey(relevant_project.deved_packages, package_uri)
-                @info "And to here"
                 project_path = uri2filepath(project_uri)
             end
         end
@@ -439,8 +436,6 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         for i in cst.args
             find_test_items_detail!(doc, i, testitems)
         end
-
-        @info "In the end we identified the following" project_path package_path package_name
 
         params = PublishTestitemsParams(
             get_uri(doc),

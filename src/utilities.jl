@@ -120,6 +120,10 @@ function isvalidjlfile(path)
     endswith(path, ".jl")
 end
 
+function our_isvalid(s)
+    return isvalid(s) && !occursin('\0', s)
+end
+
 function get_expr(x, offset, pos=0, ignorewhitespace=false)
     if pos > offset
         return nothing

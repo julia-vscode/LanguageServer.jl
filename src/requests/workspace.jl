@@ -21,7 +21,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        if !isvalid(s) || occursin('\0', s)
+                        if !our_isvalid(s)
                             deletedocument!(server, uri)
                             continue
                         end
@@ -40,7 +40,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 filepath = uri2filepath(uri)
                 content = try
                     s = read(filepath, String)
-                    (isvalid(s) && !occursin('\0', s)) || continue
+                    our_isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()

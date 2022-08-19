@@ -70,7 +70,7 @@ function read_textdocument_from_uri(uri::URI)
 
     content = try
         s = read(path, String)
-        (isvalid(s) && !occursin('\0', s)) || return nothing
+        our_isvalid(s) || return nothing
         s
     catch err
         is_walkdir_error(err) || rethrow()

@@ -265,7 +265,7 @@ function search_for_parent(dir::String, file::String, drop=3, parents=String[])
                 # Could be sped up?
                 content = try
                     s = read(filename, String)
-                    (isvalid(s) && !occursin('\0', s)) || continue
+                    our_isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -292,7 +292,7 @@ function is_parentof(parent_path, child_path, server)
     if !hasdocument(server, puri)
         content = try
             s = read(parent_path, String)
-            (isvalid(s) && !occursin('\0', s)) || return false
+            our_isvalid(s) || return false
             s
         catch err
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()

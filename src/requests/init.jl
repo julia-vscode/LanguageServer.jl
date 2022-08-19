@@ -108,7 +108,7 @@ function load_folder(path::String, server)
                         else
                             content = try
                                 s = read(filepath, String)
-                                (isvalid(s) && !occursin('\0', s)) || continue
+                                our_isvalid(s) || continue
                                 s
                             catch err
                                 is_walkdir_error(err) || rethrow()

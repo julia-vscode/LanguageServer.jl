@@ -40,7 +40,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 filepath = uri2filepath(uri)
                 content = try
                     s = read(filepath, String)
-                    isvalid(s) || continue
+                    (isvalid(s) && !occursin('\0', s)) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()

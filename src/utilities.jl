@@ -428,6 +428,19 @@ end
 
 @static if VERSION < v"1.6"
     let
+        @inline function __convert_digit(_c::UInt32, base)
+            _0 = UInt32('0')
+            _9 = UInt32('9')
+            _A = UInt32('A')
+            _a = UInt32('a')
+            _Z = UInt32('Z')
+            _z = UInt32('z')
+            a::UInt32 = base <= 36 ? 10 : 36
+            d = _0 <= _c <= _9 ? _c-_0             :
+                _A <= _c <= _Z ? _c-_A+ UInt32(10) :
+                _a <= _c <= _z ? _c-_a+a           : UInt32(base)
+        end
+        
         @inline function uuid_kernel(s, i, u)
             _c = UInt32(@inbounds codeunit(s, i))
             d = __convert_digit(_c, UInt32(16))

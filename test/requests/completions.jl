@@ -181,3 +181,9 @@ end
     @test any(i -> i.label == "yyy" && occursin("yyy::Bar", i.detail), items1)
     @test any(i -> i.label == "xxx" && occursin("xxx::Bar = f.yyy", i.detail), items2)
 end
+
+@testset "method completions" begin
+    settestdoc("""phi = 1
+    (phi,""")
+    @test any(item.label == "Float64" for item in completion_test(0, 13).items)
+end

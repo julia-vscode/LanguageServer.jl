@@ -2,14 +2,8 @@
     import Pkg, StaticLint
     using LanguageServer.URIs2
 
-    include("test_shared_init_request.jl")
-
-    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-    server.runlinter = true
-    server.jr_endpoint = nothing
-
-    LanguageServer.initialize_request(init_request, server, nothing)
-
+    include("test_shared_server.jl")
+    
     testtext = """
     module testmodule
     struct testtype

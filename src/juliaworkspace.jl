@@ -215,8 +215,11 @@ function semantic_pass_toml_files(toml_syntax_trees)
     for (k,v) in pairs(toml_syntax_trees)
         # TODO Maybe also check the filename here and only do the package detection for Project.toml and JuliaProject.toml
         if haskey(v, "name") && haskey(v, "uuid") && haskey(v, "version")
-            folder_uri = k |> uri2filepath |> dirname |> filepath2uri
-            packages[folder_uri] = JuliaPackage(k, v["name"], UUID(v["uuid"]))
+            parsed_uuid = tryparse(UUID, v["uuid"])
+            if parsed_uuid!==nothing
+                folder_uri = k |> uri2filepath |> dirname |> filepath2uri
+                packages[folder_uri] = JuliaPackage(k, v["name"], parsed_uuid)
+            end
         end
 
         path = uri2filepath(k)

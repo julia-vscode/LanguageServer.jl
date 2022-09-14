@@ -335,10 +335,13 @@ function find_test_items_detail!(doc, node, testitems)
     node isa EXPR || return
 
     if node.head == :macrocall && length(node.args)==4 && CSTParser.valof(node.args[1]) == "@testitem"
+        name_of_testitem = CSTParser.valof(node.args[3])
 
-        pos = get_file_loc(node.args[4])[2]
+        if !isnothing(name_of_testitem)
+            pos = get_file_loc(node.args[4])[2]
 
-        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
+            push!(testitems, (name=name_of_testitem, loc=Range(doc, pos:pos+node.args[4].span)))
+        end
     elseif node.head == :module && length(node.args)>=3 && node.args[3] isa EXPR && node.args[3].head==:block
         for i in node.args[3].args
             find_test_items_detail!(doc, i, testitems)

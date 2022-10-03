@@ -6,6 +6,7 @@ using UUIDs
 using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
+import TestItemDetection
 
 export LanguageServerInstance, runserver
 

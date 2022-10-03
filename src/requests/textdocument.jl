@@ -331,20 +331,7 @@ function try_to_load_parents(child_path, server)
     end
 end
 
-function find_test_items_detail!(doc, node, testitems)
-    node isa EXPR || return
 
-    if node.head == :macrocall && length(node.args)==4 && CSTParser.valof(node.args[1]) == "@testitem"
-
-        pos = get_file_loc(node.args[4])[2]
-
-        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
-    elseif node.head == :module && length(node.args)>=3 && node.args[3] isa EXPR && node.args[3].head==:block
-        for i in node.args[3].args
-            find_test_items_detail!(doc, i, testitems)
-        end
-    end
-end
 
 function vec_startswith(a, b)
     if length(a) < length(b)
@@ -434,7 +421,13 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         testitems = []
 
         for i in cst.args
-            find_test_items_detail!(doc, i, testitems)
+            file_testitems = []
+            file_errors = []
+    
+            TestItemDetection.find_test_items_detail!(i, file_testitems, file_errors)
+
+            append!(testitems, [Testitem(i.range, i.name, "", i.code_range, nothing) for i in file_testitems])
+            append!(testitems, [Testitem(i.range, nothing, nothing, nothing, i.error) for i in file_erros])
         end
 
         params = PublishTestitemsParams(
@@ -443,7 +436,7 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
             project_path,
             package_path,
             package_name,
-            [Testitem(i.name, i.loc) for i in testitems]
+            testitems
         )
         JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
     end

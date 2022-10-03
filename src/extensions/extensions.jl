@@ -6,9 +6,14 @@
     position::Position
 end
 
-@dict_readable struct Testitem <: Outbound
-    name::String
+@dict_readable struct Testitem <: Outbound    
     range::Range
+    name::Union{Nothing,String}
+    code::Union{Nothing,String}
+    code_range::Union{Nothing,Range}
+    default_imports::Union{Nothing,Bool}
+    tags::Union{Nothing,Vector{String}}
+    error::Union{Nothing,String}
 end
 
 struct PublishTestitemsParams <: Outbound

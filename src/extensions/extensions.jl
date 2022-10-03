@@ -6,23 +6,24 @@
     position::Position
 end
 
-@dict_readable struct Testitem <: Outbound    
+@dict_readable struct TestItemDetail <: Outbound
+    id::String
+    label::String
     range::Range
-    name::Union{Nothing,String}
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}
-    default_imports::Union{Nothing,Bool}
-    tags::Union{Nothing,Vector{String}}
+    option_default_imports::Union{Nothing,Bool}
+    option_tags::Union{Nothing,Vector{String}}
     error::Union{Nothing,String}
 end
 
-struct PublishTestitemsParams <: Outbound
+struct PublishTestItemsParams <: Outbound
     uri::DocumentUri
     version::Union{Int,Missing}
     project_path::String
     package_path::String
     package_name::String
-    testitems::Vector{Testitem}
+    testitemdetails::Vector{TestItemDetail}
 end
 
 include("messagedefs.jl")

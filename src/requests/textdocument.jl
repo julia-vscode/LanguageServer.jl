@@ -423,14 +423,14 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         for i in cst.args
             file_testitems = []
             file_errors = []
-    
+
             TestItemDetection.find_test_items_detail!(i, file_testitems, file_errors)
 
-            append!(testitems, [Testitem(i.range, i.name, "", i.code_range, nothing) for i in file_testitems])
-            append!(testitems, [Testitem(i.range, nothing, nothing, nothing, i.error) for i in file_erros])
+            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), nothing) for i in file_testitems])
+            append!(testitems, [TestItemDetail("Test error", "Test error", Range(doc, i.range), nothing, nothing, nothing, nothing, i.error) for i in file_errors])
         end
 
-        params = PublishTestitemsParams(
+        params = PublishTestItemsParams(
             get_uri(doc),
             get_version(doc),
             project_path,

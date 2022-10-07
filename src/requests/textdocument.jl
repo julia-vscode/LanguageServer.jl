@@ -46,6 +46,7 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
     doc = getdocument(server, uri)
     if params.text isa String
         if get_text(doc) != params.text
+            @error "Mismatch between server and client text" get_text(doc) params.text
             JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end

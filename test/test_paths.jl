@@ -1,7 +1,5 @@
-using Test
-using LanguageServer
-
-@testset "URI conversion" begin
+@testitem "URI conversion" begin
+    using LanguageServer.URIs2
 
     if Sys.iswindows()
         @test LanguageServer.URIs2.uri2filepath(uri"file://SERVER/foo/bar") == "\\\\SERVER\\foo\\bar"
@@ -20,7 +18,8 @@ using LanguageServer
 
 end
 
-@testset "URI comparison" begin
+@testitem "URI comparison" begin
+    using LanguageServer.URIs2
 
     if Sys.iswindows()
         @test string(filepath2uri("C:\\foo\\bar")) == "file:///c%3A/foo/bar"
@@ -45,7 +44,7 @@ end
 
 end
 
-@testset "is_in_target_dir_of_package" begin
+@testitem "is_in_target_dir_of_package" begin
     @test LanguageServer.is_in_target_dir_of_package(@__DIR__, "test")
     @test !LanguageServer.is_in_target_dir_of_package(pathof(LanguageServer), "test")
 end

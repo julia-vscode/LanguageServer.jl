@@ -1,6 +1,13 @@
 function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
     sigs = SignatureInformation[]
+    # TODO The following call is just here for diagnostics
+    # We currently have crashes in the call to get_offset in crash reporting
+    # but they are fairly rare. So the idea here is to see whether we also get_expr
+    # crashes in index_at or not. If we still see crashes in get_offset after this here
+    # is merged, then the bug is simply in get_offset and we should migrate this function
+    # over to use index_at. If not, then there might still be a problem in the sync protocol.
+    index_at(get_text_document(doc), params.position)
     offset = get_offset(doc, params.position)
     x = get_expr(getcst(doc), offset)
     arg = 0

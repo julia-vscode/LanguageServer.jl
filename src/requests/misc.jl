@@ -12,7 +12,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     fallback = (Position(0, 0), Position(0, 0), tdpp.position)
     uri = tdpp.textDocument.uri
 
-    hasdocument(server, uri) || return nodocuemnt_error(uri)
+    hasdocument(server, uri) || return nodocument_error(uri)
 
     doc = getdocument(server, uri)
 
@@ -77,9 +77,19 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
 end
 
 function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),Tuple{String}}, server::LanguageServerInstance, conn)
-    server.env_path = params.envPath
+    if server.env_path != params.envPath
+        server.env_path = params.envPath
 
-    trigger_symbolstore_reload(server)
+        files_to_check = [joinpath(server.env_path, "Project.toml"), joinpath(server.env_path, "JuliaProject.toml"), joinpath(server.env_path, "Manifest.toml"), joinpath(server.env_path, "JuliaManifest.toml")]
+
+        for file_to_check in files_to_check
+            if isfile(file_to_check)
+                server.workspace = add_file(server.workspace, filepath2uri(file_to_check))
+            end
+        end
+
+        trigger_symbolstore_reload(server)
+    end
 end
 
 julia_refreshLanguageServer_notification(_, server::LanguageServerInstance, conn) =
@@ -94,7 +104,7 @@ end
 
 function find_document_links(x, doc, offset, links)
     if x isa EXPR && CSTParser.isstringliteral(x)
-        if valof(x) isa String && sizeof(valof(x)) < 256 # AUDIT: OK
+        if valof(x) isa String && isvalid(valof(x)) && sizeof(valof(x)) < 256 # AUDIT: OK
             try
                 if isabspath(valof(x)) && safe_isfile(valof(x))
                     path = valof(x)

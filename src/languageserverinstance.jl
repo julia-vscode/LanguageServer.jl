@@ -60,8 +60,11 @@ mutable struct LanguageServerInstance
     # Can probably drop the above 2 and use the below.
     clientCapabilities::Union{ClientCapabilities,Missing}
     clientInfo::Union{InfoParams,Missing}
+    initialization_options::Union{Missing,Dict}
 
     shutdown_requested::Bool
+
+    workspace::JuliaWorkspace
 
     function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
@@ -90,7 +93,9 @@ mutable struct LanguageServerInstance
             false,
             missing,
             missing,
-            false
+            missing,
+            false,
+            JuliaWorkspace()
         )
     end
 end

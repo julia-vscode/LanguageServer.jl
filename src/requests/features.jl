@@ -79,7 +79,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         get_definitions(b, tls, getenv(doc, server), locations)
     end
 
-    return locations
+    return unique!(locations)
 end
 
 function descend(x::EXPR, target::EXPR, offset=0)
@@ -193,7 +193,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file, :call))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call) || CSTParser.isassignment(expr))
         if expr.parent !== nothing
             expr = expr.parent
         else
@@ -207,7 +207,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     start_offset = index_at(doc, Position(l1, c1))
     l2, c2 = get_position_from_offset(doc, offset + expr.span)
 
-    text = get_text(doc)[start_offset:offset+expr.span]
+    fulltext = get_text(doc)
+    text = fulltext[start_offset:prevind(fulltext, start_offset+expr.span)]
 
     longest_prefix = nothing
     for line in eachline(IOBuffer(text))
@@ -448,7 +449,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
             return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return nodocuemnt_error(uri)
+        return nodocument_error(uri)
     end
     return "Main"
 end
@@ -466,7 +467,7 @@ end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    hasdocument(server, uri) || return nodocuemnt_error(uri)
+    hasdocument(server, uri) || return nodocument_error(uri)
 
     doc = getdocument(server, uri)
     env = getenv(doc, server)

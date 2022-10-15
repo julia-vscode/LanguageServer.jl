@@ -4,10 +4,10 @@ function ServerCapabilities(client::ClientCapabilities)
     ServerCapabilities(
         TextDocumentSyncOptions(
             true,
-            TextDocumentSyncKinds.Full,
+            TextDocumentSyncKinds.Incremental,
             false,
             false,
-            SaveOptions(false)
+            SaveOptions(true)
         ),
         CompletionOptions(false, [".", "@", "\"", "^"], missing),
         true,
@@ -108,7 +108,7 @@ function load_folder(path::String, server)
                         else
                             content = try
                                 s = read(filepath, String)
-                                isvalid(s) || continue
+                                our_isvalid(s) || continue
                                 s
                             catch err
                                 is_walkdir_error(err) || rethrow()
@@ -175,6 +175,10 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_workspace_didChangeConfiguration = true
     end
 
+    if !ismissing(params.initializationOptions)
+        server.initialization_options = params.initializationOptions
+    end
+
     return InitializeResult(ServerCapabilities(server.clientCapabilities), missing)
 end
 
@@ -191,10 +195,21 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     if server.workspaceFolders !== nothing
+        server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
+
+        if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
+        elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
+            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
+        end
+
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server)
         end
     end
+
     request_julia_config(server, conn)
 
     if server.number_of_outstanding_symserver_requests > 0

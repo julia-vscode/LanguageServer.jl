@@ -1,13 +1,6 @@
-sig_test(line, char) = LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char)), server, server.jr_endpoint)
+@testitem "signatures" begin
+    include("../test_shared_server.jl")
 
-def_test(line, char) = LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char)), server, server.jr_endpoint)
-
-ref_test(line, char) = LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
-
-rename_test(line, char) = LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing, "newname"), server, server.jr_endpoint)
-
-
-@testset "signatures" begin
     doc = settestdoc("""
     rand()
     Base.rand()
@@ -54,7 +47,9 @@ rename_test(line, char) = LanguageServer.textDocument_rename_request(LanguageSer
     end
 end
 
-@testset "definitions" begin
+@testitem "definitions" begin
+    include("../test_shared_server.jl")
+
     settestdoc("""
     rand()
     func(arg) = 1
@@ -66,7 +61,9 @@ end
     @test !isempty(def_test(3, 3))
 end
 
-@testset "references" begin
+@testitem "references" begin
+    include("../test_shared_server.jl")
+
     settestdoc("""
     func(arg) = 1
     func()
@@ -74,7 +71,9 @@ end
     @test length(ref_test(1, 2)) == 2
 end
 
-@testset "rename" begin
+@testitem "rename" begin
+    include("../test_shared_server.jl")
+
     settestdoc("""
     func(arg) = 1
     func()
@@ -82,7 +81,9 @@ end
     @test length(rename_test(0, 2).documentChanges[1].edits) == 2
 end
 
-@testset "get_file_loc" begin
+@testitem "get_file_loc" begin
+    include("../test_shared_server.jl")
+
     doc = settestdoc("""
     func(arg) = 1
     func()
@@ -90,7 +91,9 @@ end
     @test LanguageServer.get_file_loc(doc.cst.args[2].args[1]) == (doc, 14)
 end
 
-@testset "doc symbols" begin
+@testitem "doc symbols" begin
+    include("../test_shared_server.jl")
+    
     doc = settestdoc("""
     a = 1
     b = 2

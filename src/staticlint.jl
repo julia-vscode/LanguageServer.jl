@@ -12,7 +12,7 @@ end
 function loadfile(server::LanguageServerInstance, path::String)
     source = try
         s = read(path, String)
-        isvalid(s) || return
+        our_isvalid(s) || return
         s
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -77,4 +77,6 @@ function lint!(doc, server)
     mark_errors(doc, doc.diagnostics)
     # TODO Ideally we would not want to acces jr_endpoint here
     publish_diagnostics(doc, server, server.jr_endpoint)
+
+    find_testitems!(doc, server, server.jr_endpoint)
 end

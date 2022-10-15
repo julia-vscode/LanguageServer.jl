@@ -6,6 +6,7 @@ using UUIDs
 using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
+import TestItemDetection
 
 export LanguageServerInstance, runserver
 
@@ -19,6 +20,7 @@ include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("textdocument.jl")
 include("document.jl")
+include("juliaworkspace.jl")
 include("languageserverinstance.jl")
 include("multienv.jl")
 include("runserver.jl")

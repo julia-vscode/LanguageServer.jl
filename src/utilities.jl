@@ -3,7 +3,7 @@
 
 function nodocument_error(uri, data=nothing)
     return JSONRPC.JSONRPCError(
-        1000,
+        -33100,
         "document $(uri) requested but not present in the JLS",
         data
     )
@@ -11,7 +11,7 @@ end
 
 function mismatched_version_error(uri, doc, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
-        1001,
+        -33101,
         "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
         data
     )

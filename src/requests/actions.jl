@@ -355,9 +355,12 @@ function get_spdx_header(doc::Document)
 end
 
 function in_same_workspace_folder(server::LanguageServerInstance, file1::URI, file2::URI)
+    file1_str = uri2filepath(file1)
+    file2_str = uri2filepath(file2)
+    (file1_str === nothing || file2_str === nothing) && return false
     for ws in server.workspaceFolders
-        if startswith(uri2filepath(file1), ws) &&
-           startswith(uri2filepath(file2), ws)
+        if startswith(file1_str, ws) &&
+           startswith(file2_str, ws)
            return true
        end
     end

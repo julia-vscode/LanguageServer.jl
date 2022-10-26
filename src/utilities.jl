@@ -1,12 +1,17 @@
 # VSCode specific
 # ---------------
 
-nodocument_error(uri, data=nothing) =
-    return JSONRPC.JSONRPCError(-32099, "document $(uri) requested but not present in the JLS", data)
+function nodocument_error(uri, data=nothing)
+    return JSONRPC.JSONRPCError(
+        -33100,
+        "document $(uri) requested but not present in the JLS",
+        data
+    )
+end
 
 function mismatched_version_error(uri, doc, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
-        -32099,
+        -33101,
         "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
         data
     )
@@ -440,7 +445,7 @@ end
                 _A <= _c <= _Z ? _c-_A+ UInt32(10) :
                 _a <= _c <= _z ? _c-_a+a           : UInt32(base)
         end
-        
+
         @inline function uuid_kernel(s, i, u)
             _c = UInt32(@inbounds codeunit(s, i))
             d = __convert_digit(_c, UInt32(16))
@@ -448,7 +453,7 @@ end
             u <<= 4
             return u | d
         end
-        
+
         function Base.tryparse(::Type{UUID}, s::AbstractString)
             u = UInt128(0)
             ncodeunits(s) != 36 && return nothing

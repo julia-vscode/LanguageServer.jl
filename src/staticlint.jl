@@ -12,7 +12,7 @@ end
 function loadfile(server::LanguageServerInstance, path::String)
     source = try
         s = read(path, String)
-        isvalid(s) || return
+        our_isvalid(s) || return
         s
     catch err
         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()

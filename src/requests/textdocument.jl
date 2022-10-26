@@ -46,6 +46,13 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
     doc = getdocument(server, uri)
     if params.text isa String
         if get_text(doc) != params.text
+            println(stderr, "Mismatch between server and client text")
+            println(stderr, "========== BEGIN SERVER SIDE TEXT ==========")
+            println(stderr, get_text(doc))
+            println(stderr, "========== END SERVER SIDE TEXT ==========")
+            println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
+            println(stderr, params.text)
+            println(stderr, "========== END CLIENT SIDE TEXT ==========")
             JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
@@ -265,7 +272,7 @@ function search_for_parent(dir::String, file::String, drop=3, parents=String[])
                 # Could be sped up?
                 content = try
                     s = read(filename, String)
-                    isvalid(s) || continue
+                    our_isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -292,7 +299,7 @@ function is_parentof(parent_path, child_path, server)
     if !hasdocument(server, puri)
         content = try
             s = read(parent_path, String)
-            isvalid(s) || return false
+            our_isvalid(s) || return false
             s
         catch err
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -331,20 +338,7 @@ function try_to_load_parents(child_path, server)
     end
 end
 
-function find_test_items_detail!(doc, node, testitems)
-    node isa EXPR || return
 
-    if node.head == :macrocall && length(node.args)==4 && CSTParser.valof(node.args[1]) == "@testitem"
-
-        pos = get_file_loc(node.args[4])[2]
-
-        push!(testitems, (name=CSTParser.valof(node.args[3]), loc=Range(doc, pos:pos+node.args[4].span)))
-    elseif node.head == :module && length(node.args)>=3 && node.args[3] isa EXPR && node.args[3].head==:block
-        for i in node.args[3].args
-            find_test_items_detail!(doc, i, testitems)
-        end
-    end
-end
 
 function vec_startswith(a, b)
     if length(a) < length(b)
@@ -434,16 +428,22 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         testitems = []
 
         for i in cst.args
-            find_test_items_detail!(doc, i, testitems)
+            file_testitems = []
+            file_errors = []
+
+            TestItemDetection.find_test_items_detail!(i, file_testitems, file_errors)
+
+            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), nothing) for i in file_testitems])
+            append!(testitems, [TestItemDetail("Test error", "Test error", Range(doc, i.range), nothing, nothing, nothing, nothing, i.error) for i in file_errors])
         end
 
-        params = PublishTestitemsParams(
+        params = PublishTestItemsParams(
             get_uri(doc),
             get_version(doc),
             project_path,
             package_path,
             package_name,
-            [Testitem(i.name, i.loc) for i in testitems]
+            testitems
         )
         JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
     end

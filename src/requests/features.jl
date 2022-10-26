@@ -79,7 +79,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         get_definitions(b, tls, getenv(doc, server), locations)
     end
 
-    return locations
+    return unique!(locations)
 end
 
 function descend(x::EXPR, target::EXPR, offset=0)

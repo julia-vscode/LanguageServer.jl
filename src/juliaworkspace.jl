@@ -32,7 +32,7 @@ end
 JuliaWorkspace() = JuliaWorkspace(Set{URI}(), Dict{URI,TextDocument}(), Dict{URI,Dict}(), Dict{URI,JuliaPackage}(), Dict{URI,JuliaProject}())
 
 function JuliaWorkspace(workspace_folders::Set{URI})
-    text_documents = merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
+    text_documents = isempty(workspace_folders) ? Dict{URI,TextDocument}() : merge((read_path_into_textdocuments(path) for path in workspace_folders)...)
 
     toml_syntax_trees = Dict{URI,Dict}()
     for (k,v) in pairs(text_documents)
@@ -70,7 +70,7 @@ function read_textdocument_from_uri(uri::URI)
 
     content = try
         s = read(path, String)
-        isvalid(s) || return nothing
+        our_isvalid(s) || return nothing
         s
     catch err
         is_walkdir_error(err) || rethrow()
@@ -130,7 +130,7 @@ function remove_workspace_folder(jw::JuliaWorkspace, folder::URI)
 
     new_text_documents = filter(jw._text_documents) do i
         # TODO Eventually use FilePathsBase functionality to properly test this
-        return any(startswith(i.first, j) for j in new_roots )
+        return any(startswith(string(i.first), string(j)) for j in new_roots )
     end
 
     new_toml_syntax_trees = filter(jw._toml_syntax_trees) do i
@@ -215,8 +215,11 @@ function semantic_pass_toml_files(toml_syntax_trees)
     for (k,v) in pairs(toml_syntax_trees)
         # TODO Maybe also check the filename here and only do the package detection for Project.toml and JuliaProject.toml
         if haskey(v, "name") && haskey(v, "uuid") && haskey(v, "version")
-            folder_uri = k |> uri2filepath |> dirname |> filepath2uri
-            packages[folder_uri] = JuliaPackage(k, v["name"], UUID(v["uuid"]))
+            parsed_uuid = tryparse(UUID, v["uuid"])
+            if parsed_uuid!==nothing
+                folder_uri = k |> uri2filepath |> dirname |> filepath2uri
+                packages[folder_uri] = JuliaPackage(k, v["name"], parsed_uuid)
+            end
         end
 
         path = uri2filepath(k)
@@ -261,7 +264,10 @@ function semantic_pass_toml_files(toml_syntax_trees)
 
                 path_of_deved_package = v_entry[1]["path"]
                 if !isabspath(path_of_deved_package)
-                    path_of_deved_package = joinpath(dname, path_of_deved_package)
+                    path_of_deved_package = normpath(joinpath(dname, path_of_deved_package))
+                    if endswith(path_of_deved_package, '\\') || endswith(path_of_deved_package, '/')
+                        path_of_deved_package = path_of_deved_package[1:end-1]
+                    end
                 end
 
                 uri_of_deved_package = filepath2uri(path_of_deved_package)

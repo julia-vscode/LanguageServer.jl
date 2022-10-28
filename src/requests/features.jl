@@ -193,7 +193,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         return nothing
     end
 
-    while !(expr.head in (:for, :if, :function, :module, :file, :call, :do) || CSTParser.isassignment(expr))
+    while !(expr.head in (:for, :if, :function, :module, :file, :call, :do, :block, :macrocall, :let, :try, :quote, :struct, :while) || CSTParser.isassignment(expr))
         if expr.parent !== nothing
             expr = expr.parent
         else

@@ -13,7 +13,7 @@ const SemanticTokenKinds = (
     String="string",
     Number="number",
     Regexp="regexp",
-    Operator="operator"
+    Operator="operator",
 )
 
 const SemanticTokenModifiersKind = String
@@ -22,7 +22,8 @@ const SemanticTokenModifiersKinds = (
     Definition="definition",
     Modification="modification",
     Documentation="documentation",
-    DefaultLibrary="defaultLibrary")
+    DefaultLibrary="defaultLibrary",
+)
 
 
 struct SemanticTokensLegend <: Outbound

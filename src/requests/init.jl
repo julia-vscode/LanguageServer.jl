@@ -30,6 +30,11 @@ function ServerCapabilities(client::ClientCapabilities)
         false,
         ExecuteCommandOptions(missing, collect(keys(LSActions))),
         true,
+        SemanticTokensOptions(
+            SemanticTokensLegend([values(SemanticTokenKinds)...],
+                [values(SemanticTokenModifiersKinds)...]),
+            true,
+            true),
         true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
         missing

@@ -45,6 +45,7 @@ init_request = LanguageServer.InitializeParams(
             missing
         ),
         "off",
+            missing, # SemanticTokensClientCapabilities()
         missing,
         missing
     )

@@ -267,7 +267,12 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
                     documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
             else
-                documentation = string("Argument $arg_i of $(minargs) in call to `", CSTParser.str_value(fname), "`\n", documentation)
+                callname = if CSTParser.is_getfield(fname)
+                    CSTParser.str_value(fname.args[1]) * "." * CSTParser.str_value(CSTParser.get_rhs_of_getfield(fname))
+                else
+                    CSTParser.str_value(fname)
+                end
+                documentation = string("Argument $arg_i of $(minargs) in call to `", callname, "`\n", documentation)
             end
             return documentation
         else

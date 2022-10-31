@@ -213,16 +213,13 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     end
 
     range_formatted = match(Regex("$startmark\n((?s).*\n)\\s*$stopmark"), text_formatted)
-
     if isnothing(range_formatted)
       newcontent = oldcontent
     else
-      newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => first(range_formatted))
+      newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => range_formatted[1])
     end
-
     end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
-
     return lsedits
 end
 

@@ -103,3 +103,53 @@ end
     """)
     @test all(item.name in ("a", "b", "func", "::Bar", "::Type{Foo}") for item in LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), missing, missing), server, server.jr_endpoint))
 end
+
+@testitem "range formatting" begin
+    include("../test_shared_server.jl")
+
+    doc = settestdoc("""
+    map([A,B,C]) do x
+    if x<0 && iseven(x)
+    return 0
+    elseif x==0
+    return 1
+    else
+    return x
+    end
+    end
+    """)
+    @test range_formatting_test(0, 0, 8, 0)[1].newText == """
+    map([A, B, C]) do x
+        if x < 0 && iseven(x)
+            return 0
+        elseif x == 0
+            return 1
+        else
+            return x
+        end
+    end
+    """
+
+    doc = settestdoc("""
+    map([A,B,C]) do x
+    if x<0 && iseven(x)
+    return 0
+    elseif x==0
+    return 1
+    else
+    return x
+    end
+    end
+    """)
+    @test range_formatting_test(2, 0, 2, 0)[1].newText == """
+    map([A,B,C]) do x
+    if x<0 && iseven(x)
+            return 0
+    elseif x==0
+    return 1
+    else
+    return x
+    end
+    end
+    """
+end

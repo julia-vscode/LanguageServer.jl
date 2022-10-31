@@ -183,68 +183,45 @@ function format_text(text::AbstractString, params, config)
     end
 end
 
+function mark_range(text::AbstractString, startline, stopline, startmark, stopmark)
+  textlines = split(text, "\n")
+  insert!(textlines, startline + 1, startmark)
+  insert!(textlines, stopline + 3, stopmark)
+  return join(textlines, "\n")
+end
+
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
+
     doc = getdocument(server, params.textDocument.uri)
-    cst = getcst(doc)
 
-    expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
+    oldcontent = get_text(doc)
+    startline = params.range.start.line
+    stopline = params.range.stop.line
+    startmark =  "#___________START___________"
+    stopmark =   "#___________STOP____________"
+    text_marked = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
-    if expr === nothing
-        return nothing
-    end
-
-    while !(expr.head in (:for, :if, :function, :module, :file, :call) || CSTParser.isassignment(expr))
-        if expr.parent !== nothing
-            expr = expr.parent
-        else
-            return nothing
-        end
-    end
-
-    _, offset = get_file_loc(expr)
-    l1, c1 = get_position_from_offset(doc, offset)
-    c1 = 0
-    start_offset = index_at(doc, Position(l1, c1))
-    l2, c2 = get_position_from_offset(doc, offset + expr.span)
-
-    fulltext = get_text(doc)
-    text = fulltext[start_offset:prevind(fulltext, start_offset+expr.span)]
-
-    longest_prefix = nothing
-    for line in eachline(IOBuffer(text))
-        (isempty(line) || occursin(r"^\s*$", line)) && continue
-        idx = 0
-        for c in line
-            if c == ' ' || c == '\t'
-                idx += 1
-            else
-                break
-            end
-        end
-        line = line[1:idx]
-        longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
-    end
-
-    newcontent = try
+    text_formatted = try
         config = get_juliaformatter_config(doc, server)
-        format_text(text, params, config)
+        format_text(text_marked, params, config)
     catch err
         return JSONRPC.JSONRPCError(
-            -33000,
+            -32000,
             "Failed to format document: $err.",
             nothing
         )
     end
 
-    if longest_prefix !== nothing && !isempty(longest_prefix)
-        io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep=true)
-            print(io, longest_prefix, line)
-        end
-        newcontent = String(take!(io))
+    range_formatted = match(Regex("$startmark\n((?s).*\n)\\s*$stopmark"), text_formatted)
+
+    if isnothing(range_formatted)
+      newcontent = oldcontent
+    else
+      newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => first(range_formatted))
     end
 
-    lsedits = TextEdit[TextEdit(Range(l1, c1, l2, c2), newcontent)]
+    end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
+    lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
 end

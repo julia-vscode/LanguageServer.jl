@@ -204,7 +204,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         format_text(text_marked, params, config)
     catch err
         return JSONRPC.JSONRPCError(
-            -32000,
+            -33000,
             "Failed to format document: $err.",
             nothing
         )

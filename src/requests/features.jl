@@ -191,9 +191,7 @@ function mark_range(text::AbstractString, startline, stopline, startmark, stopma
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
-
     doc = getdocument(server, params.textDocument.uri)
-
     oldcontent = get_text(doc)
     startline = params.range.start.line
     stopline = params.range.stop.line

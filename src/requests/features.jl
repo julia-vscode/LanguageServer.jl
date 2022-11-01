@@ -184,10 +184,10 @@ function format_text(text::AbstractString, params, config)
 end
 
 function mark_range(text::AbstractString, startline, stopline, startmark, stopmark)
-  textlines = split(text, "\n")
-  insert!(textlines, startline + 1, startmark)
-  insert!(textlines, stopline + 3, stopmark)
-  return join(textlines, "\n")
+    textlines = split(text, "\n")
+    insert!(textlines, startline + 1, startmark)
+    insert!(textlines, stopline + 3, stopmark)
+    return join(textlines, "\n")
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
@@ -197,8 +197,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     oldcontent = get_text(doc)
     startline = params.range.start.line
     stopline = params.range.stop.line
-    startmark =  "#___________START___________"
-    stopmark =   "#___________STOP____________"
+    startmark = "#___________START___________"
+    stopmark = "#___________STOP____________"
     text_marked = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
     text_formatted = try
@@ -214,9 +214,9 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     range_formatted = match(Regex("$startmark\n((?s).*\n)\\s*$stopmark"), text_formatted)
     if isnothing(range_formatted)
-      newcontent = oldcontent
+        newcontent = oldcontent
     else
-      newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => range_formatted[1])
+        newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => range_formatted[1])
     end
     end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]

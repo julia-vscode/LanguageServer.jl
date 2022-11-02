@@ -152,4 +152,17 @@ end
     end
     end
     """
+
+    doc = settestdoc("""
+    function add(a,b) a+b end
+    function sub(a,b) a-b end
+    function mul(a,b) a*b end
+    """)
+    @test range_formatting_test(1, 0, 1, 0)[1].newText == """
+    function add(a,b) a+b end
+    function sub(a, b)
+        a - b
+    end
+    function mul(a,b) a*b end
+    """
 end

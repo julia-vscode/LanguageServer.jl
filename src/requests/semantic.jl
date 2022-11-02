@@ -32,20 +32,15 @@ function SemanticToken(deltaLine::UInt32,
     length::UInt32,
     tokenType::String,
     tokenModifiers::String)
-    # TODO look up int encodings for tokenType and tokenModifiers
+    # FIXME look up int encodings for tokenType and tokenModifiers
     SemanticToken(
         deltaLine,
         deltaStart,
         length,
         semantic_token_encoding(tokenType),
-        0 # TODO look up int encodings for tokenType and tokenModifiers
+        0 # FIXME look up int encodings for tokenType and tokenModifiers
     )
 end
-
-# function SemanticToken(ex::EXPR)
-
-# end
-
 
 function semantic_tokens(tokens)::SemanticTokens
     token_vectors = map(tokens) do token::SemanticToken
@@ -100,7 +95,6 @@ parse applies these types
 │  47:46      NOTHING: nothing
 └  47:48      s *
  """
-
 function expression_to_maybe_token(ex::EXPR, offset)
     kind = semantic_token_kind(ex)
     if kind === nothing

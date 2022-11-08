@@ -210,15 +210,11 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    range_formatted = match(Regex("$startmark\n((?s).*\n)\\s*$stopmark"), text_formatted)
+    range_formatted = match(Regex("$startmark\n((?s).*)\n\\s*$stopmark"), text_formatted)
     if isnothing(range_formatted)
-        newcontent = oldcontent
-    else
-        newcontent = replace(text_marked, Regex("$startmark\n(?s).*$stopmark\n") => range_formatted[1])
+        return TextEdit[]
     end
-    end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
-    lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
-    return lsedits
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, 99999999), range_formatted[1])]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)

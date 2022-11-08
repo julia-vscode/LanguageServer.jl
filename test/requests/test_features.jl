@@ -127,8 +127,7 @@ end
         else
             return x
         end
-    end
-    """
+    end"""
 
     doc = settestdoc("""
     map([A,B,C]) do x
@@ -141,17 +140,7 @@ end
     end
     end
     """)
-    @test range_formatting_test(2, 0, 2, 0)[1].newText == """
-    map([A,B,C]) do x
-    if x<0 && iseven(x)
-            return 0
-    elseif x==0
-    return 1
-    else
-    return x
-    end
-    end
-    """
+    @test range_formatting_test(2, 0, 2, 0)[1].newText == """        return 0"""
 
     doc = settestdoc("""
     function add(a,b) a+b end
@@ -159,10 +148,7 @@ end
     function mul(a,b) a*b end
     """)
     @test range_formatting_test(1, 0, 1, 0)[1].newText == """
-    function add(a,b) a+b end
     function sub(a, b)
         a - b
-    end
-    function mul(a,b) a*b end
-    """
+    end"""
 end

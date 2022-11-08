@@ -210,8 +210,10 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    range_formatted = match(Regex("$startmark\n((?s).*)\n\\s*$stopmark"), text_formatted)
-    if isnothing(range_formatted)
+    range_regex = Regex("$startmark\n((?s).*)\n\\s*$stopmark")
+    range_formatted = match(range_regex, text_formatted)
+    range_unformatted = match(range_regex, text_marked)
+    if isnothing(range_formatted) || (range_formatted[1] == range_unformatted[1])
         return TextEdit[]
     end
     return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, 99999999), range_formatted[1])]

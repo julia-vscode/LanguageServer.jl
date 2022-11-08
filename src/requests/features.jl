@@ -195,8 +195,8 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     oldcontent = get_text(doc)
     startline = params.range.start.line + 1
     stopline = params.range.stop.line + 1
-    startmark = "#___________LANGUAGESERVER_RANGE_FORMATTING_START___________"
-    stopmark = "#___________LANGUAGESERVER_RANGE_FORMATTING_STOP____________"
+    startmark = "#؞؞؞؞؞؞؞؞؞LANGUAGESERVER_RANGE_FORMATTING_START؞؞؞؞؞؞؞؞؞"
+    stopmark = "#؞؞؞؞؞؞؞؞؞LANGUAGESERVER_RANGE_FORMATTING_STOP؞؞؞؞؞؞؞؞؞"
     text_marked = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
     text_formatted = try

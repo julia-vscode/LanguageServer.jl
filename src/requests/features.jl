@@ -214,7 +214,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     if isnothing(range_formatted)
         return TextEdit[]
     end
-    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, params.range.stop.character), range_formatted[1])]
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, 99999999), range_formatted[1])]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)

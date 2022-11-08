@@ -185,18 +185,18 @@ end
 
 function mark_range(text::AbstractString, startline, stopline, startmark, stopmark)
     textlines = split(text, "\n")
-    insert!(textlines, startline + 1, startmark)
-    insert!(textlines, stopline + 3, stopmark)
+    insert!(textlines, stopline + 1, stopmark)
+    insert!(textlines, startline, startmark)
     return join(textlines, "\n")
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
     oldcontent = get_text(doc)
-    startline = params.range.start.line
-    stopline = params.range.stop.line
-    startmark = "#___________START___________"
-    stopmark = "#___________STOP____________"
+    startline = params.range.start.line + 1
+    stopline = params.range.stop.line + 1
+    startmark = "#___________LANGUAGESERVER_RANGE_FORMATTING_START___________"
+    stopmark = "#___________LANGUAGESERVER_RANGE_FORMATTING_STOP____________"
     text_marked = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
     text_formatted = try

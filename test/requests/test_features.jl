@@ -151,4 +151,11 @@ end
     function sub(a, b)
         a - b
     end"""
+
+    doc = settestdoc("""
+    function sub(a, b)
+        a - b
+    end
+    """)
+    @test range_formatting_test(0, 0, 2, 0) == LanguageServer.TextEdit[]
 end

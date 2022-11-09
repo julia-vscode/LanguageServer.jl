@@ -185,9 +185,10 @@ end
 
 function mark_range(text::AbstractString, startline, stopline, startmark, stopmark)
     textlines = split(text, "\n")
+    stopline_size = sizeof(textlines[stopline])
     insert!(textlines, stopline + 1, stopmark)
     insert!(textlines, startline, startmark)
-    return join(textlines, "\n")
+    return join(textlines, "\n"), stopline_size
 end
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
@@ -197,7 +198,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     stopline = params.range.stop.line + 1
     startmark = "#" * string(uuid4())
     stopmark = "#" * string(uuid4())
-    text_marked = mark_range(oldcontent, startline, stopline, startmark, stopmark)
+    text_marked, stopline_size = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
     text_formatted = try
         config = get_juliaformatter_config(doc, server)
@@ -216,7 +217,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     if isnothing(range_formatted) || (range_formatted[1] == range_unformatted[1])
         return TextEdit[]
     end
-    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, 99999999), range_formatted[1])]
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, stopline_size), range_formatted[1])]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)

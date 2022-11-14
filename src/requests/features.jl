@@ -183,23 +183,26 @@ function format_text(text::AbstractString, params, config)
     end
 end
 
-function mark_range(text::AbstractString, startline, stopline, startmark, stopmark)
-    textlines = split(text, "\n")
-    stopline_size = sizeof(textlines[stopline])
-    insert!(textlines, stopline + 1, stopmark)
-    insert!(textlines, startline, startmark)
-    return join(textlines, "\n"), stopline_size
-end
+# Broken up to make this file formattable
+const FORMAT_MARK_BEGIN = "---- BEGIN LANGUAGESERVER" * " RANGE FORMATTING ----"
+const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
+const FORMAT_MARK_BEGIN_COMMENT = "# " * FORMAT_MARK_BEGIN * "\n"
+const FORMAT_MARK_END_COMMENT = "# " * FORMAT_MARK_END * "\n"
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
     oldcontent = get_text(doc)
     startline = params.range.start.line + 1
     stopline = params.range.stop.line + 1
-    startmark = "#" * string(uuid4())
-    stopmark = "#" * string(uuid4())
-    text_marked, stopline_size = mark_range(oldcontent, startline, stopline, startmark, stopmark)
 
+    # Insert start and stop line comments as markers in the original text
+    original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
+    original_block = join(@view(original_lines[startline:stopline]))
+    insert!(original_lines, stopline + 1, FORMAT_MARK_END_COMMENT)
+    insert!(original_lines, startline, FORMAT_MARK_BEGIN_COMMENT)
+    text_marked = join(original_lines)
+
+    # Format the full marked text
     text_formatted = try
         config = get_juliaformatter_config(doc, server)
         format_text(text_marked, params, config)
@@ -211,13 +214,21 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    range_regex = Regex("$startmark\n((?s).*)\n\\s*$stopmark")
-    range_formatted = match(range_regex, text_formatted)
-    range_unformatted = match(range_regex, text_marked)
-    if isnothing(range_formatted) || (range_formatted[1] == range_unformatted[1])
+    # Find the markers in the formatted text and extract the lines in between
+    formatted_lines = collect(eachline(IOBuffer(text_formatted); keep=true))
+    start_idx = findfirst(x -> occursin(FORMAT_MARK_BEGIN, x), formatted_lines)
+    start_idx === nothing && return TextEdit[]
+    stop_idx = findfirst(x -> occursin(FORMAT_MARK_END, x), formatted_lines)
+    stop_idx === nothing && return TextEdit[]
+    formatted_block = join(@view(formatted_lines[(start_idx+1):(stop_idx-1)]))
+
+    # Don't suggest an edit in case the formatted text is identical to original text
+    if formatted_block == original_block
         return TextEdit[]
     end
-    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line, stopline_size), range_formatted[1])]
+
+    # End position is exclusive, replace until start of next line
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line + 1, 0), formatted_block)]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)

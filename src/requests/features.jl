@@ -183,14 +183,13 @@ function format_text(text::AbstractString, params, config)
     end
 end
 
-# Broken up to make this file formattable
+# Strings broken up and joined with * to make this file formattable
 const FORMAT_MARK_BEGIN = "---- BEGIN LANGUAGESERVER" * " RANGE FORMATTING ----"
 const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
-const FORMAT_MARK_BEGIN_COMMENT = "# " * FORMAT_MARK_BEGIN * "\n"
-const FORMAT_MARK_END_COMMENT = "# " * FORMAT_MARK_END * "\n"
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
+    @info "textDocument_formatting_request" params
     oldcontent = get_text(doc)
     startline = params.range.start.line + 1
     stopline = params.range.stop.line + 1
@@ -198,8 +197,11 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     # Insert start and stop line comments as markers in the original text
     original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
     original_block = join(@view(original_lines[startline:stopline]))
-    insert!(original_lines, stopline + 1, FORMAT_MARK_END_COMMENT)
-    insert!(original_lines, startline, FORMAT_MARK_BEGIN_COMMENT)
+    # If the stopline do not have a trailing newline we need to add that before our stop
+    # comment marker. This is removed after formatting.
+    stopline_has_newline = original_lines[stopline] != chomp(original_lines[stopline])
+    insert!(original_lines, stopline + 1, (stopline_has_newline ? "# " : "\n# ") * FORMAT_MARK_END * "\n")
+    insert!(original_lines, startline, "# " * FORMAT_MARK_BEGIN * "\n")
     text_marked = join(original_lines)
 
     # Format the full marked text
@@ -221,6 +223,11 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     stop_idx = findfirst(x -> occursin(FORMAT_MARK_END, x), formatted_lines)
     stop_idx === nothing && return TextEdit[]
     formatted_block = join(@view(formatted_lines[(start_idx+1):(stop_idx-1)]))
+
+    # Remove the extra inserted newline if there was none from the start
+    if !stopline_has_newline
+        formatted_block = chomp(formatted_block)
+    end
 
     # Don't suggest an edit in case the formatted text is identical to original text
     if formatted_block == original_block

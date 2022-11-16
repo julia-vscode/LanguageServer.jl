@@ -1,5 +1,6 @@
 import Pkg
 using LanguageServer.URIs2
+using LanguageServer: LanguageServerInstance
 
 include("test_shared_init_request.jl")
 

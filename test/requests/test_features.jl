@@ -127,7 +127,8 @@ end
         else
             return x
         end
-    end"""
+    end
+    """
 
     doc = settestdoc("""
     map([A,B,C]) do x
@@ -140,7 +141,7 @@ end
     end
     end
     """)
-    @test range_formatting_test(2, 0, 2, 0)[1].newText == """        return 0"""
+    @test range_formatting_test(2, 0, 2, 0)[1].newText == "        return 0\n"
 
     doc = settestdoc("""
     function add(a,b) a+b end
@@ -150,7 +151,8 @@ end
     @test range_formatting_test(1, 0, 1, 0)[1].newText == """
     function sub(a, b)
         a - b
-    end"""
+    end
+    """
 
     doc = settestdoc("""
     function sub(a, b)
@@ -158,4 +160,12 @@ end
     end
     """)
     @test range_formatting_test(0, 0, 2, 0) == LanguageServer.TextEdit[]
+
+    # \r\n line endings
+    doc = settestdoc("function foo(a,  b)\r\na - b\r\n end\r\n")
+    @test range_formatting_test(0, 0, 2, 0)[1].newText == "function foo(a, b)\r\n    a - b\r\nend\r\n"
+
+    # no trailing newline
+    doc = settestdoc("function foo(a,  b)\na - b\n end")
+    @test range_formatting_test(0, 0, 2, 0)[1].newText == "function foo(a, b)\n    a - b\nend"
 end

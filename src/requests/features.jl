@@ -183,51 +183,30 @@ function format_text(text::AbstractString, params, config)
     end
 end
 
+# Strings broken up and joined with * to make this file formattable
+const FORMAT_MARK_BEGIN = "---- BEGIN LANGUAGESERVER" * " RANGE FORMATTING ----"
+const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
+
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    cst = getcst(doc)
+    oldcontent = get_text(doc)
+    startline = params.range.start.line + 1
+    stopline = params.range.stop.line + 1
 
-    expr = get_inner_expr(cst, get_offset(doc, params.range.start):get_offset(doc, params.range.stop))
+    # Insert start and stop line comments as markers in the original text
+    original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
+    original_block = join(@view(original_lines[startline:stopline]))
+    # If the stopline do not have a trailing newline we need to add that before our stop
+    # comment marker. This is removed after formatting.
+    stopline_has_newline = original_lines[stopline] != chomp(original_lines[stopline])
+    insert!(original_lines, stopline + 1, (stopline_has_newline ? "# " : "\n# ") * FORMAT_MARK_END * "\n")
+    insert!(original_lines, startline, "# " * FORMAT_MARK_BEGIN * "\n")
+    text_marked = join(original_lines)
 
-    if expr === nothing
-        return nothing
-    end
-
-    while !(expr.head in (:for, :if, :function, :module, :file, :call) || CSTParser.isassignment(expr))
-        if expr.parent !== nothing
-            expr = expr.parent
-        else
-            return nothing
-        end
-    end
-
-    _, offset = get_file_loc(expr)
-    l1, c1 = get_position_from_offset(doc, offset)
-    c1 = 0
-    start_offset = index_at(doc, Position(l1, c1))
-    l2, c2 = get_position_from_offset(doc, offset + expr.span)
-
-    fulltext = get_text(doc)
-    text = fulltext[start_offset:prevind(fulltext, start_offset+expr.span)]
-
-    longest_prefix = nothing
-    for line in eachline(IOBuffer(text))
-        (isempty(line) || occursin(r"^\s*$", line)) && continue
-        idx = 0
-        for c in line
-            if c == ' ' || c == '\t'
-                idx += 1
-            else
-                break
-            end
-        end
-        line = line[1:idx]
-        longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
-    end
-
-    newcontent = try
+    # Format the full marked text
+    text_formatted = try
         config = get_juliaformatter_config(doc, server)
-        format_text(text, params, config)
+        format_text(text_marked, params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -33000,
@@ -236,17 +215,26 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    if longest_prefix !== nothing && !isempty(longest_prefix)
-        io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep=true)
-            print(io, longest_prefix, line)
-        end
-        newcontent = String(take!(io))
+    # Find the markers in the formatted text and extract the lines in between
+    formatted_lines = collect(eachline(IOBuffer(text_formatted); keep=true))
+    start_idx = findfirst(x -> occursin(FORMAT_MARK_BEGIN, x), formatted_lines)
+    start_idx === nothing && return TextEdit[]
+    stop_idx = findfirst(x -> occursin(FORMAT_MARK_END, x), formatted_lines)
+    stop_idx === nothing && return TextEdit[]
+    formatted_block = join(@view(formatted_lines[(start_idx+1):(stop_idx-1)]))
+
+    # Remove the extra inserted newline if there was none from the start
+    if !stopline_has_newline
+        formatted_block = chomp(formatted_block)
     end
 
-    lsedits = TextEdit[TextEdit(Range(l1, c1, l2, c2), newcontent)]
+    # Don't suggest an edit in case the formatted text is identical to original text
+    if formatted_block == original_block
+        return TextEdit[]
+    end
 
-    return lsedits
+    # End position is exclusive, replace until start of next line
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line + 1, 0), formatted_block)]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)

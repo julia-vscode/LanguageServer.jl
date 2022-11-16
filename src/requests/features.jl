@@ -189,7 +189,6 @@ const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    @info "textDocument_formatting_request" params
     oldcontent = get_text(doc)
     startline = params.range.start.line + 1
     stopline = params.range.stop.line + 1

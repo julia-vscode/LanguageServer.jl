@@ -4,6 +4,8 @@ version = "4.5.1"
 
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
+JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
+JETLS = "a3b70258-0602-4ee2-b5a6-54c2470400db"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 JSONRPC = "b9b8584e-8fd3-41f9-ad0c-7255d428e418"
 JuliaFormatter = "98e50ef6-434e-11e9-1051-2b60c6c9e899"

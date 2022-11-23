@@ -75,6 +75,8 @@ function lint!(doc::Document, server)
     StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)
+    # Run JET.jl
+    jet_diagnostics!(doc)
     # TODO Ideally we would not want to acces jr_endpoint here
     publish_diagnostics(doc, server, server.jr_endpoint)
 

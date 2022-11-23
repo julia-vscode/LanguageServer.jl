@@ -26,6 +26,7 @@ include("juliaworkspace.jl")
 include("languageserverinstance.jl")
 include("multienv.jl")
 include("runserver.jl")
+include("jet.jl")
 include("staticlint.jl")
 
 include("requests/misc.jl")

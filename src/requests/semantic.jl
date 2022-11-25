@@ -128,9 +128,10 @@ end
 function every_expression_with_offset(expr::EXPR, offset=0)
     every_expression = Tuple{EXPR,Int64}[]
     for ex in expr
-        push!((ex, offset), every_expression)
+        push!(every_expression, (ex, offset))
         if !isempty(ex)
-            push!((ex, offset), every_expression_with_offset(ex, offset)...)
+            sub_expressions = every_expression_with_offset(ex, offset)
+            push!(every_expression, sub_expressions...)
         end
         offset += ex.fullspan
     end

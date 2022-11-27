@@ -442,9 +442,10 @@ function howtotypeCache()
     for (k, v) in REPL.REPLCompletions.emoji_symbols
         tcache[v] = k
     end
-
-    for (k, v) in REPL.REPLCompletions.symbols_latex_canonical
-        tcache[k] = v
+    if isdefined(REPL.REPLCompletions, :symbols_latex_canonical)
+        for (k, v) in REPL.REPLCompletions.symbols_latex_canonical
+            tcache[k] = v
+        end
     end
     tcache
 end

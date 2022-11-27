@@ -26,8 +26,9 @@ function get_hover(x::EXPR, documentation::String, server)
         if !isnothing(x.val)
             estr = string(x.val)
             if length(estr) == 1
-                if haskey(server.howtotype_cache, estr)
-                    documentation *= "\nHow to type $estr:  $(server.howtotype_cache[estr])"
+                howtotype = findHowtotype(server, estr)
+                if !isnothing(howtotype)
+                    documentation *= "\nHow to type $estr:  $howtotype"
                 end
             end
         end

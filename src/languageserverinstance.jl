@@ -66,7 +66,7 @@ mutable struct LanguageServerInstance
 
     workspace::JuliaWorkspace
 
-    howtotype_cache::Dict{String,String}
+    howtotype_cache::Union{Nothing,Dict{String,String}}
 
     function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream=nothing)
         new(
@@ -98,7 +98,7 @@ mutable struct LanguageServerInstance
             missing,
             false,
             JuliaWorkspace(),
-            howtotypeCache(),
+            nothing,
         )
     end
 end
@@ -447,4 +447,15 @@ function howtotypeCache()
         tcache[k] = v
     end
     tcache
+end
+
+function findHowtotype(server::LanguageServerInstance, estr::String)
+    if isnothing(server.howtotype_cache)
+        server.howtotype_cache = howtotypeCache()
+    end
+    if haskey(server.howtotype_cache, estr)
+        return server.howtotype_cache[estr]
+    else
+        return nothing
+    end
 end

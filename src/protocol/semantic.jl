@@ -89,7 +89,6 @@ end
 SemanticTokens(data::Vector{UInt32}) = SemanticTokens(missing, data)
 
 
-
 struct SemanticTokensPartialResult <: Outbound
     data::Vector{UInt32}
 end

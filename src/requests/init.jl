@@ -33,7 +33,7 @@ function ServerCapabilities(client::ClientCapabilities)
         SemanticTokensOptions(
             SemanticTokensLegend([values(SemanticTokenKinds)...],
                 [values(SemanticTokenModifiersKinds)...]),
-            true,
+            false,
             true),
         true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),

@@ -28,8 +28,9 @@ function SemanticToken(deltaLine::UInt32,
 end
 
 function semantic_tokens(tokens)::SemanticTokens
-    token_data = Vector{UInt32}(undef, length(tokens) * 4)
-    for (i_token, token) ∈ enumerate(tokens)
+    token_data_size = length(tokens) * 5
+    token_data = Vector{UInt32}(undef, token_data_size)
+    for (i_token, token::SemanticToken) ∈ zip(1:5:token_data_size, tokens)
         token_data[i_token:i_token+4] = [
             token.deltaLine,
             token.deltaStart,

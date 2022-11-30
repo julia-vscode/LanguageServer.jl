@@ -43,7 +43,7 @@ function semantic_tokens(tokens)::SemanticTokens
 end
 
 function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
-    server::LanguageServerInstance, conn)::Union{SemanticTokens,Nothing}
+    server::LanguageServerInstance, _)::Union{SemanticTokens,Nothing}
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
     ts = collect(SemanticToken, every_semantic_token(doc))

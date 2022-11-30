@@ -107,10 +107,21 @@ end
 
 """
 Get the semantic token kind for `expr`, which is assumed to be an identifier
+
+See CSTParser.jl/src/interface.jl
 """
 function semantic_token_kind(expr::EXPR)::Union{String,Nothing}
     # C.isidentifier(expr) || return nothing
-    return if C.defines_function(expr)# || C.is_func_call(expr)
+
+    return if C.isidentifier(expr)
+        SemanticTokenKinds.Variable
+    elseif C.isoperator(expr)
+        SemanticTokenKinds.Operator
+    elseif C.isstringliteral(expr) || C.isstring(expr)
+        SemanticTokenKinds.String
+    elseif C.iskeyword(expr)
+        SemanticTokenKinds.Keyword
+    elseif C.defines_function(expr) # || C.is_func_call(expr)
         SemanticTokenKinds.Function
     elseif C.defines_struct(expr)
         SemanticTokenKinds.Struct

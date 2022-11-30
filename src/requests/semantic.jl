@@ -46,7 +46,7 @@ function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
     server::LanguageServerInstance, conn)::Union{SemanticTokens,Nothing}
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
-    ts = collect(every_semantic_token(doc))
+    ts = collect(SemanticToken, every_semantic_token(doc))
     return semantic_tokens(ts)
 end
 
@@ -63,7 +63,7 @@ function every_expression_with_offset(expr::EXPR, offset=0)
     every_expression
 end
 
-function expr_offset_to_maybe_token(ex::EXPR, offset::Int64, doc)
+function expr_offset_to_maybe_token(ex::EXPR, offset::Int64, doc)::Union{Nothing,SemanticToken}
     kind = semantic_token_kind(ex)
     if kind === nothing
         return nothing

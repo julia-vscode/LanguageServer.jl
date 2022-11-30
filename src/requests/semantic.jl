@@ -96,13 +96,10 @@ end
 
 function every_semantic_token(doc)
     root_expr = getcst(doc)
-    expressions = every_expression_with_offset(root_expr)
-    expressions_with_offsets = map(_tuple -> begin
-            ex::EXPR, offset::Int64 = _tuple
-            (ex, offset, doc)
-        end, expressions)
+    expressions_with_offsets = every_expression_with_offset(root_expr)
     maybe_tokens = map(_tuple -> begin
-            expr_offset_to_maybe_token(_tuple...)
+            ex::EXPR, offset::Int64 = _tuple
+            expr_offset_to_maybe_token(ex, offset, doc)
         end, expressions_with_offsets)
     filter(maybe_token -> maybe_token !== nothing, maybe_tokens)
 end

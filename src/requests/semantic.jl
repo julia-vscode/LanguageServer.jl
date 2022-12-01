@@ -48,12 +48,15 @@ function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
     server::LanguageServerInstance, _)::Union{SemanticTokens,Nothing}
     uri = params.textDocument.uri
     d = getdocument(server, uri)
-    ts = collect(SemanticToken, every_semantic_token(d))
+
+    external_env = getenv(d, server)
+
+    ts = collect(SemanticToken, every_semantic_token(d, external_env))
     return semantic_tokens(ts)
 end
 
-function expr_offset_to_maybe_token(ex::EXPR, offset::Integer, document::Document)::Union{Nothing,SemanticToken}
-    kind = semantic_token_kind(ex)
+function maybe_get_token_from_expr_with_state(ex::EXPR, state::ExpressionVisitorState)::Union{Nothing,SemanticToken}
+    kind = semantic_token_kind(ex, state.external_env)
     if kind === nothing
         return nothing
     end
@@ -73,7 +76,7 @@ function expr_offset_to_maybe_token(ex::EXPR, offset::Integer, document::Documen
             name_offset = -1
         end
     end
-    line, char = get_position_from_offset(document, offset)
+    line, char = get_position_from_offset(state.document, state.offset)
     return SemanticToken(
         line,
         char,
@@ -85,30 +88,39 @@ end
 
 mutable struct ExpressionVisitorState
     collected_tokens::Vector{SemanticToken}
+    # current offset per EXPR::fullspan (starts at 0)
+    offset::Integer
+    # access to positioning (used with offset)
     document::Document
+    # read-only
+    external_env::StaticLint.ExternalEnv
 end
-ExpressionVisitorState(d::Document) = ExpressionVisitorState(SemanticToken[], d)
+ExpressionVisitorState(args...) = ExpressionVisitorState(SemanticToken[], 0, args...)
 
-function visit_every_expression_with_offset(expr_in::EXPR, state::ExpressionVisitorState, offset::Integer=0)::Nothing
+"""
+
+Update state's offset with each-of expr_in's fullspan after visiting them
+"""
+function visit_every_expression(expr_in::EXPR, state::ExpressionVisitorState)::Nothing
     for e ∈ expr_in
         # ( maybe ) collect this expression
-        maybe_token = expr_offset_to_maybe_token(e, offset, state.document)
+        maybe_token = maybe_get_token_from_expr_with_state(e, state)
         if maybe_token !== nothing
             push!(state.collected_tokens, maybe_token)
         end
 
         # recurse into e's subtrees
         if !isempty(e)
-            visit_every_expression_with_offset(e, state, offset)
+            visit_every_expression(e, state)
         end
-        offset += e.fullspan
+        state.offset += e.fullspan
     end
 end
 
-function every_semantic_token(document::Document)
+function every_semantic_token(document::Document, external_env::StaticLint.ExternalEnv)
     root_expr = getcst(document)
-    state = ExpressionVisitorState(document)
-    visit_every_expression_with_offset(root_expr, state)
+    state = ExpressionVisitorState(document, external_env)
+    visit_every_expression(root_expr, state)
     state.collected_tokens
 end
 
@@ -118,7 +130,8 @@ Get the semantic token kind for `expr`, which is assumed to be an identifier
 
 See CSTParser.jl/src/interface.jl
 """
-function semantic_token_kind(expr::EXPR)::Union{String,Nothing}
+function semantic_token_kind(expr::EXPR, external_env::StaticLint.ExternalEnv)::Union{String,Nothing}
+    # TODO felipe use external_env
 
     return if C.isidentifier(expr)
         SemanticTokenKinds.Variable

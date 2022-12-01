@@ -1,3 +1,5 @@
+const C = CSTParser
+
 struct SemanticToken
     # token line number, relative to the previous token
     deltaLine::UInt32
@@ -117,7 +119,6 @@ Get the semantic token kind for `expr`, which is assumed to be an identifier
 See CSTParser.jl/src/interface.jl
 """
 function semantic_token_kind(expr::EXPR)::Union{String,Nothing}
-    # C.isidentifier(expr) || return nothing
 
     return if C.isidentifier(expr)
         SemanticTokenKinds.Variable
@@ -127,23 +128,13 @@ function semantic_token_kind(expr::EXPR)::Union{String,Nothing}
         SemanticTokenKinds.String
     elseif C.iskeyword(expr)
         SemanticTokenKinds.Keyword
-    elseif C.defines_function(expr) # || C.is_func_call(expr)
+    elseif C.defines_function(expr)
         SemanticTokenKinds.Function
     elseif C.defines_struct(expr)
         SemanticTokenKinds.Struct
     elseif C.defines_macro(expr)
         SemanticTokenKinds.Macro
-        # elseif C.isoperator(expr)
-        # SemanticTokenKinds.Operator
+    elseif C.isnumber(expr)
+        SemanticTokenKinds.Number
     end
-end
-const C = CSTParser
-
-span(token::SemanticToken) = token.length
-function span(tokens::Vector{SemanticToken})
-    lengths = map(tokens) do token
-        token.length
-    end
-
-    reduce(+, lengths)
 end

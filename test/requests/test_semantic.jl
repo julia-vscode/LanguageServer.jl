@@ -8,3 +8,7 @@ semantic_token_test() = LanguageServer.textDocument_semanticTokens_full_request(
     """)
     @test semantic_token_test() == SemanticToken(0, 9, 5, SemanticTokenKinds.Function)
 end
+
+@testset "add more, testing if running ok" begin
+    @test false == true
+end

@@ -1,14 +1,11 @@
-semantic_token_test() = LanguageServer.textDocument_semanticTokens_full_request(LanguageServer.SemanticTokensParams(LanguageServer.TextDocumentIdentifier("testdoc"), missing, missing), server, server.jr_endpoint)
 
-@testset "function calls" begin
-    settestdoc("""
-    function hello()
-        println("hello world")
-    end
+@testitem "simple token" begin
+    include("../test_shared_server.jl")
+
+    doc = settestdoc("""
+a=1
     """)
-    @test semantic_token_test() == SemanticToken(0, 9, 5, SemanticTokenKinds.Function)
-end
-
-@testset "add more, testing if running ok" begin
-    @test false == true
+    let _LS = LanguageServer
+        @test token_full_test() == _LS.SemanticTokens(UInt32[0, 0, 9, 5, _LS.semantic_token_encoding(_LS.SemanticTokenKinds.Variable)])
+    end
 end

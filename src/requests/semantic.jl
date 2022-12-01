@@ -45,25 +45,12 @@ end
 function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
     server::LanguageServerInstance, _)::Union{SemanticTokens,Nothing}
     uri = params.textDocument.uri
-    doc = getdocument(server, uri)
-    ts = collect(SemanticToken, every_semantic_token(doc))
+    d = getdocument(server, uri)
+    ts = collect(SemanticToken, every_semantic_token(d))
     return semantic_tokens(ts)
 end
 
-function every_expression_with_offset(expr::EXPR, offset=0)
-    every_expression = Tuple{EXPR,Int64}[]
-    for ex in expr
-        push!(every_expression, (ex, offset))
-        if !isempty(ex)
-            sub_expressions = every_expression_with_offset(ex, offset)
-            push!(every_expression, sub_expressions...)
-        end
-        offset += ex.fullspan
-    end
-    every_expression
-end
-
-function expr_offset_to_maybe_token(ex::EXPR, offset::Int64, doc)::Union{Nothing,SemanticToken}
+function expr_offset_to_maybe_token(ex::EXPR, offset::Integer, document::Document)::Union{Nothing,SemanticToken}
     kind = semantic_token_kind(ex)
     if kind === nothing
         return nothing
@@ -84,7 +71,7 @@ function expr_offset_to_maybe_token(ex::EXPR, offset::Int64, doc)::Union{Nothing
             name_offset = -1
         end
     end
-    line, char = get_position_from_offset(doc, offset)
+    line, char = get_position_from_offset(document, offset)
     return SemanticToken(
         line,
         char,
@@ -94,14 +81,33 @@ function expr_offset_to_maybe_token(ex::EXPR, offset::Int64, doc)::Union{Nothing
     )
 end
 
-function every_semantic_token(doc)
-    root_expr = getcst(doc)
-    expressions_with_offsets = every_expression_with_offset(root_expr)
-    maybe_tokens = map(_tuple -> begin
-            ex::EXPR, offset::Int64 = _tuple
-            expr_offset_to_maybe_token(ex, offset, doc)
-        end, expressions_with_offsets)
-    filter(maybe_token -> maybe_token !== nothing, maybe_tokens)
+mutable struct ExpressionVisitorState
+    collected_tokens::Vector{SemanticToken}
+    document::Document
+end
+ExpressionVisitorState(d::Document) = ExpressionVisitorState(SemanticToken[], d)
+
+function visit_every_expression_with_offset(expr_in::EXPR, state::ExpressionVisitorState, offset::Integer=0)::Nothing
+    for e ∈ expr_in
+        # ( maybe ) collect this expression
+        maybe_token = expr_offset_to_maybe_token(e, offset, state.document)
+        if maybe_token !== nothing
+            push!(state.collected_tokens, maybe_token)
+        end
+
+        # recurse into e's subtrees
+        if !isempty(e)
+            visit_every_expression_with_offset(e, state, offset)
+        end
+        offset += e.fullspan
+    end
+end
+
+function every_semantic_token(document::Document)
+    root_expr = getcst(document)
+    state = ExpressionVisitorState(document)
+    visit_every_expression_with_offset(root_expr, state)
+    state.collected_tokens
 end
 
 

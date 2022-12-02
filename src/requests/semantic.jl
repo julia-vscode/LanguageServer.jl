@@ -55,6 +55,17 @@ function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
     return semantic_tokens(ts)
 end
 
+mutable struct ExpressionVisitorState
+    collected_tokens::Vector{SemanticToken}
+    # current offset per EXPR::fullspan (starts at 0)
+    offset::Integer
+    # access to positioning (used with offset)
+    document::Document
+    # read-only
+    external_env::StaticLint.ExternalEnv
+end
+ExpressionVisitorState(args...) = ExpressionVisitorState(SemanticToken[], 0, args...)
+
 function maybe_get_token_from_expr_with_state(ex::EXPR, state::ExpressionVisitorState)::Union{Nothing,SemanticToken}
     kind = semantic_token_kind(ex, state.external_env)
     if kind === nothing
@@ -86,16 +97,6 @@ function maybe_get_token_from_expr_with_state(ex::EXPR, state::ExpressionVisitor
     )
 end
 
-mutable struct ExpressionVisitorState
-    collected_tokens::Vector{SemanticToken}
-    # current offset per EXPR::fullspan (starts at 0)
-    offset::Integer
-    # access to positioning (used with offset)
-    document::Document
-    # read-only
-    external_env::StaticLint.ExternalEnv
-end
-ExpressionVisitorState(args...) = ExpressionVisitorState(SemanticToken[], 0, args...)
 
 """
 

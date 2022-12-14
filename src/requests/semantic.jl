@@ -45,14 +45,14 @@ function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
     external_env = getenv(d, server)
 
     repeated_tokens = collect(NonFlattenedSemanticToken, every_semantic_token(d, external_env))
-    sort!(repeated_tokens, lt=(l,r)->begin
-              (l.line, l.start) < (r.line, r.start)
-          end)
+    sort!(repeated_tokens, lt=(l, r) -> begin
+        (l.line, l.start) < (r.line, r.start)
+    end)
     return semantic_tokens(unique(repeated_tokens))
 end
 
 # TODO visit expressions correctly and collect tokens into a Vector, rather than a Set (see visit_every_expression() )
-TokenCollection=Set{NonFlattenedSemanticToken}
+TokenCollection = Set{NonFlattenedSemanticToken}
 mutable struct ExpressionVisitorState
     collected_tokens::TokenCollection
     # access to positioning (used with offset, see visit_every_expression() )
@@ -96,11 +96,11 @@ function maybe_get_token_from_expr(ex::EXPR, state::ExpressionVisitorState, offs
     end
     line, char = get_position_from_offset(state.document, offset)
     return NonFlattenedSemanticToken(
-                                     line,
-                                     char,
-                                     ex.span,
-                                     semantic_token_encoding(kind),
-                                     0)
+        line,
+        char,
+        ex.span,
+        semantic_token_encoding(kind),
+        0)
 end
 
 

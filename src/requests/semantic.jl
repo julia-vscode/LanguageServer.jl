@@ -1,11 +1,11 @@
 const C = CSTParser
 
-struct SemanticToken
-    # token line number, relative to the previous token
-    deltaLine::UInt32
-    # token start character, relative to the previous token
-    # (relative to 0 or the previous token’s start if they are on the same line)
-    deltaStart::UInt32
+# Struct-like version of a semantic token before being flattened into 5-number-pair
+struct NonFlattenedSemanticToken
+    # token line number
+    line::UInt32
+    # token start character within line
+    start::UInt32
     # the length of the token.
     length::UInt32
     # will be looked up in SemanticTokensLegend.tokenTypes
@@ -14,28 +14,21 @@ struct SemanticToken
     tokenModifiers::UInt32
 end
 
-function SemanticToken(deltaLine::UInt32,
-    deltaStart::UInt32,
-    length::UInt32,
-    tokenType::String,
-    tokenModifiers::String)
-    # FIXME look up int encodings for tokenType and tokenModifiers
-    SemanticToken(
-        deltaLine,
-        deltaStart,
-        length,
-        semantic_token_encoding(tokenType),
-        0 # FIXME look up int encodings for tokenType and tokenModifiers
-    )
-end
 
+"""
+
+Map collection of tokens into SemanticTokens
+
+Note: currently uses absolute position
+"""
 function semantic_tokens(tokens)::SemanticTokens
+    # TODO implement relative position (track last token)
     token_data_size = length(tokens) * 5
     token_data = Vector{UInt32}(undef, token_data_size)
-    for (i_token, token::SemanticToken) ∈ zip(1:5:token_data_size, tokens)
+    for (i_token, token::NonFlattenedSemanticToken) ∈ zip(1:5:token_data_size, tokens)
         token_data[i_token:i_token+4] = [
-            token.deltaLine,
-            token.deltaStart,
+            token.line,
+            token.start,
             token.length,
             token.tokenType,
             token.tokenModifiers
@@ -51,22 +44,36 @@ function textDocument_semanticTokens_full_request(params::SemanticTokensParams,
 
     external_env = getenv(d, server)
 
-    ts = collect(SemanticToken, every_semantic_token(d, external_env))
-    return semantic_tokens(ts)
+    repeated_tokens = collect(NonFlattenedSemanticToken, every_semantic_token(d, external_env))
+    sort!(repeated_tokens, lt=(l,r)->begin
+              (l.line, l.start) < (r.line, r.start)
+          end)
+    return semantic_tokens(unique(repeated_tokens))
 end
 
+# TODO visit expressions correctly and collect tokens into a Vector, rather than a Set (see visit_every_expression() )
+TokenCollection=Set{NonFlattenedSemanticToken}
 mutable struct ExpressionVisitorState
-    collected_tokens::Vector{SemanticToken}
-    # current offset per EXPR::fullspan (starts at 0)
-    offset::Integer
-    # access to positioning (used with offset)
+    collected_tokens::TokenCollection
+    # access to positioning (used with offset, see visit_every_expression() )
     document::Document
     # read-only
     external_env::StaticLint.ExternalEnv
 end
-ExpressionVisitorState(args...) = ExpressionVisitorState(SemanticToken[], 0, args...)
+ExpressionVisitorState(args...) = ExpressionVisitorState(TokenCollection(), args...)
 
-function maybe_get_token_from_expr_with_state(ex::EXPR, state::ExpressionVisitorState)::Union{Nothing,SemanticToken}
+"""
+Adds token to state.collected only if maybe_get_token_from_expr() parsed an actual token
+"""
+function maybe_collect_token_from_expr(ex::EXPR, state::ExpressionVisitorState, offset::Integer)
+    maybe_token = maybe_get_token_from_expr(ex, state, offset)
+    if maybe_token !== nothing
+        push!(state.collected_tokens, maybe_token)
+    end
+
+end
+
+function maybe_get_token_from_expr(ex::EXPR, state::ExpressionVisitorState, offset::Integer)::Union{Nothing,NonFlattenedSemanticToken}
     kind = semantic_token_kind(ex, state.external_env)
     if kind === nothing
         return nothing
@@ -87,34 +94,33 @@ function maybe_get_token_from_expr_with_state(ex::EXPR, state::ExpressionVisitor
             name_offset = -1
         end
     end
-    line, char = get_position_from_offset(state.document, state.offset)
-    return SemanticToken(
-        line,
-        char,
-        ex.span,
-        semantic_token_encoding(kind),
-        0
-    )
+    line, char = get_position_from_offset(state.document, offset)
+    return NonFlattenedSemanticToken(
+                                     line,
+                                     char,
+                                     ex.span,
+                                     semantic_token_encoding(kind),
+                                     0)
 end
 
 
 """
 
-Update state's offset with each-of expr_in's fullspan after visiting them
-"""
-function visit_every_expression(expr_in::EXPR, state::ExpressionVisitorState)::Nothing
-    for e ∈ expr_in
-        # ( maybe ) collect this expression
-        maybe_token = maybe_get_token_from_expr_with_state(e, state)
-        if maybe_token !== nothing
-            push!(state.collected_tokens, maybe_token)
-        end
+Visit each expression, collecting semantic-tokens into state
 
-        # recurse into e's subtrees
-        if !isempty(e)
-            visit_every_expression(e, state)
-        end
-        state.offset += e.fullspan
+Note: couldn't pack offset into ExpressionVisitorState and update, that's why it's a separate argument
+TODO: not sure about how to recurse an EXPR and its sub-expressions. For now, that'll be covered by collecting them into a Set
+"""
+function visit_every_expression(expr_in::EXPR, state::ExpressionVisitorState, offset=0)::Nothing
+    maybe_collect_token_from_expr(expr_in, state, offset)
+
+    # recurse into this expression's expressions
+    for e ∈ expr_in
+        maybe_collect_token_from_expr(e, state, offset)
+
+        visit_every_expression(e, state, offset)
+
+        offset += e.fullspan
     end
 end
 
@@ -122,7 +128,7 @@ function every_semantic_token(document::Document, external_env::StaticLint.Exter
     root_expr = getcst(document)
     state = ExpressionVisitorState(document, external_env)
     visit_every_expression(root_expr, state)
-    state.collected_tokens
+    collect(state.collected_tokens)
 end
 
 

@@ -391,7 +391,7 @@ function find_project_for_file(jw::JuliaWorkspace, file::URI)
     return project
 end
 
-function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
+function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         # Find which workspace folder the doc is in.
         parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
@@ -426,25 +426,31 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         cst = getcst(doc)
 
         testitems = []
+        testsetups = []
+        testerrors = []
 
         for i in cst.args
             file_testitems = []
+            file_testsetups = []
             file_errors = []
 
-            TestItemDetection.find_test_items_detail!(i, file_testitems, file_errors)
+            TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
 
             append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), nothing) for i in file_testitems])
-            append!(testitems, [TestItemDetail("Test error", "Test error", Range(doc, i.range), nothing, nothing, nothing, nothing, i.error) for i in file_errors])
+            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
+            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])            
         end
 
-        params = PublishTestItemsParams(
+        params = PublishTestsParams(
             get_uri(doc),
             get_version(doc),
             project_path,
             package_path,
             package_name,
-            testitems
+            testitems,
+            testsetups,
+            testerrors
         )
-        JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
+        JSONRPC.send(jr_endpoint, textDocument_publishTests_notification_type, params)
     end
 end

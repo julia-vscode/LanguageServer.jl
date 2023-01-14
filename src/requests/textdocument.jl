@@ -436,9 +436,9 @@ function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
 
             TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
 
-            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), nothing) for i in file_testitems])
+            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in file_testitems])
             append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
-            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])            
+            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])
         end
 
         params = PublishTestsParams(

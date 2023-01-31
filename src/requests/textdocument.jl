@@ -126,6 +126,8 @@ end
 
 function mark_errors(doc, out=Diagnostic[])
     line_offsets = get_line_offsets(get_text_document(doc))
+    # Extend line_offsets by one to consider up to EOF
+    line_offsets = vcat(line_offsets, length(get_text(doc)) + 1)
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out

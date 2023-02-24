@@ -403,7 +403,7 @@ function Base.run(server::LanguageServerInstance)
                 end
             end
 
-            @debug "starting re-lint of everything"
+            @debug "starting re-lint of everything" server.global_env.project_deps
             relintserver(server)
             @debug "re-lint done"
             @debug "Linting finished at $(round(Int, time()))"
@@ -423,6 +423,7 @@ function relintserver(server)
         root = getroot(doc)
         if !(root in roots)
             push!(roots, root)
+            @debug "semantic pass" root
             semantic_pass(root)
         end
     end

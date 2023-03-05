@@ -594,10 +594,10 @@ function method_completion(x, state, xlen)
     scope = scopeof(parentof(parentof(state.x)))
     # @info scope, x, refof(x)
     x_ref = refof(x)
-    if !hasproperty(x_ref, :type)
+    if !isdefined(x_ref, :type)
         return
     end
-    if !hasproperty(x_ref.type, :name)
+    if !isdefined(x_ref.type, :name)
         return
     end
     x_type = refof(x).type.name

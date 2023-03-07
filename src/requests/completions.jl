@@ -50,7 +50,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
     end
 
     ppt, pt, t, is_at_end = get_partial_completion(state)
-
+    # @info ppt, pt, t, is_at_end
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(t)), state)
     elseif ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokenize.Tokens.BACKSLASH && pt isa CSTParser.Tokens.Token && (pt.kind === CSTParser.Tokens.CIRCUMFLEX_ACCENT || pt.kind === CSTParser.Tokens.COLON)
@@ -67,15 +67,18 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         import_completions(ppt, pt, t, is_at_end, state.x, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
+        # @info "enter dot completion"
         px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
         _get_dot_completion(px, "", state)
         ptlen = (1 + pt.endbyte - pt.startbyte)
         # px = get_expr(getcst(state.doc), state.offset - ptlen)
-        method_completion(px, state, ptlen)
+        method_completion(px, state, ptlen, "")
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, partial
         px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
         _get_dot_completion(px, t.val, state)
+        ptlen = (1 + ppt.endbyte - ppt.startbyte)
+        method_completion(px, state, ptlen, t.val)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
         # token completion
         if is_at_end && state.x !== nothing
@@ -590,9 +593,10 @@ function get_tls_arglist(tls::StaticLint.Scope)
     end
 end
 
-function method_completion(x, state, xlen)
-    scope = scopeof(parentof(parentof(state.x)))
-    # @info scope, x, refof(x)
+function method_completion(x, state, xlen, spartial)
+    # @info parentof(state.x), parentof(parentof(state.x))
+    scope = scopeof(parentof(parentof(x)))
+    # @info scope, x, refof(x), xlen
     x_ref = refof(x)
     if !isdefined(x_ref, :type)
         return
@@ -630,16 +634,20 @@ function method_completion(x, state, xlen)
                         state.range.stop.character + -xlen + length(n) + 2)), n * "(" * valof(x) * ",)")
             additional_edit = TextEdit(Range(
                     Position(state.range.start.line,
-                        state.range.start.character - xlen - 1),
+                        state.range.start.character - xlen - 1 - length(spartial)),
                     Position(state.range.stop.line,
                         state.range.stop.character)), "")
             # @info "inplace_edit: ", inplace_edit
             # @info "additional_edit: ", additional_edit
+
             item = CompletionItem(n, 2, missing, missing, n,
                 missing, missing, missing, missing, missing,
                 InsertTextFormats.PlainText, inplace_edit, [additional_edit],
                 missing, missing, n)
-            add_completion_item(state, item)
+
+            if is_completion_match(n, spartial)
+                add_completion_item(state, item)
+            end
         end
     end
 end

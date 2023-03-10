@@ -596,6 +596,9 @@ end
 function method_completion(x, state, xlen, spartial)
     # @info parentof(state.x), parentof(parentof(state.x))
     scope = scopeof(parentof(parentof(x)))
+    if isnothing(scope)
+        return
+    end
     # @info scope, x, refof(x), xlen
     x_ref = refof(x)
     if !isdefined(x_ref, :type)

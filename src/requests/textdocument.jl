@@ -417,7 +417,9 @@ function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         end
 
         project_path = ""
-        if haskey(server.workspace._projects, project_uri)
+        if project_uri == package_uri
+            project_path = uri2filepath(project_uri)
+        elseif haskey(server.workspace._projects, project_uri)
             relevant_project = server.workspace._projects[project_uri]
 
             if haskey(relevant_project.deved_packages, package_uri)

@@ -112,8 +112,14 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         doc.cst, ps = parse_jmd(get_text(doc))
     elseif get_language_id(doc) == "julia"
-        ps = CSTParser.ParseState(get_text(doc))
-        doc.cst, ps = CSTParser.parse(ps, true)
+        t = @elapsed begin
+            ps = CSTParser.ParseState(get_text(doc))
+            doc.cst, ps = CSTParser.parse(ps, true)
+        end
+        if t > 10
+            # warn to help debugging in the wild
+            @warn "CSTParser took a long time ($(round(Int, t)) seconds) to parse $(repr(getpath(doc)))"
+        end
     end
     sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
     if headof(doc.cst) === :file

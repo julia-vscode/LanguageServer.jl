@@ -175,7 +175,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_workspace_didChangeConfiguration = true
     end
 
-    if !ismissing(params.initializationOptions)
+    if !ismissing(params.initializationOptions) && params.initializationOptions !== nothing
         server.initialization_options = params.initializationOptions
     end
 

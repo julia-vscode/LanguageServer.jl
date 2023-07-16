@@ -112,8 +112,14 @@ function parse_all(doc::Document, server::LanguageServerInstance)
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         doc.cst, ps = parse_jmd(get_text(doc))
     elseif get_language_id(doc) == "julia"
-        ps = CSTParser.ParseState(get_text(doc))
-        doc.cst, ps = CSTParser.parse(ps, true)
+        t = @elapsed begin
+            ps = CSTParser.ParseState(get_text(doc))
+            doc.cst, ps = CSTParser.parse(ps, true)
+        end
+        if t > 10
+            # warn to help debugging in the wild
+            @warn "CSTParser took a long time ($(round(Int, t)) seconds) to parse $(repr(getpath(doc)))"
+        end
     end
     sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
     if headof(doc.cst) === :file
@@ -126,6 +132,8 @@ end
 
 function mark_errors(doc, out=Diagnostic[])
     line_offsets = get_line_offsets(get_text_document(doc))
+    # Extend line_offsets by one to consider up to EOF
+    line_offsets = vcat(line_offsets, length(get_text(doc)) + 1)
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
@@ -391,7 +399,7 @@ function find_project_for_file(jw::JuliaWorkspace, file::URI)
     return project
 end
 
-function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
+function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         # Find which workspace folder the doc is in.
         parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
@@ -415,7 +423,9 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         end
 
         project_path = ""
-        if haskey(server.workspace._projects, project_uri)
+        if project_uri == package_uri
+            project_path = uri2filepath(project_uri)
+        elseif haskey(server.workspace._projects, project_uri)
             relevant_project = server.workspace._projects[project_uri]
 
             if haskey(relevant_project.deved_packages, package_uri)
@@ -426,25 +436,31 @@ function find_testitems!(doc, server::LanguageServerInstance, jr_endpoint)
         cst = getcst(doc)
 
         testitems = []
+        testsetups = []
+        testerrors = []
 
         for i in cst.args
             file_testitems = []
+            file_testsetups = []
             file_errors = []
 
-            TestItemDetection.find_test_items_detail!(i, file_testitems, file_errors)
+            TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
 
-            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), nothing) for i in file_testitems])
-            append!(testitems, [TestItemDetail("Test error", "Test error", Range(doc, i.range), nothing, nothing, nothing, nothing, i.error) for i in file_errors])
+            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in file_testitems])
+            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
+            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])
         end
 
-        params = PublishTestItemsParams(
+        params = PublishTestsParams(
             get_uri(doc),
             get_version(doc),
             project_path,
             package_path,
             package_name,
-            testitems
+            testitems,
+            testsetups,
+            testerrors
         )
-        JSONRPC.send(jr_endpoint, textDocument_publishTestitems_notification_type, params)
+        JSONRPC.send(jr_endpoint, textDocument_publishTests_notification_type, params)
     end
 end

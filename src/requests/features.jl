@@ -195,6 +195,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     # Insert start and stop line comments as markers in the original text
     original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
+    stopline = minimum(stopline, length(original_lines))
     original_block = join(@view(original_lines[startline:stopline]))
     # If the stopline do not have a trailing newline we need to add that before our stop
     # comment marker. This is removed after formatting.

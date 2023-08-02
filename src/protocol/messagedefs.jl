@@ -10,6 +10,7 @@ const textDocument_prepareRename_request_type = JSONRPC.RequestType("textDocumen
 const textDocument_documentSymbol_request_type = JSONRPC.RequestType("textDocument/documentSymbol", DocumentSymbolParams, Union{Vector{DocumentSymbol}, Vector{SymbolInformation}, Nothing})
 const textDocument_documentHighlight_request_type = JSONRPC.RequestType("textDocument/documentHighlight", DocumentHighlightParams, Union{Vector{DocumentHighlight}, Nothing})
 const textDocument_hover_request_type = JSONRPC.RequestType("textDocument/hover", TextDocumentPositionParams, Union{Hover, Nothing})
+const textDocument_semanticTokens_full_request_type = JSONRPC.RequestType("textDocument/semanticTokens/full", SemanticTokensParams, Union{SemanticTokens,Nothing})
 const textDocument_didOpen_notification_type = JSONRPC.NotificationType("textDocument/didOpen", DidOpenTextDocumentParams)
 const textDocument_didClose_notification_type = JSONRPC.NotificationType("textDocument/didClose", DidCloseTextDocumentParams)
 const textDocument_didChange_notification_type = JSONRPC.NotificationType("textDocument/didChange", DidChangeTextDocumentParams)

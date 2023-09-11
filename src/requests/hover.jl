@@ -70,7 +70,7 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr 
             end
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, server, expr, env)
     end
     return documentation
 end

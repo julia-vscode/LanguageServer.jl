@@ -7,6 +7,7 @@ using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
 import TestItemDetection
+import Logging
 using PrecompileTools
 
 export LanguageServerInstance, runserver
@@ -38,14 +39,6 @@ include("requests/init.jl")
 include("requests/signatures.jl")
 include("requests/highlight.jl")
 include("utilities.jl")
-
-@setup_workload begin
-    iob = IOBuffer()
-    println(iob)
-    @compile_workload begin
-        runserver(iob)
-    end
-end
-precompile(runserver, ())
+include("precompile.jl")
 
 end

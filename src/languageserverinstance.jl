@@ -293,9 +293,7 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            io = IOBuffer()
-            Base.display_error(io, err, bt)
-            print(stderr, String(take!(io)))
+            @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
         end
     finally
         if isopen(server.combined_msg_queue)

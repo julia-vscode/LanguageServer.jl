@@ -460,3 +460,51 @@ end
         end
     end
 end
+
+# some timer utilities
+add_timer_message!(did_show_timer, timings, msg::Dict) = add_timer_message!(did_show_timer, timings, string("LSP/", get(msg, "method", "")))
+function add_timer_message!(did_show_timer, timings, msg::String)
+    if did_show_timer[]
+        return
+    end
+
+    push!(timings, (msg, time()))
+
+    if should_show_timer_message(timings)
+        send_startup_time_message(timings)
+        did_show_timer[] = true
+    end
+end
+
+function should_show_timer_message(timings)
+    required_messages = [
+        "LSP/initialize",
+        "LSP/initialized",
+        "initial lint done"
+    ]
+
+    return all(in(first.(timings)), required_messages)
+end
+
+function send_startup_time_message(timings)
+    length(timings) > 1 || return
+
+    io = IOBuffer()
+    println(io, "============== Startup timings ==============")
+    starttime = prevtime = first(timings)[2]
+    for (msg, thistime) in timings
+        println(
+            io,
+            lpad(string(round(thistime - starttime; sigdigits = 5)), 10),
+            " - ", msg, " (",
+            round(thistime - prevtime; sigdigits = 5),
+            "s since last event)"
+        )
+        prevtime = thistime
+    end
+    println(io, "=============================================")
+
+    empty!(timings)
+
+    println(stderr, String(take!(io)))
+end

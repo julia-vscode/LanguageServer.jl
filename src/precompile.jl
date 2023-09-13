@@ -3,7 +3,7 @@
     println(iob)
     @compile_workload begin
         # Suppress errors
-        if get(ENV, "JULIA_DEBUG", "") == "LanguageServer"
+        if get(ENV, "JULIA_DEBUG", "") in ("all", "LanguageServer")
             precompile_logger = Logging.ConsoleLogger()
         else
             precompile_logger = Logging.NullLogger()
@@ -14,4 +14,3 @@
     end
 end
 precompile(runserver, ())
-

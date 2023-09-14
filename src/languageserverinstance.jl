@@ -66,7 +66,7 @@ mutable struct LanguageServerInstance
 
     workspace::JuliaWorkspace
 
-    function LanguageServerInstance(pipe_in, pipe_out, env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
@@ -192,10 +192,8 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                         progress_notification_type,
                         ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, missing))
                     )
-                    @info msg
-                else
-                    @info msg
                 end
+                @info msg
             end,
             server.err_handler,
             download = server.symserver_use_download
@@ -274,16 +272,21 @@ end
 
 Run the language `server`.
 """
-function Base.run(server::LanguageServerInstance)
+function Base.run(server::LanguageServerInstance; timings = [])
+    did_show_timer = Ref(false)
+    add_timer_message!(did_show_timer, timings, "LS startup started")
+
     server.status = :started
 
     run(server.jr_endpoint)
     @debug "Connected at $(round(Int, time()))"
+    add_timer_message!(did_show_timer, timings, "connection established")
 
     trigger_symbolstore_reload(server)
 
     @async try
         @debug "LS: Starting client listener task."
+        add_timer_message!(did_show_timer, timings, "(async) listening to client events")
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
             put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
@@ -293,9 +296,7 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            io = IOBuffer()
-            Base.display_error(io, err, bt)
-            print(stderr, String(take!(io)))
+            @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
         end
     finally
         if isopen(server.combined_msg_queue)
@@ -304,9 +305,11 @@ function Base.run(server::LanguageServerInstance)
         end
         @debug "LS: Client listener task done."
     end
+    yield()
 
     @async try
         @debug "LS: Starting symbol server listener task."
+        add_timer_message!(did_show_timer, timings, "(async) listening to symbol server events")
         while true
             msg = take!(server.symbol_results_channel)
             put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
@@ -316,9 +319,7 @@ function Base.run(server::LanguageServerInstance)
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            io = IOBuffer()
-            Base.display_error(io, err, bt)
-            print(stderr, String(take!(io)))
+            @error "LS: Queue op failed" ex=(err, bt)
         end
     finally
         if isopen(server.combined_msg_queue)
@@ -327,8 +328,9 @@ function Base.run(server::LanguageServerInstance)
         end
         @debug "LS: Symbol server listener task done."
     end
+    yield()
 
-    @debug "Symbol Server started at $(round(Int, time()))"
+    @debug "async tasks started at $(round(Int, time()))"
 
     msg_dispatcher = JSONRPC.MsgDispatcher()
 
@@ -375,22 +377,30 @@ function Base.run(server::LanguageServerInstance)
     # handled directly.
     msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
 
-    @debug "starting main loop"
     @debug "Starting event listener loop at $(round(Int, time()))"
+    add_timer_message!(did_show_timer, timings, "starting combined listener")
+
     while true
         message = take!(server.combined_msg_queue)
+
         if message.type == :close
-            @info "Shutting down server instance."
+            @debug "Shutting down server instance."
             return
         elseif message.type == :clientmsg
             msg = message.msg
+
+            add_timer_message!(did_show_timer, timings, msg)
+
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
         elseif message.type == :symservmsg
-            @info "Received new data from Julia Symbol Server."
+            @debug "Received new data from Julia Symbol Server."
 
             server.global_env.symbols = message.msg
+            add_timer_message!(did_show_timer, timings, "symbols received")
             server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
+            add_timer_message!(did_show_timer, timings, "extended methods computed")
             server.global_env.project_deps = collect(keys(server.global_env.symbols))
+            add_timer_message!(did_show_timer, timings, "project deps computed")
 
             # redo roots_env_map
             for (root, _) in server.roots_env_map
@@ -402,11 +412,14 @@ function Base.run(server::LanguageServerInstance)
                     server.roots_env_map[root] = newenv
                 end
             end
+            add_timer_message!(did_show_timer, timings, "env map computed")
 
-            @debug "starting re-lint of everything"
+            @debug "Linting started at $(round(Int, time()))"
+
             relintserver(server)
-            @debug "re-lint done"
+
             @debug "Linting finished at $(round(Int, time()))"
+            add_timer_message!(did_show_timer, timings, "initial lint done")
         end
     end
 end

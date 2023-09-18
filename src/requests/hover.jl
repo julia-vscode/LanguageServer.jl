@@ -3,7 +3,7 @@ function textDocument_hover_request(params::TextDocumentPositionParams, server::
     env = getenv(doc, server)
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", server)
+    documentation = get_hover(x, "", server, x, env)
     documentation = get_closer_hover(x, documentation)
     documentation = get_fcall_position(x, documentation)
     documentation = sanitize_docstring(documentation)
@@ -11,15 +11,15 @@ function textDocument_hover_request(params::TextDocumentPositionParams, server::
     return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
 end
 
-get_hover(x, documentation::String, server) = documentation
+get_hover(x, documentation::String, server, expr, env) = documentation
 
-function get_hover(x::EXPR, documentation::String, server)
+function get_hover(x::EXPR, documentation::String, server, expr, env)
     if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
         r = refof(x)
         documentation = if r isa StaticLint.Binding
-            get_hover(r, documentation, server)
+            get_hover(r, documentation, server, expr, env)
         elseif r isa SymbolServer.SymStore
-            get_hover(r, documentation, server)
+            get_hover(r, documentation, server, expr, env)
         else
             documentation
         end
@@ -27,12 +27,12 @@ function get_hover(x::EXPR, documentation::String, server)
     return documentation
 end
 
-function get_tooltip(b::StaticLint.Binding, documentation::String, server; show_definition = false)
+function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr = nothing, env = nothing; show_definition = false)
     if b.val isa StaticLint.Binding
-        documentation = get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, server, expr, env)
     elseif b.val isa EXPR
         if CSTParser.defines_function(b.val) || CSTParser.defines_datatype(b.val)
-            documentation = get_func_hover(b, documentation, server)
+            documentation = get_func_hover(b, documentation, server, expr, env)
             for r in b.refs
                 method = StaticLint.get_method(r)
                 if method isa EXPR
@@ -43,7 +43,7 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server; show_
                         documentation = string(ensure_ends_with(documentation), "```julia\n", to_codeobject(method), "\n```\n")
                     end
                 elseif method isa SymbolServer.SymStore
-                    documentation = get_hover(method, documentation, server)
+                    documentation = get_hover(method, documentation, server, expr, env)
                 end
             end
         else
@@ -70,12 +70,13 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server; show_
             end
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = get_hover(b.val, documentation, server)
+        documentation = get_hover(b.val, documentation, server, expr, env)
     end
     return documentation
 end
 
-get_hover(b::StaticLint.Binding, documentation::String, server) = get_tooltip(b, documentation, server; show_definition = true)
+get_hover(b::StaticLint.Binding, documentation::String, server, expr, env) =
+    get_tooltip(b, documentation, server, expr, env; show_definition = true)
 
 get_typed_definition(b) = _completion_type(b)
 get_typed_definition(b::StaticLint.Binding) =
@@ -136,53 +137,66 @@ end
 prettify_expr(ex) = string(ex)
 
 # print(io, x::SymStore) methods are defined in SymbolServer
-function get_hover(b::SymbolServer.SymStore, documentation::String, server)
+function get_hover(b::SymbolServer.SymStore, documentation::String, server, expr, env)
     if !isempty(b.doc)
         documentation = string(documentation, b.doc, "\n")
     end
     documentation = string(documentation, "```julia\n", b, "\n```")
 end
 
-function get_hover(f::SymbolServer.FunctionStore, documentation::String, server)
+function get_hover(f::SymbolServer.FunctionStore, documentation::String, server, expr, env)
     if !isempty(f.doc)
-        documentation = string(documentation, f.doc, "\n")
+        documentation = string(documentation, f.doc, "\n\n")
     end
 
-    documentation = string(documentation, "`$(f.name)` is a `Function`.\n")
-    nm = length(f.methods)
-    documentation = string(documentation, "**$(nm)** method", nm == 1 ? "" : "s", " for function ", '`', f.name, '`', '\n')
-    for m in f.methods
-        io = IOBuffer()
-        print(io, m.name, "(")
-        nsig = length(m.sig)
-        for (i, sig) = enumerate(m.sig)
-            if sig[1] ≠ Symbol("#unused#")
-                print(io, sig[1])
+    if expr !== nothing && env !== nothing
+        method_count = 0
+        tls = StaticLint.retrieve_toplevel_scope(expr)
+
+        totalio = IOBuffer()
+        StaticLint.iterate_over_ss_methods(f, tls, env, function (m)
+            method_count += 1
+
+            io = IOBuffer()
+            print(io, m.name, "(")
+            nsig = length(m.sig)
+            for (i, sig) = enumerate(m.sig)
+                if sig[1] ≠ Symbol("#unused#")
+                    print(io, sig[1])
+                end
+                print(io, "::", sig[2])
+                i ≠ nsig && print(io, ", ")
             end
-            print(io, "::", sig[2])
-            i ≠ nsig && print(io, ", ")
-        end
-        print(io, ")")
-        sig = String(take!(io))
+            print(io, ")")
+            sig = String(take!(io))
 
-        text = replace(string(m.file, ':', m.line), "\\" => "\\\\")
-        link = text
+            path = replace(m.file, "\\" => "\\\\")
+            text = string(path, ':', m.line)
+            link = text
 
-        if server.clientInfo !== missing && isabspath(m.file)
-            clientname = lowercase(server.clientInfo.name)
-            if occursin("code", clientname) || occursin("sublime", clientname)
-                link = string(filepath2uri(m.file), "#", m.line)
+            if server.clientInfo !== missing && isabspath(m.file)
+                clientname = lowercase(server.clientInfo.name)
+                if occursin("code", clientname) || occursin("sublime", clientname)
+                    link = string(filepath2uri(m.file), "#", m.line)
+                    text = string(basename(path), ':', m.line)
+                end
             end
-        end
+            println(totalio, "$(method_count). `$(sig)` in `$(m.mod)` at [$(text)]($(link))\n")
+            return false
+        end)
 
-        documentation = string(documentation, "- `$(sig)` in `$(m.mod)` at [$(text)]($(link))", '\n')
+        documentation = string(
+            documentation,
+            "`$(f.name)` is a function with **$(method_count)** method$(method_count == 1 ? "" : "s")\n",
+            String(take!(totalio))
+        )
     end
+
     return documentation
 end
 
-
-get_func_hover(x, documentation, server) = documentation
-get_func_hover(x::SymbolServer.SymStore, documentation, server) = get_hover(x, documentation, server)
+get_func_hover(x, documentation, server, expr, env) = documentation
+get_func_hover(x::SymbolServer.SymStore, documentation, server, expr, env) = get_hover(x, documentation, server, expr, env)
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
@@ -267,7 +281,12 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
                     documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
             else
-                documentation = string("Argument $arg_i of $(minargs) in call to `", CSTParser.str_value(fname), "`\n", documentation)
+                callname = if CSTParser.is_getfield(fname)
+                    CSTParser.str_value(fname.args[1]) * "." * CSTParser.str_value(CSTParser.get_rhs_of_getfield(fname))
+                else
+                    CSTParser.str_value(fname)
+                end
+                documentation = string("Argument $arg_i of $(minargs) in call to `", callname, "`\n", documentation)
             end
             return documentation
         else

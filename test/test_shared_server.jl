@@ -1,5 +1,6 @@
 import Pkg
 using LanguageServer.URIs2
+using LanguageServer: LanguageServerInstance
 
 include("test_shared_init_request.jl")
 
@@ -19,6 +20,7 @@ def_test(line, char) = LanguageServer.textDocument_definition_request(LanguageSe
 ref_test(line, char) = LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
 rename_test(line, char) = LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing, "newname"), server, server.jr_endpoint)
 hover_test(line, char) = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char)), server, server.jr_endpoint)
+range_formatting_test(line0, char0, line1, char1) = LanguageServer.textDocument_range_formatting_request(LanguageServer.DocumentRangeFormattingParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Range(LanguageServer.Position(line0, char0), LanguageServer.Position(line1, char1)), LanguageServer.FormattingOptions(4, true, missing, missing, missing)), server, server.jr_endpoint)
 
 # TODO Replace this with a proper mock endpoint
 JSONRPC.send(::Nothing, ::Any, ::Any) = nothing

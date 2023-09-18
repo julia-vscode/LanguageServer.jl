@@ -51,7 +51,7 @@ end
 
 @testitem "hover docs" begin
     include("../test_shared_server.jl")
-    
+
     settestdoc("""
     "I have a docstring"
     Base.@kwdef struct SomeStruct
@@ -59,4 +59,16 @@ end
     end
     """)
     @test startswith(hover_test(1, 20).contents.value, "I have a docstring")
+end
+
+@testitem "hover argument qualified function" begin
+    include("../test_shared_server.jl")
+
+    settestdoc("""
+    module M
+        f(a,b,c,d,e) = 1
+    end
+    M.f(1,2,3,4,5)
+    """)
+    @test hover_test(3, 5).contents.value == "Argument 1 of 5 in call to `M.f`\n"
 end

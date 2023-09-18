@@ -252,7 +252,7 @@ end
 
 function for_each_ref(f, identifier::EXPR)
     if identifier isa EXPR && StaticLint.hasref(identifier) && refof(identifier) isa StaticLint.Binding
-        for r in refof(identifier).refs
+        for r in StaticLint.loose_refs(refof(identifier))
             if r isa EXPR
                 doc1, o = get_file_loc(r)
                 if doc1 isa Document

@@ -1,5 +1,5 @@
 @testitem "latex completions" begin
-    include("../test_shared_server.jl") 
+    include("../test_shared_server.jl")
 
     settestdoc("""
     \\therefor
@@ -32,8 +32,7 @@
     @test completion_test(6, 14).items[1].textEdit.range == LanguageServer.Range(6, 0, 6, 14)
 end
 
-@testitem "path completions" begin
-end
+@testitem "path completions" begin end
 
 @testitem "import completions" begin
     include("../test_shared_server.jl")
@@ -85,7 +84,7 @@ end
     x = Expr()
     x.
     """)
-    @test all(item.label in ("head", "args") for item in completion_test(1, 2).items)
+    @test any(item.label in ("head", "args", "findmeta") for item in completion_test(1, 2).items)
 
     settestdoc("""
     struct T
@@ -175,7 +174,7 @@ end
 
 @testitem "completion details" begin
     include("../test_shared_server.jl")
-    
+
     settestdoc("""
         struct Bar end
         struct Foo

@@ -43,3 +43,7 @@ julia --project=/path/to/LanguageServer.jl/environment \
 If `env_path` is not specified, the language server will run on the
 parent project of `pwd` or on the default `.julia/environments/v#.#`
 if there is no parent project.
+
+## Development of the VSCode extension
+
+See https://github.com/julia-vscode/julia-vscode/wiki for information on how to test this package with the VSCode extension

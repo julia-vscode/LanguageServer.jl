@@ -42,7 +42,7 @@ end
     @test any(item.label == "rand" for item in completion_test(0, 14).items)
 
     settestdoc("import ")
-    @test all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)
+    @test (r = all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)) && !isempty(r)
 
     settestdoc("""module M end
     import .""")
@@ -85,7 +85,7 @@ end
     x = Expr()
     x.
     """)
-    @test all(item.label in ("head", "args") for item in completion_test(1, 2).items)
+    @test (r = all(item.label in ("head", "args") for item in completion_test(1, 2).items)) && (!isempty(r))
 
     settestdoc("""
     struct T
@@ -95,7 +95,7 @@ end
     x = T()
     x.
     """)
-    @test all(item.label in ("f1", "f2") for item in completion_test(1, 2).items)
+    @test (r = all(item.label in ("f1", "f2") for item in completion_test(5, 2).items)) && !isempty(r)
 end
 
 @testitem "token completions" begin

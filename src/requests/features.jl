@@ -339,6 +339,28 @@ function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, 
             push!(symbols, ds)
             symbols = ds.children
         end
+    elseif x.head == :macrocall
+        # detect @testitem "testname" ...
+        child_nodes = filter(i -> !(isa(i, EXPR) && i.head == :NOTHING && i.args === nothing), x.args)
+        if length(child_nodes) > 1
+            macroname = CSTParser.valof(child_nodes[1])
+            if macroname == "@testitem"
+                if (child_nodes[2] isa EXPR && child_nodes[2].head == :STRING)
+                    testname = CSTParser.valof(child_nodes[2])
+                    ds = DocumentSymbol(
+                        "$(macroname) \"$(testname)\"", # name
+                        missing, # detail
+                        6, # kind (6==method)
+                        false, # deprecated
+                        Range(doc, (pos .+ (0:x.span))), # range
+                        Range(doc, (pos .+ (0:x.span))), # selection range
+                        DocumentSymbol[] # children
+                    )
+                    push!(symbols, ds)
+                    symbols = ds.children
+                end
+            end
+        end
     end
     if length(x) > 0
         for a in x

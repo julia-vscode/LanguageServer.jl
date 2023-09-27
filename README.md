@@ -18,6 +18,8 @@ make use of the Julia Language Server for various code editing features:
 - [Emacs](../../wiki/Emacs)
 - [Sublime Text](https://github.com/tomv564/LSP)
 - [Kakoune](../../wiki/Kakoune)
+- [Helix](https://uncomfyhalomacro.pl/blog/14/)
+- [Others](https://microsoft.github.io/language-server-protocol/implementors/tools/)
 
 ## Installation and Usage
 **Documentation**: [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://www.julia-vscode.org/LanguageServer.jl/dev)
@@ -41,3 +43,7 @@ julia --project=/path/to/LanguageServer.jl/environment \
 If `env_path` is not specified, the language server will run on the
 parent project of `pwd` or on the default `.julia/environments/v#.#`
 if there is no parent project.
+
+## Development of the VSCode extension
+
+See https://github.com/julia-vscode/julia-vscode/wiki for information on how to test this package with the VSCode extension

@@ -279,7 +279,6 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
     end
 end
 
-
 function is_rebinding_of_module(x)
     x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
     refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
@@ -295,6 +294,30 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                 collect_completions(refof(px).val, spartial, state, true)
             elseif refof(px).val isa EXPR && CSTParser.defines_module(refof(px).val) && scopeof(refof(px).val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).val), spartial, state, true)
+            elseif refof(px).val isa EXPR && CSTParser.isassignment(refof(px).val) &&
+                    length(refof(px).val.args) >= 2 && CSTParser.headof(refof(px).val.args[2]) === :tuple
+                rhs = refof(px).val.args[2]
+                if length(rhs.args) > 0
+                    head = rhs.args[1].head
+                    args = []
+                    if head === :parameters
+                        args = rhs.args[1]
+                    elseif head isa EXPR && head.val == "="
+                        args = rhs.args
+                    end
+
+                    for arg in args
+                        a = nothing
+                        if arg.head === :kw || head isa EXPR && head.val == "="
+                            a = String(valof(arg.args[1]))
+                        elseif arg.head === :IDENTIFIER
+                            a = String(valof(arg))
+                        end
+                        if a !== nothing
+                            add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
+                        end
+                    end
+                end
             elseif is_rebinding_of_module(px)
                 collect_completions(scopeof(refof(refof(px).val.args[2]).val), spartial, state, true)
             elseif refof(px).type isa SymbolServer.DataTypeStore
@@ -311,7 +334,8 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                         add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
+            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR &&
+                    CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
                 collect_completions(scopeof(refof(px).type.val), spartial, state, true)
             end
         elseif refof(px) isa StaticLint.SymbolServer.ModuleStore

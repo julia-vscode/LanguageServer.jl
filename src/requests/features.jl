@@ -515,7 +515,7 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", server)
+    documentation = get_hover(x, "", server, x, env)
 
     return documentation
 end
@@ -542,7 +542,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         score = _score(needle, sym)
         if score < 2
-            val = get_hover(val, "", server)
+            val = get_hover(val, "", server, nothing, getenv(server))
             if !isempty(val)
                 nfound += 1
                 push!(matches, score => val)

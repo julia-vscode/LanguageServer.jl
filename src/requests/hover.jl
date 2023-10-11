@@ -150,47 +150,54 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server,
     end
 
     if expr !== nothing && env !== nothing
-        method_count = 0
         tls = StaticLint.retrieve_toplevel_scope(expr)
-
-        totalio = IOBuffer()
-        StaticLint.iterate_over_ss_methods(f, tls, env, function (m)
-            method_count += 1
-
-            io = IOBuffer()
-            print(io, m.name, "(")
-            nsig = length(m.sig)
-            for (i, sig) = enumerate(m.sig)
-                if sig[1] ≠ Symbol("#unused#")
-                    print(io, sig[1])
-                end
-                print(io, "::", sig[2])
-                i ≠ nsig && print(io, ", ")
+        itr = func -> StaticLint.iterate_over_ss_methods(f, tls, env, func)
+    else
+        itr = func -> begin
+            for m in f.methods
+                func(m)
             end
-            print(io, ")")
-            sig = String(take!(io))
-
-            path = replace(m.file, "\\" => "\\\\")
-            text = string(path, ':', m.line)
-            link = text
-
-            if server.clientInfo !== missing && isabspath(m.file)
-                clientname = lowercase(server.clientInfo.name)
-                if occursin("code", clientname) || occursin("sublime", clientname)
-                    link = string(filepath2uri(m.file), "#", m.line)
-                    text = string(basename(path), ':', m.line)
-                end
-            end
-            println(totalio, "$(method_count). `$(sig)` in `$(m.mod)` at [$(text)]($(link))\n")
-            return false
-        end)
-
-        documentation = string(
-            documentation,
-            "`$(f.name)` is a function with **$(method_count)** method$(method_count == 1 ? "" : "s")\n",
-            String(take!(totalio))
-        )
+        end
     end
+
+    method_count = 0
+    totalio = IOBuffer()
+    itr() do m
+        method_count += 1
+
+        io = IOBuffer()
+        print(io, m.name, "(")
+        nsig = length(m.sig)
+        for (i, sig) = enumerate(m.sig)
+            if sig[1] ≠ Symbol("#unused#")
+                print(io, sig[1])
+            end
+            print(io, "::", sig[2])
+            i ≠ nsig && print(io, ", ")
+        end
+        print(io, ")")
+        sig = String(take!(io))
+
+        path = replace(m.file, "\\" => "\\\\")
+        text = string(path, ':', m.line)
+        link = text
+
+        if server.clientInfo !== missing && isabspath(m.file)
+            clientname = lowercase(server.clientInfo.name)
+            if occursin("code", clientname) || occursin("sublime", clientname)
+                link = string(filepath2uri(m.file), "#", m.line)
+                text = string(basename(path), ':', m.line)
+            end
+        end
+        println(totalio, "$(method_count). `$(sig)` in `$(m.mod)` at [$(text)]($(link))\n")
+        return false
+    end
+
+    documentation = string(
+        documentation,
+        "`$(f.name)` is a function with **$(method_count)** method$(method_count == 1 ? "" : "s")\n",
+        String(take!(totalio))
+    )
 
     return documentation
 end

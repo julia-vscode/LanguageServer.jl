@@ -214,7 +214,7 @@ end
 
 
 function publish_diagnostics(doc::Document, server, conn)
-    diagnostics = if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
+    diagnostics = if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
         pkgpath = getpath(doc)
         if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
             filter!(!is_diag_dependent_on_env, doc.diagnostics)

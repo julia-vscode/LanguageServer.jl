@@ -435,11 +435,15 @@ function relintserver(server)
         # only do a pass on documents once
         root = getroot(doc)
         if !(root in roots)
-            push!(roots, root)
-            semantic_pass(root)
+            if get_language_id(root) in ("julia", "markdown", "juliamarkdown")
+                push!(roots, root)
+                semantic_pass(root)
+            end
         end
     end
     for doc in documents
-        lint!(doc, server)
+        if get_language_id(doc) in ("julia", "markdown", "juliamarkdown")
+            lint!(doc, server)
+        end
     end
 end

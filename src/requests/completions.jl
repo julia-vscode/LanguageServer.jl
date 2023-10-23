@@ -30,7 +30,7 @@ using REPL
 Returns true if `s` starts with `prefix` or has a sufficiently high fuzzy score.
 """
 function is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
-    starter = if all(islowercase, prefix)
+    starter = if !any(isuppercase, prefix)
         startswith(lowercase(s), prefix)
     else
         startswith(s, prefix)

@@ -91,7 +91,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
-    else
+    else get_language_id(doc) == "julia"
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
         r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
         for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
@@ -116,10 +116,12 @@ function parse_all(doc::Document, server::LanguageServerInstance)
             ps = CSTParser.ParseState(get_text(doc))
             doc.cst, ps = CSTParser.parse(ps, true)
         end
-        if t > 10
+        if t > 1
             # warn to help debugging in the wild
             @warn "CSTParser took a long time ($(round(Int, t)) seconds) to parse $(repr(getpath(doc)))"
         end
+    else
+        return
     end
     sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
     if headof(doc.cst) === :file
@@ -212,7 +214,7 @@ end
 
 
 function publish_diagnostics(doc::Document, server, conn)
-    diagnostics = if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
+    diagnostics = if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
         pkgpath = getpath(doc)
         if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
             filter!(!is_diag_dependent_on_env, doc.diagnostics)

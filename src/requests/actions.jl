@@ -163,7 +163,7 @@ function expand_inline_func(x, server, conn)
     if headof(body) == :block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-            TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
+            TextEdit(Range(file, offset .+ (0:func.span)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     elseif (headof(body) === :begin || CSTParser.isbracketed(body)) &&
@@ -175,8 +175,8 @@ function expand_inline_func(x, server, conn)
             newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[1].args[i].span)])
             blockoffset += body.args[1].args[i].fullspan
         end
-        newtext = string(newtext, "\nend\n")
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
+        newtext = string(newtext, "\nend")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.span)), newtext)])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     end
 end

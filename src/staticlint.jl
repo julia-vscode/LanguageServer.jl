@@ -71,7 +71,7 @@ function setserver(file::Document, server::LanguageServerInstance)
     return file
 end
 
-function lint!(doc, server)
+function lint!(doc::Document, server)
     StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)

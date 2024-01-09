@@ -1,5 +1,5 @@
 @testitem "latex completions" begin
-    include("../test_shared_server.jl") 
+    include("../test_shared_server.jl")
 
     settestdoc("""
     \\therefor
@@ -48,9 +48,6 @@ end
     import .""")
     @test_broken completion_test(1, 8).items[1].label == "M"
 
-    settestdoc("import Base.")
-    @test any(item.label == "Meta" for item in completion_test(0, 12).items)
-
     settestdoc("import Base.M")
     @test any(item.label == "Meta" for item in completion_test(0, 13).items)
 
@@ -62,7 +59,10 @@ end
     include("../test_shared_server.jl")
 
     settestdoc("Base.")
-    @test any(item.label == "Base" for item in completion_test(0, 5).items)
+    @test length(completion_test(0, 5).items) > 10
+
+    settestdoc("Base.B")
+    @test any(item.label == "Base" for item in completion_test(0, 6).items)
 
     settestdoc("Base.r")
     @test any(item.label == "rand" for item in completion_test(0, 6).items)
@@ -175,7 +175,7 @@ end
 
 @testitem "completion details" begin
     include("../test_shared_server.jl")
-    
+
     settestdoc("""
         struct Bar end
         struct Foo

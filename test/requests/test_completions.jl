@@ -193,3 +193,19 @@ end
     @test any(i -> i.label == "yyy" && occursin("yyy::Bar", i.detail), items1)
     @test any(i -> i.label == "xxx" && occursin("xxx::Bar = f.yyy", i.detail), items2)
 end
+
+@testitem "complete function parens" begin
+    include("../test_shared_server.jl")
+
+    server.complete_func_parens = true
+    settestdoc("""
+        foo_func() = 1
+        foo_var = 2
+        fo
+        """)
+    items = completion_test(2, 2).items
+    @test any(i -> i.label == "foo_func" && i.textEdit.newText == "foo_func()", items)
+    @test any(i -> i.label == "foo_var" && i.textEdit.newText == "foo_var", items)
+    @test any(i -> i.label == "foldl" && i.textEdit.newText == "foldl()", items)
+    server.complete_func_parens = false
+end

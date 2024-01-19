@@ -18,7 +18,7 @@ const CodeActionKinds = (Empty = "",
                          RefactorInline = "refactor.inline",
                          RefactorRewrite = "refactor.rewrite",
                          Source = "source",
-                         SourceOrganizeImports = "source.organiseImports")
+                         SourceOrganizeImports = "source.organizeImports")
 
 @dict_readable struct CodeActionKindCapabilities
     valueSet::Vector{CodeActionKind}

@@ -51,7 +51,7 @@ end
 function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations)
     doc1, o = get_file_loc(x)
     if doc1 isa Document
-        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:x.span))))
+        push!(locations, Location(get_uri(doc1), Range(doc1, o .+ (0:x.span))))
     end
 end
 
@@ -79,7 +79,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
         get_definitions(b, tls, getenv(doc, server), locations)
     end
 
-    return locations
+    return unique!(locations)
 end
 
 function descend(x::EXPR, target::EXPR, offset=0)
@@ -155,9 +155,8 @@ end
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
 
-    config = get_juliaformatter_config(doc, server)
-
     newcontent = try
+        config = get_juliaformatter_config(doc, server)
         format_text(get_text(doc), params, config)
     catch err
         return JSONRPC.JSONRPCError(
@@ -167,7 +166,7 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         )
     end
 
-    end_l, end_c = get_position_at(doc, sizeof(get_text(doc))) # AUDIT: OK
+    end_l, end_c = get_position_from_offset(doc, sizeof(get_text(doc))) # AUDIT: OK
     lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
 
     return lsedits
@@ -184,51 +183,31 @@ function format_text(text::AbstractString, params, config)
     end
 end
 
+# Strings broken up and joined with * to make this file formattable
+const FORMAT_MARK_BEGIN = "---- BEGIN LANGUAGESERVER" * " RANGE FORMATTING ----"
+const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
+
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    cst = getcst(doc)
+    oldcontent = get_text(doc)
+    startline = params.range.start.line + 1
+    stopline = params.range.stop.line + 1
 
-    expr = get_inner_expr(cst, get_offset(doc, params.range))
+    # Insert start and stop line comments as markers in the original text
+    original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
+    stopline = min(stopline, length(original_lines))
+    original_block = join(@view(original_lines[startline:stopline]))
+    # If the stopline do not have a trailing newline we need to add that before our stop
+    # comment marker. This is removed after formatting.
+    stopline_has_newline = original_lines[stopline] != chomp(original_lines[stopline])
+    insert!(original_lines, stopline + 1, (stopline_has_newline ? "# " : "\n# ") * FORMAT_MARK_END * "\n")
+    insert!(original_lines, startline, "# " * FORMAT_MARK_BEGIN * "\n")
+    text_marked = join(original_lines)
 
-    if expr === nothing
-        return nothing
-    end
-
-    while !(expr.head in (:for, :if, :function, :module, :file, :call))
-        if expr.parent !== nothing
-            expr = expr.parent
-        else
-            return nothing
-        end
-    end
-
-    _, offset = get_file_loc(expr)
-    l1, c1 = get_position_at(doc, offset)
-    c1 = 0
-    start_offset = get_offset2(doc, l1, c1)
-    l2, c2 = get_position_at(doc, offset + expr.span)
-
-    text = get_text(doc)[start_offset:offset+expr.span]
-
-    longest_prefix = nothing
-    for line in eachline(IOBuffer(text))
-        (isempty(line) || occursin(r"^\s*$", line)) && continue
-        idx = 0
-        for c in line
-            if c == ' ' || c == '\t'
-                idx += 1
-            else
-                break
-            end
-        end
-        line = line[1:idx]
-        longest_prefix = CSTParser.longest_common_prefix(something(longest_prefix, line), line)
-    end
-
-    config = get_juliaformatter_config(doc, server)
-
-    newcontent = try
-        format_text(text, params, config)
+    # Format the full marked text
+    text_formatted = try
+        config = get_juliaformatter_config(doc, server)
+        format_text(text_marked, params, config)
     catch err
         return JSONRPC.JSONRPCError(
             -33000,
@@ -237,17 +216,26 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    if longest_prefix !== nothing && !isempty(longest_prefix)
-        io = IOBuffer()
-        for line in eachline(IOBuffer(newcontent), keep=true)
-            print(io, longest_prefix, line)
-        end
-        newcontent = String(take!(io))
+    # Find the markers in the formatted text and extract the lines in between
+    formatted_lines = collect(eachline(IOBuffer(text_formatted); keep=true))
+    start_idx = findfirst(x -> occursin(FORMAT_MARK_BEGIN, x), formatted_lines)
+    start_idx === nothing && return TextEdit[]
+    stop_idx = findfirst(x -> occursin(FORMAT_MARK_END, x), formatted_lines)
+    stop_idx === nothing && return TextEdit[]
+    formatted_block = join(@view(formatted_lines[(start_idx+1):(stop_idx-1)]))
+
+    # Remove the extra inserted newline if there was none from the start
+    if !stopline_has_newline
+        formatted_block = chomp(formatted_block)
     end
 
-    lsedits = TextEdit[TextEdit(Range(l1, c1, l2, c2), newcontent)]
+    # Don't suggest an edit in case the formatted text is identical to original text
+    if formatted_block == original_block
+        return TextEdit[]
+    end
 
-    return lsedits
+    # End position is exclusive, replace until start of next line
+    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line + 1, 0), formatted_block)]
 end
 
 function find_references(textDocument::TextDocumentIdentifier, position::Position, server)
@@ -257,14 +245,14 @@ function find_references(textDocument::TextDocumentIdentifier, position::Positio
     x = get_expr1(getcst(doc), offset)
     x === nothing && return locations
     for_each_ref(x) do r, doc1, o
-        push!(locations, Location(doc1._uri, Range(doc1, o .+ (0:r.span))))
+        push!(locations, Location(get_uri(doc1), Range(doc1, o .+ (0:r.span))))
     end
     return locations
 end
 
 function for_each_ref(f, identifier::EXPR)
     if identifier isa EXPR && StaticLint.hasref(identifier) && refof(identifier) isa StaticLint.Binding
-        for r in refof(identifier).refs
+        for r in StaticLint.loose_refs(refof(identifier))
             if r isa EXPR
                 doc1, o = get_file_loc(r)
                 if doc1 isa Document
@@ -288,7 +276,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
             push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
         else
             doc = getdocument(server, loc.uri)
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, doc._version), [TextEdit(loc.range, params.newName)])
+            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, get_version(doc)), [TextEdit(loc.range, params.newName)])
         end
     end
 
@@ -335,14 +323,31 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     return collect_document_symbols(getcst(doc), server, doc)
 end
 
-function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=DocumentSymbol[])
+struct BindingContext
+    is_function_def::Bool
+    is_datatype_def::Bool
+    is_datatype_def_body::Bool
+end
+BindingContext() = BindingContext(false, false, false)
+
+function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, ctx=BindingContext(), symbols=DocumentSymbol[])
+    is_datatype_def_body = ctx.is_datatype_def_body
+    if ctx.is_datatype_def && !is_datatype_def_body
+        is_datatype_def_body = x.head === :block && length(x.parent.args) >= 3 && x.parent.args[3] == x
+    end
+    ctx = BindingContext(
+        ctx.is_function_def || CSTParser.defines_function(x),
+        ctx.is_datatype_def || CSTParser.defines_datatype(x),
+        is_datatype_def_body,
+    )
+
     if bindingof(x) !== nothing
         b =  bindingof(x)
         if b.val isa EXPR && is_valid_binding_name(b.name)
             ds = DocumentSymbol(
                 get_name_of_binding(b.name), # name
                 missing, # detail
-                _binding_kind(b), # kind
+                _binding_kind(b, ctx), # kind
                 false, # deprecated
                 Range(doc, (pos .+ (0:x.span))), # range
                 Range(doc, (pos .+ (0:x.span))), # selection range
@@ -351,10 +356,32 @@ function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, 
             push!(symbols, ds)
             symbols = ds.children
         end
+    elseif x.head == :macrocall
+        # detect @testitem/testset "testname" ...
+        child_nodes = filter(i -> !(isa(i, EXPR) && i.head == :NOTHING && i.args === nothing), x.args)
+        if length(child_nodes) > 1
+            macroname = CSTParser.valof(child_nodes[1])
+            if macroname == "@testitem" || macroname == "@testset"
+                if (child_nodes[2] isa EXPR && child_nodes[2].head == :STRING)
+                    testname = CSTParser.valof(child_nodes[2])
+                    ds = DocumentSymbol(
+                        "$(macroname) \"$(testname)\"", # name
+                        missing, # detail
+                        3, # kind (namespace)
+                        false, # deprecated
+                        Range(doc, (pos .+ (0:x.span))), # range
+                        Range(doc, (pos .+ (0:x.span))), # selection range
+                        DocumentSymbol[] # children
+                    )
+                    push!(symbols, ds)
+                    symbols = ds.children
+                end
+            end
+        end
     end
     if length(x) > 0
         for a in x
-            collect_document_symbols(a, server, doc, pos, symbols)
+            collect_document_symbols(a, server, doc, pos, ctx, symbols)
             pos += a.fullspan
         end
     end
@@ -390,10 +417,16 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b)
+function _binding_kind(b, ctx::BindingContext)
     if b isa StaticLint.Binding
         if b.type === nothing
-            return 13
+            if ctx.is_datatype_def_body && !ctx.is_function_def
+                return 8
+            elseif ctx.is_datatype_def
+                return 26
+            else
+                return 13
+            end
         elseif b.type == StaticLint.CoreTypes.Module
             return 2
         elseif b.type == StaticLint.CoreTypes.Function
@@ -403,7 +436,11 @@ function _binding_kind(b)
         elseif b.type == StaticLint.CoreTypes.Int || b.type == StaticLint.CoreTypes.Float64
             return 16
         elseif b.type == StaticLint.CoreTypes.DataType
-            return 23
+            if ctx.is_datatype_def && !ctx.is_datatype_def_body
+                return 23
+            else
+                return 26
+            end
         else
             return 13
         end
@@ -425,8 +462,8 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
 
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
-        if doc._version == params.version
-            offset = get_offset2(doc, params.position.line, params.position.character, true)
+        if get_version(doc) == params.version
+            offset = index_at(doc, params.position, true)
             x, p = get_expr_or_parent(getcst(doc), offset, 1)
             if x isa EXPR
                 if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
@@ -450,7 +487,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
             return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return nodocuemnt_error(uri)
+        return nodocument_error(uri)
     end
     return "Main"
 end
@@ -468,17 +505,17 @@ end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    hasdocument(server, uri) || return nodocuemnt_error(uri)
+    hasdocument(server, uri) || return nodocument_error(uri)
 
     doc = getdocument(server, uri)
     env = getenv(doc, server)
-    if doc._version !== params.version
+    if get_version(doc) !== params.version
         return mismatched_version_error(uri, doc, params, "getDocAt")
     end
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", server)
+    documentation = get_hover(x, "", server, x, env)
 
     return documentation
 end
@@ -505,7 +542,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         score = _score(needle, sym)
         if score < 2
-            val = get_hover(val, "", server)
+            val = get_hover(val, "", server, nothing, getenv(server))
             if !isempty(val)
                 nfound += 1
                 push!(matches, score => val)
@@ -535,8 +572,8 @@ end
 get_selection_range_of_expr(x) = missing
 function get_selection_range_of_expr(x::EXPR)
     doc, offset = get_file_loc(x)
-    l1, c1 = get_position_at(doc, offset)
-    l2, c2 = get_position_at(doc, offset + x.span)
+    l1, c1 = get_position_from_offset(doc, offset)
+    l2, c2 = get_position_from_offset(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end
 

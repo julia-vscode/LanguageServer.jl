@@ -2,14 +2,11 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     uri = params.textDocument.uri
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
-        set_text!(doc, params.textDocument.text)
-        doc._version = params.textDocument.version
+        set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId))
         set_open_in_editor(doc, true)
-        get_line_offsets(doc, true)
     else
-        doc = Document(uri, params.textDocument.text, false, server)
+        doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId), false, server)
         setdocument!(server, uri, doc)
-        doc._version = params.textDocument.version
         doc._workspace_file = any(i -> startswith(string(uri), string(filepath2uri(i))), server.workspaceFolders)
         set_open_in_editor(doc, true)
 
@@ -44,23 +41,27 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     end
 end
 
-
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
     if params.text isa String
         if get_text(doc) != params.text
+            println(stderr, "Mismatch between server and client text")
+            println(stderr, "========== BEGIN SERVER SIDE TEXT ==========")
+            println(stderr, get_text(doc))
+            println(stderr, "========== END SERVER SIDE TEXT ==========")
+            println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
+            println(stderr, params.text)
+            println(stderr, "========== END CLIENT SIDE TEXT ==========")
             JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
-            throw(LSSyncMismatch("Mismatch between server and client text for $(doc._uri). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(doc._version)."))
+            throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
     end
     parse_all(doc, server)
 end
 
-
 function textDocument_willSave_notification(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
 end
-
 
 function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
     return TextEdit[]
@@ -78,18 +79,19 @@ end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    s0 = deepcopy(get_text(doc)) # I don't think deepcopy is needed
-    if params.textDocument.version < doc._version
-        error("The client and server have different textDocument versions for $(doc._uri). LS version is $(doc._version), request version is $(params.textDocument.version).")
-    end
-    doc._version = params.textDocument.version
 
-    for tdcce in params.contentChanges
-        applytextdocumentchanges(doc, tdcce)
+    s0 = get_text(doc)
+
+    if params.textDocument.version < get_version(doc)
+        error("The client and server have different textDocument versions for $(get_uri(doc)). LS version is $(get_version(doc)), request version is $(params.textDocument.version).")
     end
-    if endswith(doc._uri.path, ".jmd")
+
+    new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
+    set_text_document!(doc, new_text_document)
+
+    if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
-    else
+    else get_language_id(doc) == "julia"
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
         r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
         for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
@@ -105,37 +107,21 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     end
 end
 
-function convert_lsrange_to_jlrange(doc::Document, range::Range)
-    start_offset_ls = get_offset2(doc, range.start.line, range.start.character)
-    stop_offset = get_offset2(doc, range.stop.line, range.stop.character)
-
-    text = get_text(doc)
-
-    # we use prevind for the stop value here because Julia stop values in
-    # a range are inclusive, while the stop value is exclusive in a LS
-    # range
-    return start_offset_ls:prevind(text, stop_offset)
-end
-
-function applytextdocumentchanges(doc::Document, tdcce::TextDocumentContentChangeEvent)
-    if ismissing(tdcce.range) && ismissing(tdcce.rangeLength)
-        # No range given, replace all text
-        set_text!(doc, tdcce.text)
-    else
-        editrange = convert_lsrange_to_jlrange(doc, tdcce.range)
-        text = get_text(doc)
-        new_text = string(text[1:prevind(text, editrange.start)], tdcce.text, text[nextind(text, editrange.stop):lastindex(text)])
-        set_text!(doc, new_text)
-    end
-end
-
 function parse_all(doc::Document, server::LanguageServerInstance)
-    ps = CSTParser.ParseState(get_text(doc))
     StaticLint.clear_meta(getcst(doc))
-    if endswith(doc._uri.path, ".jmd")
-        doc.cst, ps = parse_jmd(ps, get_text(doc))
+    if get_language_id(doc) in ("markdown", "juliamarkdown")
+        doc.cst, ps = parse_jmd(get_text(doc))
+    elseif get_language_id(doc) == "julia"
+        t = @elapsed begin
+            ps = CSTParser.ParseState(get_text(doc))
+            doc.cst, ps = CSTParser.parse(ps, true)
+        end
+        if t > 1
+            # warn to help debugging in the wild
+            @warn "CSTParser took a long time ($(round(Int, t)) seconds) to parse $(repr(getpath(doc)))"
+        end
     else
-        doc.cst, ps = CSTParser.parse(ps, true)
+        return
     end
     sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
     if headof(doc.cst) === :file
@@ -147,7 +133,9 @@ function parse_all(doc::Document, server::LanguageServerInstance)
 end
 
 function mark_errors(doc, out=Diagnostic[])
-    line_offsets = get_line_offsets(doc)
+    line_offsets = get_line_offsets(get_text_document(doc))
+    # Extend line_offsets by one to consider up to EOF
+    line_offsets = vcat(line_offsets, length(get_text(doc)) + 1)
     errs = StaticLint.collect_hints(getcst(doc), getenv(doc), doc.server.lint_missingrefs)
     n = length(errs)
     n == 0 && return out
@@ -177,16 +165,25 @@ function mark_errors(doc, out=Diagnostic[])
                     r[2] = char
                     offset += errs[i][2].span
                 else
+                    rng = Range(r[1] - 1, r[2], line - 1, char)
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Error, missing, "Julia", "Parsing error", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
-                        push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Warning, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
+                        push!(out, Diagnostic(rng, DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
-                        if StaticLint.errorof(errs[i][2]) in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Hint, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), [DiagnosticTags.Unnecessary], missing))
+                        code = StaticLint.errorof(errs[i][2])
+                        description = get(StaticLint.LintCodeDescriptions, code, "")
+                        severity, tags = if code in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
+                            DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]
                         else
-                            push!(out, Diagnostic(Range(r[1] - 1, r[2], line - 1, char), DiagnosticSeverities.Information, missing, "Julia", get(StaticLint.LintCodeDescriptions, StaticLint.errorof(errs[i][2]), ""), missing, missing))
+                            DiagnosticSeverities.Information, missing
                         end
+                        code_details = if isdefined(StaticLint, :IndexFromLength) && code === StaticLint.IndexFromLength
+                            CodeDescription(URI("https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex"))
+                        else
+                            missing
+                        end
+                        push!(out, Diagnostic(rng, severity, string(code), code_details, "Julia", description, tags, missing))
                     end
                     i += 1
                     i > n && break
@@ -202,7 +199,7 @@ function mark_errors(doc, out=Diagnostic[])
     return out
 end
 
-isunsavedfile(doc::Document) = doc._uri.scheme == "untitled" # Not clear if this is consistent across editors.
+isunsavedfile(doc::Document) = get_uri(doc).scheme == "untitled" # Not clear if this is consistent across editors.
 
 """
 is_diag_dependent_on_env(diag::Diagnostic)::Bool
@@ -217,7 +214,7 @@ end
 
 
 function publish_diagnostics(doc::Document, server, conn)
-    diagnostics = if server.runlinter && server.symbol_store_ready && (is_workspace_file(doc) || isunsavedfile(doc))
+    diagnostics = if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
         pkgpath = getpath(doc)
         if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
             filter!(!is_diag_dependent_on_env, doc.diagnostics)
@@ -226,14 +223,15 @@ function publish_diagnostics(doc::Document, server, conn)
     else
         Diagnostic[]
     end
-    params = PublishDiagnosticsParams(doc._uri, doc._version, diagnostics)
+    text_document = get_text_document(doc)
+    params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
 end
 
 function clear_diagnostics(uri::URI, server, conn)
     doc = getdocument(server, uri)
     empty!(doc.diagnostics)
-    publishDiagnosticsParams = PublishDiagnosticsParams(doc._uri, doc._version, Diagnostic[])
+    publishDiagnosticsParams = PublishDiagnosticsParams(get_uri(doc), get_version(doc), Diagnostic[])
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
 end
 
@@ -243,62 +241,34 @@ function clear_diagnostics(server, conn)
     end
 end
 
-function parse_jmd(ps, str)
-    currentbyte = 1
-    blocks = []
-    while ps.nt.kind != Tokens.ENDMARKER
-        CSTParser.next(ps)
-        if ps.t.kind == Tokens.CMD || ps.t.kind == Tokens.TRIPLE_CMD
-            push!(blocks, (ps.t.startbyte, CSTParser.INSTANCE(ps)))
+function print_substitute_line(io::IO, line)
+    if endswith(line, '\n')
+        println(io, ' '^(sizeof(line) - 1))
+    else
+        print(io, ' '^sizeof(line))
+    end
+end
+
+function parse_jmd(str)
+    cleaned = IOBuffer()
+    in_julia_block = false
+    for line in eachline(IOBuffer(str), keep=true)
+        if startswith(line, r"^```({?julia|@example|@setup)")
+            in_julia_block = true
+            print_substitute_line(cleaned, line)
+            continue
+        elseif startswith(line, r"\s*```")
+            in_julia_block = false
         end
-    end
-    top = EXPR(:file, EXPR[], nothing)
-    if isempty(blocks)
-        return top, ps
-    end
-
-    for (startbyte, b) in blocks
-        if CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :TRIPLESTRING && (startswith(b.args[3].val, "julia") || startswith(b.args[3].val, "{julia"))
-
-            blockstr = b.args[3].val
-            ps = CSTParser.ParseState(blockstr)
-            # skip first line
-            while ps.nt.startpos[1] == 1
-                CSTParser.next(ps)
-            end
-            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 3
-
-            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-
-            args, ps = CSTParser.parse(ps, true)
-            for a in args.args
-                push!(top, a)
-            end
-
-            CSTParser.update_span!(top)
-            currentbyte = top.fullspan + 1
-        elseif CSTParser.ismacrocall(b) && headof(b.args[1]) === :globalrefcmd && headof(b.args[3]) === :STRING && b.val !== nothing && startswith(b.val, "j ")
-            blockstr = b.args[3].val
-            ps = CSTParser.ParseState(blockstr)
-            CSTParser.next(ps)
-            prec_str_size = currentbyte:startbyte + ps.nt.startbyte + 1
-            push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-
-            args, ps = CSTParser.parse(ps, true)
-            for a in args.args
-                push!(top, a)
-            end
-
-            CSTParser.update_span!(top)
-            currentbyte = top.fullspan + 1
+        if in_julia_block
+            print(cleaned, line)
+        else
+            print_substitute_line(cleaned, line)
         end
     end
 
-    prec_str_size = currentbyte:sizeof(str) # OK
-    push!(top, EXPR(:STRING, length(prec_str_size), length(prec_str_size)))
-    CSTParser.update_span!(top)
-
-    return top, ps
+    ps = CSTParser.ParseState(String(take!(cleaned)))
+    return CSTParser.parse(ps, true)
 end
 
 function search_for_parent(dir::String, file::String, drop=3, parents=String[])
@@ -312,7 +282,7 @@ function search_for_parent(dir::String, file::String, drop=3, parents=String[])
                 # Could be sped up?
                 content = try
                     s = read(filename, String)
-                    isvalid(s) || continue
+                    our_isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -339,13 +309,13 @@ function is_parentof(parent_path, child_path, server)
     if !hasdocument(server, puri)
         content = try
             s = read(parent_path, String)
-            isvalid(s) || return false
+            our_isvalid(s) || return false
             s
         catch err
             isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
             return false
         end
-        pdoc = Document(puri, content, false, server)
+        pdoc = Document(TextDocument(puri, content, 0), false, server)
         setdocument!(server, puri, pdoc)
         CSTParser.parse(get_text(pdoc), true)
         if headof(pdoc.cst) === :file
@@ -375,5 +345,124 @@ function try_to_load_parents(child_path, server)
         if success
             return try_to_load_parents(p, server)
         end
+    end
+end
+
+
+
+function vec_startswith(a, b)
+    if length(a) < length(b)
+        return false
+    end
+
+    for (i,v) in enumerate(b)
+        if a[i] != v
+            return false
+        end
+    end
+    return true
+end
+
+function find_package_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    package = jw._packages |>
+        keys |>
+        collect |>
+        x -> map(x) do i
+            package_folder_path = uri2filepath(i)
+            parts = splitpath(package_folder_path)
+            return (uri = i, parts = parts)
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(splitpath(file_path), i.parts)
+        end |>
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).uri
+
+    return package
+end
+
+function find_project_for_file(jw::JuliaWorkspace, file::URI)
+    file_path = uri2filepath(file)
+    project = jw._projects |>
+        keys |>
+        collect |>
+        x -> map(x) do i
+            project_folder_path = uri2filepath(i)
+            parts = splitpath(project_folder_path)
+            return (uri = i, parts = parts)
+        end |>
+        x -> filter(x) do i
+            return vec_startswith(splitpath(file_path), i.parts)
+        end |>
+        x -> sort(x, by=i->length(i.parts), rev=true) |>
+        x -> length(x) == 0 ? nothing : first(x).uri
+
+    return project
+end
+
+function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
+    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+        # Find which workspace folder the doc is in.
+        parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+
+        # If the file is not in the workspace, we don't report nothing
+        isempty(parent_workspaceFolders) && return
+
+        project_uri = find_project_for_file(server.workspace,  get_uri(doc))
+        package_uri = find_package_for_file(server.workspace,  get_uri(doc))
+
+        if project_uri === nothing
+            project_uri = filepath2uri(server.env_path)
+        end
+
+        if package_uri === nothing
+            package_path = ""
+            package_name = ""
+        else
+            package_path = uri2filepath(package_uri)
+            package_name = server.workspace._packages[package_uri].name
+        end
+
+        project_path = ""
+        if project_uri == package_uri
+            project_path = uri2filepath(project_uri)
+        elseif haskey(server.workspace._projects, project_uri)
+            relevant_project = server.workspace._projects[project_uri]
+
+            if haskey(relevant_project.deved_packages, package_uri)
+                project_path = uri2filepath(project_uri)
+            end
+        end
+
+        cst = getcst(doc)
+
+        testitems = []
+        testsetups = []
+        testerrors = []
+
+        for i in cst.args
+            file_testitems = []
+            file_testsetups = []
+            file_errors = []
+
+            TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
+
+            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in file_testitems])
+            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
+            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])
+        end
+
+        params = PublishTestsParams(
+            get_uri(doc),
+            get_version(doc),
+            project_path,
+            package_path,
+            package_name,
+            testitems,
+            testsetups,
+            testerrors
+        )
+        JSONRPC.send(jr_endpoint, textDocument_publishTests_notification_type, params)
     end
 end

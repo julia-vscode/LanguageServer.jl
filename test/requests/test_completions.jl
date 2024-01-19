@@ -1,6 +1,6 @@
-completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)
+@testitem "latex completions" begin
+    include("../test_shared_server.jl")
 
-@testset "latex completions" begin
     settestdoc("""
     \\therefor
     .\\therefor
@@ -32,22 +32,21 @@ completion_test(line, char) = LanguageServer.textDocument_completion_request(Lan
     @test completion_test(6, 14).items[1].textEdit.range == LanguageServer.Range(6, 0, 6, 14)
 end
 
-@testset "path completions" begin
+@testitem "path completions" begin
 end
 
-@testset "import completions" begin
+@testitem "import completions" begin
+    include("../test_shared_server.jl")
+
     settestdoc("import Base: r")
     @test any(item.label == "rand" for item in completion_test(0, 14).items)
 
     settestdoc("import ")
-    @test all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)
+    @test (r = all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)) && !isempty(r)
 
     settestdoc("""module M end
     import .""")
     @test_broken completion_test(1, 8).items[1].label == "M"
-
-    settestdoc("import Base.")
-    @test any(item.label == "Meta" for item in completion_test(0, 12).items)
 
     settestdoc("import Base.M")
     @test any(item.label == "Meta" for item in completion_test(0, 13).items)
@@ -56,9 +55,14 @@ end
     @test any(item.label == "Base" for item in completion_test(0, 10).items)
 end
 
-@testset "getfield completions" begin
+@testitem "getfield completions" begin
+    include("../test_shared_server.jl")
+
     settestdoc("Base.")
-    @test any(item.label == "Base" for item in completion_test(0, 5).items)
+    @test length(completion_test(0, 5).items) > 10
+
+    settestdoc("Base.B")
+    @test any(item.label == "Base" for item in completion_test(0, 6).items)
 
     settestdoc("Base.r")
     @test any(item.label == "rand" for item in completion_test(0, 6).items)
@@ -81,7 +85,7 @@ end
     x = Expr()
     x.
     """)
-    @test all(item.label in ("head", "args") for item in completion_test(1, 2).items)
+    @test (r = all(item.label in ("head", "args") for item in completion_test(1, 2).items)) && (!isempty(r))
 
     settestdoc("""
     struct T
@@ -91,10 +95,12 @@ end
     x = T()
     x.
     """)
-    @test all(item.label in ("f1", "f2") for item in completion_test(1, 2).items)
+    @test (r = all(item.label in ("f1", "f2") for item in completion_test(5, 2).items)) && !isempty(r)
 end
 
-@testset "token completions" begin
+@testitem "token completions" begin
+    include("../test_shared_server.jl")
+
     settestdoc("B")
     @test any(item.label == "Base" for item in completion_test(0, 1).items)
 
@@ -135,7 +141,9 @@ end
     @test any(item.label == "@foobar_str" for item in completion_test(1, 5).items)
 end
 
-@testset "scope var completions" begin
+@testitem "scope var completions" begin
+    include("../test_shared_server.jl")
+
     settestdoc("""
     myvar = 1
     βbb = 2
@@ -149,7 +157,9 @@ end
     @test any(item.label == "bβb" for item in completion_test(5, 2).items)
 end
 
-@testset "completion kinds" begin
+@testitem "completion kinds" begin
+    include("../test_shared_server.jl")
+
     Kinds = LanguageServer.CompletionItemKinds
     # issue #872
     settestdoc("""
@@ -163,7 +173,9 @@ end
     @test any(i -> i.label == "kind_variable_arg" && i.kind == Kinds.Variable, items)
 end
 
-@testset "completion details" begin
+@testitem "completion details" begin
+    include("../test_shared_server.jl")
+
     settestdoc("""
         struct Bar end
         struct Foo

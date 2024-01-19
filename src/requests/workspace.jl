@@ -5,6 +5,12 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
+            if change.type == FileChangeTypes.Created
+                server.workspace = add_file(server.workspace, uri)
+            elseif change.type == FileChangeTypes.Changed
+                server.workspace = update_file(server.workspace, uri)
+            end
+
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
 
@@ -15,7 +21,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     filepath = uri2filepath(uri)
                     content = try
                         s = read(filepath, String)
-                        if !isvalid(s) || occursin('\0', s)
+                        if !our_isvalid(s)
                             deletedocument!(server, uri)
                             continue
                         end
@@ -26,7 +32,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                         continue
                     end
 
-                    set_text!(doc, content)
+                    set_text_document!(doc, TextDocument(uri, content, 0))
                     set_is_workspace_file(doc, true)
                     parse_all(doc, server)
                 end
@@ -34,18 +40,20 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 filepath = uri2filepath(uri)
                 content = try
                     s = read(filepath, String)
-                    isvalid(s) || continue
+                    our_isvalid(s) || continue
                     s
                 catch err
                     isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
                     continue
                 end
 
-                doc = Document(uri, content, true, server)
+                doc = Document(TextDocument(uri, content, 0), true, server)
                 setdocument!(server, uri, doc)
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
+            server.workspace = delete_file(server.workspace, uri)
+
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
 
@@ -134,10 +142,12 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
+        server.workspace = add_workspace_folder(server.workspace, wksp.uri)
     end
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
+        server.workspace = remove_workspace_folder(server.workspace, wksp.uri)
     end
 end
 
@@ -147,7 +157,7 @@ function workspace_symbol_request(params::WorkspaceSymbolParams, server::Languag
         bs = collect_toplevel_bindings_w_loc(getcst(doc), query=params.query)
         for x in bs
             p, b = x[1], x[2]
-            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(doc._uri, Range(doc, p)), missing))
+            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(get_uri(doc), Range(doc, p)), missing))
         end
     end
 

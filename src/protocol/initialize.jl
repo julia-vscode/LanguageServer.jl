@@ -183,6 +183,7 @@ struct ServerCapabilities <: Outbound
     foldingRangeProvider::Union{Bool,FoldingRangeOptions,FoldingRangeRegistrationOptions,Missing}
     executeCommandProvider::Union{ExecuteCommandOptions,Missing}
     selectionRangeProvider::Union{Bool,SelectionRangeOptions,SelectionRangeRegistrationOptions,Missing}
+    inlayHintProvider::Union{Bool,InlayHintOptions,InlayHintRegistrationOptions}
     workspaceSymbolProvider::Union{Bool,Missing}
     workspace::Union{WorkspaceOptions,Missing}
     experimental::Union{Any,Missing}

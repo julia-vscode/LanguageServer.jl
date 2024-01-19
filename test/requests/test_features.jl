@@ -93,7 +93,7 @@ end
 
 @testitem "doc symbols" begin
     include("../test_shared_server.jl")
-    
+
     doc = settestdoc("""
     a = 1
     b = 2

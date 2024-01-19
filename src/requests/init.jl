@@ -31,6 +31,7 @@ function ServerCapabilities(client::ClientCapabilities)
         ExecuteCommandOptions(missing, collect(keys(LSActions))),
         true,
         true,
+        true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
         missing
     )

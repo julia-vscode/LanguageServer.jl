@@ -43,6 +43,9 @@ mutable struct LanguageServerInstance
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
     completion_mode::Symbol
+    inlay_hints::Bool
+    inlay_hints_variable_types::Bool
+    inlay_hints_parameter_names::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -73,7 +76,7 @@ mutable struct LanguageServerInstance
             Dict{URI,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream = symbolcache_upstream),
+            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path; symbolcache_upstream=symbolcache_upstream),
             Channel(Inf),
             StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
             Dict(),
@@ -83,6 +86,9 @@ mutable struct LanguageServerInstance
             :all,
             LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
+            true,
+            true,
+            :literals,
             Channel{Any}(Inf),
             err_handler,
             :created,
@@ -184,7 +190,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
         ssi_ret, payload = SymbolServer.getstore(
             server.symbol_server,
             server.env_path,
-            function (msg, percentage = missing)
+            function (msg, percentage=missing)
                 if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
                     msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
                     JSONRPC.send(
@@ -196,7 +202,7 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                 @info msg
             end,
             server.err_handler,
-            download = server.symserver_use_download
+            download=server.symserver_use_download
         )
 
         server.number_of_outstanding_symserver_requests -= 1
@@ -289,7 +295,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         add_timer_message!(did_show_timer, timings, "(async) listening to client events")
         while true
             msg = JSONRPC.get_next_message(server.jr_endpoint)
-            put!(server.combined_msg_queue, (type = :clientmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -300,7 +306,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
         @debug "LS: Client listener task done."
@@ -312,7 +318,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         add_timer_message!(did_show_timer, timings, "(async) listening to symbol server events")
         while true
             msg = take!(server.symbol_results_channel)
-            put!(server.combined_msg_queue, (type = :symservmsg, msg = msg))
+            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
         end
     catch err
         bt = catch_backtrace()
@@ -323,7 +329,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         end
     finally
         if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type = :close,))
+            put!(server.combined_msg_queue, (type=:close,))
             close(server.combined_msg_queue)
         end
         @debug "LS: Symbol server listener task done."
@@ -371,6 +377,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
     msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
+    msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
 
     # The exit notification message should not be wrapped in request_wrapper (which checks
     # if the server have been requested to be shut down). Instead, this message needs to be

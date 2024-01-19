@@ -576,3 +576,100 @@ function get_selection_range_of_expr(x::EXPR)
     l2, c2 = get_position_from_offset(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
 end
+
+function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
+    if !server.inlay_hints
+        return nothing
+    end
+
+    doc = getdocument(server, params.textDocument.uri)
+
+    start, stop = get_offset(doc, params.range.start), get_offset(doc, params.range.stop)
+
+    return collect_inlay_hints(getcst(doc), server, doc, start, stop)
+end
+
+function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
+    if x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.iscall(parentof(x)) &&
+            !(
+                parentof(parentof(x)) isa EXPR &&
+                CSTParser.defines_function(parentof(parentof(x)))
+            ) &&
+            parentof(x).args[1] != x # function calls
+
+        if server.inlay_hints_parameter_names === :all || (
+                server.inlay_hints_parameter_names === :literals &&
+                CSTParser.isliteral(x)
+            )
+            sigs = collect_signatures(x, doc, server)
+            if !isempty(sigs)
+                args = length(parentof(x).args) - 1
+                if args > 0
+                    filter!(s -> length(s.parameters) == args, sigs)
+                    if !isempty(sigs)
+                        pars = first(sigs).parameters
+                        thisarg = 0
+                        for a in parentof(x).args
+                            if x == a
+                                break
+                            end
+                            thisarg += 1
+                        end
+                        if thisarg <= args && thisarg <= length(pars)
+                            label = pars[thisarg].label
+                            if label == "#unused#"
+                                label = "_"
+                            end
+                            push!(
+                                hints,
+                                InlayHint(
+                                    Position(get_position_from_offset(doc, pos)...),
+                                    string(label, ':'),
+                                    InlayHintKinds.Parameter,
+                                    missing,
+                                    pars[thisarg].documentation,
+                                    false,
+                                    true,
+                                    missing
+                                )
+                            )
+                        end
+                    end
+                end
+            end
+        end
+    elseif x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.isassignment(parentof(x)) &&
+            parentof(x).args[1] == x &&
+            StaticLint.hasbinding(x) # assignment
+        if server.inlay_hints_variable_types
+            typ = _completion_type(StaticLint.bindingof(x))
+            if typ !== missing
+                push!(
+                    hints,
+                    InlayHint(
+                        Position(get_position_from_offset(doc, pos + x.span)...),
+                        string("::", typ),
+                        InlayHintKinds.Type,
+                        missing,
+                        missing,
+                        missing,
+                        missing,
+                        missing
+                    )
+                )
+            end
+        end
+    end
+    if length(x) > 0
+        for a in x
+            if pos < stop && pos + a.fullspan > start
+                collect_inlay_hints(a, server, doc, start, stop, pos, hints)
+            end
+            pos += a.fullspan
+            pos > stop && break
+        end
+    end
+    return hints
+end

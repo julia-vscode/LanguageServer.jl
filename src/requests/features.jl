@@ -622,7 +622,7 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
                             push!(
                                 hints,
                                 InlayHint(
-                                    Position(get_position_at(doc, pos)...),
+                                    Position(get_position_from_offset(doc, pos)...),
                                     string(label, ':'),
                                     InlayHintKinds.Parameter,
                                     missing,
@@ -646,7 +646,7 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
             push!(
                 hints,
                 InlayHint(
-                    Position(get_position_at(doc, pos + x.span)...),
+                    Position(get_position_from_offset(doc, pos + x.span)...),
                     string("::", typ),
                     InlayHintKinds.Type,
                     missing,

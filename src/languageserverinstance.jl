@@ -43,7 +43,9 @@ mutable struct LanguageServerInstance
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
     completion_mode::Symbol
-    inlay_hint_mode::Symbol # :none, :literals, :all
+    inlay_hints::Bool
+    inlay_hints_variable_types::Bool
+    inlay_hints_parameter_names::Symbol
 
     combined_msg_queue::Channel{Any}
 
@@ -84,6 +86,8 @@ mutable struct LanguageServerInstance
             :all,
             LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
+            true,
+            true,
             :literals,
             Channel{Any}(Inf),
             err_handler,

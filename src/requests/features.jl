@@ -589,6 +589,46 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
     return collect_inlay_hints(getcst(doc), server, doc, start, stop)
 end
 
+function get_inlay_parameter_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0)
+    if server.inlay_hints_parameter_names === :all || (
+        server.inlay_hints_parameter_names === :literals &&
+        CSTParser.isliteral(x)
+    )
+        sigs = collect_signatures(x, doc, server)
+
+        nargs = length(parentof(x).args) - 1
+        nargs == 0 && return nothing
+
+        filter!(s -> length(s.parameters) == nargs, sigs)
+        isempty(sigs) && return nothing
+
+        pars = first(sigs).parameters
+        thisarg = 0
+        for a in parentof(x).args
+            if x == a
+                break
+            end
+            thisarg += 1
+        end
+        if thisarg <= nargs && thisarg <= length(pars)
+            label = pars[thisarg].label
+            label == "#unused#" && return nothing
+
+            return InlayHint(
+                Position(get_position_from_offset(doc, pos)...),
+                string(label, ':'),
+                InlayHintKinds.Parameter,
+                missing,
+                pars[thisarg].documentation,
+                false,
+                true,
+                missing
+            )
+        end
+    end
+    return nothing
+end
+
 function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
     if x isa EXPR && parentof(x) isa EXPR &&
             CSTParser.iscall(parentof(x)) &&
@@ -597,47 +637,9 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start
                 CSTParser.defines_function(parentof(parentof(x)))
             ) &&
             parentof(x).args[1] != x # function calls
-
-        if server.inlay_hints_parameter_names === :all || (
-                server.inlay_hints_parameter_names === :literals &&
-                CSTParser.isliteral(x)
-            )
-            sigs = collect_signatures(x, doc, server)
-            if !isempty(sigs)
-                args = length(parentof(x).args) - 1
-                if args > 0
-                    filter!(s -> length(s.parameters) == args, sigs)
-                    if !isempty(sigs)
-                        pars = first(sigs).parameters
-                        thisarg = 0
-                        for a in parentof(x).args
-                            if x == a
-                                break
-                            end
-                            thisarg += 1
-                        end
-                        if thisarg <= args && thisarg <= length(pars)
-                            label = pars[thisarg].label
-                            if label == "#unused#"
-                                label = "_"
-                            end
-                            push!(
-                                hints,
-                                InlayHint(
-                                    Position(get_position_from_offset(doc, pos)...),
-                                    string(label, ':'),
-                                    InlayHintKinds.Parameter,
-                                    missing,
-                                    pars[thisarg].documentation,
-                                    false,
-                                    true,
-                                    missing
-                                )
-                            )
-                        end
-                    end
-                end
-            end
+        maybe_hint = get_inlay_parameter_hints(x, server, doc, pos)
+        if maybe_hint !== nothing
+            push!(hints, maybe_hint)
         end
     elseif x isa EXPR && parentof(x) isa EXPR &&
             CSTParser.isassignment(parentof(x)) &&

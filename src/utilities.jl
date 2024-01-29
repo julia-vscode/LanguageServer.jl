@@ -534,3 +534,19 @@ function send_startup_time_message(timings)
 
     println(stderr, String(take!(io)))
 end
+
+function poll_editor_pid(server::LanguageServerInstance)
+    if server.editor_pid === nothing
+        return
+    end
+    @info "Monitoring editor process with id $(server.editor_pid)"
+    return @async while !server.shutdown_requested
+        sleep(10)
+
+        # kill -0 $editor_pid
+        r = ccall(:uv_kill, Cint, (Cint, Cint), server.editor_pid, 0)
+        if r != 0
+            exit(1)
+        end
+    end
+end

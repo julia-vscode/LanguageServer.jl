@@ -65,6 +65,7 @@ mutable struct LanguageServerInstance
     clientInfo::Union{InfoParams,Missing}
     initialization_options::Union{Missing,Dict}
 
+    editor_pid::Union{Nothing,Int}
     shutdown_requested::Bool
 
     workspace::JuliaWorkspace
@@ -100,6 +101,7 @@ mutable struct LanguageServerInstance
             missing,
             missing,
             missing,
+            nothing,
             false,
             JuliaWorkspace()
         )
@@ -289,6 +291,8 @@ function Base.run(server::LanguageServerInstance; timings = [])
     add_timer_message!(did_show_timer, timings, "connection established")
 
     trigger_symbolstore_reload(server)
+
+    poll_editor_pid(server)
 
     @async try
         @debug "LS: Starting client listener task."

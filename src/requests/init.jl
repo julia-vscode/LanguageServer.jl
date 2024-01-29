@@ -161,6 +161,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
 
     server.clientCapabilities = params.capabilities
     server.clientInfo = params.clientInfo
+    server.editor_pid = params.processId
 
     if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true

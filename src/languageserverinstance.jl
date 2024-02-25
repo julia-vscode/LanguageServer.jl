@@ -257,7 +257,7 @@ function request_wrapper(func, server::LanguageServerInstance)
             # it's fine to always return a value here, even for notifications, because
             # JSONRPC discards it anyways in that case
             return JSONRPC.JSONRPCError(
-                -32600,
+                SHUTDOWN_REQUEST,
                 "LS shutdown was requested.",
                 nothing
             )

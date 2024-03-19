@@ -498,19 +498,28 @@ function organize_import_block(x, _, conn)
     #       BlueStyle (modules, types, ..., functions) since usually CamelCase is used for
     #       modules, types, etc, but possibly this can be improved by using information
     #       available from SymbolServer
+    function sort_with_self_first(set, self)
+        self′ = pop!(set, self, nothing)
+        x = sort!(collect(set))
+        if self′ !== nothing
+            @assert self == self′
+            pushfirst!(x, self)
+        end
+        return x
+    end
     import_lines = String[]
     for m in import_mods
         push!(import_lines, "import " * m)
     end
     for (m, s) in import_syms
-        push!(import_lines, "import " * m * ": " * join(sort!(collect(s)), ", "))
+        push!(import_lines, "import " * m * ": " * join(sort_with_self_first(s, m), ", "))
     end
     using_lines = String[]
     for m in using_mods
         push!(using_lines, "using " * m)
     end
     for (m, s) in using_syms
-        push!(using_lines, "using " * m * ": " * join(sort!(collect(s)), ", "))
+        push!(using_lines, "using " * m * ": " * join(sort_with_self_first(s, m), ", "))
     end
     io = IOBuffer()
     join(io, sort!(import_lines), "\n")

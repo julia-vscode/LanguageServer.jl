@@ -2,7 +2,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for change in params.changes
         uri = change.uri
 
-        uri.scheme=="file" || continue
+        uri.scheme == "file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             if change.type == FileChangeTypes.Created

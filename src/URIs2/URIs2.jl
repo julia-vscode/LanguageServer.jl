@@ -14,26 +14,26 @@ end
 
 @static if Sys.iswindows()
     function Base.:(==)(a::URI, b::URI)
-        if a.scheme=="file" && b.scheme=="file"
+        if a.scheme == "file" && b.scheme == "file"
             a_path_norm = lowercase(a.path)
             b_path_norm = lowercase(b.path)
 
             return a.scheme == b.scheme &&
-                a.authority == b.authority &&
-                a_path_norm == b_path_norm &&
-                a.query == b.query &&
-                a.fragment == b.fragment
+                   a.authority == b.authority &&
+                   a_path_norm == b_path_norm &&
+                   a.query == b.query &&
+                   a.fragment == b.fragment
         else
             return a.scheme == b.scheme &&
-                a.authority == b.authority &&
-                a.path == b.path &&
-                a.query == b.query &&
-                a.fragment == b.fragment
+                   a.authority == b.authority &&
+                   a.path == b.path &&
+                   a.query == b.query &&
+                   a.fragment == b.fragment
         end
     end
 
     function Base.hash(a::URI, h::UInt)
-        if a.scheme=="file"
+        if a.scheme == "file"
             path_norm = lowercase(a.path)
             return hash((a.scheme, a.authority, path_norm, a.query, a.fragment), h)
         else
@@ -49,14 +49,14 @@ end
 function URI(value::AbstractString)
     m = match(r"^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?", value)
 
-    m===nothing && error("Invalid argument.")
+    m === nothing && error("Invalid argument.")
 
     return URI(
         m.captures[2],
-        m.captures[4]===nothing ? nothing : percent_decode(m.captures[4]),
-        m.captures[5]===nothing ? nothing : percent_decode(m.captures[5]),
-        m.captures[7]===nothing ? nothing : percent_decode(m.captures[7]),
-        m.captures[9]===nothing ? nothing : percent_decode(m.captures[9])
+        m.captures[4] === nothing ? nothing : percent_decode(m.captures[4]),
+        m.captures[5] === nothing ? nothing : percent_decode(m.captures[5]),
+        m.captures[7] === nothing ? nothing : percent_decode(m.captures[7]),
+        m.captures[9] === nothing ? nothing : percent_decode(m.captures[9])
     )
 end
 
@@ -68,58 +68,58 @@ function URI(;
     path::AbstractString="",
     query::Union{AbstractString,Nothing}=nothing,
     fragment::Union{AbstractString,Nothing}=nothing
-    )
+)
     return URI(scheme, authority, path, query, fragment)
 end
 
 @inline function is_rfc3986_unreserved(c::Char)
     return 'A' <= c <= 'Z' ||
-        'a' <= c <= 'z' ||
-        '0' <= c <= '9' ||
-        c == '-' ||
-        c == '.' ||
-        c == '_' ||
-        c == '~'
+           'a' <= c <= 'z' ||
+           '0' <= c <= '9' ||
+           c == '-' ||
+           c == '.' ||
+           c == '_' ||
+           c == '~'
 end
 
 @inline function is_rfc3986_sub_delim(c::Char)
     return c == '!' ||
-        c == '$' ||
-        c == '&' ||
-        c == '\'' ||
-        c == '(' ||
-        c == ')' ||
-        c == '*' ||
-        c == '+' ||
-        c == ',' ||
-        c == ';' ||
-        c == '='
+           c == '$' ||
+           c == '&' ||
+           c == '\'' ||
+           c == '(' ||
+           c == ')' ||
+           c == '*' ||
+           c == '+' ||
+           c == ',' ||
+           c == ';' ||
+           c == '='
 end
 
 @inline function is_rfc3986_pchar(c::Char)
     return is_rfc3986_unreserved(c) ||
-        is_rfc3986_sub_delim(c) ||
-        c == ':' ||
-        c == '@'
+           is_rfc3986_sub_delim(c) ||
+           c == ':' ||
+           c == '@'
 end
 
 @inline function is_rfc3986_query(c::Char)
-    return is_rfc3986_pchar(c) || c=='/' || c=='?'
+    return is_rfc3986_pchar(c) || c == '/' || c == '?'
 end
 
 @inline function is_rfc3986_fragment(c::Char)
-    return is_rfc3986_pchar(c) || c=='/' || c=='?'
+    return is_rfc3986_pchar(c) || c == '/' || c == '?'
 end
 
 @inline function is_rfc3986_userinfo(c::Char)
     return is_rfc3986_unreserved(c) ||
-        is_rfc3986_sub_delim(c) ||
-        c == ':'
+           is_rfc3986_sub_delim(c) ||
+           c == ':'
 end
 
 @inline function is_rfc3986_reg_name(c::Char)
     return is_rfc3986_unreserved(c) ||
-        is_rfc3986_sub_delim(c)
+           is_rfc3986_sub_delim(c)
 end
 
 function encode(io::IO, s::AbstractString, issafe::Function)
@@ -134,14 +134,14 @@ function encode(io::IO, s::AbstractString, issafe::Function)
 end
 
 @inline function is_ipv4address(s::AbstractString)
-    if length(s)==1
+    if length(s) == 1
         return '0' <= s[1] <= '9'
-    elseif length(s)==2
+    elseif length(s) == 2
         return '1' <= s[1] <= '9' && '0' <= s[2] <= '9'
-    elseif length(s)==3
-        return (s[1]=='1' && '0' <= s[2] <= '9' && '0' <= s[3] <= '9') ||
-            (s[1]=='2' && '0' <= s[2] <= '4' && '0' <= s[3] <= '9') ||
-            (s[1]=='2' && s[2] == '5' && '0' <= s[3] <= '5')
+    elseif length(s) == 3
+        return (s[1] == '1' && '0' <= s[2] <= '9' && '0' <= s[3] <= '9') ||
+               (s[1] == '2' && '0' <= s[2] <= '4' && '0' <= s[3] <= '9') ||
+               (s[1] == '2' && s[2] == '5' && '0' <= s[3] <= '5')
     else
         return false
     end
@@ -173,44 +173,44 @@ function Base.print(io::IO, uri::URI)
     query = uri.query
     fragment = uri.fragment
 
- 	if scheme!==nothing
+    if scheme !== nothing
         print(io, scheme)
         print(io, ':')
- 	end
+    end
 
- 	if authority!==nothing
+    if authority !== nothing
         print(io, "//")
 
-		idx = findfirst("@", authority)
-		if idx !== nothing
-			# <user>@<auth>
-			userinfo = SubString(authority, 1:idx.start-1)
-			host_and_port = SubString(authority, idx.start + 1)
-			encode(io, userinfo, is_rfc3986_userinfo)
+        idx = findfirst("@", authority)
+        if idx !== nothing
+            # <user>@<auth>
+            userinfo = SubString(authority, 1:idx.start-1)
+            host_and_port = SubString(authority, idx.start + 1)
+            encode(io, userinfo, is_rfc3986_userinfo)
             print(io, '@')
         else
             host_and_port = SubString(authority, 1)
-		end
-
-		idx3 = findfirst(":", host_and_port)
-		if idx3 === nothing
-            encode_host(io, host_and_port)
-		else
-			# <auth>:<port>
-            encode_host(io, SubString(host_and_port, 1:idx3.start-1))
-			print(io, SubString(host_and_port, idx3.start))
         end
-     end
 
-     # Append path
-     encode_path(io, path)
+        idx3 = findfirst(":", host_and_port)
+        if idx3 === nothing
+            encode_host(io, host_and_port)
+        else
+            # <auth>:<port>
+            encode_host(io, SubString(host_and_port, 1:idx3.start-1))
+            print(io, SubString(host_and_port, idx3.start))
+        end
+    end
 
-    if query!==nothing
+    # Append path
+    encode_path(io, path)
+
+    if query !== nothing
         print(io, '?')
         encode(io, query, is_rfc3986_query)
     end
 
- 	if fragment!==nothing
+    if fragment !== nothing
         print(io, '#')
         encode(io, fragment, is_rfc3986_fragment)
     end

@@ -3,7 +3,7 @@
     using LanguageServer.URIs2
 
     include("test_shared_server.jl")
-    
+
     testtext = """
     module testmodule
     struct testtype

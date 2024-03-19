@@ -14,9 +14,9 @@ end
 end
 
 const SignatureHelpTriggerKind = Int
-const SignatureHelpTriggerKinds = (Invoked = 1,
-                                   TriggerCharacter = 2,
-                                   ContentChange = 3)
+const SignatureHelpTriggerKinds = (Invoked=1,
+    TriggerCharacter=2,
+    ContentChange=3)
 
 struct SignatureHelpOptions <: Outbound
     triggerCharacters::Union{Vector{String},Missing}

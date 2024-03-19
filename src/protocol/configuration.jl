@@ -30,14 +30,14 @@ end
 ##############################################################################
 # File watching
 const FileChangeType = Int
-const FileChangeTypes = (Created = 1,
-                         Changed = 2,
-                         Deleted = 3)
+const FileChangeTypes = (Created=1,
+    Changed=2,
+    Deleted=3)
 
 const WatchKind = Int
-const WatchKinds = (Create = 1,
-                    Change = 2,
-                    Delete = 4)
+const WatchKinds = (Create=1,
+    Change=2,
+    Delete=4)
 
 
 @dict_readable struct FileEvent

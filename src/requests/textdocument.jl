@@ -70,11 +70,11 @@ end
 comp(x, y) = x == y
 function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
     comp(x.head, y.head) &&
-    x.span == y.span &&
-    x.fullspan == y.fullspan &&
-    x.val == y.val &&
-    length(x) == length(y) &&
-    all(comp(x[i], y[i]) for i = 1:length(x))
+        x.span == y.span &&
+        x.fullspan == y.fullspan &&
+        x.val == y.val &&
+        length(x) == length(y) &&
+        all(comp(x[i], y[i]) for i = 1:length(x))
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
@@ -91,17 +91,18 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
-    else get_language_id(doc) == "julia"
+    else
+        get_language_id(doc) == "julia"
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds=true)
+        for i in setdiff(1:length(cst0.args), r1, r3) # clean meta from deleted expr
             StaticLint.clear_meta(cst0[i])
         end
         setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+        target_exprs = getcst(doc).args[last(r1).+(1:length(r2))]
         semantic_pass(getroot(doc), target_exprs)
         lint!(doc, server)
     end
@@ -152,7 +153,7 @@ function mark_errors(doc, out=Diagnostic[])
         while line < nlines
             seek(io, line_offsets[line])
             char = 0
-            while line_offsets[line] <= offset < line_offsets[line + 1]
+            while line_offsets[line] <= offset < line_offsets[line+1]
                 while offset > position(io)
                     c = read(io, Char)
                     if UInt32(c) >= 0x010000
@@ -208,8 +209,8 @@ Is this diagnostic reliant on the current environment being accurately represent
 """
 function is_diag_dependent_on_env(diag::Diagnostic)
     startswith(diag.message, "Missing reference: ") ||
-    startswith(diag.message, "Possible method call error") ||
-    startswith(diag.message, "An imported")
+        startswith(diag.message, "Possible method call error") ||
+        startswith(diag.message, "An imported")
 end
 
 
@@ -355,7 +356,7 @@ function vec_startswith(a, b)
         return false
     end
 
-    for (i,v) in enumerate(b)
+    for (i, v) in enumerate(b)
         if a[i] != v
             return false
         end
@@ -366,18 +367,18 @@ end
 function find_package_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
     package = jw._packages |>
-        keys |>
-        collect |>
-        x -> map(x) do i
-            package_folder_path = uri2filepath(i)
-            parts = splitpath(package_folder_path)
-            return (uri = i, parts = parts)
-        end |>
-        x -> filter(x) do i
-            return vec_startswith(splitpath(file_path), i.parts)
-        end |>
-        x -> sort(x, by=i->length(i.parts), rev=true) |>
-        x -> length(x) == 0 ? nothing : first(x).uri
+              keys |>
+              collect |>
+              x -> map(x) do i
+                  package_folder_path = uri2filepath(i)
+                  parts = splitpath(package_folder_path)
+                  return (uri=i, parts=parts)
+              end |>
+                   x -> filter(x) do i
+                  return vec_startswith(splitpath(file_path), i.parts)
+              end |>
+                        x -> sort(x, by=i -> length(i.parts), rev=true) |>
+                             x -> length(x) == 0 ? nothing : first(x).uri
 
     return package
 end
@@ -385,18 +386,18 @@ end
 function find_project_for_file(jw::JuliaWorkspace, file::URI)
     file_path = uri2filepath(file)
     project = jw._projects |>
-        keys |>
-        collect |>
-        x -> map(x) do i
-            project_folder_path = uri2filepath(i)
-            parts = splitpath(project_folder_path)
-            return (uri = i, parts = parts)
-        end |>
-        x -> filter(x) do i
-            return vec_startswith(splitpath(file_path), i.parts)
-        end |>
-        x -> sort(x, by=i->length(i.parts), rev=true) |>
-        x -> length(x) == 0 ? nothing : first(x).uri
+              keys |>
+              collect |>
+              x -> map(x) do i
+                  project_folder_path = uri2filepath(i)
+                  parts = splitpath(project_folder_path)
+                  return (uri=i, parts=parts)
+              end |>
+                   x -> filter(x) do i
+                  return vec_startswith(splitpath(file_path), i.parts)
+              end |>
+                        x -> sort(x, by=i -> length(i.parts), rev=true) |>
+                             x -> length(x) == 0 ? nothing : first(x).uri
 
     return project
 end
@@ -409,8 +410,8 @@ function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         # If the file is not in the workspace, we don't report nothing
         isempty(parent_workspaceFolders) && return
 
-        project_uri = find_project_for_file(server.workspace,  get_uri(doc))
-        package_uri = find_package_for_file(server.workspace,  get_uri(doc))
+        project_uri = find_project_for_file(server.workspace, get_uri(doc))
+        package_uri = find_package_for_file(server.workspace, get_uri(doc))
 
         if project_uri === nothing
             project_uri = filepath2uri(server.env_path)
@@ -449,7 +450,7 @@ function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
             TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
 
             append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in file_testitems])
-            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
+            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range),) for i in file_testsetups])
             append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])
         end
 

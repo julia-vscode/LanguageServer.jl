@@ -1,41 +1,41 @@
 const CompletionItemKind = Int
-const CompletionItemKinds = (Text = 1,
-                            Method = 2,
-                            Function = 3,
-                            Constructor = 4,
-                            Field = 5,
-                            Variable = 6,
-                            Class = 7,
-                            Interface = 8,
-                            Module = 9,
-                            Property = 10,
-                            Unit = 11,
-                            Value = 12,
-                            Enum = 13,
-                            Keyword = 14,
-                            Snippet = 15,
-                            Color = 16,
-                            File = 17,
-                            Reference = 18,
-                            Folder = 19,
-                            EnumMember = 20,
-                            Constant = 21,
-                            Struct = 22,
-                            Event = 23,
-                            Operator = 24,
-                            TypeParameter = 25)
+const CompletionItemKinds = (Text=1,
+    Method=2,
+    Function=3,
+    Constructor=4,
+    Field=5,
+    Variable=6,
+    Class=7,
+    Interface=8,
+    Module=9,
+    Property=10,
+    Unit=11,
+    Value=12,
+    Enum=13,
+    Keyword=14,
+    Snippet=15,
+    Color=16,
+    File=17,
+    Reference=18,
+    Folder=19,
+    EnumMember=20,
+    Constant=21,
+    Struct=22,
+    Event=23,
+    Operator=24,
+    TypeParameter=25)
 
 const CompletionItemTag = Int
 const CompletionItemTags = (Deprecated = 1)
 
 const CompletionTriggerKind = Int
-const CompletionTriggerKinds = (Invoked = 1,
-                                TriggerCharacter = 2,
-                                TriggerForIncompleteCompletion = 3)
+const CompletionTriggerKinds = (Invoked=1,
+    TriggerCharacter=2,
+    TriggerForIncompleteCompletion=3)
 
 const InsertTextFormat = Int
-const InsertTextFormats = (PlainText = 1,
-                           Snippet = 2)
+const InsertTextFormats = (PlainText=1,
+    Snippet=2)
 
 @dict_readable struct CompletionTagClientCapabilities
     valueSet::Vector{CompletionItemTag}

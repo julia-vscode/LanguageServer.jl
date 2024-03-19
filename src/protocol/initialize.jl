@@ -1,15 +1,15 @@
 ##############################################################################
 # From client
 const FailureHandlingKind = String
-const FailureHandlingKinds = (Abort = "abort",
-                              Transactional = "transactional",
-                              TextOnlyTransactional = "textOnlyTransactional",
-                              Undo = "undo")
+const FailureHandlingKinds = (Abort="abort",
+    Transactional="transactional",
+    TextOnlyTransactional="textOnlyTransactional",
+    Undo="undo")
 
 const ResourceOperationKind = String
-const ResourceOperationKinds = (Create = "create",
-                                Rename = "rename",
-                                Delete = "delete")
+const ResourceOperationKinds = (Create="create",
+    Rename="rename",
+    Delete="delete")
 
 @dict_readable struct WorkspaceEditClientCapabilities <: Outbound
     documentChanges::Union{Bool,Missing}
@@ -109,16 +109,16 @@ end
 # Requires handwritten implementaiton to account for 3-part Unions
 function InitializeParams(dict::Dict)
     InitializeParams(dict["processId"],
-    haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
-    !haskey(dict, "rootPath") ? missing : dict["rootPath"],
-    # LS specification says this key should always exist, but neovim 0.5.1 doesn't seem to
-    # send it (seems fixed in neovim 0.6). For now, just assume it might not exist here.
-    (rootUri = get(dict, "rootUri", nothing); rootUri === nothing) ? nothing : DocumentUri(rootUri),
-    get(dict, "initializationOptions", missing),
-    ClientCapabilities(dict["capabilities"]),
-    haskey(dict, "trace") ? String(dict["trace"]) : missing ,
-    !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]),
-    haskey(dict, "workDoneToken") ? dict["workDoneToken"] : missing)
+        haskey(dict, "clientInfo") ? InfoParams(dict["clientInfo"]) : missing,
+        !haskey(dict, "rootPath") ? missing : dict["rootPath"],
+        # LS specification says this key should always exist, but neovim 0.5.1 doesn't seem to
+        # send it (seems fixed in neovim 0.6). For now, just assume it might not exist here.
+        (rootUri = get(dict, "rootUri", nothing); rootUri === nothing) ? nothing : DocumentUri(rootUri),
+        get(dict, "initializationOptions", missing),
+        ClientCapabilities(dict["capabilities"]),
+        haskey(dict, "trace") ? String(dict["trace"]) : missing,
+        !haskey(dict, "workspaceFolders") ? missing : dict["workspaceFolders"] === nothing ? nothing : WorkspaceFolder.(dict["workspaceFolders"]),
+        haskey(dict, "workDoneToken") ? dict["workDoneToken"] : missing)
 end
 ##############################################################################
 
@@ -134,9 +134,9 @@ end
 struct ColorProviderOptions <: Outbound end
 
 const TextDocumentSyncKind = Int
-const TextDocumentSyncKinds = (None = 0,
-                               Full = 1,
-                               Incremental = 2)
+const TextDocumentSyncKinds = (None=0,
+    Full=1,
+    Incremental=2)
 
 struct TextDocumentSyncOptions <: Outbound
     openClose::Union{Bool,Missing}

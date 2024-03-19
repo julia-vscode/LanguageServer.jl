@@ -35,7 +35,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                         thisline, _ = get_position_from_offset(doc, loc + a.span)
                         if tdpp.position.line > thisline || headof(a) === :NOTHING
                             loc += a.fullspan
-                            a = x[i + 1]
+                            a = x[i+1]
                         end
                     end
                 end

@@ -16,7 +16,7 @@ end
     if Sys.iswindows()
         @test filepath2uri("c:\\win\\path") |> string == "file:///c%3A/win/path"
         @test filepath2uri("c:\\win/path") |> string == "file:///c%3A/win/path"
-    # else TODO Put this else back in once we support these paths on Unix
+        # else TODO Put this else back in once we support these paths on Unix
         # @test filepath2uri("c:\\win\\path") |> string == "file:///c%3A%5Cwin%5Cpath"
         # @test filepath2uri("c:\\win/path") |> string == "file:///c%3A%5Cwin/path"
     end
@@ -59,7 +59,7 @@ end
 
 @testitem "parse" begin
     using LanguageServer.URIs2
-    
+
     value = URI("http:/api/files/test.me?t=1234")
     @test value.scheme == "http"
     @test_broken value.authority == ""
@@ -79,7 +79,7 @@ end
     @test value.authority == ""
     @test value.path == "/c:/test/me"
     @test value.fragment === nothing
-    @test value.query=== nothing
+    @test value.query === nothing
     @test uri2filepath(value) == (Sys.iswindows() ? "c:\\test\\me" : "c:/test/me")
 
     value = URI("file://shares/files/c%23/p.cs")

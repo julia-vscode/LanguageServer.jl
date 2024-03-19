@@ -6,7 +6,7 @@ struct TextDocument
     _line_indices::Union{Nothing,Vector{Int}}
     _language_id::String
 
-    function TextDocument(uri::URI, text::AbstractString, version::Int, lid = nothing)
+    function TextDocument(uri::URI, text::AbstractString, version::Int, lid=nothing)
         # TODO Remove this check eventually
         occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
 
@@ -64,9 +64,9 @@ function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
         throw(LSOffsetError("index_at crashed. More diagnostics:\nline=$line\nline_indices='$line_indices'"))
     end
 
-    line_index = line_indices[line + 1]
+    line_index = line_indices[line+1]
 
-    next_line_index = line + 1 < length(line_indices) ? line_indices[line + 2] : nextind(text, lastindex(text))
+    next_line_index = line + 1 < length(line_indices) ? line_indices[line+2] : nextind(text, lastindex(text))
 
     pos = line_index
 
@@ -130,7 +130,7 @@ function _compute_line_indices(text)
     while ind <= lastindex(text)
         c = text[ind]
         if c == '\n' || c == '\r'
-            if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
+            if c == '\r' && ind + 1 <= lastindex(text) && text[ind+1] == '\n'
                 ind += 1
             end
             push!(line_indices, ind + 1)
@@ -173,12 +173,12 @@ function _get_line_of(doc::TextDocument, offset::Integer)
     else
         line = 1
         while line < nlines
-            if line_offsets[line] <= offset < line_offsets[line + 1]
+            if line_offsets[line] <= offset < line_offsets[line+1]
                 break
             end
             line += 1
         end
-end
+    end
     return line, line_offsets[line]
 end
 
@@ -193,7 +193,7 @@ function _compute_line_offsets(text)
     while ind <= lastindex(text)
         c = text[ind]
         nl = c == '\n' || c == '\r'
-        if c == '\r' && ind + 1 <= lastindex(text) && text[ind + 1] == '\n'
+        if c == '\r' && ind + 1 <= lastindex(text) && text[ind+1] == '\n'
             ind += 1
         end
         nl && push!(line_offsets, ind)
@@ -224,7 +224,7 @@ function get_offset(doc::TextDocument, line::Integer, character::Integer)
     line_offsets = get_line_offsets(doc)
     io = IOBuffer(get_text(doc))
     try
-        seek(io, line_offsets[line + 1])
+        seek(io, line_offsets[line+1])
         while character > 0
             c = read(io, Char)
             character -= 1
@@ -265,7 +265,7 @@ function get_position_from_offset(doc::TextDocument, offset::Integer)
         c = read(io, Char)
         character += 1
         if UInt32(c) >= 0x010000
-    character += 1
+            character += 1
         end
     end
     close(io)

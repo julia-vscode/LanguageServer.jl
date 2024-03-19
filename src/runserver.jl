@@ -35,15 +35,15 @@ julia --project=/path/to/LanguageServer.jl \\
 ```
 """
 function runserver(@nospecialize(pipe_in)=stdin, pipe_out=stdout, env_path=choose_env(),
-                   depot_path="", err_handler=nothing, symserver_store_path=nothing)
+    depot_path="", err_handler=nothing, symserver_store_path=nothing)
     server = LanguageServerInstance(pipe_in, pipe_out, env_path, depot_path,
-                                    err_handler, symserver_store_path)
+        err_handler, symserver_store_path)
     run(server)
 end
 
 function choose_env()
     maybe_dirname = x -> x !== nothing ? dirname(x) : nothing
     something(get(ARGS, 1, nothing),                            # 1. path passed explicitly
-              maybe_dirname(Base.current_project(pwd())),       # 2. parent project of pwd()
-              maybe_dirname(Base.load_path_expand("@v#.#")))    # 3. default "global" env
+        maybe_dirname(Base.current_project(pwd())),       # 2. parent project of pwd()
+        maybe_dirname(Base.load_path_expand("@v#.#")))    # 3. default "global" env
 end

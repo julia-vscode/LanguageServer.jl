@@ -43,6 +43,7 @@ mutable struct LanguageServerInstance
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
     completion_mode::Symbol
+    complete_func_parens::Bool
     inlay_hints::Bool
     inlay_hints_variable_types::Bool
     inlay_hints_parameter_names::Symbol
@@ -87,6 +88,7 @@ mutable struct LanguageServerInstance
             :all,
             LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
+            false,
             true,
             true,
             :literals,

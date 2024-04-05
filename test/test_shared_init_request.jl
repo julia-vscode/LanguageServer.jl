@@ -1,4 +1,4 @@
-import JSONRPC
+import JSONRPC, LanguageServer
 
 init_request = LanguageServer.InitializeParams(
         9902,

@@ -109,6 +109,9 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.disabledDirs"),
         ConfigurationItem(missing, "julia.completionmode"),
         ConfigurationItem(missing, "julia.completeFunctionParens")
+        ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
+        ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
+        ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
     ]))
 
     new_runlinter = something(response[11], true)
@@ -118,7 +121,10 @@ function request_julia_config(server::LanguageServerInstance, conn)
     new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
     new_completion_mode = Symbol(something(response[14], :import))
     new_complete_func_parens = something(response[15], false)
-
+    inlayHints = something(response[16], true)
+    inlayHintsVariableTypes = something(response[17], true)
+    inlayHintsParameterNames = Symbol(something(response[18], :literals))
+              
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
         server.runlinter != new_runlinter ||
@@ -132,6 +138,9 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.lint_disableddirs = new_lint_disableddirs
     server.completion_mode = new_completion_mode
     server.complete_func_parens = new_complete_func_parens
+    server.inlay_hints = inlayHints
+    server.inlay_hints_variable_types = inlayHintsVariableTypes
+    server.inlay_hints_parameter_names = inlayHintsParameterNames
 
     if rerun_lint
         relintserver(server)

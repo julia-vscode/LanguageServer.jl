@@ -1,9 +1,38 @@
 function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
     sigs = SignatureInformation[]
+    # TODO The following call is just here for diagnostics
+    # We currently have crashes in the call to get_offset in crash reporting
+    # but they are fairly rare. So the idea here is to see whether we also get_expr
+    # crashes in index_at or not. If we still see crashes in get_offset after this here
+    # is merged, then the bug is simply in get_offset and we should migrate this function
+    # over to use index_at. If not, then there might still be a problem in the sync protocol.
+    index_at(get_text_document(doc), params.position)
     offset = get_offset(doc, params.position)
     x = get_expr(getcst(doc), offset)
-    arg = 0
+
+    sigs = collect_signatures(x, doc, server)
+
+    if (isempty(sigs) || (headof(x) === :RPAREN))
+        return SignatureHelp(SignatureInformation[], 0, 0)
+    end
+
+    arg = fcall_arg_number(x)
+
+    return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
+end
+
+function fcall_arg_number(x)
+    if headof(x) === :LPAREN
+        0
+    else
+        sum(headof(a) === :COMMA for a in parentof(x).trivia)
+    end
+end
+
+function collect_signatures(x, doc, server)
+    sigs = SignatureInformation[]
+
     if x isa EXPR && parentof(x) isa EXPR && CSTParser.iscall(parentof(x))
         if CSTParser.isidentifier(parentof(x).args[1])
             call_name = parentof(x).args[1]
@@ -18,22 +47,13 @@ function textDocument_signatureHelp_request(params::TextDocumentPositionParams, 
             get_signatures(f_binding, tls, sigs, getenv(doc, server))
         end
     end
-    if (isempty(sigs) || (headof(x) === :RPAREN))
-        return SignatureHelp(SignatureInformation[], 0, 0)
-    end
 
-    if headof(x) === :LPAREN
-        arg = 0
-    else
-        arg = sum(headof(a) === :COMMA for a in parentof(x).trivia)
-    end
-    return SignatureHelp(filter(s -> length(s.parameters) > arg, sigs), 0, arg)
+    return sigs
 end
 
 function get_signatures(b, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) end
 
 function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
-
     if b.val isa StaticLint.Binding
         get_signatures(b.val, tls, sigs, env)
     end

@@ -31,6 +31,7 @@ function ServerCapabilities(client::ClientCapabilities)
         ExecuteCommandOptions(missing, collect(keys(LSActions))),
         true,
         true,
+        true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
         missing
     )
@@ -160,8 +161,9 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
 
     server.clientCapabilities = params.capabilities
     server.clientInfo = params.clientInfo
+    server.editor_pid = params.processId
 
-    if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
+    if !ismissing(params.capabilities.window) && !ismissing(params.capabilities.window.workDoneProgress) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
         server.clientcapability_window_workdoneprogress = false
@@ -175,7 +177,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.clientcapability_workspace_didChangeConfiguration = true
     end
 
-    if !ismissing(params.initializationOptions)
+    if !ismissing(params.initializationOptions) && params.initializationOptions !== nothing
         server.initialization_options = params.initializationOptions
     end
 

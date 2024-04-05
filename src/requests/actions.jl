@@ -163,7 +163,7 @@ function expand_inline_func(x, server, conn)
     if headof(body) == :block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-            TextEdit(Range(file, offset .+ (0:func.fullspan)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend\n"))
+            TextEdit(Range(file, offset .+ (0:func.span)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     elseif (headof(body) === :begin || CSTParser.isbracketed(body)) &&
@@ -175,8 +175,8 @@ function expand_inline_func(x, server, conn)
             newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[1].args[i].span)])
             blockoffset += body.args[1].args[i].fullspan
         end
-        newtext = string(newtext, "\nend\n")
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.fullspan)), newtext)])
+        newtext = string(newtext, "\nend")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.span)), newtext)])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     end
 end
@@ -350,14 +350,19 @@ function double_to_triple_equal(x, _, conn)
 end
 
 function get_spdx_header(doc::Document)
-    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\h+((?:[\w\.-]+)(?:\h+[\w\.-]+)*)\h*$", get_text(doc))
+    # note the multiline flag - without that, we'd try to match the end of the _document_
+    # instead of the end of the line.
+    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\h+((?:[\w\.-]+)(?:\h+[\w\.-]+)*)\h*$"m, get_text(doc))
     return m === nothing ? m : String(m[1])
 end
 
 function in_same_workspace_folder(server::LanguageServerInstance, file1::URI, file2::URI)
+    file1_str = uri2filepath(file1)
+    file2_str = uri2filepath(file2)
+    (file1_str === nothing || file2_str === nothing) && return false
     for ws in server.workspaceFolders
-        if startswith(uri2filepath(file1), ws) &&
-           startswith(uri2filepath(file2), ws)
+        if startswith(file1_str, ws) &&
+           startswith(file2_str, ws)
            return true
        end
     end
@@ -374,7 +379,11 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
     end
     if length(candidate_identifiers) == 1
         return first(candidate_identifiers)
+    else
+        numerous = iszero(length(candidate_identifiers)) ? "no" : "multiple"
+        @warn "Found $numerous candidates for the SPDX header from open files, falling back to LICENSE" Candidates=candidate_identifiers
     end
+
     # Fallback to looking for a license file in the same workspace folder
     candidate_files = String[]
     for dir in server.workspaceFolders
@@ -384,21 +393,36 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
             end
         end
     end
-    length(candidate_files) == 1 || return nothing
-    license = read(first(candidate_files), String)
+
+    num_candidates = length(candidate_files)
+    if num_candidates != 1
+        iszero(num_candidates) && @warn "No candidate for licenses found, can't add identifier!"
+        num_candidates > 1 && @warn "More than one candidate for licenses found, choose licensing manually!"
+        return nothing
+    end
 
     # This is just a heuristic, but should be OK since this is not something automated, and
     # the programmer will see directly if the wrong license is added.
-    # TODO: Add more licenses...
-    if contains(license, r"MIT\s+(\"?Expat\"?\s+)?License")
+    license_text = read(first(candidate_files), String)
+
+    # Some known different spellings of some licences
+    if contains(license_text, r"^\s*MIT\s+(\"?Expat\"?\s+)?Licen[sc]e")
         return "MIT"
+    elseif contains(license_text, r"^\s*EUROPEAN\s+UNION\s+PUBLIC\s+LICEN[CS]E\s+v\."i)
+        # the first version should be the EUPL version
+        version = match(r"\d\.\d", license_text).match
+        return "EUPL-$version"
     end
+
+    @warn "A license was found, but could not be identified! Consider adding its licence identifier once to a file manually so that LanguageServer.jl can find it automatically next time." Location=first(candidate_files)
     return nothing
 end
 
 function add_license_header(x, server::LanguageServerInstance, conn)
     file, _ = get_file_loc(x)
+    # does the current file already have a header?
     get_spdx_header(file) === nothing || return # TODO: Would be nice to check this already before offering the action
+    # no, so try to find one
     short_identifier = identify_short_identifier(server, file)
     short_identifier === nothing && return
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
@@ -474,19 +498,28 @@ function organize_import_block(x, _, conn)
     #       BlueStyle (modules, types, ..., functions) since usually CamelCase is used for
     #       modules, types, etc, but possibly this can be improved by using information
     #       available from SymbolServer
+    function sort_with_self_first(set, self)
+        self′ = pop!(set, self, nothing)
+        x = sort!(collect(set))
+        if self′ !== nothing
+            @assert self == self′
+            pushfirst!(x, self)
+        end
+        return x
+    end
     import_lines = String[]
     for m in import_mods
         push!(import_lines, "import " * m)
     end
     for (m, s) in import_syms
-        push!(import_lines, "import " * m * ": " * join(sort!(collect(s)), ", "))
+        push!(import_lines, "import " * m * ": " * join(sort_with_self_first(s, m), ", "))
     end
     using_lines = String[]
     for m in using_mods
         push!(using_lines, "using " * m)
     end
     for (m, s) in using_syms
-        push!(using_lines, "using " * m * ": " * join(sort!(collect(s)), ", "))
+        push!(using_lines, "using " * m * ": " * join(sort_with_self_first(s, m), ", "))
     end
     io = IOBuffer()
     join(io, sort!(import_lines), "\n")

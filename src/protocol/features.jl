@@ -296,6 +296,49 @@ end
     arguments::Union{Vector{Any},Missing}
 end
 
+##############################################################################
+# inlay hints
+@dict_readable struct InlayHintOptions <: Outbound
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    resolveProvider::Bool
+end
+
+@dict_readable struct InlayHintRegistrationOptions <: Outbound
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    resolveProvider::Bool # InlayHintOptions
+    id::Union{Missing, String} # StaticRegistrationOptions
+    documentSelector::Union{Nothing, DocumentSelector} # TextDocumentRegistrationOptions
+end
+
+@dict_readable struct InlayHintParams <: Outbound
+    textDocument::TextDocumentIdentifier
+    range::Range
+    workDoneToken::Union{Int,String,Missing} # ProgressToken
+end
+
+@dict_readable struct InlayHintLabelPart <: Outbound
+    value::String
+    tooltip::Union{Missing, String, MarkupContent}
+    location::Union{Missing, Location}
+    command::Union{Missing, Command}
+end
+
+const InlayHintKind = Int
+const InlayHintKinds = (
+    Type = 1,
+    Parameter = 2
+)
+
+@dict_readable struct InlayHint <: Outbound
+    position::Position
+    label::Union{String, Vector{InlayHintLabelPart}}
+    kind::Union{Missing, InlayHintKind}
+    textEdits::Union{Missing, Vector{TextEdit}}
+    tooltip::Union{Missing, String, MarkupContent}
+    paddingLeft::Union{Missing, Bool}
+    paddingRight::Union{Missing, Bool}
+    data::Union{Missing, Any}
+end
 
 ##############################################################################
 

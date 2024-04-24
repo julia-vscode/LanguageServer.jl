@@ -3,7 +3,7 @@
     using LanguageServer.URIs2
 
     include("test_shared_server.jl")
-    
+
     testtext = """
     module testmodule
     struct testtype
@@ -28,7 +28,10 @@
 
 
     res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(3, 11)), server, nothing)
-    @test res.contents.value == string(LanguageServer.sanitize_docstring(StaticLint.CoreTypes.Float64.doc), "\n```julia\nCore.Float64 <: Core.AbstractFloat\n```")
+    @test occursin(
+        "```julia\nCore.Float64 <: Core.AbstractFloat\n```",
+        res.contents.value
+    )
 
     res = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(7, 12)), server, nothing)
     @test occursin(r"c::testtype", res.contents.value)

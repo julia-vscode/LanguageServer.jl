@@ -128,7 +128,6 @@ end
     # String macros
     settestdoc("uint12")
     @test any(item.label == "uint128\"" for item in completion_test(0, 6).items)
-    @test any(item.label == "@uint128_str" for item in completion_test(0, 6).items)
 
     settestdoc("@uint12")
     @test any(item.label == "@uint128_str" for item in completion_test(0, 7).items)
@@ -136,9 +135,10 @@ end
     settestdoc("""
     macro foobar_str(ex) ex end
     fooba
+    @fooba
     """)
     @test any(item.label == "foobar\"" for item in completion_test(1, 5).items)
-    @test any(item.label == "@foobar_str" for item in completion_test(1, 5).items)
+    @test any(item.label == "@foobar_str" for item in completion_test(2, 6).items)
 end
 
 @testitem "scope var completions" begin

@@ -138,7 +138,7 @@ end
     @fooba
     """)
     @test any(item.label == "foobar\"" for item in completion_test(1, 5).items)
-    @test any(item.label == "@foobar_str" for item in completion_test(2, 5).items)
+    @test any(item.label == "@foobar_str" for item in completion_test(2, 6).items)
 end
 
 @testitem "scope var completions" begin

@@ -64,8 +64,9 @@ end
 
 struct LSInvalidFile <: Exception
     msg::AbstractString
+    uri::URI
 end
 
 function Base.showerror(io::IO, ex::LSInvalidFile)
-    print(io, ex.msg)
+    print(io, ex.msg, " File: '", uri2filepath(ex.uri), "'")
 end

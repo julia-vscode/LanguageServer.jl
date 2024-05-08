@@ -58,7 +58,7 @@ end
     delta::Union{Bool,Missing}
 end
 
-@dict_readable struct SemanticTokensClientCapabilitiesRequests <: Outbound
+struct SemanticTokensClientCapabilitiesRequests <: Outbound
     range::Union{Bool,Missing}
 	full::Union{Bool,Missing,SemanticTokensClientCapabilitiesRequestsFull}
 end

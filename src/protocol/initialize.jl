@@ -60,7 +60,7 @@ end
 
 struct SemanticTokensClientCapabilitiesRequests <: Outbound
     range::Union{Bool,Missing}
-	full::Union{Bool,Missing,SemanticTokensClientCapabilitiesRequestsFull}
+    full::Union{Bool,Missing,SemanticTokensClientCapabilitiesRequestsFull}
 end
 
 # Requires handwritten implementaiton to account for 3-part Unions
@@ -77,13 +77,13 @@ end
 @dict_readable struct SemanticTokensClientCapabilities
     dynamicRegistration::Union{Bool,Missing}
     requests::SemanticTokensClientCapabilitiesRequests
-	tokenTypes::Vector{String}
-	tokenModifiers::Vector{String}
-	formats::Vector{String}
-	overlappingTokenSupport::Union{Bool,Missing}
-	multilineTokenSupport::Union{Bool,Missing}
-	serverCancelSupport::Union{Bool,Missing}
-	augmentsSyntaxTokens::Union{Bool,Missing}
+    tokenTypes::Vector{String}
+    tokenModifiers::Vector{String}
+    formats::Vector{String}
+    overlappingTokenSupport::Union{Bool,Missing}
+    multilineTokenSupport::Union{Bool,Missing}
+    serverCancelSupport::Union{Bool,Missing}
+    augmentsSyntaxTokens::Union{Bool,Missing}
 end
 
 @dict_readable struct TextDocumentClientCapabilities <: Outbound

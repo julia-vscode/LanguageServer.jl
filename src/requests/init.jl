@@ -197,14 +197,18 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     if server.workspaceFolders !== nothing
-        server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
+        for i in server.workspaceFolders
+            JuliaWorkspaces.add_folder_from_disc!(server.workspace, i)
+        end
 
-        if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
-        elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
+        # Add project files separately in case they are not in a workspace folder
+        if server.env_path != ""
+            for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
+                file_full_path = joinpath(server.env_path, file)
+                if isfile(file_full_path)
+                    JuliaWorkspace.add_file_from_disc!(server.workspace, file_full_path)
+                end
+            end
         end
 
         for wkspc in server.workspaceFolders

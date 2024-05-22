@@ -6,14 +6,13 @@ using UUIDs
 using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
-import TestItemDetection
 import Logging
+import JuliaWorkspaces
+using JuliaWorkspaces: JuliaWorkspace, URIs2
+using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
 
 export LanguageServerInstance, runserver
-
-include("URIs2/URIs2.jl")
-using .URIs2
 
 JSON.lower(uri::URI) = string(uri)
 
@@ -22,7 +21,6 @@ include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("textdocument.jl")
 include("document.jl")
-include("juliaworkspace.jl")
 include("languageserverinstance.jl")
 include("multienv.jl")
 include("runserver.jl")

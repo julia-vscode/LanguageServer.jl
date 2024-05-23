@@ -4,6 +4,10 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         doc = getdocument(server, uri)
         set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId))
         set_open_in_editor(doc, true)
+
+        old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
+        # TODO SALSA language id
+        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)])
     else
         doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId), false, server)
         setdocument!(server, uri, doc)
@@ -13,6 +17,8 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         fpath = getpath(doc)
 
         !isempty(fpath) && try_to_load_parents(fpath, server)
+
+        JuliaWorkspaces.add_file(server.workspace, uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId))
     end
     parse_all(doc, server)
 end
@@ -88,6 +94,8 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
+
+    JuliaWorkspaces.update_text_file!(server.workspace, params.textDocument.uri, [JuliaWorkspaces.TextChange(_convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges])
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
@@ -360,7 +368,7 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         # parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
 
         # # If the file is not in the workspace, we don't report nothing
-        # isempty(parent_workspaceFolders) && return     
+        # isempty(parent_workspaceFolders) && return
 
         params = PublishTestsParams(
             get_uri(doc),

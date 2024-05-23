@@ -8,7 +8,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
             if change.type == FileChangeTypes.Created
                 JuliaWorkspaces.add_file_from_disc!(server.workspace, uri2filepath(uri))
             elseif change.type == FileChangeTypes.Changed
-                JuliaWorkspace.update_file_from_disc!(server.workspace, uri2filepath(uri))
+                JuliaWorkspaces.update_file_from_disc!(server.workspace, uri2filepath(uri))
             end
 
             if hasdocument(server, uri)

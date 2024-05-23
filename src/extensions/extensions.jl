@@ -9,6 +9,9 @@ end
 @dict_readable struct TestItemDetail <: Outbound
     id::String
     label::String
+    project_uri::Union{URI,Nothing}
+    package_uri::Union{URI,Nothing}
+    package_name::String
     range::Range
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}
@@ -18,6 +21,8 @@ end
 
 @dict_readable struct TestSetupDetail <: Outbound
     name::String
+    package_uri::Union{URI,Nothing}
+    package_name::String
     range::Range
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}
@@ -31,9 +36,6 @@ end
 struct PublishTestsParams <: Outbound
     uri::DocumentUri
     version::Union{Int,Missing}
-    project_path::String
-    package_path::String
-    package_name::String
     testitemdetails::Vector{TestItemDetail}
     testsetupdetails::Vector{TestSetupDetail}
     testerrordetails::Vector{TestErrorDetail}

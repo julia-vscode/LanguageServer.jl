@@ -90,6 +90,8 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
             end
         end
 
+        JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+
         trigger_symbolstore_reload(server)
     end
 end

@@ -211,6 +211,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             end
         end
 
+        JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server)
         end

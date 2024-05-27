@@ -89,7 +89,7 @@ end
 end
 
 const LINT_DISABLED_DIRS = ["test", "docs"]
-const LINT_IGNORED_DIRS = ["\\..*"]
+const LINT_IGNORED_GLOBS = ["\\..*"]
 
 function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
@@ -112,7 +112,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
-        ConfigurationItem(missing, "julia.lint.ignoredDirs"),
+        ConfigurationItem(missing, "julia.lint.ignoredGlobs"),
     ]))
 
     new_runlinter = something(response[11], true)
@@ -124,21 +124,21 @@ function request_julia_config(server::LanguageServerInstance, conn)
     inlayHints = something(response[15], true)
     inlayHintsVariableTypes = something(response[16], true)
     inlayHintsParameterNames = Symbol(something(response[17], :literals))
-    new_lint_ignoreddirs = something(response[18], LINT_IGNORED_DIRS)
+    new_lint_ignoredglobs = something(response[18], LINT_IGNORED_GLOBS)
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
         server.runlinter != new_runlinter ||
         server.lint_missingrefs != new_lint_missingrefs ||
         server.lint_disableddirs != new_lint_disableddirs ||
-        server.lint_ignoreddirs != new_lint_ignoreddirs
+        server.lint_ignoredglobs != new_lint_ignoredglobs
     end
 
     server.lint_options = new_SL_opts
     server.runlinter = new_runlinter
     server.lint_missingrefs = new_lint_missingrefs
     server.lint_disableddirs = new_lint_disableddirs
-    server.lint_ignoreddirs = new_lint_ignoreddirs
+    server.lint_ignoredglobs = new_lint_ignoredglobs
     server.completion_mode = new_completion_mode
     server.inlay_hints = inlayHints
     server.inlay_hints_variable_types = inlayHintsVariableTypes

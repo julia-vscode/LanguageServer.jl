@@ -97,13 +97,17 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
+        ignoredGlobs = Regex.(joinpath.(Ref(path), server.lint_ignoredglobs))
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
-                if any(occursin.(Regex.(joinpath.(Ref(path), server.lint_ignoreddirs)), Ref(root)))
+                if any(occursin.(ignoredGlobs, Ref(root)))
                     continue
                 end
                 for file in files
                     filepath = joinpath(root, file)
+                    if any(occursin.(ignoredGlobs, Ref(filepath)))
+                        continue
+                    end
                     if isvalidjlfile(filepath)
                         uri = filepath2uri(filepath)
                         if hasdocument(server, uri)

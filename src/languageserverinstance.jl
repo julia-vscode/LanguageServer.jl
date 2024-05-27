@@ -42,7 +42,7 @@ mutable struct LanguageServerInstance
     lint_options::StaticLint.LintOptions
     lint_missingrefs::Symbol
     lint_disableddirs::Vector{String}
-    lint_ignoreddirs::Vector{String}
+    lint_ignoredglobs::Vector{String}
     completion_mode::Symbol
     inlay_hints::Bool
     inlay_hints_variable_types::Bool
@@ -87,7 +87,7 @@ mutable struct LanguageServerInstance
             StaticLint.LintOptions(),
             :all,
             LINT_DISABLED_DIRS,
-            LINT_IGNORED_DIRS,
+            LINT_IGNORED_GLOBS,
             :qualify, # options: :import or :qualify, anything else turns this off
             false,
             true,

@@ -6,8 +6,8 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         set_open_in_editor(doc, true)
 
         old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
-        # TODO SALSA language id
-        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)])
+        
+        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
     else
         doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId), false, server)
         setdocument!(server, uri, doc)
@@ -95,7 +95,11 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
 
-    JuliaWorkspaces.update_text_file!(server.workspace, params.textDocument.uri, [JuliaWorkspaces.TextChange(_convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges])
+    JuliaWorkspaces.update_text_file!(
+        server.workspace,
+        params.textDocument.uri,
+        [JuliaWorkspaces.TextChange(_convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges],
+        get_language_id(doc))
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)

@@ -36,6 +36,7 @@ include("requests/actions.jl")
 include("requests/init.jl")
 include("requests/signatures.jl")
 include("requests/highlight.jl")
+include("requests/testing.jl")
 include("utilities.jl")
 include("precompile.jl")
 

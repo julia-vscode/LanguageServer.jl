@@ -206,7 +206,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
                 file_full_path = joinpath(server.env_path, file)
                 if isfile(file_full_path)
-                    JuliaWorkspace.add_file_from_disc!(server.workspace, file_full_path)
+                    JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
                 end
             end
         end

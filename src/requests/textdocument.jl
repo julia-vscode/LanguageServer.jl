@@ -4,10 +4,6 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         doc = getdocument(server, uri)
         set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId))
         set_open_in_editor(doc, true)
-
-        old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
-        
-        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
     else
         doc = Document(TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId), false, server)
         setdocument!(server, uri, doc)
@@ -17,9 +13,15 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         fpath = getpath(doc)
 
         !isempty(fpath) && try_to_load_parents(fpath, server)
-
-        JuliaWorkspaces.add_file(server.workspace, uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId))
     end
+
+    if JuliaWorkspaces.has_file(server.workspace, uri)
+        old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
+        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
+    else
+        JuliaWorkspaces.add_text_file(server.workspace, JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId)))
+    end
+
     parse_all(doc, server)
 end
 
@@ -364,8 +366,8 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         testitems_results = JuliaWorkspaces.get_test_items(server.workspace, get_uri(doc))
 
-        testitems = TestItemDetail[TestItemDetail(i.name, i.name, i.project_uri, i.package_uri, i.package_name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in testitems_results.testitems]
-        testsetups= TestSetupDetail[TestSetupDetail(i.name, i.package_uri, i.package_name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
+        testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in testitems_results.testitems]
+        testsetups= TestSetupDetail[TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
         testerrors = TestErrorDetail[TestErrorDetail(Range(doc, i.range), i.message) for i in testitems_results.testerrors]
         # TODO SALSA
         # # Find which workspace folder the doc is in.

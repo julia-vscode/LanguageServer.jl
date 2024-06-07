@@ -9,9 +9,6 @@ end
 @dict_readable struct TestItemDetail <: Outbound
     id::String
     label::String
-    project_uri::Union{URI,Nothing}
-    package_uri::Union{URI,Nothing}
-    package_name::String
     range::Range
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}
@@ -21,8 +18,6 @@ end
 
 @dict_readable struct TestSetupDetail <: Outbound
     name::String
-    package_uri::Union{URI,Nothing}
-    package_name::String
     range::Range
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}
@@ -39,6 +34,17 @@ struct PublishTestsParams <: Outbound
     testitemdetails::Vector{TestItemDetail}
     testsetupdetails::Vector{TestSetupDetail}
     testerrordetails::Vector{TestErrorDetail}
+end
+
+@dict_readable struct GetTestEnvRequestParams <: Outbound
+    uri::URI
+end
+
+@dict_readable struct GetTestEnvRequestParamsReturn <: Outbound
+    package_name::String
+    package_uri::Union{URI,Nothing}
+    project_uri::Union{URI,Nothing}
+    env_content_hash::Union{UInt,Nothing}
 end
 
 include("messagedefs.jl")

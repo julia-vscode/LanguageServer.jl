@@ -80,17 +80,23 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
     if server.env_path != params.envPath
         server.env_path = params.envPath
 
+        empty!(server._extra_tracked_files)
+
         # Add project files separately in case they are not in a workspace folder
         if server.env_path != ""
             for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
                 file_full_path = joinpath(server.env_path, file)
                 if isfile(file_full_path)
                     JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                    push!(server._extra_tracked_files, filepath2uri(file_full_path))
                 end
             end
         end
 
         JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+
+        # We call this here to remove project and manifest files that were not in the workspace
+        gc_files_from_workspace(server)
 
         trigger_symbolstore_reload(server)
     end

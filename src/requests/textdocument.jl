@@ -15,12 +15,17 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         !isempty(fpath) && try_to_load_parents(fpath, server)
     end
 
+    if haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+
     if JuliaWorkspaces.has_file(server.workspace, uri)
         old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
         JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
     else
         JuliaWorkspaces.add_text_file(server.workspace, JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId)))
     end
+    server._open_file_versions[uri] = params.textDocument.version
 
     parse_all(doc, server)
 end
@@ -46,6 +51,16 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
                 end
             end
         end
+    end
+
+    if !haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+    delete!(server._open_file_versions, uri)
+
+    # If the file doesn't exist on disc, we remove it from the workspace
+    if !isfile(uri2filepath(uri))
+        JuliaWorkspaces.delete_file!(server.workspace, uri)
     end
 end
 
@@ -86,6 +101,8 @@ function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
+    uri = params.textDocument.uri
+
     doc = getdocument(server, params.textDocument.uri)
 
     s0 = get_text(doc)
@@ -96,6 +113,14 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
+
+    if !haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+
+    if server._open_file_versions[uri]>=params.textDocument.version
+        error("Outdated version")
+    end
 
     JuliaWorkspaces.update_text_file!(
         server.workspace,

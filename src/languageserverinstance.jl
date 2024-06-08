@@ -69,6 +69,12 @@ mutable struct LanguageServerInstance
     shutdown_requested::Bool
 
     workspace::JuliaWorkspace
+    # This has one entry for each open file (in the LSP sense). The key is the uri fo the file
+    # and the value is the version of the file that the LS client sent.
+    _open_file_versions::Dict{URI,Int}
+    # This is a list of files that should be kept around that are potentially not in a workspace
+    # folder. Primarily for projects and manifests outside of the workspace.
+    _extra_tracked_files::Vector{URI}
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         new(
@@ -103,12 +109,14 @@ mutable struct LanguageServerInstance
             missing,
             nothing,
             false,
-            JuliaWorkspace()
+            JuliaWorkspace(),
+            Dict{URI,Int}(),
+            URI[]
         )
     end
 end
 function Base.display(server::LanguageServerInstance)
-    println("Root: ", server.workspaceFolders)
+    println(stderr, "Root: ", server.workspaceFolders)
     for d in getdocuments_value(server)
         display(d)
     end

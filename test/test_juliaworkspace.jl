@@ -113,3 +113,36 @@ end
     jw = delete_file(jw, project_file_uri)
     @test !haskey(jw._packages, project_uri)
 end
+
+@testitem "load_folder" begin
+    using LanguageServer: filepath2uri, load_folder, hasdocument
+
+    include("test_shared_server.jl")
+    pkg_root = abspath(joinpath(@__DIR__, ".."))
+    
+    filepath = "test/test_juliaworkspace.jl"
+
+    empty!(server._documents)
+    load_folder(pkg_root, server)
+    
+    uri = filepath2uri(joinpath(pkg_root, filepath))
+    @test hasdocument(server, uri)
+
+    server.lint_ignoredglobs = [
+        "\\..*",
+        filepath,
+    ]
+    empty!(server._documents)
+    load_folder(pkg_root, server)
+    
+    @test !hasdocument(server, uri)
+
+    server.lint_ignoredglobs = [
+        "\\..*",
+        "test",
+    ]
+    empty!(server._documents)
+    load_folder(pkg_root, server)
+    
+    @test !hasdocument(server, uri)
+end    

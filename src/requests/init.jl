@@ -97,10 +97,17 @@ end
 
 function load_folder(path::String, server)
     if load_rootpath(path)
+        ignoredGlobs = Regex.(joinpath.(Ref(path), server.lint_ignoredglobs))
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
+                if any(occursin.(ignoredGlobs, Ref(root)))
+                    continue
+                end
                 for file in files
                     filepath = joinpath(root, file)
+                    if any(occursin.(ignoredGlobs, Ref(filepath)))
+                        continue
+                    end
                     if isvalidjlfile(filepath)
                         uri = filepath2uri(filepath)
                         if hasdocument(server, uri)
@@ -196,6 +203,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         )
     end
 
+    request_julia_config(server, conn)
+
     if server.workspaceFolders !== nothing
         server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
 
@@ -211,8 +220,6 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             load_folder(wkspc, server)
         end
     end
-
-    request_julia_config(server, conn)
 
     if server.number_of_outstanding_symserver_requests > 0
         create_symserver_progress_ui(server)

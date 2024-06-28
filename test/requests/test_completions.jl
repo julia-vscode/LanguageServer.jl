@@ -40,19 +40,24 @@ end
 
     settestdoc("import Base: r")
     @test any(item.label == "rand" for item in completion_test(0, 14).items)
+    closetestdoc()
 
     settestdoc("import ")
     @test (r = all(item.label in ("Main", "Base", "Core") for item in completion_test(0, 7).items)) && !isempty(r)
+    closetestdoc()
 
     settestdoc("""module M end
     import .""")
     @test_broken completion_test(1, 8).items[1].label == "M"
+    closetestdoc()
 
     settestdoc("import Base.M")
     @test any(item.label == "Meta" for item in completion_test(0, 13).items)
+    closetestdoc()
 
     settestdoc("import Bas")
     @test any(item.label == "Base" for item in completion_test(0, 10).items)
+    closetestdoc()
 end
 
 @testitem "getfield completions" begin
@@ -60,18 +65,22 @@ end
 
     settestdoc("Base.")
     @test length(completion_test(0, 5).items) > 10
+    closetestdoc()
 
     settestdoc("Base.B")
     @test any(item.label == "Base" for item in completion_test(0, 6).items)
+    closetestdoc()
 
     settestdoc("Base.r")
     @test any(item.label == "rand" for item in completion_test(0, 6).items)
+    closetestdoc()
 
     settestdoc("""
     using Base.Meta
     Base.Meta.
     """)
     @test any(item.label == "quot" for item in completion_test(1, 10).items)
+    closetestdoc()
 
     settestdoc("""
     module M
@@ -80,12 +89,14 @@ end
     M.
     """)
     @test any(item.label == "inner" for item in completion_test(3, 2).items)
+    closetestdoc()
 
     settestdoc("""
     x = Expr()
     x.
     """)
     @test (r = all(item.label in ("head", "args") for item in completion_test(1, 2).items)) && (!isempty(r))
+    closetestdoc()
 
     settestdoc("""
     struct T
@@ -96,6 +107,7 @@ end
     x.
     """)
     @test (r = all(item.label in ("f1", "f2") for item in completion_test(5, 2).items)) && !isempty(r)
+    closetestdoc()
 end
 
 @testitem "token completions" begin
@@ -103,34 +115,44 @@ end
 
     settestdoc("B")
     @test any(item.label == "Base" for item in completion_test(0, 1).items)
+    closetestdoc()
 
     settestdoc("r")
     @test any(item.label == "rand" for item in completion_test(0, 1).items)
+    closetestdoc()
 
     settestdoc("@t")
     @test any(item.label == "@time" for item in completion_test(0, 2).items)
+    closetestdoc()
 
     settestdoc("i")
     @test any(item.label == "if" for item in completion_test(0, 1).items)
+    closetestdoc()
 
     settestdoc("i")
     @test any(item.label == "in" for item in completion_test(0, 1).items)
+    closetestdoc()
 
     settestdoc("for")
     @test any(item.label == "for" for item in completion_test(0, 3).items)
+    closetestdoc()
 
     settestdoc("in")
     @test any(item.label == "in" for item in completion_test(0, 2).items)
+    closetestdoc()
 
     settestdoc("isa")
     @test any(item.label == "isa" for item in completion_test(0, 3).items)
+    closetestdoc()
 
     # String macros
     settestdoc("uint12")
     @test any(item.label == "uint128\"" for item in completion_test(0, 6).items)
+    closetestdoc()
 
     settestdoc("@uint12")
     @test any(item.label == "@uint128_str" for item in completion_test(0, 7).items)
+    closetestdoc()
 
     settestdoc("""
     macro foobar_str(ex) ex end
@@ -139,6 +161,7 @@ end
     """)
     @test any(item.label == "foobar\"" for item in completion_test(1, 5).items)
     @test any(item.label == "@foobar_str" for item in completion_test(2, 6).items)
+    closetestdoc()
 end
 
 @testitem "scope var completions" begin

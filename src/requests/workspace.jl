@@ -6,9 +6,11 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             if change.type == FileChangeTypes.Created
-                server.workspace = add_file(server.workspace, uri)
+                JuliaWorkspaces.add_file_from_disc!(server.workspace, uri2filepath(uri))
             elseif change.type == FileChangeTypes.Changed
-                server.workspace = update_file(server.workspace, uri)
+                if !haskey(server._open_file_versions, uri)
+                    JuliaWorkspaces.update_file_from_disc!(server.workspace, uri2filepath(uri))
+                end
             end
 
             if hasdocument(server, uri)
@@ -52,7 +54,9 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
-            server.workspace = delete_file(server.workspace, uri)
+            if !haskey(server._open_file_versions, uri)
+                JuliaWorkspaces.remove_file!(server.workspace, uri)
+            end
 
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
@@ -144,16 +148,43 @@ function request_julia_config(server::LanguageServerInstance, conn)
     end
 end
 
+function gc_files_from_workspace(server::LanguageServerInstance)
+    for file in JuliaWorkspaces.get_files(server.workspace)
+        if haskey(server._open_file_versions, file.uri)
+            continue
+        end
+
+        if any(i->startswith(file, i), filepath2uri(server.workspaceFolders))
+            continue
+        end
+
+        if file in server._extra_tracked_files
+            continue
+        end
+
+        JuliaWorkspaces.remove_file!(server.workspace, file.uri)
+    end
+end
+
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
         load_folder(wksp, server)
-        server.workspace = add_workspace_folder(server.workspace, wksp.uri)
+
+
+        files = JuliaWorkspaces.read_path_into_textdocuments(ksp.uri)
+
+        for i in files
+            if !haskey(server._open_file_versions, i.uri)
+                JuliaWorkspaces.add_text_file(server.workspace, i)
+            end
+        end
     end
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
-        server.workspace = remove_workspace_folder(server.workspace, wksp.uri)
+
+        gc_files_from_workspace(server)
     end
 end
 

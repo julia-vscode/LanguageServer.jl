@@ -14,6 +14,19 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
 
         !isempty(fpath) && try_to_load_parents(fpath, server)
     end
+
+    if haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+
+    if JuliaWorkspaces.has_file(server.workspace, uri)
+        old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
+        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
+    else
+        JuliaWorkspaces.add_text_file(server.workspace, JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId)))
+    end
+    server._open_file_versions[uri] = params.textDocument.version
+
     parse_all(doc, server)
 end
 
@@ -38,6 +51,17 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
                 end
             end
         end
+    end
+
+    if !haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+    delete!(server._open_file_versions, uri)
+
+    # If the file doesn't exist on disc, we remove it from the workspace
+    file_path = uri2filepath(uri)
+    if file_path===nothing || !isfile(file_path)
+        JuliaWorkspaces.remove_file!(server.workspace, uri)
     end
 end
 
@@ -78,6 +102,8 @@ function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
+    uri = params.textDocument.uri
+
     doc = getdocument(server, params.textDocument.uri)
 
     s0 = get_text(doc)
@@ -88,6 +114,20 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
     set_text_document!(doc, new_text_document)
+
+    if !haskey(server._open_file_versions, uri)
+        error("This should not happen")
+    end
+
+    if server._open_file_versions[uri]>params.textDocument.version
+        error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
+    end
+
+    JuliaWorkspaces.update_text_file!(
+        server.workspace,
+        params.textDocument.uri,
+        [JuliaWorkspaces.TextChange(i.range === missing ? nothing : _convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges],
+        get_language_id(doc))
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
@@ -348,117 +388,23 @@ function try_to_load_parents(child_path, server)
     end
 end
 
-
-
-function vec_startswith(a, b)
-    if length(a) < length(b)
-        return false
-    end
-
-    for (i,v) in enumerate(b)
-        if a[i] != v
-            return false
-        end
-    end
-    return true
-end
-
-function find_package_for_file(jw::JuliaWorkspace, file::URI)
-    file_path = uri2filepath(file)
-    package = jw._packages |>
-        keys |>
-        collect |>
-        x -> map(x) do i
-            package_folder_path = uri2filepath(i)
-            parts = splitpath(package_folder_path)
-            return (uri = i, parts = parts)
-        end |>
-        x -> filter(x) do i
-            return vec_startswith(splitpath(file_path), i.parts)
-        end |>
-        x -> sort(x, by=i->length(i.parts), rev=true) |>
-        x -> length(x) == 0 ? nothing : first(x).uri
-
-    return package
-end
-
-function find_project_for_file(jw::JuliaWorkspace, file::URI)
-    file_path = uri2filepath(file)
-    project = jw._projects |>
-        keys |>
-        collect |>
-        x -> map(x) do i
-            project_folder_path = uri2filepath(i)
-            parts = splitpath(project_folder_path)
-            return (uri = i, parts = parts)
-        end |>
-        x -> filter(x) do i
-            return vec_startswith(splitpath(file_path), i.parts)
-        end |>
-        x -> sort(x, by=i->length(i.parts), rev=true) |>
-        x -> length(x) == 0 ? nothing : first(x).uri
-
-    return project
-end
-
-function find_tests!(doc, server::LanguageServerInstance, jr_endpoint)
+function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-        # Find which workspace folder the doc is in.
-        parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+        testitems_results = JuliaWorkspaces.get_test_items(server.workspace, get_uri(doc))
 
-        # If the file is not in the workspace, we don't report nothing
-        isempty(parent_workspaceFolders) && return
+        testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in testitems_results.testitems]
+        testsetups= TestSetupDetail[TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
+        testerrors = TestErrorDetail[TestErrorDetail(Range(doc, i.range), i.message) for i in testitems_results.testerrors]
+        # TODO SALSA
+        # # Find which workspace folder the doc is in.
+        # parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
 
-        project_uri = find_project_for_file(server.workspace,  get_uri(doc))
-        package_uri = find_package_for_file(server.workspace,  get_uri(doc))
-
-        if project_uri === nothing
-            project_uri = filepath2uri(server.env_path)
-        end
-
-        if package_uri === nothing
-            package_path = ""
-            package_name = ""
-        else
-            package_path = uri2filepath(package_uri)
-            package_name = server.workspace._packages[package_uri].name
-        end
-
-        project_path = ""
-        if project_uri == package_uri
-            project_path = uri2filepath(project_uri)
-        elseif haskey(server.workspace._projects, project_uri)
-            relevant_project = server.workspace._projects[project_uri]
-
-            if haskey(relevant_project.deved_packages, package_uri)
-                project_path = uri2filepath(project_uri)
-            end
-        end
-
-        cst = getcst(doc)
-
-        testitems = []
-        testsetups = []
-        testerrors = []
-
-        for i in cst.args
-            file_testitems = []
-            file_testsetups = []
-            file_errors = []
-
-            TestItemDetection.find_test_detail!(i, file_testitems, file_testsetups, file_errors)
-
-            append!(testitems, [TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in file_testitems])
-            append!(testsetups, [TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in file_testsetups])
-            append!(testerrors, [TestErrorDetail(Range(doc, i.range), i.error) for i in file_errors])
-        end
+        # # If the file is not in the workspace, we don't report nothing
+        # isempty(parent_workspaceFolders) && return
 
         params = PublishTestsParams(
             get_uri(doc),
             get_version(doc),
-            project_path,
-            package_path,
-            package_name,
             testitems,
             testsetups,
             testerrors

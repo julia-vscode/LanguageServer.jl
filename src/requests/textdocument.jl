@@ -59,8 +59,9 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     delete!(server._open_file_versions, uri)
 
     # If the file doesn't exist on disc, we remove it from the workspace
-    if !isfile(uri2filepath(uri))
-        JuliaWorkspaces.delete_file!(server.workspace, uri)
+    file_path = uri2filepath(uri)
+    if file_path===nothing || !isfile(file_path)
+        JuliaWorkspaces.remove_file!(server.workspace, uri)
     end
 end
 
@@ -118,14 +119,14 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("This should not happen")
     end
 
-    if server._open_file_versions[uri]>=params.textDocument.version
-        error("Outdated version")
+    if server._open_file_versions[uri]>params.textDocument.version
+        error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
     end
 
     JuliaWorkspaces.update_text_file!(
         server.workspace,
         params.textDocument.uri,
-        [JuliaWorkspaces.TextChange(_convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges],
+        [JuliaWorkspaces.TextChange(i.range === missing ? nothing : _convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges],
         get_language_id(doc))
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")

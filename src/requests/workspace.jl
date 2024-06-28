@@ -162,7 +162,7 @@ function gc_files_from_workspace(server::LanguageServerInstance)
             continue
         end
 
-        JuliaWorkspaces.delete_file!(server.workspace, file.uri)
+        JuliaWorkspaces.remove_file!(server.workspace, file.uri)
     end
 end
 

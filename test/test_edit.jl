@@ -33,34 +33,35 @@
             LanguageServer.set_text_document!(doc, LanguageServer.apply_text_edits(get_text_document(doc), tdcce, 1))
             LanguageServer.parse_all(doc, server)
 
+            old_cst = doc.cst
             new_cst = CSTParser.parse(LanguageServer.get_text(doc), true)
 
-            CSTParser.to_codeobject(doc.cst) == CSTParser.to_codeobject(new_cst), doc.cst, new_cst
+            LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(uri"untitled:none")), server, nothing)
+
+            CSTParser.to_codeobject(old_cst) == CSTParser.to_codeobject(new_cst), old_cst, new_cst 
         end
 
         # techinically tests the same as test_document.jl, but should be changed to incremental re-parsing
         # once that's implemented again
-        @testset "text edits" begin
-            @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
-            @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
-            @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]
-            @test test_edit(server, "a\n", (1, 0), (1, 0), "b")[1]
-            @test test_edit(server, "a", (0, 0), (0, 1), "")[1]
-            @test test_edit(server, "a\na", (1, 0), (1, 1), "b")[1]
-            @test test_edit(server, "a\na", (1, 0), (1, 1), "")[1]
-            @test test_edit(server, "begin\nend", (0, 4), (0, 5), "")[1]
-            @test test_edit(server, "a\nb", (1, 1), (1, 1), "\n")[1]
-            @test test_edit(server, "bein\nend", (0, 2), (0, 2), "g")[1]
-            @test test_edit(server, "a\nb\nc", (2, 0), (2, 1), "")[1]
-            @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
-            @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
-            @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
-            @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]
+        @test test_edit(server, "a", (0, 0), (0, 0), "a")[1]
+        @test test_edit(server, "a", (0, 1), (0, 1), "a")[1]
+        @test test_edit(server, "a", (0, 0), (0, 1), "abc")[1]
+        @test test_edit(server, "a\n", (1, 0), (1, 0), "b")[1]
+        @test test_edit(server, "a", (0, 0), (0, 1), "")[1]
+        @test test_edit(server, "a\na", (1, 0), (1, 1), "b")[1]
+        @test test_edit(server, "a\na", (1, 0), (1, 1), "")[1]
+        @test test_edit(server, "begin\nend", (0, 4), (0, 5), "")[1]
+        @test test_edit(server, "a\nb", (1, 1), (1, 1), "\n")[1]
+        @test test_edit(server, "bein\nend", (0, 2), (0, 2), "g")[1]
+        @test test_edit(server, "a\nb\nc", (2, 0), (2, 1), "")[1]
+        @test test_edit(server, "a\nb\nc", (1, 0), (1, 1), "")[1]
+        @test test_edit(server, "begin while f end end", (0, 10), (0, 11), "")[1]
+        @test test_edit(server, "begin while true end end\nf() = 1", (0, 12), (0, 16), "")[1]
+        @test test_edit(server, "for i ", (0, 6), (0, 6), ";")[1]
 
-            @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
-            @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
-            @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
-        end
+        @test test_edit(server, "a\n\nc", (1, 0), (1, 0), "b")[1]
+        @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
+        @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
 
     end
 end

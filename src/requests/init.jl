@@ -206,7 +206,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
                 file_full_path = joinpath(server.env_path, file)
                 if isfile(file_full_path)
-                    JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                    # Only add again if outside of the workspace folders
+                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
+                        JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                    end
+                    # But we do want to track, in case the workspace folder is removed
                     push!(server._extra_tracked_files, filepath2uri(file_full_path))
                 end
             end

@@ -56,6 +56,9 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         elseif change.type == FileChangeTypes.Deleted
             if !haskey(server._open_file_versions, uri)
                 JuliaWorkspaces.remove_file!(server.workspace, uri)
+                if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+                    JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+                end
             end
 
             if hasdocument(server, uri)
@@ -163,6 +166,9 @@ function gc_files_from_workspace(server::LanguageServerInstance)
         end
 
         JuliaWorkspaces.remove_file!(server.workspace, file.uri)
+        if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(file.uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+        end
     end
 end
 

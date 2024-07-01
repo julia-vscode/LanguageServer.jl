@@ -62,6 +62,9 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     file_path = uri2filepath(uri)
     if file_path===nothing || !isfile(file_path)
         JuliaWorkspaces.remove_file!(server.workspace, uri)
+        if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+            JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+        end
     end
 end
 

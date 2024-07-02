@@ -79,11 +79,11 @@ end
 function load_rootpath(path)
     try
         return isdir(path) &&
-            hasreadperm(path) &&
-            path != "" &&
-            path != homedir() &&
-            !isjuliabasedir(path) &&
-            !has_too_many_files(path)
+               hasreadperm(path) &&
+               path != "" &&
+               path != homedir() &&
+               !isjuliabasedir(path) &&
+               !has_too_many_files(path)
     catch err
         is_walkdir_error(err) || rethrow()
         return false
@@ -146,7 +146,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         if !(params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(params.rootUri))
         elseif !(params.rootPath isa Nothing)
-            push!(server.workspaceFolders,  params.rootPath)
+            push!(server.workspaceFolders, params.rootPath)
         end
     elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
@@ -170,9 +170,9 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     end
 
     if !ismissing(params.capabilities.workspace) &&
-        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
-        !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
-        params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
+       !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+       !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
+       params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 
         server.clientcapability_workspace_didChangeConfiguration = true
     end
@@ -207,7 +207,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                 file_full_path = joinpath(server.env_path, file)
                 if isfile(file_full_path)
                     # Only add again if outside of the workspace folders
-                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
+                    if all(i -> !startswith(file_full_path, i), server.workspaceFolders)
                         JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
                     end
                     # But we do want to track, in case the workspace folder is removed

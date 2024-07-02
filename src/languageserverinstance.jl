@@ -76,7 +76,7 @@ mutable struct LanguageServerInstance
     # folder. Primarily for projects and manifests outside of the workspace.
     _extra_tracked_files::Vector{URI}
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream=nothing, julia_exe::Union{NamedTuple{(:path, :version),Tuple{String,VersionNumber}},Nothing}=nothing)
         new(
             JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler),
             Set{String}(),
@@ -288,7 +288,7 @@ end
 
 Run the language `server`.
 """
-function Base.run(server::LanguageServerInstance; timings = [])
+function Base.run(server::LanguageServerInstance; timings=[])
     did_show_timer = Ref(false)
     add_timer_message!(did_show_timer, timings, "LS startup started")
 
@@ -314,7 +314,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
+            @warn "LS: An error occurred in the client listener task. This may be normal." exception = (err, bt)
         end
     finally
         if isopen(server.combined_msg_queue)
@@ -337,7 +337,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
         if server.err_handler !== nothing
             server.err_handler(err, bt)
         else
-            @error "LS: Queue op failed" ex=(err, bt)
+            @error "LS: Queue op failed" ex = (err, bt)
         end
     finally
         if isopen(server.combined_msg_queue)

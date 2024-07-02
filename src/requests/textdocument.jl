@@ -60,7 +60,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
 
     # If the file doesn't exist on disc, we remove it from the workspace
     file_path = uri2filepath(uri)
-    if file_path===nothing || !isfile(file_path)
+    if file_path === nothing || !isfile(file_path)
         JuliaWorkspaces.remove_file!(server.workspace, uri)
         if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
             JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
@@ -97,11 +97,11 @@ end
 comp(x, y) = x == y
 function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
     comp(x.head, y.head) &&
-    x.span == y.span &&
-    x.fullspan == y.fullspan &&
-    x.val == y.val &&
-    length(x) == length(y) &&
-    all(comp(x[i], y[i]) for i = 1:length(x))
+        x.span == y.span &&
+        x.fullspan == y.fullspan &&
+        x.val == y.val &&
+        length(x) == length(y) &&
+        all(comp(x[i], y[i]) for i = 1:length(x))
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
@@ -122,7 +122,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("This should not happen")
     end
 
-    if server._open_file_versions[uri]>params.textDocument.version
+    if server._open_file_versions[uri] > params.textDocument.version
         error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
     end
 
@@ -137,17 +137,18 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)
-    else get_language_id(doc) == "julia"
+    else
+        get_language_id(doc) == "julia"
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds=true)
+        for i in setdiff(1:length(cst0.args), r1, r3) # clean meta from deleted expr
             StaticLint.clear_meta(cst0[i])
         end
         setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+        target_exprs = getcst(doc).args[last(r1).+(1:length(r2))]
         semantic_pass(getroot(doc), target_exprs)
         lint!(doc, server)
     end
@@ -198,7 +199,7 @@ function mark_errors(doc, out=Diagnostic[])
         while line < nlines
             seek(io, line_offsets[line])
             char = 0
-            while line_offsets[line] <= offset < line_offsets[line + 1]
+            while line_offsets[line] <= offset < line_offsets[line+1]
                 while offset > position(io)
                     c = read(io, Char)
                     if UInt32(c) >= 0x010000
@@ -254,8 +255,8 @@ Is this diagnostic reliant on the current environment being accurately represent
 """
 function is_diag_dependent_on_env(diag::Diagnostic)
     startswith(diag.message, "Missing reference: ") ||
-    startswith(diag.message, "Possible method call error") ||
-    startswith(diag.message, "An imported")
+        startswith(diag.message, "Possible method call error") ||
+        startswith(diag.message, "An imported")
 end
 
 
@@ -399,7 +400,7 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         testitems_results = JuliaWorkspaces.get_test_items(server.workspace, get_uri(doc))
 
         testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in testitems_results.testitems]
-        testsetups= TestSetupDetail[TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
+        testsetups = TestSetupDetail[TestSetupDetail(i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range),) for i in testitems_results.testsetups]
         testerrors = TestErrorDetail[TestErrorDetail(Range(doc, i.range), i.message) for i in testitems_results.testerrors]
         # TODO SALSA
         # # Find which workspace folder the doc is in.

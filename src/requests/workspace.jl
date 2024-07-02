@@ -2,7 +2,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for change in params.changes
         uri = change.uri
 
-        uri.scheme=="file" || continue
+        uri.scheme == "file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             if change.type == FileChangeTypes.Created
@@ -157,7 +157,7 @@ function gc_files_from_workspace(server::LanguageServerInstance)
             continue
         end
 
-        if any(i->startswith(file, i), filepath2uri(server.workspaceFolders))
+        if any(i -> startswith(file, i), filepath2uri(server.workspaceFolders))
             continue
         end
 

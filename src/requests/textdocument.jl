@@ -126,10 +126,13 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
     end
 
+    # We originally applied each text edit individually, but that doesn't work because
+    # we need to convert the LS positions to Julia indices after each text edit update
+    # For now we just use the new text that we already created for the legacy TextDocument
     JuliaWorkspaces.update_text_file!(
         server.workspace,
         params.textDocument.uri,
-        [JuliaWorkspaces.TextChange(i.range === missing ? nothing : _convert_lsrange_to_jlrange(get_text_document(doc), i.range), i.text) for i in params.contentChanges],
+        [JuliaWorkspaces.TextChange(nothing, get_text(new_text_document))],
         get_language_id(doc))
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")

@@ -35,7 +35,7 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
                         thisline, _ = get_position_from_offset(doc, loc + a.span)
                         if tdpp.position.line > thisline || headof(a) === :NOTHING
                             loc += a.fullspan
-                            a = x[i + 1]
+                            a = x[i+1]
                         end
                     end
                 end
@@ -88,7 +88,7 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
                 file_full_path = joinpath(server.env_path, file)
                 if isfile(file_full_path)
                     # Only add again if outside of the workspace folders
-                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
+                    if all(i -> !startswith(file_full_path, i), server.workspaceFolders)
                         JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
                     end
                     push!(server._extra_tracked_files, filepath2uri(file_full_path))

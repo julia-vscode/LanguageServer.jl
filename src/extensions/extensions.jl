@@ -14,6 +14,7 @@ end
     code_range::Union{Nothing,Range}
     option_default_imports::Union{Nothing,Bool}
     option_tags::Union{Nothing,Vector{String}}
+    option_setup::Union{Nothing,Vector{String}}
 end
 
 @dict_readable struct TestSetupDetail <: Outbound

@@ -398,7 +398,7 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         testitems_results = JuliaWorkspaces.get_test_items(server.workspace, get_uri(doc))
 
-        testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags)) for i in testitems_results.testitems]
+        testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
         testsetups= TestSetupDetail[TestSetupDetail(string(i.name), Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
         testerrors = TestErrorDetail[TestErrorDetail(Range(doc, i.range), i.message) for i in testitems_results.testerrors]
         # TODO SALSA

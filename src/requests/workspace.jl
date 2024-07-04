@@ -152,22 +152,22 @@ function request_julia_config(server::LanguageServerInstance, conn)
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)
-    for file in JuliaWorkspaces.get_files(server.workspace)
-        if haskey(server._open_file_versions, file.uri)
+    for uri in JuliaWorkspaces.get_files(server.workspace)
+        if haskey(server._open_file_versions, uri)
             continue
         end
 
-        if any(i->startswith(file, i), filepath2uri(server.workspaceFolders))
+        if any(i->startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
             continue
         end
 
-        if file in server._extra_tracked_files
+        if uri in server._extra_tracked_files
             continue
         end
 
-        JuliaWorkspaces.remove_file!(server.workspace, file.uri)
+        JuliaWorkspaces.remove_file!(server.workspace, uri)
         if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(file.uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
         end
     end
 end

@@ -19,6 +19,7 @@ end
 
 @dict_readable struct TestSetupDetail <: Outbound
     name::String
+    kind::String
     range::Range
     code::Union{Nothing,String}
     code_range::Union{Nothing,Range}

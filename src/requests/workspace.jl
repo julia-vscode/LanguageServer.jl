@@ -182,7 +182,7 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
 
         for i in files
             if !haskey(server._open_file_versions, i.uri)
-                JuliaWorkspaces.add_text_file(server.workspace, i)
+                JuliaWorkspaces.add_file!(server.workspace, i)
             end
         end
     end

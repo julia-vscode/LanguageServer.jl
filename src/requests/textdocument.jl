@@ -19,11 +19,12 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         error("This should not happen")
     end
 
+    new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId))
+
     if JuliaWorkspaces.has_file(server.workspace, uri)
-        old_text_file = JuliaWorkspaces.get_text_file(server.workspace, uri)
-        JuliaWorkspaces.update_text_file!(server.workspace, uri, [JuliaWorkspaces.TextChange(1:lastindex(old_text_file.content.content), params.textDocument.text)], params.textDocument.languageId)
+        JuliaWorkspaces.update_file!(server.workspace, new_text_file)
     else
-        JuliaWorkspaces.add_text_file(server.workspace, JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId)))
+        JuliaWorkspaces.add_file!(server.workspace, new_text_file)
     end
     server._open_file_versions[uri] = params.textDocument.version
 
@@ -129,11 +130,8 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     # We originally applied each text edit individually, but that doesn't work because
     # we need to convert the LS positions to Julia indices after each text edit update
     # For now we just use the new text that we already created for the legacy TextDocument
-    JuliaWorkspaces.update_text_file!(
-        server.workspace,
-        params.textDocument.uri,
-        [JuliaWorkspaces.TextChange(nothing, get_text(new_text_document))],
-        get_language_id(doc))
+    new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
+    JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)

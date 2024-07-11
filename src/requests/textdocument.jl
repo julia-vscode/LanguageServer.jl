@@ -396,7 +396,14 @@ end
 
 function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-        testitems_results = JuliaWorkspaces.get_test_items(server.workspace, get_uri(doc))
+        uri = get_uri(doc)
+
+        # This is only needed because lint! is called for files that aren't tracked by workspaces
+        if !JuliaWorkspaces.has_file(server.workspace, get_uri(doc))
+            return
+        end
+
+        testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
 
         testitems = TestItemDetail[TestItemDetail(i.name, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
         testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
@@ -409,7 +416,7 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         # isempty(parent_workspaceFolders) && return
 
         params = PublishTestsParams(
-            get_uri(doc),
+            uri,
             get_version(doc),
             testitems,
             testsetups,

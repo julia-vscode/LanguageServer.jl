@@ -72,6 +72,10 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr 
     elseif b.val isa SymbolServer.SymStore
         documentation = get_hover(b.val, documentation, server, expr, env)
     end
+
+    if b.is_public
+        documentation *= "\n THIS IS PUBLIC!"
+    end
     return documentation
 end
 

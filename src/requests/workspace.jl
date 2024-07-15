@@ -178,7 +178,7 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
         load_folder(wksp, server)
 
 
-        files = JuliaWorkspaces.read_path_into_textdocuments(ksp.uri)
+        files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri)
 
         for i in files
             if !haskey(server._open_file_versions, i.uri)

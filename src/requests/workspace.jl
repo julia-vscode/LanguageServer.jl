@@ -6,8 +6,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             if change.type == FileChangeTypes.Created
-                JuliaWorkspaces.add_file_from_disc!(server.workspace, uri2filepath(uri))
-                push!(TEMPDEBUG[], "$uri ADDED workspace_didChangeWatchedFiles_notification")
+                if !haskey(server._open_file_versions, uri)
+                    JuliaWorkspaces.add_file_from_disc!(server.workspace, uri2filepath(uri))
+                    push!(TEMPDEBUG[], "$uri ADDED workspace_didChangeWatchedFiles_notification")
+                end
             elseif change.type == FileChangeTypes.Changed
                 if !haskey(server._open_file_versions, uri)
                     JuliaWorkspaces.update_file_from_disc!(server.workspace, uri2filepath(uri))
@@ -169,7 +171,7 @@ function gc_files_from_workspace(server::LanguageServerInstance)
 
         JuliaWorkspaces.remove_file!(server.workspace, uri)
         push!(TEMPDEBUG[], "$uri REMOVED gc_files_from_workspace")
-        
+
         if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
             JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
         end

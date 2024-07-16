@@ -90,6 +90,7 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
                     # Only add again if outside of the workspace folders
                     if all(i->!startswith(file_full_path, i), server.workspaceFolders)
                         JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                        push!(TEMPDEBUG[], "$(filepath2uri(file_full_path)) ADDED julia_activateenvironment_notification")
                     end
                     push!(server._extra_tracked_files, filepath2uri(file_full_path))
                 end

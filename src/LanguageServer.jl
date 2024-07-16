@@ -14,6 +14,12 @@ using PrecompileTools
 
 export LanguageServerInstance, runserver
 
+const TEMPDEBUG = Ref{Vector{String}}()
+
+function __init__()
+    TEMPDEBUG[] = String[]
+end
+
 JSON.lower(uri::URI) = string(uri)
 
 include("exception_types.jl")

@@ -49,7 +49,12 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
                     set_text_document!(doc, TextDocument(uri, content, 0))
                     set_is_workspace_file(doc, true)
-                    parse_all(doc, server)
+
+                    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+                        relintserver(server)
+                    else
+                        parse_all(doc, server)
+                    end
                 end
             else
                 filepath = uri2filepath(uri)
@@ -64,7 +69,12 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
                 doc = Document(TextDocument(uri, content, 0), true, server)
                 setdocument!(server, uri, doc)
-                parse_all(doc, server)
+
+                if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+                    relintserver(server)
+                else
+                    parse_all(doc, server)
+                end
             end
         elseif change.type == FileChangeTypes.Deleted
             delete!(server._files_from_disc, uri)
@@ -89,6 +99,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     # that introduces the accessor is merged
                     doc._workspace_file = false
                 end
+            end
+
+            if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+                relintserver(server)
             end
         else
             error("Unknown change type.")

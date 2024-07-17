@@ -28,7 +28,11 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
     server._open_file_versions[uri] = params.textDocument.version
 
-    parse_all(doc, server)
+    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+        relintserver(server)
+    else
+        parse_all(doc, server)
+    end
 end
 
 
@@ -135,21 +139,25 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
-    if get_language_id(doc) in ("markdown", "juliamarkdown")
-        parse_all(doc, server)
-    else get_language_id(doc) == "julia"
-        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-            StaticLint.clear_meta(cst0[i])
-        end
-        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
-        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+        relintserver(server)
+    else
+        if get_language_id(doc) in ("markdown", "juliamarkdown")
+            parse_all(doc, server)
+        else get_language_id(doc) == "julia"
+            cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+            r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+            for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+                StaticLint.clear_meta(cst0[i])
+            end
+            setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+            sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+            headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-        semantic_pass(getroot(doc), target_exprs)
-        lint!(doc, server)
+            target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+            semantic_pass(getroot(doc), target_exprs)
+            lint!(doc, server)
+        end
     end
 end
 

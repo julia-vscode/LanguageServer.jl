@@ -213,7 +213,7 @@ function mark_errors(doc, out=Diagnostic[])
                 else
                     rng = Range(r[1] - 1, r[2], line - 1, char)
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
+                        # push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
                         push!(out, Diagnostic(rng, DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
@@ -269,6 +269,28 @@ function publish_diagnostics(doc::Document, server, conn)
     else
         Diagnostic[]
     end
+
+    st = JuliaWorkspaces.get_text_file(server.workspace, get_uri(doc)).content
+
+    append!(diagnostics, Diagnostic(
+        Range(st, i.range),
+        if i.severity==:error
+            DiagnosticSeverities.Error
+        elseif i.severity==:warning
+            DiagnosticSeverities.Warning
+        elseif i.severity==:info
+            DiagnosticSeverities.Information
+        else
+            error("Unknown severity $(i.severity)")
+        end,
+        missing,
+        missing,
+        i.source,
+        i.message,
+        missing,
+        missing
+    ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, get_uri(doc)))
+
     text_document = get_text_document(doc)
     params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)

@@ -28,7 +28,11 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
     server._open_file_versions[uri] = params.textDocument.version
 
-    parse_all(doc, server)
+    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+        relintserver(server)
+    else
+        parse_all(doc, server)
+    end
 end
 
 
@@ -135,21 +139,25 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
-    if get_language_id(doc) in ("markdown", "juliamarkdown")
-        parse_all(doc, server)
-    else get_language_id(doc) == "julia"
-        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-            StaticLint.clear_meta(cst0[i])
-        end
-        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
-        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+        relintserver(server)
+    else
+        if get_language_id(doc) in ("markdown", "juliamarkdown")
+            parse_all(doc, server)
+        else get_language_id(doc) == "julia"
+            cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+            r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+            for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+                StaticLint.clear_meta(cst0[i])
+            end
+            setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+            sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+            headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-        semantic_pass(getroot(doc), target_exprs)
-        lint!(doc, server)
+            target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+            semantic_pass(getroot(doc), target_exprs)
+            lint!(doc, server)
+        end
     end
 end
 
@@ -213,7 +221,7 @@ function mark_errors(doc, out=Diagnostic[])
                 else
                     rng = Range(r[1] - 1, r[2], line - 1, char)
                     if headof(errs[i][2]) === :errortoken
-                        push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
+                        # push!(out, Diagnostic(rng, DiagnosticSeverities.Error, missing, missing, "Julia", "Parsing error", missing, missing))
                     elseif CSTParser.isidentifier(errs[i][2]) && !StaticLint.haserror(errs[i][2])
                         push!(out, Diagnostic(rng, DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: $(errs[i][2].val)", missing, missing))
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
@@ -269,6 +277,28 @@ function publish_diagnostics(doc::Document, server, conn)
     else
         Diagnostic[]
     end
+
+    st = JuliaWorkspaces.get_text_file(server.workspace, get_uri(doc)).content
+
+    append!(diagnostics, Diagnostic(
+        Range(st, i.range),
+        if i.severity==:error
+            DiagnosticSeverities.Error
+        elseif i.severity==:warning
+            DiagnosticSeverities.Warning
+        elseif i.severity==:info
+            DiagnosticSeverities.Information
+        else
+            error("Unknown severity $(i.severity)")
+        end,
+        missing,
+        missing,
+        i.source,
+        i.message,
+        missing,
+        missing
+    ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, get_uri(doc)))
+
     text_document = get_text_document(doc)
     params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
     JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)

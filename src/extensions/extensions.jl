@@ -26,6 +26,8 @@ end
 end
 
 @dict_readable struct TestErrorDetail <: Outbound
+    id::String
+    label::Union{Nothing,String}
     range::Range
     error::String
 end

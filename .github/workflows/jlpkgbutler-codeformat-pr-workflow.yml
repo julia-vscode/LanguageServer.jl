@@ -1,0 +1,23 @@
+name: Code Formatting
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: julia-actions/julia-codeformat@releases/v1
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Format files using DocumentFormat
+          title: '[AUTO] Format files using DocumentFormat'
+          body: '[DocumentFormat.jl](https://github.com/julia-vscode/DocumentFormat.jl) would suggest these formatting changes'
+          labels: no changelog

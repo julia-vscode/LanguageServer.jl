@@ -1,0 +1,23 @@
+name: Deploy documentation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - v*
+  workflow_dispatch:
+
+jobs:
+  docdeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: julia-actions/julia-buildpkg@v1
+        env:
+          PYTHON: ""
+      - uses: julia-actions/julia-docdeploy@latest
+        env:
+          DOCUMENTER_KEY: ${{ secrets.JLPKGBUTLER_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

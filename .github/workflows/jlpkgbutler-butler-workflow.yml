@@ -1,0 +1,22 @@
+name: Run the Julia Package Butler
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    - cron: '0 */1 * * *'
+  workflow_dispatch:
+
+jobs:
+  butler:
+    name: "Run Package Butler"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: davidanthoff/julia-pkgbutler@releases/v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ssh-private-key: ${{ secrets.JLPKGBUTLER_TOKEN }}
+          channel: stable

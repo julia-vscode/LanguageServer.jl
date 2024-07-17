@@ -5,11 +5,24 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
+            text_file = JuliaWorkspaces.read_text_file_from_uri(uri)
             if change.type == FileChangeTypes.Created
-                JuliaWorkspaces.add_file_from_disc!(server.workspace, uri2filepath(uri))
-            elseif change.type == FileChangeTypes.Changed
+                if haskey(server._files_from_disc, uri)
+                    error("This should not happen")
+                end
+                server._files_from_disc[uri] = text_file
+
                 if !haskey(server._open_file_versions, uri)
-                    JuliaWorkspaces.update_file_from_disc!(server.workspace, uri2filepath(uri))
+                    JuliaWorkspaces.add_file!(server.workspace, text_file)
+                end
+            elseif change.type == FileChangeTypes.Changed
+                if !haskey(server._files_from_disc, uri)
+                    error("This should not happen")
+                end
+                server._files_from_disc[uri] = text_file
+
+                if !haskey(server._open_file_versions, uri)
+                    JuliaWorkspaces.update_file!(server.workspace, text_file)
                 end
             end
 
@@ -54,6 +67,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 parse_all(doc, server)
             end
         elseif change.type == FileChangeTypes.Deleted
+            delete!(server._files_from_disc, uri)
             if !haskey(server._open_file_versions, uri)
                 JuliaWorkspaces.remove_file!(server.workspace, uri)
                 if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
@@ -152,11 +166,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)
-    for uri in JuliaWorkspaces.get_files(server.workspace)
-        if haskey(server._open_file_versions, uri)
-            continue
-        end
-
+    for uri in keys(server._files_from_disc)
         if any(i->startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
             continue
         end
@@ -165,9 +175,13 @@ function gc_files_from_workspace(server::LanguageServerInstance)
             continue
         end
 
-        JuliaWorkspaces.remove_file!(server.workspace, uri)
-        if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+        delete!(server._files_from_disc, uri)
+
+        if !haskey(server._open_file_versions, uri)
+            JuliaWorkspaces.remove_file!(server.workspace, uri)
+            if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+                JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+            end
         end
     end
 end
@@ -181,11 +195,18 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
         files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri)
 
         for i in files
-            if !haskey(server._open_file_versions, i.uri)
-                JuliaWorkspaces.add_file!(server.workspace, i)
+            # This might be a sub folder of a folder that is already watched
+            # so we make sure we don't have duplicates
+            if !haskey(server._files_from_disc, i.uri)
+                server._files_from_disc[i.uri] = i
+
+                if !haskey(server._open_file_versions, i.uri)
+                    JuliaWorkspaces.add_file!(server.workspace, i)
+                end
             end
         end
     end
+
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)

@@ -72,6 +72,7 @@ mutable struct LanguageServerInstance
     # This has one entry for each open file (in the LSP sense). The key is the uri fo the file
     # and the value is the version of the file that the LS client sent.
     _open_file_versions::Dict{URI,Int}
+    _files_from_disc::Dict{URI,JuliaWorkspaces.TextFile}
     # This is a list of files that should be kept around that are potentially not in a workspace
     # folder. Primarily for projects and manifests outside of the workspace.
     _extra_tracked_files::Vector{URI}
@@ -111,6 +112,7 @@ mutable struct LanguageServerInstance
             false,
             JuliaWorkspace(),
             Dict{URI,Int}(),
+            Dict{URI,JuliaWorkspaces.TextFile}(),
             URI[]
         )
     end

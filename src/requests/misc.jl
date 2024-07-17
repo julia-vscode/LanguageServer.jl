@@ -86,10 +86,20 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
         if server.env_path != ""
             for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
                 file_full_path = joinpath(server.env_path, file)
+                uri = filepath2uri(file_full_path)
                 if isfile(file_full_path)
                     # Only add again if outside of the workspace folders
                     if all(i->!startswith(file_full_path, i), server.workspaceFolders)
-                        JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                        if haskey(server._files_from_disc, uri)
+                            error("This should not happen")
+                        end
+
+                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri)
+                        server._files_from_disc[uri] = text_file
+
+                        if !haskey(server._open_file_versions, uri)
+                            JuliaWorkspaces.add_file!(server.workspace, text_file)
+                        end
                     end
                     push!(server._extra_tracked_files, filepath2uri(file_full_path))
                 end

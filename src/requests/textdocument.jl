@@ -21,7 +21,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
 
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId))
 
-    if JuliaWorkspaces.has_file(server.workspace, uri)
+    if haskey(server._files_from_disc, uri)
         JuliaWorkspaces.update_file!(server.workspace, new_text_file)
     else
         JuliaWorkspaces.add_file!(server.workspace, new_text_file)
@@ -59,9 +59,11 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     end
     delete!(server._open_file_versions, uri)
 
-    # If the file doesn't exist on disc, we remove it from the workspace
-    file_path = uri2filepath(uri)
-    if file_path===nothing || !isfile(file_path)
+    # If the file exists on disc, we go back to that version
+    if haskey(server._files_from_disc, uri)
+        JuliaWorkspaces.update_file!(server.workspace, server._files_from_disc[uri])
+        # TODO Should update tests
+    else
         JuliaWorkspaces.remove_file!(server.workspace, uri)
         if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
             JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))

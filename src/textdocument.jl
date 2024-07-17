@@ -286,5 +286,5 @@ function Range(st::JuliaWorkspaces.SourceText, rng::UnitRange)
     start_l, start_c = JuliaWorkspaces.position_at(st, first(rng))
     end_l, end_c = JuliaWorkspaces.position_at(st, last(rng))
 
-    return Range(start_l, start_c, end_l, end_c)
+    return Range(start_l-1, start_c-1, end_l-1, end_c-1)
 end

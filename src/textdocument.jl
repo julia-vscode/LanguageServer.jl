@@ -279,5 +279,12 @@ Converts a byte offset range to a LSP Range.
 function Range(doc::TextDocument, rng::UnitRange)
     start_l, start_c = get_position_from_offset(doc, first(rng))
     end_l, end_c = get_position_from_offset(doc, last(rng))
-    rng = Range(start_l, start_c, end_l, end_c)
+    return Range(start_l, start_c, end_l, end_c)
+end
+
+function Range(st::JuliaWorkspaces.SourceText, rng::UnitRange)
+    start_l, start_c = JuliaWorkspaces.position_at(st, first(rng))
+    end_l, end_c = JuliaWorkspaces.position_at(st, last(rng))
+
+    return Range(start_l, start_c, end_l, end_c)
 end

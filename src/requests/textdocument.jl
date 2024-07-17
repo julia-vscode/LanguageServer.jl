@@ -404,10 +404,11 @@ function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
         end
 
         testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
+        st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
-        testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
-        testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(doc, i.range), get_text(doc)[i.code_range], Range(doc, i.code_range), ) for i in testitems_results.testsetups]
-        testerrors = TestErrorDetail[TestErrorDetail(Range(doc, i.range), i.message) for i in testitems_results.testerrors]
+        testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), get_text(doc)[i.code_range], Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
+        testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), get_text(doc)[i.code_range], Range(st, i.code_range), ) for i in testitems_results.testsetups]
+        testerrors = TestErrorDetail[TestErrorDetail(Range(st, i.range), i.message) for i in testitems_results.testerrors]
         # TODO SALSA
         # # Find which workspace folder the doc is in.
         # parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)

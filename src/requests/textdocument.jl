@@ -25,6 +25,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
         JuliaWorkspaces.update_file!(server.workspace, new_text_file)
     else
         JuliaWorkspaces.add_file!(server.workspace, new_text_file)
+        push!(TEMPDEBUG[], "$uri ADDED textDocument_didOpen_notification")
     end
     server._open_file_versions[uri] = params.textDocument.version
 
@@ -63,6 +64,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     file_path = uri2filepath(uri)
     if file_path===nothing || !isfile(file_path)
         JuliaWorkspaces.remove_file!(server.workspace, uri)
+        push!(TEMPDEBUG[], "$uri REMOVED textDocument_didClose_notification")
         if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
             JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
         end

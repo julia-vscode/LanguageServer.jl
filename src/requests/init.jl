@@ -198,7 +198,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     if server.workspaceFolders !== nothing
         for i in server.workspaceFolders
-            JuliaWorkspaces.add_folder_from_disc!(server.workspace, i)
+            diag_files = JuliaWorkspaces.add_folder_from_disc!(server.workspace, i)
+
+            for i in diag_files
+                push!(TEMPDEBUG[], "$(i.uri) ADDED initialized_notification loop")
+            end
         end
 
         # Add project files separately in case they are not in a workspace folder
@@ -209,6 +213,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                     # Only add again if outside of the workspace folders
                     if all(i->!startswith(file_full_path, i), server.workspaceFolders)
                         JuliaWorkspaces.add_file_from_disc!(server.workspace, file_full_path)
+                        push!(TEMPDEBUG[], "$(filepath2uri(file_full_path)) ADDED initialized_notification project handling")
                     end
                     # But we do want to track, in case the workspace folder is removed
                     push!(server._extra_tracked_files, filepath2uri(file_full_path))

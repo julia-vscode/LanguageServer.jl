@@ -1,0 +1,19 @@
+name: NEW MAIN CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  julia-ci:
+    uses: julia-vscode/testitem-workflow/.github/workflows/testitemci.yml@main
+    with:      
+      include-all-compatible-minor-versions: true
+      include-rc-versions: true
+    secrets:
+      codecov_token: ${{ secrets.CODECOV_TOKEN }}

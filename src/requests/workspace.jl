@@ -50,7 +50,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     set_text_document!(doc, TextDocument(uri, content, 0))
                     set_is_workspace_file(doc, true)
 
-                    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+                    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
                         relintserver(server)
                     else
                         parse_all(doc, server)
@@ -70,7 +70,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 doc = Document(TextDocument(uri, content, 0), true, server)
                 setdocument!(server, uri, doc)
 
-                if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+                if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
                     relintserver(server)
                 else
                     parse_all(doc, server)
@@ -101,7 +101,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 end
             end
 
-            if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+            if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
                 relintserver(server)
             end
         else

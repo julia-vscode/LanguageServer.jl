@@ -28,7 +28,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
     server._open_file_versions[uri] = params.textDocument.version
 
-    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
         relintserver(server)
     else
         parse_all(doc, server)
@@ -139,7 +139,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
-    if(lowercase(basename(uri2filepath(uri)))==".julialint.toml")
+    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
         relintserver(server)
     else
         if get_language_id(doc) in ("markdown", "juliamarkdown")

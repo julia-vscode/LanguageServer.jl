@@ -90,12 +90,12 @@ function load_rootpath(path)
     end
 end
 
-function load_folder(wf::WorkspaceFolder, server)
+function load_folder(wf::WorkspaceFolder, server, added_docs)
     path = uri2filepath(wf.uri)
-    load_folder(path, server)
+    load_folder(path, server, added_docs)
 end
 
-function load_folder(path::String, server)
+function load_folder(path::String, server, added_docs)
     if load_rootpath(path)
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
@@ -119,6 +119,7 @@ function load_folder(path::String, server)
                             setdocument!(server, uri, doc)
                             try
                                 parse_all(doc, server)
+                                push!(added_docs, doc)
                             catch ex
                                 @error "Error parsing file $(uri)"
                                 rethrow()
@@ -196,6 +197,10 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         )
     end
 
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    added_docs = Document[]
+
     if server.workspaceFolders !== nothing
         for i in server.workspaceFolders
             files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i))
@@ -241,9 +246,16 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
         for wkspc in server.workspaceFolders
-            load_folder(wkspc, server)
+            load_folder(wkspc, server, added_docs)
+        end
+
+        for doc in added_docs
+            lint!(doc, server)
         end
     end
+
+    publish_diagnostics(get_uri.(added_docs), server, conn, "initialized_notification")
+    publish_tests(server)
 
     request_julia_config(server, conn)
 

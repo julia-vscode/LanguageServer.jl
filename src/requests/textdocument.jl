@@ -1,4 +1,7 @@
 function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+
     uri = params.textDocument.uri
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
@@ -28,17 +31,18 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
     server._open_file_versions[uri] = params.textDocument.version
 
-    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
-        relintserver(server)
-    else
-        parse_all(doc, server)
-    end
+    parse_all(doc, server)
+    lint!(doc, server)
+    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didOpen_notification")
+    publish_tests(server)
 end
 
 
 function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
+
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
 
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
@@ -52,7 +56,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
                 if getroot(d) == getroot(doc)
                     deletedocument!(server, u)
                     empty!(doc.diagnostics)
-                    publish_diagnostics(doc, server, conn)
+                    # publish_diagnostics(Document[doc], server, conn)
                 end
             end
         end
@@ -66,13 +70,11 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     # If the file exists on disc, we go back to that version
     if haskey(server._files_from_disc, uri)
         JuliaWorkspaces.update_file!(server.workspace, server._files_from_disc[uri])
-        # TODO Should update tests
     else
         JuliaWorkspaces.remove_file!(server.workspace, uri)
-        if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-            JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
-        end
     end
+
+    publish_tests(server)
 end
 
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
@@ -91,7 +93,7 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
             throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
     end
-    parse_all(doc, server)
+    # parse_all(doc, server)
 end
 
 function textDocument_willSave_notification(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)
@@ -112,6 +114,9 @@ function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+
     uri = params.textDocument.uri
 
     doc = getdocument(server, params.textDocument.uri)
@@ -139,26 +144,26 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
-    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
-        relintserver(server)
-    else
-        if get_language_id(doc) in ("markdown", "juliamarkdown")
-            parse_all(doc, server)
-        else get_language_id(doc) == "julia"
-            cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-            r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-            for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-                StaticLint.clear_meta(cst0[i])
-            end
-            setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-            sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
-            headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
-
-            target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-            semantic_pass(getroot(doc), target_exprs)
-            lint!(doc, server)
+    if get_language_id(doc) in ("markdown", "juliamarkdown")
+        parse_all(doc, server)
+        lint!(doc, server)
+    elseif get_language_id(doc) == "julia"
+        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+            StaticLint.clear_meta(cst0[i])
         end
+        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+
+        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+        semantic_pass(getroot(doc), target_exprs)
+        lint!(doc, server)
     end
+
+    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
+    publish_tests(server)
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
@@ -182,8 +187,6 @@ function parse_all(doc::Document, server::LanguageServerInstance)
         set_doc(doc.cst, doc)
     end
     semantic_pass(getroot(doc))
-
-    lint!(doc, server)
 end
 
 function mark_errors(doc, out=Diagnostic[])
@@ -264,57 +267,6 @@ function is_diag_dependent_on_env(diag::Diagnostic)
     startswith(diag.message, "Missing reference: ") ||
     startswith(diag.message, "Possible method call error") ||
     startswith(diag.message, "An imported")
-end
-
-
-function publish_diagnostics(doc::Document, server, conn)
-    diagnostics = if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-        pkgpath = getpath(doc)
-        if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-            filter!(!is_diag_dependent_on_env, doc.diagnostics)
-        end
-        doc.diagnostics
-    else
-        Diagnostic[]
-    end
-
-    st = JuliaWorkspaces.get_text_file(server.workspace, get_uri(doc)).content
-
-    append!(diagnostics, Diagnostic(
-        Range(st, i.range),
-        if i.severity==:error
-            DiagnosticSeverities.Error
-        elseif i.severity==:warning
-            DiagnosticSeverities.Warning
-        elseif i.severity==:info
-            DiagnosticSeverities.Information
-        else
-            error("Unknown severity $(i.severity)")
-        end,
-        missing,
-        missing,
-        i.source,
-        i.message,
-        missing,
-        missing
-    ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, get_uri(doc)))
-
-    text_document = get_text_document(doc)
-    params = PublishDiagnosticsParams(get_uri(text_document), get_version(text_document), diagnostics)
-    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
-end
-
-function clear_diagnostics(uri::URI, server, conn)
-    doc = getdocument(server, uri)
-    empty!(doc.diagnostics)
-    publishDiagnosticsParams = PublishDiagnosticsParams(get_uri(doc), get_version(doc), Diagnostic[])
-    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
-end
-
-function clear_diagnostics(server, conn)
-    for uri in getdocuments_key(server)
-        clear_diagnostics(uri, server, conn)
-    end
 end
 
 function print_substitute_line(io::IO, line)
@@ -405,7 +357,6 @@ function is_parentof(parent_path, child_path, server)
     if any(getpath(d) == child_path for (k, d) in getdocuments_pair(server) if !(k in previous_server_docs))
         cdoc = getdocument(server, filepath2uri(child_path))
         parse_all(cdoc, server)
-        semantic_pass(getroot(cdoc))
         return true, "", CSTParser.Tokens.STRING
     else
         # clean up
@@ -424,35 +375,89 @@ function try_to_load_parents(child_path, server)
     end
 end
 
-function publish_tests!(doc, server::LanguageServerInstance, jr_endpoint)
-    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-        uri = get_uri(doc)
+const our_count = Ref{Int}(0)
 
-        # This is only needed because lint! is called for files that aren't tracked by workspaces
-        if !JuliaWorkspaces.has_file(server.workspace, get_uri(doc))
-            return
+function publish_diagnostics(uris::Vector{URI}, server, conn, source)
+    our_count[] = our_count[] + 1
+    jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
+    @info "From JW DAIG we have" jw_diagnostics_deleted jw_diagnostics_updated source our_count[]
+
+    diagnostics = Dict{URI,Vector{Diagnostic}}()
+
+    for uri in uris
+        push!(jw_diagnostics_updated, uri)
+    end
+
+    for uri in uris
+        diags = get!(diagnostics, uri, Diagnostic[])
+        doc = getdocument(server, uri)
+
+        if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
+            pkgpath = getpath(doc)
+            if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
+                filter!(!is_diag_dependent_on_env, doc.diagnostics)
+            end
+            append!(diags, doc.diagnostics)
         end
 
-        testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
         st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
-        testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), get_text(doc)[i.code_range], Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
-        testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), get_text(doc)[i.code_range], Range(st, i.code_range), ) for i in testitems_results.testsetups]
-        testerrors = TestErrorDetail[TestErrorDetail(te.id, te.name, Range(st, te.range), te.message) for te in testitems_results.testerrors]
-        # TODO SALSA
-        # # Find which workspace folder the doc is in.
-        # parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
+        append!(diags, Diagnostic(
+            Range(st, i.range),
+            if i.severity==:error
+                DiagnosticSeverities.Error
+            elseif i.severity==:warning
+                DiagnosticSeverities.Warning
+            elseif i.severity==:info
+                DiagnosticSeverities.Information
+            else
+                error("Unknown severity $(i.severity)")
+            end,
+            missing,
+            missing,
+            i.source,
+            i.message,
+            missing,
+            missing
+        ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, uri))
+    end
 
-        # # If the file is not in the workspace, we don't report nothing
-        # isempty(parent_workspaceFolders) && return
+    for (uri,diags) in diagnostics
+        version = get(server._open_file_versions, uri, missing)
+        params = PublishDiagnosticsParams(uri, version, diags)
+        JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
+    end
+end
 
-        params = PublishTestsParams(
-            uri,
-            get_version(doc),
-            testitems,
-            testsetups,
-            testerrors
-        )
-        JSONRPC.send(jr_endpoint, textDocument_publishTests_notification_type, params)
+function publish_tests(server::LanguageServerInstance)
+    our_count[] = our_count[] + 1
+    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+        updated_files, deleted_files = JuliaWorkspaces.get_files_with_updated_testitems(server.workspace)
+
+        @info "From JW TEST we have" deleted_files updated_files our_count[]
+
+        for uri in updated_files
+            testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
+            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+
+            testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
+            testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), ) for i in testitems_results.testsetups]
+            testerrors = TestErrorDetail[TestErrorDetail(te.id, te.name, Range(st, te.range), te.message) for te in testitems_results.testerrors]
+
+            version = get(server._open_file_versions, uri, missing)
+
+            params = PublishTestsParams(
+                uri,
+                version,
+                testitems,
+                testsetups,
+                testerrors
+            )
+            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, params)
+        end
+
+        for uri in deleted_files
+            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
+        end
     end
 end

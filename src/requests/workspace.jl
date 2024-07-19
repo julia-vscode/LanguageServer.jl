@@ -1,4 +1,9 @@
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+
+    docs_to_lint = Document[]
+
     for change in params.changes
         uri = change.uri
 
@@ -50,11 +55,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     set_text_document!(doc, TextDocument(uri, content, 0))
                     set_is_workspace_file(doc, true)
 
-                    if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
-                        relintserver(server)
-                    else
-                        parse_all(doc, server)
-                    end
+                    parse_all(doc, server)
+                    push!(docs_to_lint, doc)
                 end
             else
                 filepath = uri2filepath(uri)
@@ -70,19 +72,13 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 doc = Document(TextDocument(uri, content, 0), true, server)
                 setdocument!(server, uri, doc)
 
-                if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
-                    relintserver(server)
-                else
-                    parse_all(doc, server)
-                end
+                parse_all(doc, server)
+                push!(docs_to_lint, doc)
             end
         elseif change.type == FileChangeTypes.Deleted
             delete!(server._files_from_disc, uri)
             if !haskey(server._open_file_versions, uri)
                 JuliaWorkspaces.remove_file!(server.workspace, uri)
-                if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-                    JSONRPC.send(conn, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
-                end
             end
 
             if hasdocument(server, uri)
@@ -100,14 +96,16 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     doc._workspace_file = false
                 end
             end
-
-            if uri.scheme=="file" && lowercase(basename(uri2filepath(uri)))==".julialint.toml"
-                relintserver(server)
-            end
         else
             error("Unknown change type.")
         end
     end
+
+    for lint_doc in docs_to_lint
+        lint!(lint_doc, server)
+    end
+    publish_diagnostics(get_uri.(docs_to_lint), server, conn, "workspace_didChangeWatchedFiles_notification")
+    publish_tests(server)
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
@@ -193,17 +191,19 @@ function gc_files_from_workspace(server::LanguageServerInstance)
 
         if !haskey(server._open_file_versions, uri)
             JuliaWorkspaces.remove_file!(server.workspace, uri)
-            if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-                JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
-            end
         end
     end
 end
 
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+
+    added_docs = Document[]
+
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
-        load_folder(wksp, server)
+        load_folder(wksp, server, added_docs)
 
 
         files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri)
@@ -227,6 +227,12 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
 
         gc_files_from_workspace(server)
     end
+
+    for doc in added_docs
+        lint!(doc, server)
+    end
+    publish_diagnostics(get_uri.(added_docs), server, conn, "workspace_didChangeWorkspaceFolders_notification")
+    publish_tests(server)
 end
 
 function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)

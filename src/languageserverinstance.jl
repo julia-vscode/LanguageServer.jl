@@ -447,8 +447,11 @@ function Base.run(server::LanguageServerInstance; timings = [])
 end
 
 function relintserver(server)
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
+
     roots = Set{Document}()
-    documents = getdocuments_value(server)
+    documents = collect(getdocuments_value(server))
     for doc in documents
         StaticLint.clear_meta(getcst(doc))
         set_doc(getcst(doc), doc)
@@ -468,4 +471,6 @@ function relintserver(server)
             lint!(doc, server)
         end
     end
+    publish_diagnostics(get_uri.(documents), server, server.jr_endpoint, "relintserver")
+    publish_tests(server)
 end

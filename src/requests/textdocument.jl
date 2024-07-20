@@ -375,50 +375,58 @@ function try_to_load_parents(child_path, server)
     end
 end
 
-const our_count = Ref{Int}(0)
-
 function publish_diagnostics(uris::Vector{URI}, server, conn, source)
-    our_count[] = our_count[] + 1
     jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
+
+    all_uris_with_updates = Set{URI}()
+
+    for uri in uris
+        push!(all_uris_with_updates, uri)
+    end
+
+    for uri in jw_diagnostics_updated
+        push!(all_uris_with_updates, uri)
+    end
 
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
-    for uri in uris
-        push!(jw_diagnostics_updated, uri)
-    end
+    for uri in all_uris_with_updates
+        diags = Diagnostic[]
+        diagnostics[uri] = diags
 
-    for uri in uris
-        diags = get!(diagnostics, uri, Diagnostic[])
-        doc = getdocument(server, uri)
+        if hasdocument(server, uri)
+            doc = getdocument(server, uri)
 
-        if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-            pkgpath = getpath(doc)
-            if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-                filter!(!is_diag_dependent_on_env, doc.diagnostics)
+            if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
+                pkgpath = getpath(doc)
+                if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
+                    filter!(!is_diag_dependent_on_env, doc.diagnostics)
+                end
+                append!(diags, doc.diagnostics)
             end
-            append!(diags, doc.diagnostics)
         end
 
-        st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-
-        append!(diags, Diagnostic(
-            Range(st, i.range),
-            if i.severity==:error
-                DiagnosticSeverities.Error
-            elseif i.severity==:warning
-                DiagnosticSeverities.Warning
-            elseif i.severity==:info
-                DiagnosticSeverities.Information
-            else
-                error("Unknown severity $(i.severity)")
-            end,
-            missing,
-            missing,
-            i.source,
-            i.message,
-            missing,
-            missing
-        ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, uri))
+        if JuliaWorkspaces.has_file(server.workspace, uri)
+            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+            append!(diags, Diagnostic(
+                Range(st, i.range),
+                if i.severity==:error
+                    DiagnosticSeverities.Error
+                elseif i.severity==:warning
+                    DiagnosticSeverities.Warning
+                elseif i.severity==:info
+                    DiagnosticSeverities.Information
+                else
+                    error("Unknown severity $(i.severity)")
+                end,
+                missing,
+                missing,
+                i.source,
+                i.message,
+                missing,
+                missing
+            ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, uri))
+        end
     end
 
     for (uri,diags) in diagnostics
@@ -429,7 +437,6 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
 end
 
 function publish_tests(server::LanguageServerInstance)
-    our_count[] = our_count[] + 1
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         updated_files, deleted_files = JuliaWorkspaces.get_files_with_updated_testitems(server.workspace)
 

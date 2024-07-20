@@ -380,7 +380,6 @@ const our_count = Ref{Int}(0)
 function publish_diagnostics(uris::Vector{URI}, server, conn, source)
     our_count[] = our_count[] + 1
     jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
-    @info "From JW DAIG we have" jw_diagnostics_deleted jw_diagnostics_updated source our_count[]
 
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
@@ -433,8 +432,6 @@ function publish_tests(server::LanguageServerInstance)
     our_count[] = our_count[] + 1
     if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
         updated_files, deleted_files = JuliaWorkspaces.get_files_with_updated_testitems(server.workspace)
-
-        @info "From JW TEST we have" deleted_files updated_files our_count[]
 
         for uri in updated_files
             testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)

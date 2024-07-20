@@ -49,10 +49,7 @@ get_language_id(doc::TextDocument) = doc._language_id
 Converts a 0-based `Position` that is UTF-16 encoded to a 1-based UTF-8
 encoded Julia string index.
 """
-function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
-    line = p.line
-    character = p.character
-
+function index_at(doc::TextDocument, line::Integer, character::Integer, forgiving_mode=false)
     line_indices = get_line_indices(doc)
     text = get_text(doc)
 
@@ -85,8 +82,14 @@ function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
         pos = nextind(text, pos)
     end
 
+    if character < 0
+        error("Invalid UTF-16 index supplied")
+    end
+
     return pos
 end
+
+index_at(doc::TextDocument, p::Position, args...) = index_at(doc, p.line, p.character, args...)
 
 function apply_text_edits(doc::TextDocument, edits, new_version)
     content = doc._content
@@ -220,30 +223,7 @@ This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
 function get_offset(doc::TextDocument, line::Integer, character::Integer)
-    c = ' '
-    line_offsets = get_line_offsets(doc)
-    io = IOBuffer(get_text(doc))
-    try
-        seek(io, line_offsets[line + 1])
-        while character > 0
-            c = read(io, Char)
-            character -= 1
-            if UInt32(c) >= 0x010000
-                character -= 1
-            end
-        end
-        if UInt32(c) < 0x0080
-            return position(io)
-        elseif UInt32(c) < 0x0800
-            return position(io) - 1
-        elseif UInt32(c) < 0x010000
-            return position(io) - 2
-        else
-            return position(io) - 3
-        end
-    catch err
-        throw(LSOffsetError("get_offset crashed. More diagnostics:\nline=$line\ncharacter=$character\nposition(io)=$(position(io))\nline_offsets='$line_offsets'\ntext='$(_obscure_text(get_text(doc)))'\n\noriginal_error=$(sprint(Base.display_error, err, catch_backtrace()))"))
-    end
+    return index_at(doc, line, character) - 1
 end
 get_offset(doc::TextDocument, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc::TextDocument, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)

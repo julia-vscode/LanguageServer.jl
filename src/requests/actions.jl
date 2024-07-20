@@ -48,7 +48,7 @@ end
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     actions = CodeAction[]
     doc = getdocument(server, params.textDocument.uri)
-    offset = get_offset(doc, params.range.start)
+    offset = index_at(doc, params.range.start)
     x = get_expr(getcst(doc), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR

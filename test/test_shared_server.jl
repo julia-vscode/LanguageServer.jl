@@ -10,6 +10,8 @@ function settestdoc(text)
 
     doc = LanguageServer.getdocument(server, uri"untitled:testdoc")
     LanguageServer.parse_all(doc, server)
+    LanguageServer.lint!(doc, server)
+    LanguageServer.semantic_pass(LanguageServer.getroot(doc))
     doc
 end
 

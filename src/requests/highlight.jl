@@ -1,7 +1,5 @@
 function textDocument_documentHighlight_request(params::DocumentHighlightParams, server::LanguageServerInstance, conn)
     doc = getdocument(server, params.textDocument.uri)
-    # This is ONLY here to test whether it also crashes when get_offset crashes
-    index_at(doc, params.position)
     offset = get_offset(doc, params.position)
     identifier = get_identifier(getcst(doc), offset)
     identifier !== nothing || return nothing

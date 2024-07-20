@@ -49,10 +49,7 @@ get_language_id(doc::TextDocument) = doc._language_id
 Converts a 0-based `Position` that is UTF-16 encoded to a 1-based UTF-8
 encoded Julia string index.
 """
-function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
-    line = p.line
-    character = p.character
-
+function index_at(doc::TextDocument, line::Integer, character::Integer, forgiving_mode=false)
     line_indices = get_line_indices(doc)
     text = get_text(doc)
 
@@ -87,6 +84,8 @@ function index_at(doc::TextDocument, p::Position, forgiving_mode=false)
 
     return pos
 end
+
+index_at(doc::TextDocument, p::Position, args...) = index_at(doc, p.line, p.character, args...)
 
 function apply_text_edits(doc::TextDocument, edits, new_version)
     content = doc._content

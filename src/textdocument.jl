@@ -219,7 +219,7 @@ This takes 0 based line/char inputs. Corresponding functions are available for
 Position and Range arguments, the latter returning a UnitRange{Int}.
 """
 function get_offset(doc::TextDocument, line::Integer, character::Integer)
-    return index_at(doc, line, character) - 1
+    return prevind(get_text(doc), index_at(doc, line, character))
 end
 get_offset(doc::TextDocument, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc::TextDocument, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)

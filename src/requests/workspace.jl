@@ -10,74 +10,64 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            text_file = JuliaWorkspaces.read_text_file_from_uri(uri)
-            if change.type == FileChangeTypes.Created
-                if haskey(server._files_from_disc, uri)
-                    error("This should not happen")
-                end
-                server._files_from_disc[uri] = text_file
-
-                if !haskey(server._open_file_versions, uri)
-                    JuliaWorkspaces.add_file!(server.workspace, text_file)
-                end
-            elseif change.type == FileChangeTypes.Changed
-                if !haskey(server._files_from_disc, uri)
-                    error("This should not happen")
-                end
-                server._files_from_disc[uri] = text_file
-
-                if !haskey(server._open_file_versions, uri)
-                    JuliaWorkspaces.update_file!(server.workspace, text_file)
+            text_file = nothing
+            try
+                JuliaWorkspaces.read_text_file_from_uri(uri)
+            catch err
+                if !(is_walkdir_error(err) || err isa JuliaWorkspaces.JWInvalidFileContent)
+                    rethrow(err)
                 end
             end
 
-            if hasdocument(server, uri)
-                doc = getdocument(server, uri)
+            # First handle case where fild could not be found or has invalid content
+            if text_file === nothing
+                if haskey(server._files_from_disc, uri)
+                    delete!(server._files_from_disc, uri)
+                end
 
-                # Currently managed by the client, we don't do anything
-                if get_open_in_editor(doc)
-                    continue
-                else
-                    filepath = uri2filepath(uri)
-                    content = try
-                        s = read(filepath, String)
-                        if !our_isvalid(s)
-                            deletedocument!(server, uri)
-                            continue
-                        end
-                        s
-                    catch err
-                        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                if !haskey(server._open_file_versions, uri) && JuliaWorkspaces.has_file(server.workspace, uri)
+                    JuliaWorkspaces.remove_file!(server.workspace, uri)
+                end
+
+                if hasdocument(server, uri)
+                    doc = getdocument(server, uri)
+
+                    if !get_open_in_editor(doc)
                         deletedocument!(server, uri)
-                        continue
                     end
+                end
+            else
+                server._files_from_disc[uri] = text_file
 
-                    set_text_document!(doc, TextDocument(uri, content, 0))
-                    set_is_workspace_file(doc, true)
+                if !haskey(server._open_file_versions, uri)
+                    if JuliaWorkspaces.has_file(server.workspace, uri)
+                        JuliaWorkspaces.update_file!(server.workspace, text_file)
+                    else
+                        JuliaWorkspaces.add_file!(server.workspace, text_file)
+                    end
+                end
+
+                if hasdocument(server, uri)
+                    doc = getdocument(server, uri)
+
+                    if !get_open_in_editor(doc)
+                        set_text_document!(doc, TextDocument(uri, text_document.content.content, 0))
+                        set_is_workspace_file(doc, true)
+
+                        parse_all(doc, server)
+                        push!(docs_to_lint, doc)
+                    end
+                else
+                    doc = Document(TextDocument(uri, text_document.content.content, 0), true, server)
+                    setdocument!(server, uri, doc)
 
                     parse_all(doc, server)
                     push!(docs_to_lint, doc)
                 end
-            else
-                filepath = uri2filepath(uri)
-                content = try
-                    s = read(filepath, String)
-                    our_isvalid(s) || continue
-                    s
-                catch err
-                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                    continue
-                end
-
-                doc = Document(TextDocument(uri, content, 0), true, server)
-                setdocument!(server, uri, doc)
-
-                parse_all(doc, server)
-                push!(docs_to_lint, doc)
             end
         elseif change.type == FileChangeTypes.Deleted
             delete!(server._files_from_disc, uri)
-            if !haskey(server._open_file_versions, uri)
+            if !haskey(server._open_file_versions, uri) && JuliaWorkspaces.has_file(server.workspace, uri)
                 JuliaWorkspaces.remove_file!(server.workspace, uri)
             end
 
@@ -87,13 +77,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 # We only handle if currently not managed by client
                 if !get_open_in_editor(doc)
                     deletedocument!(server, uri)
-
-                    publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
                 else
-                    # TODO replace with accessor function once the other PR
-                    # that introduces the accessor is merged
-                    doc._workspace_file = false
+                    set_is_workspace_file(doc, false)
                 end
             end
         else

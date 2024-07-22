@@ -94,7 +94,9 @@ function julia_activateenvironment_notification(params::NamedTuple{(:envPath,),T
                             error("This should not happen")
                         end
 
-                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri)
+                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
+                        text_file===nothing || continue
+
                         server._files_from_disc[uri] = text_file
 
                         if !haskey(server._open_file_versions, uri)

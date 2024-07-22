@@ -10,14 +10,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            text_file = nothing
-            try
-                JuliaWorkspaces.read_text_file_from_uri(uri)
-            catch err
-                if !(is_walkdir_error(err) || err isa JuliaWorkspaces.JWInvalidFileContent)
-                    rethrow(err)
-                end
-            end
+            text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
 
             # First handle case where fild could not be found or has invalid content
             if text_file === nothing
@@ -191,7 +184,7 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
         load_folder(wksp, server, added_docs)
 
 
-        files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri)
+        files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri, ignore_io_errors=true)
 
         for i in files
             # This might be a sub folder of a folder that is already watched

@@ -203,7 +203,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     if server.workspaceFolders !== nothing
         for i in server.workspaceFolders
-            files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i))
+            files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
 
             for i in files
                 # This might be a sub folder of a folder that is already watched
@@ -230,7 +230,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                             error("This should not happen")
                         end
 
-                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri)
+                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
+                        text_file === nothing || continue
+
                         server._files_from_disc[uri] = text_file
 
                         if !haskey(server._open_file_versions, uri)

@@ -23,6 +23,7 @@ end
 
 @dict_readable struct DidChangeWatchedFilesClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
+    relativePatternSupport::Union{Bool,Missing}
 end
 
 @dict_readable struct WorkspaceClientCapabilities <: Outbound

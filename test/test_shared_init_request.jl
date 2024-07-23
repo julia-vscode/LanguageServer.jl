@@ -11,7 +11,7 @@ init_request = LanguageServer.InitializeParams(
                 true,
                 LanguageServer.WorkspaceEditClientCapabilities(true, missing, missing),
                 LanguageServer.DidChangeConfigurationClientCapabilities(false),
-                LanguageServer.DidChangeWatchedFilesClientCapabilities(false,),
+                LanguageServer.DidChangeWatchedFilesClientCapabilities(false,false),
                 LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
                 LanguageServer.ExecuteCommandClientCapabilities(true),
                 missing,

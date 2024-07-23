@@ -44,14 +44,14 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                     doc = getdocument(server, uri)
 
                     if !get_open_in_editor(doc)
-                        set_text_document!(doc, TextDocument(uri, text_document.content.content, 0))
+                        set_text_document!(doc, TextDocument(uri, text_file.content.content, 0))
                         set_is_workspace_file(doc, true)
 
                         parse_all(doc, server)
                         push!(docs_to_lint, doc)
                     end
                 else
-                    doc = Document(TextDocument(uri, text_document.content.content, 0), true, server)
+                    doc = Document(TextDocument(uri, text_file.content.content, 0), true, server)
                     setdocument!(server, uri, doc)
 
                     parse_all(doc, server)

@@ -267,12 +267,14 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
             end
             if length(possible_names) > 0
                 documentation = ""
+                is_public = false
                 if n[2] isa StaticLint.Binding
                     documentation = get_tooltip(n[2], documentation, state.server)
                     sanitize_docstring(documentation)
+                    is_public = n[2].is_public
                 end
                 foreach(possible_names) do nn
-                    add_completion_item(state, CompletionItem(nn, _completion_kind(n[2]), get_typed_definition(n[2]), MarkupContent(documentation), texteditfor(state, spartial, nn)))
+                    add_completion_item(state, CompletionItem(nn, _completion_kind(n[2]), get_typed_definition(n[2]), MarkupContent(documentation), texteditfor(state, spartial, nn), (is_public ? "0" : "") * nn))
                 end
             end
         end

@@ -61,7 +61,7 @@ function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vect
     end
 end
 
-function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) where T<:Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
     StaticLint.iterate_over_ss_methods(b, tls, env, function (m)
         push!(sigs, SignatureInformation(string(m), "", (a -> ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
         return false

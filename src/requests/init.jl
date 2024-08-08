@@ -189,12 +189,39 @@ end
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
     server.status = :running
 
+    client_capabilities_registrations = Registration[]
+
     if server.clientcapability_workspace_didChangeConfiguration
+        push!(
+            client_capabilities_registrations,
+            Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)
+        )
+    end
+
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) &&
+        server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration &&
+        server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
+
+        push!(
+            client_capabilities_registrations,
+            Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions([
+                FileSystemWatcher("**/*.{jl,jmd,md}", missing),
+                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,.JuliaLint.toml}", missing)
+            ]))
+        )
+    end
+
+    if length(client_capabilities_registrations) > 0
         JSONRPC.send(
             conn,
             client_registerCapability_request_type,
-            RegistrationParams([Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)])
+            RegistrationParams(client_capabilities_registrations)
         )
+
     end
 
     JuliaWorkspaces.mark_current_diagnostics(server.workspace)

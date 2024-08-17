@@ -251,10 +251,14 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                 file_full_path = joinpath(server.env_path, file)
                 uri = filepath2uri(file_full_path)
                 if isfile(file_full_path)
-                    # TODO properly normalize drive letters in paths
-                    file_full_path_lowerfirst = lowercasefirst(file_full_path)
+                    @static if Sys.iswindows()
+                        # Normalize drive letter to lowercase
+                        if length(file_full_path) > 1 && isletter(file_full_path[1]) && file_full_path[2] == ':'
+                            file_full_path = lowercasefirst(file_full_path)
+                        end
+                    end
                     # Only add again if outside of the workspace folders
-                    if all(i->!startswith(file_full_path_lowerfirst, i), server.workspaceFolders)
+                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
                         if haskey(server._files_from_disc, uri)
                             error("This should not happen")
                         end

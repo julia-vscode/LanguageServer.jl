@@ -259,7 +259,7 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
         possible_names = String[]
         for n in x.names
             resize!(possible_names, 0)
-            if is_completion_match(n[1], spartial)
+            if is_completion_match(n[1], spartial) && n[1] != spartial
                 push!(possible_names, n[1])
             end
             if (nn = string_macro_altname(n[1]); nn !== nothing) && is_completion_match(nn, spartial)

@@ -113,9 +113,36 @@ function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
     all(comp(x[i], y[i]) for i = 1:length(x))
 end
 
+function measure_sub_operation(f, request_name, server)
+    start_time = string(Dates.unix2datetime(time()), "Z")
+    tic = time_ns()
+    f()
+    toc = time_ns()
+    duration = (toc - tic) / 1e+6
+
+    @static if VERSION >= v"1.11-"
+        JSONRPC.send(
+            server.jr_endpoint,
+            telemetry_event_notification_type,
+            Dict(
+                "command" => "request_metric",
+                "operationId" => string(uuid4()),
+                "operationParentId" => g_operationId[],
+                "name" => request_name,
+                "duration" => duration,
+                "time" => start_time
+            )
+        )
+    end
+end
+
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    measure_sub_operation("JuliaWorkspaces.mark_current_diagnostics", server) do
+        JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    end
+    measure_sub_operation("JuliaWorkspaces.mark_current_testitems", server) do
+        JuliaWorkspaces.mark_current_testitems(server.workspace)
+    end
 
     uri = params.textDocument.uri
 
@@ -127,43 +154,60 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("The client and server have different textDocument versions for $(get_uri(doc)). LS version is $(get_version(doc)), request version is $(params.textDocument.version).")
     end
 
-    new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
-    set_text_document!(doc, new_text_document)
+    measure_sub_operation("File edits", server) do
+        new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
+        set_text_document!(doc, new_text_document)
 
-    if !haskey(server._open_file_versions, uri)
-        error("This should not happen")
+        if !haskey(server._open_file_versions, uri)
+            error("This should not happen")
+        end
+
+        if server._open_file_versions[uri]>params.textDocument.version
+            error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
+        end
+
+        # We originally applied each text edit individually, but that doesn't work because
+        # we need to convert the LS positions to Julia indices after each text edit update
+        # For now we just use the new text that we already created for the legacy TextDocument
+        new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
+        JuliaWorkspaces.update_file!(server.workspace, new_text_file)
     end
-
-    if server._open_file_versions[uri]>params.textDocument.version
-        error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
-    end
-
-    # We originally applied each text edit individually, but that doesn't work because
-    # we need to convert the LS positions to Julia indices after each text edit update
-    # For now we just use the new text that we already created for the legacy TextDocument
-    new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
-    JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
-        parse_all(doc, server)
-        lint!(doc, server)
-    elseif get_language_id(doc) == "julia"
-        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-            StaticLint.clear_meta(cst0[i])
+        measure_sub_operation("parse_all md", server) do
+            parse_all(doc, server)
         end
-        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
-        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+        measure_sub_operation("lint! md", server) do
+            lint!(doc, server)
+        end
+    elseif get_language_id(doc) == "julia"
+        measure_sub_operation("overall tree diff", server) do
+            cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+            r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+            for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+                StaticLint.clear_meta(cst0[i])
+            end
+            setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+            sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+            headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-        semantic_pass(getroot(doc), target_exprs)
-        lint!(doc, server)
+            target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+
+            measure_sub_operation("semantic_pass", server) do
+                semantic_pass(getroot(doc), target_exprs)
+            end
+            measure_sub_operation("lint!", server) do
+                lint!(doc, server)
+            end
+        end
     end
 
-    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
-    publish_tests(server)
+    measure_sub_operation("publish_diagnostics", server) do
+        publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
+    end
+    measure_sub_operation("publish_tests", server) do
+        publish_tests(server)
+    end
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)

@@ -18,6 +18,7 @@ JuliaWorkspaces = "e554591c-7f10-434f-9f27-2097f62a04fd"
 Tokenize = "0796e94c-ce3b-5d07-9a54-7f471281c624"
 URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
 UUIDs = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 
 [compat]
 CSTParser = "3.3"

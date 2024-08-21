@@ -11,8 +11,15 @@ import JuliaWorkspaces
 using JuliaWorkspaces: JuliaWorkspace, URIs2
 using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
+import Dates
 
 export LanguageServerInstance, runserver
+
+@static if VERSION >= v"1.11-"
+    using Base.ScopedValues
+
+    const g_operationId = ScopedValue(string(uuid4()))
+end
 
 JSON.lower(uri::URI) = string(uri)
 

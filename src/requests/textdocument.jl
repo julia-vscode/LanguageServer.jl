@@ -116,7 +116,7 @@ end
 function measure_sub_operation(f, request_name, server)
     start_time = string(Dates.unix2datetime(time()), "Z")
     tic = time_ns()
-    f()
+    res = f()
     toc = time_ns()
     duration = (toc - tic) / 1e+6
 
@@ -132,6 +132,8 @@ function measure_sub_operation(f, request_name, server)
             "time" => start_time
         )
     )
+
+    return res
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
@@ -418,7 +420,9 @@ function try_to_load_parents(child_path, server)
 end
 
 function publish_diagnostics(uris::Vector{URI}, server, conn, source)
-    jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
+    jw_diagnostics_updated, jw_diagnostics_deleted = measure_sub_operation("publish_diagnostics - get_files_with_updated_diagnostics", server) do
+        JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
+    end
 
     all_uris_with_updates = Set{URI}()
 
@@ -432,42 +436,49 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
 
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
-    for uri in all_uris_with_updates
-        diags = Diagnostic[]
-        diagnostics[uri] = diags
+    measure_sub_operation("publish_diagnostics - loop over updates", server) do
+        for uri in all_uris_with_updates
+            diags = Diagnostic[]
+            diagnostics[uri] = diags
 
-        if hasdocument(server, uri)
-            doc = getdocument(server, uri)
+            if hasdocument(server, uri)
+                doc = getdocument(server, uri)
 
-            if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-                pkgpath = getpath(doc)
-                if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-                    filter!(!is_diag_dependent_on_env, doc.diagnostics)
+                if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
+                    pkgpath = getpath(doc)
+                    if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
+                        filter!(!is_diag_dependent_on_env, doc.diagnostics)
+                    end
+                    append!(diags, doc.diagnostics)
                 end
-                append!(diags, doc.diagnostics)
             end
-        end
 
-        if JuliaWorkspaces.has_file(server.workspace, uri)
-            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-            append!(diags, Diagnostic(
-                Range(st, i.range),
-                if i.severity==:error
-                    DiagnosticSeverities.Error
-                elseif i.severity==:warning
-                    DiagnosticSeverities.Warning
-                elseif i.severity==:info
-                    DiagnosticSeverities.Information
-                else
-                    error("Unknown severity $(i.severity)")
-                end,
-                missing,
-                missing,
-                i.source,
-                i.message,
-                missing,
-                missing
-            ) for i in JuliaWorkspaces.get_diagnostic(server.workspace, uri))
+            if JuliaWorkspaces.has_file(server.workspace, uri)
+                st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+
+                new_diags = measure_sub_operation("publish_diagnostics - get_diagnostic", server) do
+                    JuliaWorkspaces.get_diagnostic(server.workspace, uri)
+                end
+
+                append!(diags, Diagnostic(
+                    Range(st, i.range),
+                    if i.severity==:error
+                        DiagnosticSeverities.Error
+                    elseif i.severity==:warning
+                        DiagnosticSeverities.Warning
+                    elseif i.severity==:info
+                        DiagnosticSeverities.Information
+                    else
+                        error("Unknown severity $(i.severity)")
+                    end,
+                    missing,
+                    missing,
+                    i.source,
+                    i.message,
+                    missing,
+                    missing
+                ) for i in new_diags)
+            end
         end
     end
 

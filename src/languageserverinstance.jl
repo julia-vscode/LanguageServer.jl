@@ -413,28 +413,24 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
             add_timer_message!(did_show_timer, timings, msg)
 
-            @static if VERSION>=v"1.11-"
-                with(g_operationId => string(uuid4())) do
-                    start_time = string(Dates.unix2datetime(time()), "Z")
-                    tic = time_ns()
-                    JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-                    toc = time_ns()
-                    duration = (toc - tic) / 1e+6
+            g_operationId[] = string(uuid4())
 
-                    JSONRPC.send(
-                        server.jr_endpoint,
-                        telemetry_event_notification_type,
-                        Dict(
-                        "command" => "request_metric",
-                        "operationId" => g_operationId[],
-                        "name" => msg["method"],
-                        "time" => start_time,
-                        "duration" => duration)
-                    )
-                end
-            else
-                JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-            end
+            start_time = string(Dates.unix2datetime(time()), "Z")
+            tic = time_ns()
+            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
+            toc = time_ns()
+            duration = (toc - tic) / 1e+6
+
+            JSONRPC.send(
+                server.jr_endpoint,
+                telemetry_event_notification_type,
+                Dict(
+                "command" => "request_metric",
+                "operationId" => g_operationId[],
+                "name" => msg["method"],
+                "time" => start_time,
+                "duration" => duration)
+            )
         elseif message.type == :symservmsg
             @debug "Received new data from Julia Symbol Server."
 

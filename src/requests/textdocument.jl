@@ -120,20 +120,18 @@ function measure_sub_operation(f, request_name, server)
     toc = time_ns()
     duration = (toc - tic) / 1e+6
 
-    @static if VERSION >= v"1.11-"
-        JSONRPC.send(
-            server.jr_endpoint,
-            telemetry_event_notification_type,
-            Dict(
-                "command" => "request_metric",
-                "operationId" => string(uuid4()),
-                "operationParentId" => g_operationId[],
-                "name" => request_name,
-                "duration" => duration,
-                "time" => start_time
-            )
+    JSONRPC.send(
+        server.jr_endpoint,
+        telemetry_event_notification_type,
+        Dict(
+            "command" => "request_metric",
+            "operationId" => string(uuid4()),
+            "operationParentId" => g_operationId[],
+            "name" => request_name,
+            "duration" => duration,
+            "time" => start_time
         )
-    end
+    )
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)

@@ -82,7 +82,7 @@ mutable struct LanguageServerInstance
         jw = JuliaWorkspace()
         if hasfield(typeof(jw.runtime), :performance_tracing_callback)
             jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
-                if g_operationId[] != ""
+                if g_operationId[] != "" && isopen(endpoint)
                     JSONRPC.send(
                         endpoint,
                         telemetry_event_notification_type,

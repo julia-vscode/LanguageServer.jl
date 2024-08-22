@@ -15,7 +15,7 @@ import Dates
 
 export LanguageServerInstance, runserver
 
-const g_operationId = Ref{String}()
+const g_operationId = Ref{String}("")
 
 JSON.lower(uri::URI) = string(uri)
 

@@ -264,7 +264,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                         end
 
                         text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
-                        text_file === nothing || continue
+                        text_file === nothing && continue
 
                         server._files_from_disc[uri] = text_file
 

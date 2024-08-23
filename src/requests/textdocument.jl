@@ -400,7 +400,7 @@ function try_to_load_parents(child_path, server)
 end
 
 function publish_diagnostics(uris::Vector{URI}, server, conn, source)
-    JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
+    jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
 
     all_uris_with_updates = Set{URI}()
 
@@ -433,7 +433,7 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
         if JuliaWorkspaces.has_file(server.workspace, uri)
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
-            JuliaWorkspaces.get_diagnostic(server.workspace, uri)
+            new_diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
 
             append!(diags, Diagnostic(
                 Range(st, i.range),

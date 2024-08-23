@@ -137,12 +137,8 @@ function measure_sub_operation(f, request_name, server)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
-    measure_sub_operation("JuliaWorkspaces.mark_current_diagnostics", server) do
-        JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    end
-    measure_sub_operation("JuliaWorkspaces.mark_current_testitems", server) do
-        JuliaWorkspaces.mark_current_testitems(server.workspace)
-    end
+    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
+    JuliaWorkspaces.mark_current_testitems(server.workspace)
 
     uri = params.textDocument.uri
 
@@ -154,60 +150,44 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("The client and server have different textDocument versions for $(get_uri(doc)). LS version is $(get_version(doc)), request version is $(params.textDocument.version).")
     end
 
-    measure_sub_operation("File edits", server) do
-        new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
-        set_text_document!(doc, new_text_document)
+    new_text_document = apply_text_edits(get_text_document(doc), params.contentChanges, params.textDocument.version)
+    set_text_document!(doc, new_text_document)
 
-        if !haskey(server._open_file_versions, uri)
-            error("This should not happen")
-        end
-
-        if server._open_file_versions[uri]>params.textDocument.version
-            error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
-        end
-
-        # We originally applied each text edit individually, but that doesn't work because
-        # we need to convert the LS positions to Julia indices after each text edit update
-        # For now we just use the new text that we already created for the legacy TextDocument
-        new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
-        JuliaWorkspaces.update_file!(server.workspace, new_text_file)
+    if !haskey(server._open_file_versions, uri)
+        error("This should not happen")
     end
+
+    if server._open_file_versions[uri]>params.textDocument.version
+        error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
+    end
+
+    # We originally applied each text edit individually, but that doesn't work because
+    # we need to convert the LS positions to Julia indices after each text edit update
+    # For now we just use the new text that we already created for the legacy TextDocument
+    new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
+    JuliaWorkspaces.update_file!(server.workspace, new_text_file)
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
-        measure_sub_operation("parse_all md", server) do
-            parse_all(doc, server)
-        end
-        measure_sub_operation("lint! md", server) do
-            lint!(doc, server)
-        end
+        parse_all(doc, server)
+        lint!(doc, server)
     elseif get_language_id(doc) == "julia"
-        measure_sub_operation("overall tree diff", server) do
-            cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-            r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-            for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
-                StaticLint.clear_meta(cst0[i])
-            end
-            setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
-            sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
-            headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
-
-            target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
-
-            measure_sub_operation("semantic_pass", server) do
-                semantic_pass(getroot(doc), target_exprs)
-            end
-            measure_sub_operation("lint!", server) do
-                lint!(doc, server)
-            end
+        cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
+        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+            StaticLint.clear_meta(cst0[i])
         end
+        setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
+        sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
+        headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
+
+        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+
+        semantic_pass(getroot(doc), target_exprs)
+        lint!(doc, server)
     end
 
-    measure_sub_operation("publish_diagnostics", server) do
-        publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
-    end
-    measure_sub_operation("publish_tests", server) do
-        publish_tests(server)
-    end
+    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
+    publish_tests(server)
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
@@ -420,9 +400,7 @@ function try_to_load_parents(child_path, server)
 end
 
 function publish_diagnostics(uris::Vector{URI}, server, conn, source)
-    jw_diagnostics_updated, jw_diagnostics_deleted = measure_sub_operation("publish_diagnostics - get_files_with_updated_diagnostics", server) do
-        JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
-    end
+    JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
 
     all_uris_with_updates = Set{URI}()
 
@@ -436,49 +414,45 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
 
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
-    measure_sub_operation("publish_diagnostics - loop over updates", server) do
-        for uri in all_uris_with_updates
-            diags = Diagnostic[]
-            diagnostics[uri] = diags
+    for uri in all_uris_with_updates
+        diags = Diagnostic[]
+        diagnostics[uri] = diags
 
-            if hasdocument(server, uri)
-                doc = getdocument(server, uri)
+        if hasdocument(server, uri)
+            doc = getdocument(server, uri)
 
-                if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-                    pkgpath = getpath(doc)
-                    if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-                        filter!(!is_diag_dependent_on_env, doc.diagnostics)
-                    end
-                    append!(diags, doc.diagnostics)
+            if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
+                pkgpath = getpath(doc)
+                if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
+                    filter!(!is_diag_dependent_on_env, doc.diagnostics)
                 end
+                append!(diags, doc.diagnostics)
             end
+        end
 
-            if JuliaWorkspaces.has_file(server.workspace, uri)
-                st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+        if JuliaWorkspaces.has_file(server.workspace, uri)
+            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
-                new_diags = measure_sub_operation("publish_diagnostics - get_diagnostic", server) do
-                    JuliaWorkspaces.get_diagnostic(server.workspace, uri)
-                end
+            JuliaWorkspaces.get_diagnostic(server.workspace, uri)
 
-                append!(diags, Diagnostic(
-                    Range(st, i.range),
-                    if i.severity==:error
-                        DiagnosticSeverities.Error
-                    elseif i.severity==:warning
-                        DiagnosticSeverities.Warning
-                    elseif i.severity==:info
-                        DiagnosticSeverities.Information
-                    else
-                        error("Unknown severity $(i.severity)")
-                    end,
-                    missing,
-                    missing,
-                    i.source,
-                    i.message,
-                    missing,
-                    missing
-                ) for i in new_diags)
-            end
+            append!(diags, Diagnostic(
+                Range(st, i.range),
+                if i.severity==:error
+                    DiagnosticSeverities.Error
+                elseif i.severity==:warning
+                    DiagnosticSeverities.Warning
+                elseif i.severity==:info
+                    DiagnosticSeverities.Information
+                else
+                    error("Unknown severity $(i.severity)")
+                end,
+                missing,
+                missing,
+                i.source,
+                i.message,
+                missing,
+                missing
+            ) for i in new_diags)
         end
     end
 

@@ -4,7 +4,7 @@
     settestdoc("using Base.Meta\n")
     @test any(c.command == "ReexportModule" for c in action_request_test(0, 15))
     c = filter(c -> c.command == "ReexportModule", action_request_test(0, 15))[1]
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
@@ -19,7 +19,7 @@ end
     settestdoc("g(x) = x\nf(x) = x")
     @test any(c.command == "ExpandFunction" for c in action_request_test(0, 0))
     @test any(c.command == "ExpandFunction" for c in action_request_test(1, 0))
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
     closetestdoc()
 
@@ -27,7 +27,7 @@ end
     @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
     c = filter(c -> c.command == "ExpandFunction", action_request_test(0, 5))[1]
 
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
     closetestdoc()
 end
@@ -39,7 +39,7 @@ end
     e = LanguageServer.mark_errors(doc)[1]
     @test any(c.command == "FixMissingRef" for c in action_request_test(0, 5, diags=[e]))
     c = filter(c -> c.command == "FixMissingRef", action_request_test(0, 5, diags=[e]))[1]
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
@@ -48,10 +48,10 @@ end
 
     doc = settestdoc("using Base.Meta\nMeta.quot")
     @test LanguageServer.find_using_statement(doc.cst.args[2].args[1]) !== nothing
-    
+
     @test any(c.command == "ExplicitPackageVarImport" for c in action_request_test(1, 1))
     c = filter(c -> c.command == "ExplicitPackageVarImport", action_request_test(1, 1))[1]
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
@@ -59,10 +59,10 @@ end
     include("../test_shared_server.jl")
 
     doc = settestdoc("function f(arg::T) end\n")
-    
+
     @test any(c.command == "DeleteUnusedFunctionArgumentName" for c in action_request_test(0, 12))
     c = filter(c -> c.command == "DeleteUnusedFunctionArgumentName", action_request_test(0, 12))[1]
-    
+
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
@@ -228,7 +228,7 @@ end
 
 @testitem "Update docstring signature" begin
     include("../test_shared_server.jl")
-    
+
     doc = settestdoc("""
         "hello"
         f(x) = x

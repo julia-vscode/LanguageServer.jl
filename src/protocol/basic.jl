@@ -63,14 +63,14 @@ end
 ##############################################################################
 # Diagnostics
 const DiagnosticSeverity = Int
-const DiagnosticSeverities = (Error = 1,
-                              Warning = 2,
-                              Information = 3,
-                              Hint = 4)
+const DiagnosticSeverities = (Error=1,
+    Warning=2,
+    Information=3,
+    Hint=4)
 
 const DiagnosticTag = Int
-const DiagnosticTags = (Unnecessary = 1,
-                        Deprecated = 2)
+const DiagnosticTags = (Unnecessary=1,
+    Deprecated=2)
 
 @dict_readable struct DiagnosticRelatedInformation <: Outbound
     location::Location
@@ -108,8 +108,8 @@ end
 ##############################################################################
 # Markup
 const MarkupKind = String
-const MarkupKinds = (PlainText = "plaintext",
-                     Markdown = "markdown")
+const MarkupKinds = (PlainText="plaintext",
+    Markdown="markdown")
 
 mutable struct MarkupContent
     kind::MarkupKind
@@ -130,10 +130,10 @@ Base.hash(x::MarkedString) = hash(x.value) # for unique
 ##############################################################################
 # Window
 const MessageType = Int
-const MessageTypes = (Error = 1,
-                      Warning = 2,
-                      Info = 3,
-                      Log = 4)
+const MessageTypes = (Error=1,
+    Warning=2,
+    Info=3,
+    Log=4)
 
 struct ShowMessageParams <: Outbound
     type::MessageType

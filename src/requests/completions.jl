@@ -6,7 +6,7 @@ struct CompletionState
     offset::Int
     completions::Dict{String,CompletionItem}
     range::Range
-    x::Union{Nothing, EXPR}
+    x::Union{Nothing,EXPR}
     doc::Document
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
@@ -48,7 +48,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         CompletionState(offset, Dict{String,CompletionItem}(), rng, x, doc, server, using_stmts)
     end
 
-    ppt, pt, t, is_at_end  = get_partial_completion(state)
+    ppt, pt, t, is_at_end = get_partial_completion(state)
 
     if pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokenize.Tokens.BACKSLASH
         latex_completions(string("\\", CSTParser.Tokenize.untokenize(t)), state)
@@ -58,9 +58,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         partial = is_latex_comp(t.val, state.offset - t.startbyte)
         !isempty(partial) && latex_completions(partial, state)
     elseif t isa CSTParser.Tokens.Token && (t.kind in (CSTParser.Tokenize.Tokens.STRING,
-                                                       CSTParser.Tokenize.Tokens.TRIPLE_STRING,
-                                                       CSTParser.Tokenize.Tokens.CMD,
-                                                       CSTParser.Tokenize.Tokens.TRIPLE_CMD))
+        CSTParser.Tokenize.Tokens.TRIPLE_STRING,
+        CSTParser.Tokenize.Tokens.CMD,
+        CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(t, state)
     elseif state.x isa EXPR && is_in_import_statement(state.x)
         import_completions(ppt, pt, t, is_at_end, state.x, state)
@@ -158,7 +158,7 @@ const snippet_completions = Dict{String,String}(
     "try" => "try\n\t\$0\ncatch\nend",
     "using" => "using ",
     "while" => "while \$1\n\t\$0\nend"
-    )
+)
 
 
 function texteditfor(state::CompletionState, partial, n)
@@ -282,9 +282,9 @@ end
 
 function is_rebinding_of_module(x)
     x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
-    refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
-    StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
-    refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
+        refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
+        StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
+        refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
 end
 
 function _get_dot_completion(px, spartial, state::CompletionState) end
@@ -359,7 +359,7 @@ end
 function string_completion(t, state::CompletionState)
     path_completion(t, state)
     # Need to adjust things for quotation marks
-    if t.kind in (CSTParser.Tokenize.Tokens.STRING,CSTParser.Tokenize.Tokens.CMD)
+    if t.kind in (CSTParser.Tokenize.Tokens.STRING, CSTParser.Tokenize.Tokens.CMD)
         t.startbyte + 1 < state.offset <= t.endbyte || return
         relative_offset = state.offset - t.startbyte - 1
         content = t.val[2:prevind(t.val, lastindex(t.val))]
@@ -390,18 +390,18 @@ function is_latex_comp_char(u)
     # latex completions.
     # from: UInt8.(sort!(unique(prod([k[2:end] for (k,_) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))]))))
     u === 0x21 ||
-    u === 0x28 ||
-    u === 0x29 ||
-    u === 0x2b ||
-    u === 0x2d ||
-    u === 0x2f ||
-    0x30 <= u <= 0x39 ||
-    u === 0x3a ||
-    u === 0x3d ||
-    0x41 <= u <= 0x5a ||
-    u === 0x5e ||
-    u === 0x5f ||
-    0x61 <= u <= 0x7a
+        u === 0x28 ||
+        u === 0x29 ||
+        u === 0x2b ||
+        u === 0x2d ||
+        u === 0x2f ||
+        0x30 <= u <= 0x39 ||
+        u === 0x3a ||
+        u === 0x3d ||
+        0x41 <= u <= 0x5a ||
+        u === 0x5e ||
+        u === 0x5f ||
+        0x61 <= u <= 0x7a
 end
 
 function path_completion(t, state::CompletionState)
@@ -426,7 +426,7 @@ function path_completion(t, state::CompletionState)
                         if isdir(joinpath(dir, f))
                             f = string(f, "/")
                         end
-                        rng1 = Range(state.doc, state.offset - sizeof(partial):state.offset)
+                        rng1 = Range(state.doc, state.offset-sizeof(partial):state.offset)
                         add_completion_item(state, CompletionItem(f, CompletionItemKinds.File, f, TextEdit(rng1, f)))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -447,7 +447,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
     import_root = get_import_root(import_statement)
 
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
-        (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
+       (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
         # no partial, no dot
         if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
             for (n, m) in refof(import_root).vals

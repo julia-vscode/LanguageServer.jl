@@ -77,27 +77,29 @@ mutable struct LanguageServerInstance
     # folder. Primarily for projects and manifests outside of the workspace.
     _extra_tracked_files::Vector{URI}
 
+    _send_request_metrics::Bool
+
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler)
         jw = JuliaWorkspace()
-        if hasfield(typeof(jw.runtime), :performance_tracing_callback)
-            jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
-                if g_operationId[] != "" && endpoint.status === :running
-                    JSONRPC.send(
-                        endpoint,
-                        telemetry_event_notification_type,
-                        Dict(
-                            "command" => "request_metric",
-                            "operationId" => string(uuid4()),
-                            "operationParentId" => g_operationId[],
-                            "name" => name,
-                            "duration" => duration,
-                            "time" => string(Dates.unix2datetime(start_time), "Z")
-                        )
-                    )
-                end
-            end
-        end
+        # if hasfield(typeof(jw.runtime), :performance_tracing_callback)
+        #     jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
+        #         if g_operationId[] != "" && endpoint.status === :running
+        #             JSONRPC.send(
+        #                 endpoint,
+        #                 telemetry_event_notification_type,
+        #                 Dict(
+        #                     "command" => "request_metric",
+        #                     "operationId" => string(uuid4()),
+        #                     "operationParentId" => g_operationId[],
+        #                     "name" => name,
+        #                     "duration" => duration,
+        #                     "time" => string(Dates.unix2datetime(start_time), "Z")
+        #                 )
+        #             )
+        #         end
+        #     end
+        # end
 
         new(
             endpoint,
@@ -134,7 +136,8 @@ mutable struct LanguageServerInstance
             jw,
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
-            URI[]
+            URI[],
+            false
         )
     end
 end
@@ -442,16 +445,18 @@ function Base.run(server::LanguageServerInstance; timings = [])
             toc = time_ns()
             duration = (toc - tic) / 1e+6
 
-            JSONRPC.send(
-                server.jr_endpoint,
-                telemetry_event_notification_type,
-                Dict(
-                "command" => "request_metric",
-                "operationId" => g_operationId[],
-                "name" => msg["method"],
-                "time" => start_time,
-                "duration" => duration)
-            )
+            if server._send_request_metrics
+                JSONRPC.send(
+                    server.jr_endpoint,
+                    telemetry_event_notification_type,
+                    Dict(
+                    "command" => "request_metric",
+                    "operationId" => g_operationId[],
+                    "name" => msg["method"],
+                    "time" => start_time,
+                    "duration" => duration)
+                )
+            end
         elseif message.type == :symservmsg
             @debug "Received new data from Julia Symbol Server."
 

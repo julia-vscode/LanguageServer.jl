@@ -245,38 +245,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             end
         end
 
-        # Add project files separately in case they are not in a workspace folder
-        if server.env_path != ""
-            for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
-                file_full_path = joinpath(server.env_path, file)
-                uri = filepath2uri(file_full_path)
-                if isfile(file_full_path)
-                    @static if Sys.iswindows()
-                        # Normalize drive letter to lowercase
-                        if length(file_full_path) > 1 && isletter(file_full_path[1]) && file_full_path[2] == ':'
-                            file_full_path = lowercasefirst(file_full_path)
-                        end
-                    end
-                    # Only add again if outside of the workspace folders
-                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
-                        if haskey(server._files_from_disc, uri)
-                            error("This should not happen")
-                        end
-
-                        text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
-                        text_file === nothing && continue
-
-                        server._files_from_disc[uri] = text_file
-
-                        if !haskey(server._open_file_versions, uri)
-                            JuliaWorkspaces.add_file!(server.workspace, text_file)
-                        end
-                    end
-                    # But we do want to track, in case the workspace folder is removed
-                    push!(server._extra_tracked_files, filepath2uri(file_full_path))
-                end
-            end
-        end
+        track_project_files!(server)
 
         JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 

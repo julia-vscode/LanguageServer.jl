@@ -613,15 +613,23 @@ function get_inlay_parameter_hints(x::EXPR, server::LanguageServerInstance, doc,
         if thisarg <= nargs && thisarg <= length(pars)
             label = pars[thisarg].label
             label == "#unused#" && return nothing
+            length(label) <= 2 && return nothing
+            t = CSTParser.str_value(x)
+            label == t && return nothing
+            if x.head isa CSTParser.EXPR && x.head.head == :OPERATOR && x.head.val == "."
+                if x.args[end] isa CSTParser.EXPR && x.args[end].args[end] isa CSTParser.EXPR
+                    x.args[end].args[end].val == label && return nothing
+                end
+            end
 
             return InlayHint(
                 Position(get_position_from_offset(doc, pos)...),
-                string(label, ':'),
+                string(label, "="),
                 InlayHintKinds.Parameter,
                 missing,
                 pars[thisarg].documentation,
                 false,
-                true,
+                false,
                 missing
             )
         end

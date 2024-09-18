@@ -3,6 +3,9 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     JuliaWorkspaces.mark_current_testitems(server.workspace)
 
     uri = params.textDocument.uri
+    if uri.scheme == "git"
+        return nothing
+    end
     if hasdocument(server, uri)
         doc = getdocument(server, uri)
         set_text_document!(doc, TextDocument(uri, params.textDocument.text, params.textDocument.version, params.textDocument.languageId))
@@ -106,11 +109,11 @@ end
 comp(x, y) = x == y
 function comp(x::CSTParser.EXPR, y::CSTParser.EXPR)
     comp(x.head, y.head) &&
-    x.span == y.span &&
-    x.fullspan == y.fullspan &&
-    x.val == y.val &&
-    length(x) == length(y) &&
-    all(comp(x[i], y[i]) for i = 1:length(x))
+        x.span == y.span &&
+        x.fullspan == y.fullspan &&
+        x.val == y.val &&
+        length(x) == length(y) &&
+        all(comp(x[i], y[i]) for i = 1:length(x))
 end
 
 function measure_sub_operation(f, request_name, server)
@@ -157,7 +160,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("This should not happen")
     end
 
-    if server._open_file_versions[uri]>params.textDocument.version
+    if server._open_file_versions[uri] > params.textDocument.version
         error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
     end
 
@@ -172,15 +175,15 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         lint!(doc, server)
     elseif get_language_id(doc) == "julia"
         cst0, cst1 = getcst(doc), CSTParser.parse(get_text(doc), true)
-        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds = true)
-        for i in setdiff(1:length(cst0.args), r1 , r3) # clean meta from deleted expr
+        r1, r2, r3 = CSTParser.minimal_reparse(s0, get_text(doc), cst0, cst1, inds=true)
+        for i in setdiff(1:length(cst0.args), r1, r3) # clean meta from deleted expr
             StaticLint.clear_meta(cst0[i])
         end
         setcst(doc, EXPR(cst0.head, EXPR[cst0.args[r1]; cst1.args[r2]; cst0.args[r3]], nothing))
         sizeof(get_text(doc)) == getcst(doc).fullspan || @error "CST does not match input string length."
         headof(doc.cst) === :file ? set_doc(doc.cst, doc) : @info "headof(doc) isn't :file for $(doc._path)"
 
-        target_exprs = getcst(doc).args[last(r1) .+ (1:length(r2))]
+        target_exprs = getcst(doc).args[last(r1).+(1:length(r2))]
 
         semantic_pass(getroot(doc), target_exprs)
         lint!(doc, server)
@@ -233,7 +236,7 @@ function mark_errors(doc, out=Diagnostic[])
         while line < nlines
             seek(io, line_offsets[line])
             char = 0
-            while line_offsets[line] <= offset < line_offsets[line + 1]
+            while line_offsets[line] <= offset < line_offsets[line+1]
                 while offset > position(io)
                     c = read(io, Char)
                     if UInt32(c) >= 0x010000
@@ -289,8 +292,8 @@ Is this diagnostic reliant on the current environment being accurately represent
 """
 function is_diag_dependent_on_env(diag::Diagnostic)
     startswith(diag.message, "Missing reference: ") ||
-    startswith(diag.message, "Possible method call error") ||
-    startswith(diag.message, "An imported")
+        startswith(diag.message, "Possible method call error") ||
+        startswith(diag.message, "An imported")
 end
 
 function print_substitute_line(io::IO, line)
@@ -437,11 +440,11 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
 
             append!(diags, Diagnostic(
                 Range(st, i.range),
-                if i.severity==:error
+                if i.severity == :error
                     DiagnosticSeverities.Error
-                elseif i.severity==:warning
+                elseif i.severity == :warning
                     DiagnosticSeverities.Warning
-                elseif i.severity==:info
+                elseif i.severity == :info
                     DiagnosticSeverities.Information
                 else
                     error("Unknown severity $(i.severity)")
@@ -456,7 +459,7 @@ function publish_diagnostics(uris::Vector{URI}, server, conn, source)
         end
     end
 
-    for (uri,diags) in diagnostics
+    for (uri, diags) in diagnostics
         version = get(server._open_file_versions, uri, missing)
         params = PublishDiagnosticsParams(uri, version, diags)
         JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
@@ -472,7 +475,7 @@ function publish_tests(server::LanguageServerInstance)
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
             testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
-            testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), ) for i in testitems_results.testsetups]
+            testsetups = TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), st.content[i.code_range], Range(st, i.code_range),) for i in testitems_results.testsetups]
             testerrors = TestErrorDetail[TestErrorDetail(te.id, te.name, Range(st, te.range), te.message) for te in testitems_results.testerrors]
 
             version = get(server._open_file_versions, uri, missing)

@@ -444,6 +444,13 @@ function Base.run(server::LanguageServerInstance; timings = [])
             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
             toc = time_ns()
             duration = (toc - tic) / 1e+6
+            if 1e-3duration > 1
+                req = msg["method"]
+                if req != "initialize" && req != "initialized" # these requests will certainly take a bit, so don't want on them
+                    @warn "Request $req took a long time ($(round(Int, duration)) ms)."
+                end
+            end
+
 
             if server._send_request_metrics
                 JSONRPC.send(

@@ -471,8 +471,8 @@ function publish_tests(server::LanguageServerInstance)
             testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
-            testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
-            testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), st.content[i.code_range], Range(st, i.code_range), ) for i in testitems_results.testsetups]
+            testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), i.code, Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
+            testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), i.code, Range(st, i.code_range), ) for i in testitems_results.testsetups]
             testerrors = TestErrorDetail[TestErrorDetail(te.id, te.name, Range(st, te.range), te.message) for te in testitems_results.testerrors]
 
             version = get(server._open_file_versions, uri, missing)

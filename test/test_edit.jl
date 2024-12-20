@@ -38,7 +38,7 @@
 
             LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(uri"untitled:none")), server, nothing)
 
-            CSTParser.to_codeobject(old_cst) == CSTParser.to_codeobject(new_cst), old_cst, new_cst 
+            CSTParser.to_codeobject(old_cst) == CSTParser.to_codeobject(new_cst), old_cst, new_cst
         end
 
         # techinically tests the same as test_document.jl, but should be changed to incremental re-parsing

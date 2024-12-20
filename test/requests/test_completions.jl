@@ -32,8 +32,7 @@
     @test completion_test(6, 14).items[1].textEdit.range == LanguageServer.Range(6, 0, 6, 14)
 end
 
-@testitem "path completions" begin
-end
+@testitem "path completions" begin end
 
 @testitem "import completions" begin
     include("../test_shared_server.jl")

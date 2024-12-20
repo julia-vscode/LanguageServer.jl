@@ -10,7 +10,7 @@ const project_names = ("JuliaProject.toml", "Project.toml")
 const manifest_names = ("JuliaManifest.toml", "Manifest.toml")
 
 # return nothing or the project file at env
-function env_file(env::String, names = project_names)::Union{Nothing,String}
+function env_file(env::String, names=project_names)::Union{Nothing,String}
     if isdir(env)
         for proj in names
             project_file = joinpath(env, proj)
@@ -49,7 +49,7 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
     (safe_isfile(env_proj_file) && safe_isfile(env_manifest_file)) || return
 
     # Find which workspace folder the doc is in.
-    parent_workspaceFolders = sort(filter(f->startswith(doc._path, f), collect(server.workspaceFolders)), by = length, rev = true)
+    parent_workspaceFolders = sort(filter(f -> startswith(doc._path, f), collect(server.workspaceFolders)), by=length, rev=true)
 
     isempty(parent_workspaceFolders) && return
     # arbitrarily pick one
@@ -94,11 +94,11 @@ function get_env_for_root(doc::Document, server::LanguageServerInstance)
                 msg
             ))
         end
-        @error msg exception=(err, catch_backtrace())
+        @error msg exception = (err, catch_backtrace())
     end
 end
 
-function complete_dep_tree(uuid, env_manifest, alldeps = Dict{Base.UUID,Pkg.Types.PackageEntry}())
+function complete_dep_tree(uuid, env_manifest, alldeps=Dict{Base.UUID,Pkg.Types.PackageEntry}())
     haskey(alldeps, uuid) && return alldeps
     alldeps[uuid] = env_manifest[uuid]
     for dep_uuid in values(alldeps[uuid].deps)

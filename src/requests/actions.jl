@@ -12,7 +12,7 @@ function client_support_action_kind(s::LanguageServerInstance, _::CodeActionKind
        s.clientCapabilities.textDocument !== missing &&
        s.clientCapabilities.textDocument.codeAction !== missing &&
        s.clientCapabilities.textDocument.codeAction.codeActionLiteralSupport !== missing
-       s.clientCapabilities.textDocument.codeAction.codeActionLiteralSupport.codeActionKind !== missing
+        s.clientCapabilities.textDocument.codeAction.codeActionLiteralSupport.codeActionKind !== missing
         # From the spec of CodeActionKind (https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#codeActionClientCapabilities):
         #
         #     The code action kind values the client supports. When this
@@ -32,9 +32,9 @@ function client_preferred_support(s::LanguageServerInstance)::Bool
        s.clientCapabilities.textDocument !== missing &&
        s.clientCapabilities.textDocument.codeAction !== missing &&
        s.clientCapabilities.textDocument.codeAction.isPreferredSupport !== missing
-       return s.clientCapabilities.textDocument.codeAction.isPreferredSupport
-   else
-       return false
+        return s.clientCapabilities.textDocument.codeAction.isPreferredSupport
+    else
+        return false
     end
 end
 
@@ -56,7 +56,7 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
             if sa.when(x, params)
                 kind = sa.kind
                 if sa.kind !== missing && sa.kind == CodeActionKinds.SourceOrganizeImports &&
-                    server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
+                   server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
                     # SourceOrganizeImports doesn't show up in the VS Code UI, so make this a
                     # RefactorRewrite instead
                     kind = CodeActionKinds.RefactorRewrite
@@ -163,16 +163,16 @@ function expand_inline_func(x, server, conn)
     if headof(body) == :block && length(body) == 1
         file, offset = get_file_loc(func)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-            TextEdit(Range(file, offset .+ (0:func.span)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend"))
+            TextEdit(Range(file, offset .+ (0:func.span)), string("function ", get_text(file)[offset.+(1:sig.span)], "\n    ", get_text(file)[offset+sig.fullspan+op.fullspan.+(1:body.span)], "\nend"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     elseif (headof(body) === :begin || CSTParser.isbracketed(body)) &&
-        headof(body.args[1]) === :block && length(body.args[1]) > 0
+           headof(body.args[1]) === :block && length(body.args[1]) > 0
         file, offset = get_file_loc(func)
-        newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
+        newtext = string("function ", get_text(file)[offset.+(1:sig.span)])
         blockoffset = offset + sig.fullspan + op.fullspan + body.trivia[1].fullspan
         for i = 1:length(body.args[1].args)
-            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[1].args[i].span)])
+            newtext = string(newtext, "\n    ", get_text(file)[blockoffset.+(1:body.args[1].args[i].span)])
             blockoffset += body.args[1].args[i].fullspan
         end
         newtext = string(newtext, "\nend")
@@ -203,9 +203,9 @@ function get_next_line_offset(x)
     # get next line after using_stmt
     insertpos = -1
     line_offsets = get_line_offsets(get_text_document(file))
-    for i = 1:length(line_offsets) - 1
-        if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
-            insertpos = line_offsets[i + 1]
+    for i = 1:length(line_offsets)-1
+        if line_offsets[i] < offset + x.span <= line_offsets[i+1]
+            insertpos = line_offsets[i+1]
         end
     end
     return insertpos
@@ -321,12 +321,12 @@ function remove_farg_name(x, server, conn)
     file, offset = get_file_loc(x1)
     if CSTParser.isdeclaration(x1)
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
-                    ])
+            TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
+        ])
     else
         tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "_")
-                    ])
+            TextEdit(Range(file, offset .+ (0:x1.fullspan)), "_")
+        ])
     end
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
@@ -335,8 +335,8 @@ function remove_unused_assignment_name(x, _, conn)
     x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER)
     file, offset = get_file_loc(x1)
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                    TextEdit(Range(file, offset .+ (0:x1.span)), "_")
-                ])
+        TextEdit(Range(file, offset .+ (0:x1.span)), "_")
+    ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
@@ -363,8 +363,8 @@ function in_same_workspace_folder(server::LanguageServerInstance, file1::URI, fi
     for ws in server.workspaceFolders
         if startswith(file1_str, ws) &&
            startswith(file2_str, ws)
-           return true
-       end
+            return true
+        end
     end
     return false
 end
@@ -381,7 +381,7 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
         return first(candidate_identifiers)
     else
         numerous = iszero(length(candidate_identifiers)) ? "no" : "multiple"
-        @warn "Found $numerous candidates for the SPDX header from open files, falling back to LICENSE" Candidates=candidate_identifiers
+        @warn "Found $numerous candidates for the SPDX header from open files, falling back to LICENSE" Candidates = candidate_identifiers
     end
 
     # Fallback to looking for a license file in the same workspace folder
@@ -414,7 +414,7 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
         return "EUPL-$version"
     end
 
-    @warn "A license was found, but could not be identified! Consider adding its licence identifier once to a file manually so that LanguageServer.jl can find it automatically next time." Location=first(candidate_files)
+    @warn "A license was found, but could not be identified! Consider adding its licence identifier once to a file manually so that LanguageServer.jl can find it automatically next time." Location = first(candidate_files)
     return nothing
 end
 
@@ -609,7 +609,7 @@ function convert_to_raw(x, _, conn)
 end
 
 function convert_from_raw(x, _, conn)
-    is_string_literal(x; inraw = true) || return
+    is_string_literal(x; inraw=true) || return
     xparent = x.parent
     file, offset = get_file_loc(xparent)
     quotes = headof(x) === :TRIPLESTRING ? "\"\"" : "" # TODO: raw""" not supported yet
@@ -651,7 +651,7 @@ function add_docstring_template(x, _, conn)
     file, func_offset = get_file_loc(func)
     sig = func.args[1]
     _, sig_offset = get_file_loc(sig)
-    docstr = "\"\"\"\n    " * get_text(file)[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
+    docstr = "\"\"\"\n    " * get_text(file)[sig_offset.+(1:sig.span)] * "\n\nTBW\n\"\"\"\n"
     tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
         TextEdit(Range(file, func_offset:func_offset), docstr)
     ])
@@ -661,8 +661,8 @@ end
 
 function is_in_docstring_for_function(x::EXPR, _)
     return CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
-       length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
-       headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
+           length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
+           headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
 end
 
 function update_docstring_sig(x, _, conn)
@@ -681,7 +681,7 @@ function update_docstring_sig(x, _, conn)
     # New signature in the code
     sig = func.args[1]
     _, sig_offset = get_file_loc(sig)
-    sig_str = get_text(file)[sig_offset .+ (1:sig.span)]
+    sig_str = get_text(file)[sig_offset.+(1:sig.span)]
     # Heuristic for finding a signature in the current docstring
     reg = r"\A    .*$"m
     if (m = match(reg, valof(docstr_expr)); m !== nothing)

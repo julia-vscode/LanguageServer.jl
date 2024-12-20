@@ -1,14 +1,14 @@
 function mark_current_diagnostics_testitems(jw::JuliaWorkspace)
-    ti_results = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_test_items(jw))
+    ti_results = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_test_items(jw))
 
-    diag_results = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_diagnostics(jw))
+    diag_results = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_diagnostics(jw))
 
     return (testitems=ti_results, diagnostics=diag_results)
 end
 
-function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_marked_versions::@NamedTuple{testitems::Dict{URI,UInt},diagnostics::Dict{URI,UInt}})
+function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_marked_versions::@NamedTuple{testitems::Dict{URI,UInt}, diagnostics::Dict{URI,UInt}})
     # Testitems
-    new_marked_versions_ti = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_test_items(jw))
+    new_marked_versions_ti = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_test_items(jw))
 
     old_text_files_ti = Set{URI}(keys(old_marked_versions.testitems))
     new_text_files_ti = Set{URI}(keys(new_marked_versions_ti))
@@ -16,7 +16,7 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
     deleted_files_ti = setdiff(old_text_files_ti, new_text_files_ti)
     updated_files_ti = Set{URI}()
 
-    for (uri,hash_value) in new_marked_versions_ti
+    for (uri, hash_value) in new_marked_versions_ti
         if !(uri in old_text_files_ti)
             push!(updated_files_ti, uri)
         else
@@ -27,7 +27,7 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
     end
 
     # Diagnostics
-    new_marked_versions_diag = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_diagnostics(jw))
+    new_marked_versions_diag = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_diagnostics(jw))
 
     old_text_files_diag = Set{URI}(keys(old_marked_versions.diagnostics))
     new_text_files_diag = Set{URI}(keys(new_marked_versions_diag))
@@ -35,7 +35,7 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
     deleted_files_diag = setdiff(old_text_files_diag, new_text_files_diag)
     updated_files_diag = Set{URI}()
 
-    for (uri,hash_value) in new_marked_versions_diag
+    for (uri, hash_value) in new_marked_versions_diag
         if !(uri in old_text_files_diag)
             push!(updated_files_diag, uri)
         else
@@ -45,7 +45,7 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
         end
     end
 
-    return (;updated_files_ti, deleted_files_ti, updated_files_diag, deleted_files_diag)
+    return (; updated_files_ti, deleted_files_ti, updated_files_diag, deleted_files_diag)
 end
 
 function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_deleted, uris::Vector{URI})
@@ -84,11 +84,11 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
 
             append!(diags, Diagnostic(
                 Range(st, i.range),
-                if i.severity==:error
+                if i.severity == :error
                     DiagnosticSeverities.Error
-                elseif i.severity==:warning
+                elseif i.severity == :warning
                     DiagnosticSeverities.Warning
-                elseif i.severity==:info
+                elseif i.severity == :info
                     DiagnosticSeverities.Information
                 else
                     error("Unknown severity $(i.severity)")
@@ -103,7 +103,7 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
         end
     end
 
-    for (uri,diags) in diagnostics
+    for (uri, diags) in diagnostics
         version = get(server._open_file_versions, uri, missing)
         params = PublishDiagnosticsParams(uri, version, diags)
         JSONRPC.send(server.jr_endpoint, textDocument_publishDiagnostics_notification_type, params)
@@ -117,7 +117,7 @@ function publish_tests(server::LanguageServerInstance, updated_files, deleted_fi
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
             testitems = TestItemDetail[TestItemDetail(i.id, i.name, Range(st, i.range), i.code, Range(st, i.code_range), i.option_default_imports, string.(i.option_tags), string.(i.option_setup)) for i in testitems_results.testitems]
-            testsetups= TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), i.code, Range(st, i.code_range), ) for i in testitems_results.testsetups]
+            testsetups = TestSetupDetail[TestSetupDetail(string(i.name), string(i.kind), Range(st, i.range), i.code, Range(st, i.code_range),) for i in testitems_results.testsetups]
             testerrors = TestErrorDetail[TestErrorDetail(te.id, te.name, Range(st, te.range), te.message) for te in testitems_results.testerrors]
 
             version = get(server._open_file_versions, uri, missing)

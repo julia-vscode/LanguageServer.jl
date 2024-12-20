@@ -129,10 +129,10 @@ function get_juliaformatter_config(doc, server)
     path = get_path(doc)
 
     # search through workspace for a `.JuliaFormatter.toml`
-    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
+    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by=length, rev=true)
     config_path = length(workspace_dirs) > 0 ?
-        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
-        nothing
+                  search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
+                  nothing
 
     config_path === nothing && return nothing
 
@@ -142,13 +142,13 @@ end
 
 function default_juliaformatter_config(params)
     return (
-        indent = params.options.tabSize,
-        annotate_untyped_fields_with_any = false,
-        join_lines_based_on_source = true,
-        trailing_comma = nothing,
-        margin = 10_000,
-        always_for_in = nothing,
-        whitespace_in_kwargs = false
+        indent=params.options.tabSize,
+        annotate_untyped_fields_with_any=false,
+        join_lines_based_on_source=true,
+        trailing_comma=nothing,
+        margin=10_000,
+        always_for_in=nothing,
+        whitespace_in_kwargs=false
     )
 end
 
@@ -298,9 +298,9 @@ end
 is_valid_binding_name(name) = false
 function is_valid_binding_name(name::EXPR)
     (headof(name) === :IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
-    CSTParser.isoperator(name) ||
-    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2]))) ||
-    is_callable_object_binding(name)
+        CSTParser.isoperator(name) ||
+        (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2]))) ||
+        is_callable_object_binding(name)
 end
 function get_name_of_binding(name::EXPR)
     if headof(name) === :IDENTIFIER
@@ -342,7 +342,7 @@ function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, 
     )
 
     if bindingof(x) !== nothing
-        b =  bindingof(x)
+        b = bindingof(x)
         if b.val isa EXPR && is_valid_binding_name(b.name)
             ds = DocumentSymbol(
                 get_name_of_binding(b.name), # name
@@ -535,7 +535,7 @@ function _score(needle::Symbol, haystack::Symbol)
 end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    matches = Pair{Float64, String}[]
+    matches = Pair{Float64,String}[]
     needle = Symbol(params.word)
     nfound = 0
     traverse_by_name(getsymbols(getenv(server))) do sym, val
@@ -552,7 +552,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
     if isempty(matches)
         return "No results found."
     else
-        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
+        return join(map(x -> x.second, sort!(unique!(matches), by=x -> x.first)[1:min(end, 25)]), "\n---\n")
     end
 end
 
@@ -564,8 +564,8 @@ function textDocument_selectionRange_request(params::SelectionRangeParams, serve
         get_selection_range_of_expr(x)
     end
     return ret isa Vector{SelectionRange} ?
-        ret :
-        nothing
+           ret :
+           nothing
 end
 
 # Just returns a selection for each parent EXPR, should be more selective
@@ -631,20 +631,20 @@ end
 
 function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
     if x isa EXPR && parentof(x) isa EXPR &&
-            CSTParser.iscall(parentof(x)) &&
-            !(
-                parentof(parentof(x)) isa EXPR &&
-                CSTParser.defines_function(parentof(parentof(x)))
-            ) &&
-            parentof(x).args[1] != x # function calls
+       CSTParser.iscall(parentof(x)) &&
+       !(
+           parentof(parentof(x)) isa EXPR &&
+           CSTParser.defines_function(parentof(parentof(x)))
+       ) &&
+       parentof(x).args[1] != x # function calls
         maybe_hint = get_inlay_parameter_hints(x, server, doc, pos)
         if maybe_hint !== nothing
             push!(hints, maybe_hint)
         end
     elseif x isa EXPR && parentof(x) isa EXPR &&
-            CSTParser.isassignment(parentof(x)) &&
-            parentof(x).args[1] == x &&
-            StaticLint.hasbinding(x) # assignment
+           CSTParser.isassignment(parentof(x)) &&
+           parentof(x).args[1] == x &&
+           StaticLint.hasbinding(x) # assignment
         if server.inlay_hints_variable_types
             typ = _completion_type(StaticLint.bindingof(x))
             if typ !== missing

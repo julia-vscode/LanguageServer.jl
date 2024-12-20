@@ -6,7 +6,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for change in params.changes
         uri = change.uri
 
-        uri.scheme=="file" || continue
+        uri.scheme == "file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
@@ -156,7 +156,7 @@ end
 
 function gc_files_from_workspace(server::LanguageServerInstance)
     for uri in keys(server._files_from_disc)
-        if any(i->startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
+        if any(i -> startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
             continue
         end
 

@@ -72,7 +72,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
         JuliaWorkspaces.remove_file!(server.workspace, uri)
     end
 
-    publish_diagnostics_testitems(server, marked_versions, [])
+    publish_diagnostics_testitems(server, marked_versions, JuliaWorkspaces.URIs2.URI[])
 end
 
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)

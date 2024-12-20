@@ -79,11 +79,11 @@ end
 function load_rootpath(path)
     try
         return isdir(path) &&
-            hasreadperm(path) &&
-            path != "" &&
-            path != homedir() &&
-            !isjuliabasedir(path) &&
-            !has_too_many_files(path)
+               hasreadperm(path) &&
+               path != "" &&
+               path != homedir() &&
+               !isjuliabasedir(path) &&
+               !has_too_many_files(path)
     catch err
         is_walkdir_error(err) || rethrow()
         return false
@@ -147,7 +147,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         if !(params.rootUri isa Nothing)
             push!(server.workspaceFolders, uri2filepath(params.rootUri))
         elseif !(params.rootPath isa Nothing)
-            push!(server.workspaceFolders,  params.rootPath)
+            push!(server.workspaceFolders, params.rootPath)
         end
     elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
@@ -171,9 +171,9 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     end
 
     if !ismissing(params.capabilities.workspace) &&
-        !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
-        !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
-        params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
+       !ismissing(params.capabilities.workspace.didChangeConfiguration) &&
+       !ismissing(params.capabilities.workspace.didChangeConfiguration.dynamicRegistration) &&
+       params.capabilities.workspace.didChangeConfiguration.dynamicRegistration
 
         server.clientcapability_workspace_didChangeConfiguration = true
     end
@@ -199,12 +199,12 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     if !ismissing(server.clientCapabilities) &&
-        !ismissing(server.clientCapabilities.workspace) &&
-        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) &&
-        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) &&
-        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) &&
-        server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration &&
-        server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
+       !ismissing(server.clientCapabilities.workspace) &&
+       !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) &&
+       !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) &&
+       !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) &&
+       server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration &&
+       server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
 
         push!(
             client_capabilities_registrations,
@@ -257,7 +257,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                         end
                     end
                     # Only add again if outside of the workspace folders
-                    if all(i->!startswith(file_full_path, i), server.workspaceFolders)
+                    if all(i -> !startswith(file_full_path, i), server.workspaceFolders)
                         if haskey(server._files_from_disc, uri)
                             error("This should not happen")
                         end

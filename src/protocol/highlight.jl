@@ -1,7 +1,7 @@
 const DocumentHighlightKind = Int
-const DocumentHighlightKinds = (Text = 1,
-                                Read = 2,
-                                Write = 3)
+const DocumentHighlightKinds = (Text=1,
+    Read=2,
+    Write=3)
 
 @dict_readable struct DocumentHighlightClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}

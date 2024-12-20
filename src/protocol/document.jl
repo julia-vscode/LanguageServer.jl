@@ -76,7 +76,7 @@ end
     textDocument::TextDocumentItem
 end
 
-@dict_readable struct TextDocumentContentChangeEvent  <: Outbound
+@dict_readable struct TextDocumentContentChangeEvent <: Outbound
     range::Union{Range,Missing}
     rangeLength::Union{Int,Missing}
     text::String
@@ -97,9 +97,9 @@ end
 end
 
 const TextDocumentSaveReason = Int
-const TextDocumentSaveReasons = (Manual = 1,
-                                 AfterDelay = 2,
-                                 FocusOut = 3)
+const TextDocumentSaveReasons = (Manual=1,
+    AfterDelay=2,
+    FocusOut=3)
 
 @dict_readable struct WillSaveTextDocumentParams
     textDocument::TextDocumentIdentifier

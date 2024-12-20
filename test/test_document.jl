@@ -69,7 +69,7 @@ end
 
     s6 = "\n"
     d6 = Document(TextDocument(uri"untitled:none", s6, 0), false)
-    @test get_line_offsets(get_text_document(d6)) == [0,1]
+    @test get_line_offsets(get_text_document(d6)) == [0, 1]
 end
 
 @testitem "apply_text_edits" begin

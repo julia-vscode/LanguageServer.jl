@@ -1,6 +1,5 @@
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     docs_to_lint = Document[]
 
@@ -82,8 +81,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
     for lint_doc in docs_to_lint
         lint!(lint_doc, server)
     end
-    publish_diagnostics(get_uri.(docs_to_lint), server, conn, "workspace_didChangeWatchedFiles_notification")
-    publish_tests(server)
+
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(docs_to_lint))
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
@@ -174,8 +173,7 @@ function gc_files_from_workspace(server::LanguageServerInstance)
 end
 
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     added_docs = Document[]
 
@@ -209,8 +207,8 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     for doc in added_docs
         lint!(doc, server)
     end
-    publish_diagnostics(get_uri.(added_docs), server, conn, "workspace_didChangeWorkspaceFolders_notification")
-    publish_tests(server)
+
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
 end
 
 function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)

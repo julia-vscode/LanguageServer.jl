@@ -1,6 +1,5 @@
 function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     uri = params.textDocument.uri
     if hasdocument(server, uri)
@@ -33,8 +32,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
 
     parse_all(doc, server)
     lint!(doc, server)
-    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didOpen_notification")
-    publish_tests(server)
+    publish_diagnostics_testitems(server, marked_versions, [get_uri(doc)])
 end
 
 
@@ -42,7 +40,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
 
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     if is_workspace_file(doc)
         set_open_in_editor(doc, false)
@@ -74,7 +72,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
         JuliaWorkspaces.remove_file!(server.workspace, uri)
     end
 
-    publish_tests(server)
+    publish_diagnostics_testitems(server, marked_versions, JuliaWorkspaces.URIs2.URI[])
 end
 
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
@@ -137,8 +135,7 @@ function measure_sub_operation(f, request_name, server)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     uri = params.textDocument.uri
 
@@ -186,8 +183,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         lint!(doc, server)
     end
 
-    publish_diagnostics([get_uri(doc)], server, conn, "textDocument_didChange_notification")
-    publish_tests(server)
+    publish_diagnostics_testitems(server, marked_versions, [get_uri(doc)])
 end
 
 function parse_all(doc::Document, server::LanguageServerInstance)
@@ -395,126 +391,6 @@ function try_to_load_parents(child_path, server)
         success = is_parentof(p, child_path, server)
         if success
             return try_to_load_parents(p, server)
-        end
-    end
-end
-
-function publish_diagnostics(uris::Vector{URI}, server, conn, source)
-    jw_diagnostics_updated, jw_diagnostics_deleted = JuliaWorkspaces.get_files_with_updated_diagnostics(server.workspace)
-
-    all_uris_with_updates = Set{URI}()
-
-    for uri in uris
-        push!(all_uris_with_updates, uri)
-    end
-
-    for uri in jw_diagnostics_updated
-        push!(all_uris_with_updates, uri)
-    end
-
-    diagnostics = Dict{URI,Vector{Diagnostic}}()
-
-    for uri in all_uris_with_updates
-        diags = Diagnostic[]
-        diagnostics[uri] = diags
-
-        if hasdocument(server, uri)
-            doc = getdocument(server, uri)
-
-            if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-                pkgpath = getpath(doc)
-                if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-                    filter!(!is_diag_dependent_on_env, doc.diagnostics)
-                end
-                append!(diags, doc.diagnostics)
-            end
-        end
-
-        if JuliaWorkspaces.has_file(server.workspace, uri)
-            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-
-            new_diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
-
-            append!(diags, Diagnostic(
-                Range(st, i.range),
-                if i.severity==:error
-                    DiagnosticSeverities.Error
-                elseif i.severity==:warning
-                    DiagnosticSeverities.Warning
-                elseif i.severity==:info
-                    DiagnosticSeverities.Information
-                else
-                    error("Unknown severity $(i.severity)")
-                end,
-                missing,
-                missing,
-                i.source,
-                i.message,
-                missing,
-                missing
-            ) for i in new_diags)
-        end
-    end
-
-    for (uri,diags) in diagnostics
-        version = get(server._open_file_versions, uri, missing)
-        params = PublishDiagnosticsParams(uri, version, diags)
-        JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, params)
-    end
-end
-
-function publish_tests(server::LanguageServerInstance)
-    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
-        updated_files, deleted_files = JuliaWorkspaces.get_files_with_updated_testitems(server.workspace)
-
-        for uri in updated_files
-            testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
-            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-
-            testitems = TestItemDetail[
-                TestItemDetail(
-                    id = i.id,
-                    label = i.name,
-                    range = Range(st, i.range),
-                    code = st.content[i.code_range],
-                    codeRange = Range(st, i.code_range),
-                    optionDefaultImports = i.option_default_imports,
-                    optionTags = string.(i.option_tags),
-                    optionSetup = string.(i.option_setup)
-                ) for i in testitems_results.testitems
-            ]
-            testsetups= TestSetupDetail[
-                TestSetupDetail(
-                    name = string(i.name),
-                    kind = string(i.kind),
-                    range = Range(st, i.range),
-                    code = st.content[i.code_range],
-                    codeRange = Range(st, i.code_range)
-                ) for i in testitems_results.testsetups
-            ]
-            testerrors = TestErrorDetail[
-                TestErrorDetail(
-                    id = te.id,
-                    label = te.name,
-                    range = Range(st, te.range),
-                    error = te.message
-                ) for te in testitems_results.testerrors
-            ]
-
-            version = get(server._open_file_versions, uri, missing)
-
-            params = PublishTestsParams(
-                uri,
-                version,
-                testitems,
-                testsetups,
-                testerrors
-            )
-            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, params)
-        end
-
-        for uri in deleted_files
-            JSONRPC.send(server.jr_endpoint, textDocument_publishTests_notification_type, PublishTestsParams(uri, missing, TestItemDetail[], TestSetupDetail[], TestErrorDetail[]))
         end
     end
 end

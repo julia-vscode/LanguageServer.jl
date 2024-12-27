@@ -224,8 +224,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     end
 
-    JuliaWorkspaces.mark_current_diagnostics(server.workspace)
-    JuliaWorkspaces.mark_current_testitems(server.workspace)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
     added_docs = Document[]
 
     if server.workspaceFolders !== nothing
@@ -289,8 +288,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
-    publish_diagnostics(get_uri.(added_docs), server, conn, "initialized_notification")
-    publish_tests(server)
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
 
     request_julia_config(server, conn)
 

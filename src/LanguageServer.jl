@@ -28,6 +28,7 @@ include("languageserverinstance.jl")
 include("multienv.jl")
 include("runserver.jl")
 include("staticlint.jl")
+include("testitem_diagnostic_marking.jl")
 
 include("requests/misc.jl")
 include("requests/textdocument.jl")

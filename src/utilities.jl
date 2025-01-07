@@ -1,10 +1,10 @@
 # VSCode specific
 # ---------------
 
-function nodocument_error(uri, data=nothing)
+function nodocument_error(uri, request_name, data=nothing)
     return JSONRPC.JSONRPCError(
         -33100,
-        "document $(uri) requested but not present in the JLS",
+        "document $(uri) requested but not present in the JLS for request $request_name",
         data
     )
 end

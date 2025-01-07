@@ -487,7 +487,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
             return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return nodocument_error(uri)
+        return nodocument_error(uri, "getModuleAt")
     end
     return "Main"
 end
@@ -505,7 +505,7 @@ end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    hasdocument(server, uri) || return nodocument_error(uri)
+    hasdocument(server, uri) || return nodocument_error(uri, "getDocAt")
 
     doc = getdocument(server, uri)
     env = getenv(doc, server)

@@ -141,14 +141,9 @@ function get_juliaformatter_config(doc, server)
 end
 
 function default_juliaformatter_config(params)
-    return (
+    return (;
+        JuliaFormatter.options(JuliaFormatter.MinimalStyle())...,
         indent = params.options.tabSize,
-        annotate_untyped_fields_with_any = false,
-        join_lines_based_on_source = true,
-        trailing_comma = nothing,
-        margin = 10_000,
-        always_for_in = nothing,
-        whitespace_in_kwargs = false
     )
 end
 

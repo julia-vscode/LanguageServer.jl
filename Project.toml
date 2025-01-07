@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "4.5.1"
+version = "5.0.0-DEV"
 
 [deps]
 CSTParser = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
@@ -27,7 +27,7 @@ JSONRPC = "1.1"
 JuliaFormatter = "0.20.0, 0.21, 0.22, 0.23, 1"
 PrecompileTools = "1"
 StaticLint = "8.0"
-JuliaWorkspaces = "5"
+JuliaWorkspaces = "6"
 SymbolServer = "8"
 Tokenize = "0.5.10"
 URIs = "1.3"

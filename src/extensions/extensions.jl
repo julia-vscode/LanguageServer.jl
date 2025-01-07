@@ -45,7 +45,7 @@ end
 end
 
 @dict_readable struct GetTestEnvRequestParamsReturn <: Outbound
-    packageName::String
+    packageName::Union{String,Missing}
     packageUri::Union{URI,Missing}
     projectUri::Union{URI,Missing}
     envContentHash::Union{UInt,Missing}

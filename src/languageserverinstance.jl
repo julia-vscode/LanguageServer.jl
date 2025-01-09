@@ -286,6 +286,30 @@ end
 const USE_REVISE = Ref(false)
 
 function request_wrapper(func, server::LanguageServerInstance)
+    return function (conn, params, token)
+        if server.shutdown_requested
+            # it's fine to always return a value here, even for notifications, because
+            # JSONRPC discards it anyways in that case
+            return JSONRPC.JSONRPCError(
+                -32600,
+                "LS shutdown was requested.",
+                nothing
+            )
+        end
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            Base.invokelatest(func, params, server, conn)
+        else
+            func(params, server, conn)
+        end
+    end
+end
+
+function notification_wrapper(func, server::LanguageServerInstance)
     return function (conn, params)
         if server.shutdown_requested
             # it's fine to always return a value here, even for notifications, because
@@ -394,24 +418,24 @@ function Base.run(server::LanguageServerInstance; timings = [])
     msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
     msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
     msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
-    msg_dispatcher[initialized_notification_type] = request_wrapper(initialized_notification, server)
+    msg_dispatcher[initialized_notification_type] = notification_wrapper(initialized_notification, server)
     msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
-    msg_dispatcher[cancel_notification_type] = request_wrapper(cancel_notification, server)
-    msg_dispatcher[setTrace_notification_type] = request_wrapper(setTrace_notification, server)
-    msg_dispatcher[setTraceNotification_notification_type] = request_wrapper(setTraceNotification_notification, server)
+    msg_dispatcher[cancel_notification_type] = notification_wrapper(cancel_notification, server)
+    msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
+    msg_dispatcher[setTraceNotification_notification_type] = notification_wrapper(setTraceNotification_notification, server)
     msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
-    msg_dispatcher[julia_activateenvironment_notification_type] = request_wrapper(julia_activateenvironment_notification, server)
-    msg_dispatcher[textDocument_didOpen_notification_type] = request_wrapper(textDocument_didOpen_notification, server)
-    msg_dispatcher[textDocument_didClose_notification_type] = request_wrapper(textDocument_didClose_notification, server)
-    msg_dispatcher[textDocument_didSave_notification_type] = request_wrapper(textDocument_didSave_notification, server)
-    msg_dispatcher[textDocument_willSave_notification_type] = request_wrapper(textDocument_willSave_notification, server)
+    msg_dispatcher[julia_activateenvironment_notification_type] = notification_wrapper(julia_activateenvironment_notification, server)
+    msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
+    msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
+    msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
+    msg_dispatcher[textDocument_willSave_notification_type] = notification_wrapper(textDocument_willSave_notification, server)
     msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
-    msg_dispatcher[textDocument_didChange_notification_type] = request_wrapper(textDocument_didChange_notification, server)
-    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = request_wrapper(workspace_didChangeWatchedFiles_notification, server)
-    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = request_wrapper(workspace_didChangeConfiguration_notification, server)
-    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = request_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
+    msg_dispatcher[textDocument_didChange_notification_type] = notification_wrapper(textDocument_didChange_notification, server)
+    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = notification_wrapper(workspace_didChangeWatchedFiles_notification, server)
+    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
+    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
     msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
-    msg_dispatcher[julia_refreshLanguageServer_notification_type] = request_wrapper(julia_refreshLanguageServer_notification, server)
+    msg_dispatcher[julia_refreshLanguageServer_notification_type] = notification_wrapper(julia_refreshLanguageServer_notification, server)
     msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
     msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
     msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)

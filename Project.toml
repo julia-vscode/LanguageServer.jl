@@ -23,7 +23,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 [compat]
 CSTParser = "3.3"
 JSON = "0.20, 0.21"
-JSONRPC = "1.1"
+JSONRPC = "2"
 JuliaFormatter = "1"
 PrecompileTools = "1"
 StaticLint = "8.0"

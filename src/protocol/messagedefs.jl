@@ -37,7 +37,6 @@ const shutdown_request_type = JSONRPC.RequestType("shutdown", Nothing, Nothing)
 const exit_notification_type = JSONRPC.NotificationType("exit", Nothing)
 const client_registerCapability_request_type = JSONRPC.RequestType("client/registerCapability", RegistrationParams, Nothing)
 
-const cancel_notification_type = JSONRPC.NotificationType("\$/cancelRequest", CancelParams)
 const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTraceParams)
 # TODO This seems to not exist in the spec?
 const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setTraceNotification", Nothing)

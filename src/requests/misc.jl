@@ -1,6 +1,3 @@
-function cancel_notification(params::CancelParams, server::LanguageServerInstance, conn)
-end
-
 function setTrace_notification(params::SetTraceParams, server::LanguageServerInstance, conn)
 end
 

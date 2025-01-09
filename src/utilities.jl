@@ -488,7 +488,7 @@ end
 end
 
 # some timer utilities
-add_timer_message!(did_show_timer, timings, msg::Dict) = add_timer_message!(did_show_timer, timings, string("LSP/", get(msg, "method", "")))
+add_timer_message!(did_show_timer, timings, msg::JSONRPC.Request) = add_timer_message!(did_show_timer, timings, string("LSP/", msg.method))
 function add_timer_message!(did_show_timer, timings, msg::String)
     if did_show_timer[]
         return

@@ -108,7 +108,7 @@ struct CompletionItem <: Outbound
     data::Union{Any,Missing}
 end
 CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
-CompletionItem(label, kind, detail, documentation, textEdit) = CompletionItem(label, kind, missing, detail, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
+CompletionItem(label, kind, detail, documentation, textEdit, sortText = label) = CompletionItem(label, kind, missing, detail, documentation, missing, missing, sortText, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
 
 struct CompletionList <: Outbound
     isIncomplete::Bool

@@ -15,6 +15,8 @@ import Dates
 
 export LanguageServerInstance, runserver
 
+const INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS = "useFormatterConfigDefaults"
+
 const g_operationId = Ref{String}("")
 
 JSON.lower(uri::URI) = string(uri)

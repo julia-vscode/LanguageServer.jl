@@ -48,7 +48,7 @@ end
     packageName::Union{String,Missing}
     packageUri::Union{URI,Missing}
     projectUri::Union{URI,Missing}
-    envContentHash::Union{UInt,Missing}
+    envContentHash::Union{String,Missing}
 end
 
 include("messagedefs.jl")

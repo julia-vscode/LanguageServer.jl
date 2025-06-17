@@ -232,8 +232,16 @@ function trigger_symbolstore_reload(server::LanguageServerInstance)
                     JSONRPC.send(
                         server.jr_endpoint,
                         progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, missing))
+                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, percentage))
                     )
+                    if percentage == 100
+                        sleep(10) # give the UI some time to show the end of the progress
+                        JSONRPC.send(
+                            server.jr_endpoint,
+                            progress_notification_type,
+                            ProgressParams(server.current_symserver_progress_token, WorkDoneProgressEnd(missing))
+                        )
+                    end
                 end
                 @info msg
             end,

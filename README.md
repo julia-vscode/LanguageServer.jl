@@ -48,3 +48,6 @@ if there is no parent project.
 ## Development of the VSCode extension
 
 See https://github.com/julia-vscode/julia-vscode/wiki for information on how to test this package with the VSCode extension
+
+## LanguageServer.jl does not normally search upwards for .JuliaFormatter.toml
+You can turn this on by setting the initialization option "useFormatterConfigDefaults" to true

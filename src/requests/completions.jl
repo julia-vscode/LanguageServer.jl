@@ -504,6 +504,8 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
     end
 end
 
+
+
 function get_preexisting_using_stmts(x::EXPR, doc::Document)
     using_stmts = Dict{String,Any}()
     tls = StaticLint.retrieve_toplevel_scope(x)

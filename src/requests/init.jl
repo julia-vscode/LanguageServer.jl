@@ -149,7 +149,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         elseif !(params.rootPath isa Nothing)
             push!(server.workspaceFolders,  params.rootPath)
         end
-    elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
+    elseif (params.workspaceFolders !== nothing) && (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
             if wksp.uri !== nothing
                 fpath = uri2filepath(wksp.uri)

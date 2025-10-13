@@ -216,3 +216,24 @@ end
     @test any(i -> i.label == "yyy" && occursin("yyy::Bar", i.detail), items1)
     @test any(i -> i.label == "xxx" && occursin("xxx::Bar = f.yyy", i.detail), items2)
 end
+
+@testitem "completion public annotation" begin
+    include("../test_shared_server.jl")
+
+    settestdoc("""
+        module Foo
+        public bar
+
+        "asd"
+        function bar end
+        end
+
+        Foo.ba
+        """)
+    items = completion_test(7, 6).items
+    @test length(items) == 1
+    item = only(items)
+    @test item.label == "bar"
+    @test item.labelDetails.detail == " (public)"
+    @test occursin("function bar end", item.labelDetails.description)
+end

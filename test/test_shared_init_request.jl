@@ -19,7 +19,7 @@ init_request = LanguageServer.InitializeParams(
             ),
             LanguageServer.TextDocumentClientCapabilities(
                 LanguageServer.TextDocumentSyncClientCapabilities(true, true, true, true),
-                LanguageServer.CompletionClientCapabilities(true, LanguageServer.CompletionItemClientCapabilities(true, missing, missing, missing, missing, missing), missing, missing),
+                LanguageServer.CompletionClientCapabilities(true, LanguageServer.CompletionItemClientCapabilities(true, missing, missing, missing, missing, missing, missing), missing, missing),
                 LanguageServer.HoverClientCapabilities(true, missing),
                 LanguageServer.SignatureHelpClientCapabilities(true, missing, missing),
                 LanguageServer.DeclarationClientCapabilities(false, missing),

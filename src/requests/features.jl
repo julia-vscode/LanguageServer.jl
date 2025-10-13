@@ -130,9 +130,20 @@ function get_juliaformatter_config(doc, server)
 
     # search through workspace for a `.JuliaFormatter.toml`
     workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
-    config_path = length(workspace_dirs) > 0 ?
-        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
-        nothing
+    if ismissing(server.initialization_options) || !get(server.initialization_options, INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS, false)
+        config_path = length(workspace_dirs) > 0 ?
+                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
+                      nothing
+    else
+        @debug "using standard formatter config file locations"
+        config_path = length(workspace_dirs) > 0 ?
+                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, "/") :
+                      nothing
+        if isnothing(config_path) && haskey(ENV, "HOME")
+            local home = ENV["HOME"]
+            config_path = search_file(JuliaFormatter.CONFIG_FILE_NAME, home, home)
+        end
+    end
 
     config_path === nothing && return nothing
 

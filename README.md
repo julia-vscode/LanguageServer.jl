@@ -18,7 +18,7 @@ make use of the Julia Language Server for various code editing features:
 - [Emacs](../../wiki/Emacs)
 - [Sublime Text](https://github.com/tomv564/LSP)
 - [Kakoune](../../wiki/Kakoune)
-- [Helix](https://uncomfyhalomacro.pl/blog/14/)
+- [Helix](../../wiki/helix)
 - [Kate](../../wiki/Kate)
 - [Others](https://microsoft.github.io/language-server-protocol/implementors/tools/)
 

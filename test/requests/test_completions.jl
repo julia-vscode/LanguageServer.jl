@@ -48,7 +48,7 @@ end
 
     settestdoc("""module M end
     import .""")
-    @test_broken completion_test(1, 8).items[1].label == "M"
+    @test completion_test(1, 8).items[1].label == "M"
     closetestdoc()
 
     settestdoc("import Base.M")

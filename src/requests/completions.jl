@@ -62,7 +62,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
                                                        CSTParser.Tokenize.Tokens.CMD,
                                                        CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(t, state)
-    elseif state.x isa EXPR && is_in_import_statement(state.x)
+    elseif state.x isa EXPR && is_in_import_statement(state.x) || _relative_dot_depth_at(state.doc, state.offset) > 0
         import_completions(ppt, pt, t, is_at_end, state.x, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
@@ -171,6 +171,118 @@ function string_macro_altname(s)
     else
         return nothing
     end
+end
+
+# Find innermost module EXPR containing x (or nothing)
+function _current_module_expr(x)::Union{EXPR,Nothing}
+    y = x
+    while y isa EXPR
+        if CSTParser.defines_module(y)
+            return y
+        end
+        y = parentof(y)
+    end
+    return nothing
+end
+
+# Ascend n module EXPR ancestors (0 => same)
+function _module_ancestor_expr(modexpr::Union{EXPR,Nothing}, n::Int)
+    n <= 0 && return modexpr
+    y = modexpr
+    while n > 0 && y isa EXPR
+        z = parentof(y)
+        while z isa EXPR && !CSTParser.defines_module(z)
+            z = parentof(z)
+        end
+        y = z
+        n -= 1
+    end
+    return y
+end
+
+# Count contiguous '.' for relative import at the current cursor/line end.
+# Handles: "import .", "import ..", "import ...", "import .Foo", "import ..Foo", etc.
+function _relative_dot_depth_at(doc::Document, offset::Int)
+    s = get_text(doc)
+    k = offset + 1  # 1-based
+
+    # Skip trailing whitespace (space, tab, CR, LF)
+    while k > firstindex(s)
+        p = prevind(s, k)
+        c = s[p]
+        if c == ' ' || c == '\t' || c == '\r' || c == '\n'
+            k = p
+        else
+            break
+        end
+    end
+    k == firstindex(s) && return 0
+    p = prevind(s, k)
+    c = s[p]
+
+    # Case A: cursor directly after dots (e.g. "import ..")
+    if c == '.'
+        cnt = 0
+        q = p
+        while q >= firstindex(s) && s[q] == '.'
+            cnt += 1
+            q = prevind(s, q)
+        end
+        # q is now the char before the first dot (or before start)
+        if q >= firstindex(s) && Base.is_id_char(s[q])
+            return 0  # dots follow an identifier => not relative (e.g. Base.M)
+        end
+        return cnt
+    end
+
+    # Case B: cursor after identifier (e.g. "import ..Foo")
+    if Base.is_id_char(c)
+        j = p
+        while j > firstindex(s) && Base.is_id_char(s[j])
+            j = prevind(s, j)
+        end
+        j > firstindex(s) || return 0
+        if s[j] == '.'
+            cnt = 0
+            q = j
+            while q >= firstindex(s) && s[q] == '.'
+                cnt += 1
+                q = prevind(s, q)
+            end
+            # q is char before the first dot
+            if q >= firstindex(s) && Base.is_id_char(s[q])
+                return 0  # dots follow an identifier => qualified, not relative
+            end
+            return cnt
+        end
+    end
+
+    return 0
+end
+
+# Collect immediate child module names by scanning CST (works for :module and :file)
+function _child_module_names(x::EXPR)
+    names = String[]
+    # For module: body in args[3]; for file: args is the body
+    if CSTParser.defines_module(x)
+        b = length(x.args) >= 3 ? x.args[3] : nothing
+        if b isa EXPR && headof(b) === :block && b.args !== nothing
+            for a in b.args
+                if a isa EXPR && CSTParser.defines_module(a)
+                    n = CSTParser.isidentifier(a.args[2]) ? valof(a.args[2]) : String(to_codeobject(a.args[2]))
+                    push!(names, String(n))
+                end
+            end
+        end
+    elseif headof(x) === :file && x.args !== nothing
+        for a in x.args
+            if a isa EXPR && CSTParser.defines_module(a)
+                n = CSTParser.isidentifier(a.args[2]) ? valof(a.args[2]) : String(to_codeobject(a.args[2]))
+                push!(names, String(n))
+            end
+        end
+    end
+    return names
 end
 
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
@@ -442,9 +554,42 @@ end
 is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :import))
 
 function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
-    import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+    # 1) Relative import completions: . .. ... and partials
+    depth = _relative_dot_depth_at(state.doc, state.offset)
+    if depth > 0
+        # Find a nearby EXPR so we can locate the current module reliably even at EOL
+        x0 = x isa EXPR ? x : get_expr(getcst(state.doc), state.offset, 0, true)
+        # Current and ancestor module EXPR by CST
+        cur_modexpr = x0 isa EXPR ? _current_module_expr(x0) : nothing
+        target_modexpr = cur_modexpr === nothing ? nothing : _module_ancestor_expr(cur_modexpr, depth - 1)
+        # Child module names by scanning CST
+        names = if target_modexpr isa EXPR
+            _child_module_names(target_modexpr)
+        elseif cur_modexpr === nothing && depth == 1
+            _child_module_names(getcst(state.doc)) # file-level '.'
+        else
+            String[]
+        end
+        if !isempty(names)
+            partial = (t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER && is_at_end) ? t.val : ""
+            for n in names
+                if isempty(partial) || startswith(n, partial)
+                    add_completion_item(state, CompletionItem(
+                        n,
+                        CompletionItemKinds.Module,
+                        missing,
+                        MarkupContent(n),
+                        texteditfor(state, partial, n)
+                    ))
+                end
+            end
+        end
+        return
+    end
 
-    import_root = get_import_root(import_statement)
+    # 2) Non-relative path: proceed with original logic, but guard x
+    import_statement = x isa EXPR ? StaticLint.get_parent_fexpr(x, y -> headof(y) === :using || headof(y) === :import) : nothing
+    import_root = import_statement isa EXPR ? get_import_root(import_statement) : nothing
 
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))

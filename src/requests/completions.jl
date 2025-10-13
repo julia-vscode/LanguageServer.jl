@@ -44,7 +44,11 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         offset = get_offset(get_text_document(doc), params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
-        using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
+        using_stmts = if server.completion_mode == :import
+            !isnothing(x) ? get_preexisting_using_stmts(x, doc) : Dict{String, Any}()
+        else
+            Dict()
+        end
         CompletionState(offset, Dict{String,CompletionItem}(), rng, x, doc, server, using_stmts)
     end
 

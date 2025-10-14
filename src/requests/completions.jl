@@ -113,7 +113,7 @@ function latex_completions(partial::String, state::CompletionState)
     for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
             # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
-            add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing, missing))
         end
     end
 end
@@ -123,7 +123,7 @@ function kw_completion(partial::String, state::CompletionState)
     for (kw, comp) in snippet_completions
         if startswith(kw, partial)
             kind = occursin("\$0", comp) ? CompletionItemKinds.Snippet : CompletionItemKinds.Keyword
-            add_completion_item(state, CompletionItem(kw, kind, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(kw, kind, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing, missing))
         end
     end
 end
@@ -325,7 +325,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
                 foreach(possible_names) do n
                     ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
                         MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
-                        texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, canonical_name, state), missing, missing, "import")
+                        texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, canonical_name, state), missing, missing, "import", missing)
                     add_completion_item(state, ci)
                 end
             elseif state.server.completion_mode === :qualify
@@ -333,7 +333,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
                     add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
                         missing, MarkupContent(sanitize_docstring(v.doc)), missing,
                         missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
-                        missing, missing, missing, missing))
+                        missing, missing, missing, missing, missing))
                 end
             end
         end
@@ -383,12 +383,13 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
             end
             if length(possible_names) > 0
                 documentation = ""
-                if n[2] isa StaticLint.Binding
-                    documentation = get_tooltip(n[2], documentation, state.server)
-                    sanitize_docstring(documentation)
+                b = n[2]
+                if b isa StaticLint.Binding
+                    documentation = get_tooltip(b, documentation, state.server)
+                    documentation = sanitize_docstring(documentation)
                 end
                 foreach(possible_names) do nn
-                    add_completion_item(state, CompletionItem(nn, _completion_kind(n[2]), get_typed_definition(n[2]), MarkupContent(documentation), texteditfor(state, spartial, nn)))
+                    add_completion_item(state, CompletionItem(nn, _completion_kind(b), get_typed_definition(b), _completion_details_label(b), MarkupContent(documentation), texteditfor(state, spartial, nn)))
                 end
             end
         end
@@ -417,14 +418,14 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                 for a in refof(px).type.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
@@ -464,7 +465,14 @@ function _completion_kind(b)
     end
 end
 
-
+function _completion_details_label(b)
+    if b isa StaticLint.Binding
+        if b.is_public
+            return CompletionItemLabelDetails(" (public)", get_typed_definition(b))
+        end
+    end
+    return missing
+end
 
 function get_import_root(x::EXPR)
     if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"

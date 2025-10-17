@@ -14,7 +14,7 @@
             f(doc, offset)
             offset = nextind(get_text(doc), offset)
         end
-    end    
+    end
 
     @info "Self-parse test"
     if get(ENV, "CI", false) != false
@@ -22,7 +22,7 @@
     else
         # run tests against each position in each document
         empty!(server._documents)
-        LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server)
+        LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server, [])
         on_all_docs(server, doc -> begin
             @info "Testing LS functionality at all offsets" file=get_uri(doc)
             on_all_offsets(doc, function (doc, offset)

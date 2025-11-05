@@ -149,6 +149,13 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server,
         documentation = string(documentation, f.doc, "\n\n")
     end
 
+    if !isnothing(env)
+        edt = StaticLint.get_eventual_datatype(f, env)
+        if edt isa SymbolServer.DataTypeStore
+            documentation = string(get_hover(edt, documentation, server, expr, env), "\n\n")
+        end
+    end
+
     if expr !== nothing && env !== nothing
         tls = StaticLint.retrieve_toplevel_scope(expr)
         itr = func -> StaticLint.iterate_over_ss_methods(f, tls, env, func)

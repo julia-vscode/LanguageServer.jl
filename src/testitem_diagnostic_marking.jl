@@ -88,16 +88,18 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
                     DiagnosticSeverities.Error
                 elseif i.severity==:warning
                     DiagnosticSeverities.Warning
-                elseif i.severity==:info
+                elseif i.severity==:information
                     DiagnosticSeverities.Information
+                elseif i.severity==:hint
+                    DiagnosticSeverities.Hint
                 else
                     error("Unknown severity $(i.severity)")
                 end,
                 missing,
-                missing,
+                i.uri === nothing ? missing : CodeDescription(i.uri),
                 i.source,
                 i.message,
-                missing,
+                length(i.tags)==0 ? missing : DiagnosticTag[j==:unnecessary ? DiagnosticTags.Unnecessary : j==:deprecated ? DiagnosticTags.Deprecated : error("Unknown tag $j") for j in i.tags],
                 missing
             ) for i in new_diags)
         end

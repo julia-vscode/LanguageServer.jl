@@ -10,20 +10,24 @@ end
     id::String
     label::String
     range::Range
-    code::Union{Nothing,String}
-    code_range::Union{Nothing,Range}
-    option_default_imports::Union{Nothing,Bool}
-    option_tags::Union{Nothing,Vector{String}}
+    code::String
+    codeRange::Range
+    optionDefaultImports::Bool
+    optionTags::Vector{String}
+    optionSetup::Vector{String}
 end
 
 @dict_readable struct TestSetupDetail <: Outbound
     name::String
+    kind::String
     range::Range
-    code::Union{Nothing,String}
-    code_range::Union{Nothing,Range}
+    code::String
+    codeRange::Range
 end
 
 @dict_readable struct TestErrorDetail <: Outbound
+    id::String
+    label::String
     range::Range
     error::String
 end
@@ -31,12 +35,20 @@ end
 struct PublishTestsParams <: Outbound
     uri::DocumentUri
     version::Union{Int,Missing}
-    project_path::String
-    package_path::String
-    package_name::String
-    testitemdetails::Vector{TestItemDetail}
-    testsetupdetails::Vector{TestSetupDetail}
-    testerrordetails::Vector{TestErrorDetail}
+    testItemDetails::Vector{TestItemDetail}
+    testSetupDetails::Vector{TestSetupDetail}
+    testErrorDetails::Vector{TestErrorDetail}
+end
+
+@dict_readable struct GetTestEnvRequestParams <: Outbound
+    uri::URI
+end
+
+@dict_readable struct GetTestEnvRequestParamsReturn <: Outbound
+    packageName::Union{String,Missing}
+    packageUri::Union{URI,Missing}
+    projectUri::Union{URI,Missing}
+    envContentHash::Union{String,Missing}
 end
 
 include("messagedefs.jl")

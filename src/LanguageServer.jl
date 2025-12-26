@@ -6,13 +6,18 @@ using UUIDs
 using Base.Docs, Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
-import TestItemDetection
+import Logging
+import JuliaWorkspaces
+using JuliaWorkspaces: JuliaWorkspace, URIs2
+using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
+import Dates
 
 export LanguageServerInstance, runserver
 
-include("URIs2/URIs2.jl")
-using .URIs2
+const INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS = "useFormatterConfigDefaults"
+
+const g_operationId = Ref{String}("")
 
 JSON.lower(uri::URI) = string(uri)
 
@@ -21,11 +26,11 @@ include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("textdocument.jl")
 include("document.jl")
-include("juliaworkspace.jl")
 include("languageserverinstance.jl")
 include("multienv.jl")
 include("runserver.jl")
 include("staticlint.jl")
+include("testitem_diagnostic_marking.jl")
 
 include("requests/misc.jl")
 include("requests/textdocument.jl")
@@ -37,15 +42,8 @@ include("requests/actions.jl")
 include("requests/init.jl")
 include("requests/signatures.jl")
 include("requests/highlight.jl")
+include("requests/testing.jl")
 include("utilities.jl")
-
-@setup_workload begin
-    iob = IOBuffer()
-    println(iob)
-    @compile_workload begin
-        runserver(iob)
-    end
-end
-precompile(runserver, ())
+include("precompile.jl")
 
 end

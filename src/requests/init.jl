@@ -31,6 +31,7 @@ function ServerCapabilities(client::ClientCapabilities)
         ExecuteCommandOptions(missing, collect(keys(LSActions))),
         true,
         true,
+        true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
         missing
     )
@@ -89,12 +90,12 @@ function load_rootpath(path)
     end
 end
 
-function load_folder(wf::WorkspaceFolder, server)
+function load_folder(wf::WorkspaceFolder, server, added_docs)
     path = uri2filepath(wf.uri)
-    load_folder(path, server)
+    load_folder(path, server, added_docs)
 end
 
-function load_folder(path::String, server)
+function load_folder(path::String, server, added_docs)
     if load_rootpath(path)
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
@@ -118,6 +119,7 @@ function load_folder(path::String, server)
                             setdocument!(server, uri, doc)
                             try
                                 parse_all(doc, server)
+                                push!(added_docs, doc)
                             catch ex
                                 @error "Error parsing file $(uri)"
                                 rethrow()
@@ -147,7 +149,7 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         elseif !(params.rootPath isa Nothing)
             push!(server.workspaceFolders,  params.rootPath)
         end
-    elseif (params.workspaceFolders !== nothing) & (params.workspaceFolders !== missing)
+    elseif (params.workspaceFolders !== nothing) && (params.workspaceFolders !== missing)
         for wksp in params.workspaceFolders
             if wksp.uri !== nothing
                 fpath = uri2filepath(wksp.uri)
@@ -160,8 +162,9 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
 
     server.clientCapabilities = params.capabilities
     server.clientInfo = params.clientInfo
+    server.editor_pid = params.processId
 
-    if !ismissing(params.capabilities.window) && params.capabilities.window.workDoneProgress
+    if !ismissing(params.capabilities.window) && !ismissing(params.capabilities.window.workDoneProgress) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else
         server.clientcapability_window_workdoneprogress = false
@@ -186,29 +189,75 @@ end
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
     server.status = :running
 
+    client_capabilities_registrations = Registration[]
+
     if server.clientcapability_workspace_didChangeConfiguration
-        JSONRPC.send(
-            conn,
-            client_registerCapability_request_type,
-            RegistrationParams([Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)])
+        push!(
+            client_capabilities_registrations,
+            Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)
         )
     end
 
-    if server.workspaceFolders !== nothing
-        server.workspace = JuliaWorkspace(Set(filepath2uri.(server.workspaceFolders)))
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) &&
+        !ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) &&
+        server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration &&
+        server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
 
-        if server.env_path != "" && isfile(joinpath(server.env_path, "Project.toml")) && isfile(joinpath(server.env_path, "Manifest.toml"))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Project.toml")))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "Manifest.toml")))
-        elseif server.env_path != "" && isfile(joinpath(server.env_path, "JuliaProject.toml")) && isfile(joinpath(server.env_path, "JuliaManifest.toml"))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaProject.toml")))
-            server.workspace = add_file(server.workspace, filepath2uri(joinpath(server.env_path, "JuliaManifest.toml")))
+        push!(
+            client_capabilities_registrations,
+            Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions([
+                FileSystemWatcher("**/*.{jl,jmd,md}", missing),
+                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,.JuliaLint.toml}", missing)
+            ]))
+        )
+    end
+
+    if length(client_capabilities_registrations) > 0
+        JSONRPC.send(
+            conn,
+            client_registerCapability_request_type,
+            RegistrationParams(client_capabilities_registrations)
+        )
+
+    end
+
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
+    added_docs = Document[]
+
+    if server.workspaceFolders !== nothing
+        for i in server.workspaceFolders
+            files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
+
+            for i in files
+                # This might be a sub folder of a folder that is already watched
+                # so we make sure we don't have duplicates
+                if !haskey(server._files_from_disc, i.uri)
+                    server._files_from_disc[i.uri] = i
+
+                    if !haskey(server._open_file_versions, i.uri)
+                        JuliaWorkspaces.add_file!(server.workspace, i)
+                    end
+                end
+            end
         end
+
+        track_project_files!(server)
+
+        JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
         for wkspc in server.workspaceFolders
-            load_folder(wkspc, server)
+            load_folder(wkspc, server, added_docs)
+        end
+
+        for doc in added_docs
+            lint!(doc, server)
         end
     end
+
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
 
     request_julia_config(server, conn)
 

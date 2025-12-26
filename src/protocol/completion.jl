@@ -48,6 +48,7 @@ end
     deprecatedSupport::Union{Bool,Missing}
     preselectSupport::Union{Bool,Missing}
     tagSupport::Union{CompletionTagClientCapabilities,Missing}
+    labelDetailsSupport::Union{Bool,Missing}
 end
 
 @dict_readable struct CompletionItemKindCapabilities <: Outbound
@@ -89,6 +90,11 @@ end
     context::Union{CompletionContext,Missing}
 end
 
+struct CompletionItemLabelDetails <: Outbound
+    detail::Union{String,Missing}
+    description::Union{String,Missing}
+end
+
 struct CompletionItem <: Outbound
     label::String
     kind::Union{Int,Missing}
@@ -106,9 +112,11 @@ struct CompletionItem <: Outbound
     commitCharacters::Union{Vector{String},Missing}
     command::Union{Command,Missing}
     data::Union{Any,Missing}
+    labelDetails::Union{CompletionItemLabelDetails, Missing}
 end
-CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
-CompletionItem(label, kind, detail, documentation, textEdit) = CompletionItem(label, kind, missing, detail, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing)
+CompletionItem(label, kind, documentation, textEdit) = CompletionItem(label, kind, missing, missing, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing, missing)
+CompletionItem(label, kind, detail, documentation, textEdit) = CompletionItem(label, kind, missing, detail, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing, missing)
+CompletionItem(label, kind, detail, labelDetails, documentation, textEdit) = CompletionItem(label, kind, missing, detail, documentation, missing, missing, missing, missing, missing, InsertTextFormats.PlainText, textEdit, missing, missing, missing, missing, labelDetails)
 
 struct CompletionList <: Outbound
     isIncomplete::Bool

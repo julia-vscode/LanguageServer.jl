@@ -23,6 +23,7 @@ end
 
 @dict_readable struct DidChangeWatchedFilesClientCapabilities <: Outbound
     dynamicRegistration::Union{Bool,Missing}
+    relativePatternSupport::Union{Bool,Missing}
 end
 
 @dict_readable struct WorkspaceClientCapabilities <: Outbound
@@ -183,6 +184,7 @@ struct ServerCapabilities <: Outbound
     foldingRangeProvider::Union{Bool,FoldingRangeOptions,FoldingRangeRegistrationOptions,Missing}
     executeCommandProvider::Union{ExecuteCommandOptions,Missing}
     selectionRangeProvider::Union{Bool,SelectionRangeOptions,SelectionRangeRegistrationOptions,Missing}
+    inlayHintProvider::Union{Bool,InlayHintOptions,InlayHintRegistrationOptions}
     workspaceSymbolProvider::Union{Bool,Missing}
     workspace::Union{WorkspaceOptions,Missing}
     experimental::Union{Any,Missing}

@@ -1,10 +1,10 @@
 # VSCode specific
 # ---------------
 
-function nodocument_error(uri, data=nothing)
+function nodocument_error(uri, request_name, data=nothing)
     return JSONRPC.JSONRPCError(
         -33100,
-        "document $(uri) requested but not present in the JLS",
+        "document $(uri) requested but not present in the JLS for request $request_name",
         data
     )
 end
@@ -196,6 +196,32 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     pos -= x.fullspan
     if all(pos .< offset .<= (pos + x.fullspan))
         ignorewhitespace && all(pos + x.span .< offset) && return nothing
+        return x
+    end
+end
+
+get_inner_expr(doc::Document, rng::Range) = get_inner_expr(getcst(doc), get_offset(doc, rng))
+# full (not only trivia) expr containing rng, modulo whitespace
+function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
+    if all(pos .> rng)
+        return nothing
+    end
+    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
+        pos_span′ = pos_span
+        for a in x
+            if a in x.args && all(pos_span′ .< rng .<= (pos + a.fullspan))
+                return get_inner_expr(a, rng, pos, pos_span′)
+            end
+            pos += a.fullspan
+            pos_span′ = pos - (a.fullspan - a.span)
+        end
+    elseif pos == 0
+        return x
+    elseif all(pos_span .< rng .<= (pos + x.fullspan))
+        return x
+    end
+    pos -= x.fullspan
+    if all(pos_span .< rng .<= (pos + x.fullspan))
         return x
     end
 end
@@ -457,6 +483,70 @@ end
                 u === nothing && return nothing
             end
             return Base.UUID(u)
+        end
+    end
+end
+
+# some timer utilities
+add_timer_message!(did_show_timer, timings, msg::JSONRPC.Request) = add_timer_message!(did_show_timer, timings, string("LSP/", msg.method))
+function add_timer_message!(did_show_timer, timings, msg::String)
+    if did_show_timer[]
+        return
+    end
+
+    push!(timings, (msg, time()))
+
+    if should_show_timer_message(timings)
+        send_startup_time_message(timings)
+        did_show_timer[] = true
+    end
+end
+
+function should_show_timer_message(timings)
+    required_messages = [
+        "LSP/initialize",
+        "LSP/initialized",
+        "initial lint done"
+    ]
+
+    return all(in(first.(timings)), required_messages)
+end
+
+function send_startup_time_message(timings)
+    length(timings) > 1 || return
+
+    io = IOBuffer()
+    println(io, "============== Startup timings ==============")
+    starttime = prevtime = first(timings)[2]
+    for (msg, thistime) in timings
+        println(
+            io,
+            lpad(string(round(thistime - starttime; sigdigits = 5)), 10),
+            " - ", msg, " (",
+            round(thistime - prevtime; sigdigits = 5),
+            "s since last event)"
+        )
+        prevtime = thistime
+    end
+    println(io, "=============================================")
+
+    empty!(timings)
+
+    println(stderr, String(take!(io)))
+end
+
+function poll_editor_pid(server::LanguageServerInstance)
+    if server.editor_pid === nothing
+        return
+    end
+    @info "Monitoring editor process with id $(server.editor_pid)"
+    return @async while !server.shutdown_requested
+        sleep(10)
+
+        # kill -0 $editor_pid
+        r = ccall(:uv_kill, Cint, (Cint, Cint), server.editor_pid, 0)
+        if r != 0
+            exit(1)
         end
     end
 end

@@ -1,58 +1,67 @@
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
+
+    docs_to_lint = Document[]
+
     for change in params.changes
         uri = change.uri
 
         uri.scheme=="file" || continue
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            if change.type == FileChangeTypes.Created
-                server.workspace = add_file(server.workspace, uri)
-            elseif change.type == FileChangeTypes.Changed
-                server.workspace = update_file(server.workspace, uri)
-            end
+            text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
 
-            if hasdocument(server, uri)
-                doc = getdocument(server, uri)
+            # First handle case where fild could not be found or has invalid content
+            if text_file === nothing
+                if haskey(server._files_from_disc, uri)
+                    delete!(server._files_from_disc, uri)
+                end
 
-                # Currently managed by the client, we don't do anything
-                if get_open_in_editor(doc)
-                    continue
-                else
-                    filepath = uri2filepath(uri)
-                    content = try
-                        s = read(filepath, String)
-                        if !our_isvalid(s)
-                            deletedocument!(server, uri)
-                            continue
-                        end
-                        s
-                    catch err
-                        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
+                if !haskey(server._open_file_versions, uri) && JuliaWorkspaces.has_file(server.workspace, uri)
+                    JuliaWorkspaces.remove_file!(server.workspace, uri)
+                end
+
+                if hasdocument(server, uri)
+                    doc = getdocument(server, uri)
+
+                    if !get_open_in_editor(doc)
                         deletedocument!(server, uri)
-                        continue
                     end
-
-                    set_text_document!(doc, TextDocument(uri, content, 0))
-                    set_is_workspace_file(doc, true)
-                    parse_all(doc, server)
                 end
             else
-                filepath = uri2filepath(uri)
-                content = try
-                    s = read(filepath, String)
-                    our_isvalid(s) || continue
-                    s
-                catch err
-                    isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-                    continue
+                server._files_from_disc[uri] = text_file
+
+                if !haskey(server._open_file_versions, uri)
+                    if JuliaWorkspaces.has_file(server.workspace, uri)
+                        JuliaWorkspaces.update_file!(server.workspace, text_file)
+                    else
+                        JuliaWorkspaces.add_file!(server.workspace, text_file)
+                    end
                 end
 
-                doc = Document(TextDocument(uri, content, 0), true, server)
-                setdocument!(server, uri, doc)
-                parse_all(doc, server)
+                if hasdocument(server, uri)
+                    doc = getdocument(server, uri)
+
+                    if !get_open_in_editor(doc)
+                        set_text_document!(doc, TextDocument(uri, text_file.content.content, 0))
+                        set_is_workspace_file(doc, true)
+
+                        parse_all(doc, server)
+                        push!(docs_to_lint, doc)
+                    end
+                else
+                    doc = Document(TextDocument(uri, text_file.content.content, 0), true, server)
+                    setdocument!(server, uri, doc)
+
+                    parse_all(doc, server)
+                    push!(docs_to_lint, doc)
+                end
             end
         elseif change.type == FileChangeTypes.Deleted
-            server.workspace = delete_file(server.workspace, uri)
+            delete!(server._files_from_disc, uri)
+            if !haskey(server._open_file_versions, uri) && JuliaWorkspaces.has_file(server.workspace, uri)
+                JuliaWorkspaces.remove_file!(server.workspace, uri)
+            end
 
             if hasdocument(server, uri)
                 doc = getdocument(server, uri)
@@ -60,19 +69,20 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
                 # We only handle if currently not managed by client
                 if !get_open_in_editor(doc)
                     deletedocument!(server, uri)
-
-                    publishDiagnosticsParams = PublishDiagnosticsParams(uri, missing, Diagnostic[])
-                    JSONRPC.send(conn, textDocument_publishDiagnostics_notification_type, publishDiagnosticsParams)
                 else
-                    # TODO replace with accessor function once the other PR
-                    # that introduces the accessor is merged
-                    doc._workspace_file = false
+                    set_is_workspace_file(doc, false)
                 end
             end
         else
             error("Unknown change type.")
         end
     end
+
+    for lint_doc in docs_to_lint
+        lint!(lint_doc, server)
+    end
+
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(docs_to_lint))
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
@@ -107,7 +117,10 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.lint.run"),
         ConfigurationItem(missing, "julia.lint.missingrefs"),
         ConfigurationItem(missing, "julia.lint.disabledDirs"),
-        ConfigurationItem(missing, "julia.completionmode")
+        ConfigurationItem(missing, "julia.completionmode"),
+        ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
+        ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
+        ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
     ]))
 
     new_runlinter = something(response[11], true)
@@ -116,6 +129,9 @@ function request_julia_config(server::LanguageServerInstance, conn)
     new_lint_missingrefs = Symbol(something(response[12], :all))
     new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
     new_completion_mode = Symbol(something(response[14], :import))
+    inlayHints = something(response[15], true)
+    inlayHintsVariableTypes = something(response[16], true)
+    inlayHintsParameterNames = Symbol(something(response[17], :literals))
 
     rerun_lint = begin
         any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
@@ -129,23 +145,70 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.lint_missingrefs = new_lint_missingrefs
     server.lint_disableddirs = new_lint_disableddirs
     server.completion_mode = new_completion_mode
+    server.inlay_hints = inlayHints
+    server.inlay_hints_variable_types = inlayHintsVariableTypes
+    server.inlay_hints_parameter_names = inlayHintsParameterNames
 
     if rerun_lint
         relintserver(server)
     end
 end
 
+function gc_files_from_workspace(server::LanguageServerInstance)
+    for uri in keys(server._files_from_disc)
+        if any(i->startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
+            continue
+        end
+
+        if uri in server._extra_tracked_files
+            continue
+        end
+
+        delete!(server._files_from_disc, uri)
+
+        if !haskey(server._open_file_versions, uri)
+            JuliaWorkspaces.remove_file!(server.workspace, uri)
+        end
+    end
+end
+
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
+    marked_versions = mark_current_diagnostics_testitems(server.workspace)
+
+    added_docs = Document[]
+
     for wksp in params.event.added
         push!(server.workspaceFolders, uri2filepath(wksp.uri))
-        load_folder(wksp, server)
-        server.workspace = add_workspace_folder(server.workspace, wksp.uri)
+        load_folder(wksp, server, added_docs)
+
+
+        files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri, ignore_io_errors=true)
+
+        for i in files
+            # This might be a sub folder of a folder that is already watched
+            # so we make sure we don't have duplicates
+            if !haskey(server._files_from_disc, i.uri)
+                server._files_from_disc[i.uri] = i
+
+                if !haskey(server._open_file_versions, i.uri)
+                    JuliaWorkspaces.add_file!(server.workspace, i)
+                end
+            end
+        end
     end
+
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
         remove_workspace_files(wksp, server)
-        server.workspace = remove_workspace_folder(server.workspace, wksp.uri)
+
+        gc_files_from_workspace(server)
     end
+
+    for doc in added_docs
+        lint!(doc, server)
+    end
+
+    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
 end
 
 function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)

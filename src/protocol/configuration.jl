@@ -49,8 +49,17 @@ end
     changes::Vector{FileEvent}
 end
 
+const Pattern = String
+
+struct RelativePattern <: Outbound
+	baseUri::Union{WorkspaceFolder,URI}
+	pattern::Pattern
+end
+
+const GlobPattern = Union{Pattern,RelativePattern}
+
 struct FileSystemWatcher <: Outbound
-    globPattern::String
+    globPattern::GlobPattern
     kind::Union{WatchKind,Missing}
 end
 

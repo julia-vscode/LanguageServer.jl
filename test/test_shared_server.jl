@@ -10,7 +10,13 @@ function settestdoc(text)
 
     doc = LanguageServer.getdocument(server, uri"untitled:testdoc")
     LanguageServer.parse_all(doc, server)
+    LanguageServer.lint!(doc, server)
+    LanguageServer.semantic_pass(doc)
     doc
+end
+
+function closetestdoc()
+    LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc")), server, nothing)
 end
 
 completion_test(line, char) = LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char), missing), server, server.jr_endpoint)

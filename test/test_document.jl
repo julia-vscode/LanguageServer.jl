@@ -127,44 +127,44 @@ end
     @test sizeof(LanguageServer.get_text(doc)) == 6
     @test LanguageServer.get_offset(doc, 0, 0) == 0
     @test LanguageServer.get_position_from_offset(doc, 0) == (0, 0)
-    @test LanguageServer.get_offset(doc, 0, 1) == 1
+    @test LanguageServer.get_offset(doc, 0, 1) == 2
     @test LanguageServer.get_position_from_offset(doc, 1) == (0, 1)
-    @test LanguageServer.get_offset(doc, 0, 2) == 3
+    @test LanguageServer.get_offset(doc, 0, 2) == 4
     @test LanguageServer.get_position_from_offset(doc, 3) == (0, 2)
-    @test LanguageServer.get_offset(doc, 0, 3) == 5
+    @test LanguageServer.get_offset(doc, 0, 3) == 6
     @test LanguageServer.get_position_from_offset(doc, 5) == (0, 3)
 
     doc = LanguageServer.Document(TextDocument(uri"", "ࠀࠀࠀ", 0), false) # 0x0800
     @test sizeof(LanguageServer.get_text(doc)) == 9
     @test LanguageServer.get_offset(doc, 0, 0) == 0
     @test LanguageServer.get_position_from_offset(doc, 0) == (0, 0)
-    @test LanguageServer.get_offset(doc, 0, 1) == 1
-    @test LanguageServer.get_position_from_offset(doc, 1) == (0, 1)
-    @test LanguageServer.get_offset(doc, 0, 2) == 4
+    @test LanguageServer.get_offset(doc, 0, 1) == 3
+    @test LanguageServer.get_position_from_offset(doc, 2) == (0, 1)
+    @test LanguageServer.get_offset(doc, 0, 2) == 6
     @test LanguageServer.get_position_from_offset(doc, 4) == (0, 2)
-    @test LanguageServer.get_offset(doc, 0, 3) == 7
+    @test LanguageServer.get_offset(doc, 0, 3) == 9
     @test LanguageServer.get_position_from_offset(doc, 7) == (0, 3)
 
     doc = LanguageServer.Document(TextDocument(uri"", "𐐀𐐀𐐀", 0), false)
     @test sizeof(LanguageServer.get_text(doc)) == 12
     @test LanguageServer.get_offset(doc, 0, 0) == 0
     @test LanguageServer.get_position_from_offset(doc, 0) == (0, 0)
-    @test LanguageServer.get_offset(doc, 0, 2) == 1
+    @test LanguageServer.get_offset(doc, 0, 2) == 4
     @test LanguageServer.get_position_from_offset(doc, 1) == (0, 2)
-    @test LanguageServer.get_offset(doc, 0, 4) == 5
+    @test LanguageServer.get_offset(doc, 0, 4) == 8
     @test LanguageServer.get_position_from_offset(doc, 5) == (0, 4)
-    @test LanguageServer.get_offset(doc, 0, 6) == 9
+    @test LanguageServer.get_offset(doc, 0, 6) == 12
     @test LanguageServer.get_position_from_offset(doc, 9) == (0, 6)
 
     doc = LanguageServer.Document(TextDocument(uri"", "𐀀𐀀𐀀", 0), false) # 0x010000
     @test sizeof(LanguageServer.get_text(doc)) == 12
     @test LanguageServer.get_offset(doc, 0, 0) == 0
     @test LanguageServer.get_position_from_offset(doc, 0) == (0, 0)
-    @test LanguageServer.get_offset(doc, 0, 2) == 1
+    @test LanguageServer.get_offset(doc, 0, 2) == 4
     @test LanguageServer.get_position_from_offset(doc, 1) == (0, 2)
-    @test LanguageServer.get_offset(doc, 0, 4) == 5
+    @test LanguageServer.get_offset(doc, 0, 4) == 8
     @test LanguageServer.get_position_from_offset(doc, 5) == (0, 4)
-    @test LanguageServer.get_offset(doc, 0, 6) == 9
+    @test LanguageServer.get_offset(doc, 0, 6) == 12
     @test LanguageServer.get_position_from_offset(doc, 9) == (0, 6)
 end
 

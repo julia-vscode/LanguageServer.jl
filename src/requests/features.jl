@@ -130,9 +130,20 @@ function get_juliaformatter_config(doc, server)
 
     # search through workspace for a `.JuliaFormatter.toml`
     workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
-    config_path = length(workspace_dirs) > 0 ?
-        search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
-        nothing
+    if ismissing(server.initialization_options) || !get(server.initialization_options, INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS, false)
+        config_path = length(workspace_dirs) > 0 ?
+                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
+                      nothing
+    else
+        @debug "using standard formatter config file locations"
+        config_path = length(workspace_dirs) > 0 ?
+                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, "/") :
+                      nothing
+        if isnothing(config_path) && haskey(ENV, "HOME")
+            local home = ENV["HOME"]
+            config_path = search_file(JuliaFormatter.CONFIG_FILE_NAME, home, home)
+        end
+    end
 
     config_path === nothing && return nothing
 
@@ -141,14 +152,9 @@ function get_juliaformatter_config(doc, server)
 end
 
 function default_juliaformatter_config(params)
-    return (
+    return (;
+        JuliaFormatter.options(JuliaFormatter.MinimalStyle())...,
         indent = params.options.tabSize,
-        annotate_untyped_fields_with_any = false,
-        join_lines_based_on_source = true,
-        trailing_comma = nothing,
-        margin = 10_000,
-        always_for_in = nothing,
-        whitespace_in_kwargs = false
     )
 end
 
@@ -195,6 +201,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
 
     # Insert start and stop line comments as markers in the original text
     original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
+    stopline = min(stopline, length(original_lines))
     original_block = join(@view(original_lines[startline:stopline]))
     # If the stopline do not have a trailing newline we need to add that before our stop
     # comment marker. This is removed after formatting.
@@ -251,7 +258,7 @@ end
 
 function for_each_ref(f, identifier::EXPR)
     if identifier isa EXPR && StaticLint.hasref(identifier) && refof(identifier) isa StaticLint.Binding
-        for r in refof(identifier).refs
+        for r in StaticLint.loose_refs(refof(identifier))
             if r isa EXPR
                 doc1, o = get_file_loc(r)
                 if doc1 isa Document
@@ -322,14 +329,31 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
     return collect_document_symbols(getcst(doc), server, doc)
 end
 
-function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, symbols=DocumentSymbol[])
+struct BindingContext
+    is_function_def::Bool
+    is_datatype_def::Bool
+    is_datatype_def_body::Bool
+end
+BindingContext() = BindingContext(false, false, false)
+
+function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, pos=0, ctx=BindingContext(), symbols=DocumentSymbol[])
+    is_datatype_def_body = ctx.is_datatype_def_body
+    if ctx.is_datatype_def && !is_datatype_def_body
+        is_datatype_def_body = x.head === :block && length(x.parent.args) >= 3 && x.parent.args[3] == x
+    end
+    ctx = BindingContext(
+        ctx.is_function_def || CSTParser.defines_function(x),
+        ctx.is_datatype_def || CSTParser.defines_datatype(x),
+        is_datatype_def_body,
+    )
+
     if bindingof(x) !== nothing
         b =  bindingof(x)
         if b.val isa EXPR && is_valid_binding_name(b.name)
             ds = DocumentSymbol(
                 get_name_of_binding(b.name), # name
                 missing, # detail
-                _binding_kind(b), # kind
+                _binding_kind(b, ctx), # kind
                 false, # deprecated
                 Range(doc, (pos .+ (0:x.span))), # range
                 Range(doc, (pos .+ (0:x.span))), # selection range
@@ -338,10 +362,32 @@ function collect_document_symbols(x::EXPR, server::LanguageServerInstance, doc, 
             push!(symbols, ds)
             symbols = ds.children
         end
+    elseif x.head == :macrocall
+        # detect @testitem/testset "testname" ...
+        child_nodes = filter(i -> !(isa(i, EXPR) && i.head == :NOTHING && i.args === nothing), x.args)
+        if length(child_nodes) > 1
+            macroname = CSTParser.valof(child_nodes[1])
+            if macroname == "@testitem" || macroname == "@testset"
+                if (child_nodes[2] isa EXPR && child_nodes[2].head == :STRING)
+                    testname = CSTParser.valof(child_nodes[2])
+                    ds = DocumentSymbol(
+                        "$(macroname) \"$(testname)\"", # name
+                        missing, # detail
+                        3, # kind (namespace)
+                        false, # deprecated
+                        Range(doc, (pos .+ (0:x.span))), # range
+                        Range(doc, (pos .+ (0:x.span))), # selection range
+                        DocumentSymbol[] # children
+                    )
+                    push!(symbols, ds)
+                    symbols = ds.children
+                end
+            end
+        end
     end
     if length(x) > 0
         for a in x
-            collect_document_symbols(a, server, doc, pos, symbols)
+            collect_document_symbols(a, server, doc, pos, ctx, symbols)
             pos += a.fullspan
         end
     end
@@ -377,10 +423,16 @@ function collect_toplevel_bindings_w_loc(x::EXPR, pos=0, bindings=Tuple{UnitRang
     return bindings
 end
 
-function _binding_kind(b)
+function _binding_kind(b, ctx::BindingContext)
     if b isa StaticLint.Binding
         if b.type === nothing
-            return 13
+            if ctx.is_datatype_def_body && !ctx.is_function_def
+                return 8
+            elseif ctx.is_datatype_def
+                return 26
+            else
+                return 13
+            end
         elseif b.type == StaticLint.CoreTypes.Module
             return 2
         elseif b.type == StaticLint.CoreTypes.Function
@@ -390,7 +442,11 @@ function _binding_kind(b)
         elseif b.type == StaticLint.CoreTypes.Int || b.type == StaticLint.CoreTypes.Float64
             return 16
         elseif b.type == StaticLint.CoreTypes.DataType
-            return 23
+            if ctx.is_datatype_def && !ctx.is_datatype_def_body
+                return 23
+            else
+                return 26
+            end
         else
             return 13
         end
@@ -437,7 +493,7 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
             return mismatched_version_error(uri, doc, params, "getModuleAt")
         end
     else
-        return nodocument_error(uri)
+        return nodocument_error(uri, "getModuleAt")
     end
     return "Main"
 end
@@ -455,7 +511,7 @@ end
 
 function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    hasdocument(server, uri) || return nodocument_error(uri)
+    hasdocument(server, uri) || return nodocument_error(uri, "getDocAt")
 
     doc = getdocument(server, uri)
     env = getenv(doc, server)
@@ -465,7 +521,7 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
 
     x = get_expr1(getcst(doc), get_offset(doc, params.position))
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", server)
+    documentation = get_hover(x, "", server, x, env)
 
     return documentation
 end
@@ -492,7 +548,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         score = _score(needle, sym)
         if score < 2
-            val = get_hover(val, "", server)
+            val = get_hover(val, "", server, nothing, getenv(server))
             if !isempty(val)
                 nfound += 1
                 push!(matches, score => val)
@@ -525,4 +581,111 @@ function get_selection_range_of_expr(x::EXPR)
     l1, c1 = get_position_from_offset(doc, offset)
     l2, c2 = get_position_from_offset(doc, offset + x.span)
     SelectionRange(Range(l1, c1, l2, c2), get_selection_range_of_expr(x.parent))
+end
+
+function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
+    if !server.inlay_hints
+        return nothing
+    end
+
+    doc = getdocument(server, params.textDocument.uri)
+
+    start, stop = get_offset(doc, params.range.start), get_offset(doc, params.range.stop)
+
+    return collect_inlay_hints(getcst(doc), server, doc, start, stop)
+end
+
+function get_inlay_parameter_hints(x::EXPR, server::LanguageServerInstance, doc, pos=0)
+    if server.inlay_hints_parameter_names === :all || (
+        server.inlay_hints_parameter_names === :literals &&
+        CSTParser.isliteral(x)
+    )
+        sigs = collect_signatures(x, doc, server)
+
+        nargs = length(parentof(x).args) - 1
+        nargs < 2 && return nothing
+
+        filter!(s -> length(s.parameters) == nargs, sigs)
+        isempty(sigs) && return nothing
+
+        pars = first(sigs).parameters
+        thisarg = 0
+        for a in parentof(x).args
+            if x == a
+                break
+            end
+            thisarg += 1
+        end
+        if thisarg <= nargs && thisarg <= length(pars)
+            label = pars[thisarg].label
+            label == "#unused#" && return nothing
+            length(label) <= 2 && return nothing
+            CSTParser.str_value(x) == label && return nothing
+            x.head == :parameters && return nothing
+            if x.head isa CSTParser.EXPR && x.head.head == :OPERATOR && x.head.val == "."
+                if x.args[end] isa CSTParser.EXPR && x.args[end].args[end] isa CSTParser.EXPR
+                    x.args[end].args[end].val == label && return nothing
+                end
+            end
+
+            return InlayHint(
+                Position(get_position_from_offset(doc, pos)...),
+                string(label, "="),
+                InlayHintKinds.Parameter,
+                missing,
+                pars[thisarg].documentation,
+                false,
+                false,
+                missing
+            )
+        end
+    end
+    return nothing
+end
+
+function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, doc, start, stop, pos=0, hints=InlayHint[])
+    if x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.iscall(parentof(x)) &&
+            !(
+                parentof(parentof(x)) isa EXPR &&
+                CSTParser.defines_function(parentof(parentof(x)))
+            ) &&
+            parentof(x).args[1] != x # function calls
+        maybe_hint = get_inlay_parameter_hints(x, server, doc, pos)
+        if maybe_hint !== nothing
+            push!(hints, maybe_hint)
+        end
+    elseif x isa EXPR && parentof(x) isa EXPR &&
+            CSTParser.isassignment(parentof(x)) &&
+            parentof(x).args[1] == x &&
+            StaticLint.hasbinding(x) # assignment
+        if server.inlay_hints_variable_types
+            typ = _completion_type(StaticLint.bindingof(x))
+            if typ !== missing
+                push!(
+                    hints,
+                    InlayHint(
+                        Position(get_position_from_offset(doc, pos + x.span)...),
+                        string("::", typ),
+                        InlayHintKinds.Type,
+                        missing,
+                        missing,
+                        missing,
+                        missing,
+                        missing
+                    )
+                )
+            end
+        end
+    end
+    if length(x) > 0
+        for a in x
+            if pos < stop && pos + a.fullspan > start
+                collect_inlay_hints(a, server, doc, start, stop, pos, hints)
+            end
+            pos += a.fullspan
+            pos > stop && break
+        end
+    end
+    return hints
 end

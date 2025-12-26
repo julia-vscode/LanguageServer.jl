@@ -11,7 +11,7 @@ init_request = LanguageServer.InitializeParams(
                 true,
                 LanguageServer.WorkspaceEditClientCapabilities(true, missing, missing),
                 LanguageServer.DidChangeConfigurationClientCapabilities(false),
-                LanguageServer.DidChangeWatchedFilesClientCapabilities(false,),
+                LanguageServer.DidChangeWatchedFilesClientCapabilities(false,false),
                 LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
                 LanguageServer.ExecuteCommandClientCapabilities(true),
                 missing,
@@ -19,7 +19,7 @@ init_request = LanguageServer.InitializeParams(
             ),
             LanguageServer.TextDocumentClientCapabilities(
                 LanguageServer.TextDocumentSyncClientCapabilities(true, true, true, true),
-                LanguageServer.CompletionClientCapabilities(true, LanguageServer.CompletionItemClientCapabilities(true, missing, missing, missing, missing, missing), missing, missing),
+                LanguageServer.CompletionClientCapabilities(true, LanguageServer.CompletionItemClientCapabilities(true, missing, missing, missing, missing, missing, missing), missing, missing),
                 LanguageServer.HoverClientCapabilities(true, missing),
                 LanguageServer.SignatureHelpClientCapabilities(true, missing, missing),
                 LanguageServer.DeclarationClientCapabilities(false, missing),

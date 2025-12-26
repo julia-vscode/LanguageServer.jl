@@ -51,13 +51,7 @@
     }
     """)
 
-    if Sys.iswindows()
-        global_socket_name = "\\\\.\\pipe\\julia-language-server-testrun"
-    elseif Sys.isunix()
-        global_socket_name = joinpath(tempdir(), "julia-language-server-testrun")
-    else
-        error("Unknown operating system.")
-    end
+    global_socket_name = JSONRPC.generate_pipe_name()
 
     @async try
         server = listen(global_socket_name)

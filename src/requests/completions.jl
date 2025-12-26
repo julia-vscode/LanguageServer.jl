@@ -31,7 +31,7 @@ using REPL
 Returns true if `s` starts with `prefix` or has a sufficiently high fuzzy score.
 """
 function is_completion_match(s::AbstractString, prefix::AbstractString, cutoff=3)
-    starter = if all(islowercase, prefix)
+    starter = if !any(isuppercase, prefix)
         startswith(lowercase(s), prefix)
     else
         startswith(s, prefix)
@@ -42,10 +42,14 @@ end
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
         doc = getdocument(server, params.textDocument.uri)
-        offset = get_offset3(get_text_document(doc), params.position)
+        offset = get_offset(get_text_document(doc), params.position)
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
-        using_stmts = server.completion_mode == :import ? get_preexisting_using_stmts(x, doc) : Dict()
+        using_stmts = if server.completion_mode == :import
+            !isnothing(x) ? get_preexisting_using_stmts(x, doc) : Dict{String, Any}()
+        else
+            Dict()
+        end
         CompletionState(offset, Dict{String,CompletionItem}(), rng, x, doc, server, using_stmts)
     end
 
@@ -63,7 +67,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         CSTParser.Tokenize.Tokens.CMD,
         CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(t, state)
-    elseif state.x isa EXPR && is_in_import_statement(state.x)
+    elseif state.x isa EXPR && is_in_import_statement(state.x) || _relative_dot_depth_at(state.doc, state.offset) > 0
         import_completions(ppt, pt, t, is_at_end, state.x, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
@@ -116,7 +120,7 @@ function latex_completions(partial::String, state::CompletionState)
     for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
             # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
-            add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing, missing))
         end
     end
 end
@@ -126,7 +130,7 @@ function kw_completion(partial::String, state::CompletionState)
     for (kw, comp) in snippet_completions
         if startswith(kw, partial)
             kind = occursin("\$0", comp) ? CompletionItemKinds.Snippet : CompletionItemKinds.Keyword
-            add_completion_item(state, CompletionItem(kw, kind, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing))
+            add_completion_item(state, CompletionItem(kw, kind, missing, missing, kw, missing, missing, missing, missing, missing, InsertTextFormats.Snippet, texteditfor(state, partial, comp), missing, missing, missing, missing, missing))
         end
     end
 end
@@ -180,6 +184,118 @@ function string_macro_altname(s)
     end
 end
 
+# Find innermost module EXPR containing x (or nothing)
+function _current_module_expr(x)::Union{EXPR,Nothing}
+    y = x
+    while y isa EXPR
+        if CSTParser.defines_module(y)
+            return y
+        end
+        y = parentof(y)
+    end
+    return nothing
+end
+
+# Ascend n module EXPR ancestors (0 => same)
+function _module_ancestor_expr(modexpr::Union{EXPR,Nothing}, n::Int)
+    n <= 0 && return modexpr
+    y = modexpr
+    while n > 0 && y isa EXPR
+        z = parentof(y)
+        while z isa EXPR && !CSTParser.defines_module(z)
+            z = parentof(z)
+        end
+        y = z
+        n -= 1
+    end
+    return y
+end
+
+# Count contiguous '.' for relative import at the current cursor/line end.
+# Handles: "import .", "import ..", "import ...", "import .Foo", "import ..Foo", etc.
+function _relative_dot_depth_at(doc::Document, offset::Int)
+    s = get_text(doc)
+    k = offset + 1  # 1-based
+
+    # Skip trailing whitespace (space, tab, CR, LF)
+    while k > firstindex(s)
+        p = prevind(s, k)
+        c = s[p]
+        if c == ' ' || c == '\t' || c == '\r' || c == '\n'
+            k = p
+        else
+            break
+        end
+    end
+    k == firstindex(s) && return 0
+    p = prevind(s, k)
+    c = s[p]
+
+    # Case A: cursor directly after dots (e.g. "import ..")
+    if c == '.'
+        cnt = 0
+        q = p
+        while q >= firstindex(s) && s[q] == '.'
+            cnt += 1
+            q = prevind(s, q)
+        end
+        # q is now the char before the first dot (or before start)
+        if q >= firstindex(s) && Base.is_id_char(s[q])
+            return 0  # dots follow an identifier => not relative (e.g. Base.M)
+        end
+        return cnt
+    end
+
+    # Case B: cursor after identifier (e.g. "import ..Foo")
+    if Base.is_id_char(c)
+        j = p
+        while j > firstindex(s) && Base.is_id_char(s[j])
+            j = prevind(s, j)
+        end
+        j > firstindex(s) || return 0
+        if s[j] == '.'
+            cnt = 0
+            q = j
+            while q >= firstindex(s) && s[q] == '.'
+                cnt += 1
+                q = prevind(s, q)
+            end
+            # q is char before the first dot
+            if q >= firstindex(s) && Base.is_id_char(s[q])
+                return 0  # dots follow an identifier => qualified, not relative
+            end
+            return cnt
+        end
+    end
+
+    return 0
+end
+
+# Collect immediate child module names by scanning CST (works for :module and :file)
+function _child_module_names(x::EXPR)
+    names = String[]
+    # For module: body in args[3]; for file: args is the body
+    if CSTParser.defines_module(x)
+        b = length(x.args) >= 3 ? x.args[3] : nothing
+        if b isa EXPR && headof(b) === :block && b.args !== nothing
+            for a in b.args
+                if a isa EXPR && CSTParser.defines_module(a)
+                    n = CSTParser.isidentifier(a.args[2]) ? valof(a.args[2]) : String(to_codeobject(a.args[2]))
+                    push!(names, String(n))
+                end
+            end
+        end
+    elseif headof(x) === :file && x.args !== nothing
+        for a in x.args
+            if a isa EXPR && CSTParser.defines_module(a)
+                n = CSTParser.isidentifier(a.args[2]) ? valof(a.args[2]) : String(to_codeobject(a.args[2]))
+                push!(names, String(n))
+            end
+        end
+    end
+    return names
+end
+
 function collect_completions(m::SymbolServer.ModuleStore, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     possible_names = String[]
     for val in m.vals
@@ -216,7 +332,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
                 foreach(possible_names) do n
                     ci = CompletionItem(n, _completion_kind(v), missing, "This is an unexported symbol and will be explicitly imported.",
                         MarkupContent(sanitize_docstring(v.doc)), missing, missing, missing, missing, missing, InsertTextFormats.PlainText,
-                        texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, canonical_name, state), missing, missing, "import")
+                        texteditfor(state, spartial, n), textedit_to_insert_using_stmt(m, canonical_name, state), missing, missing, "import", missing)
                     add_completion_item(state, ci)
                 end
             elseif state.server.completion_mode === :qualify
@@ -224,7 +340,7 @@ function collect_completions(m::SymbolServer.ModuleStore, spartial, state::Compl
                     add_completion_item(state, CompletionItem(string(m.name, ".", n), _completion_kind(v), missing,
                         missing, MarkupContent(sanitize_docstring(v.doc)), missing,
                         missing, string(n), missing, missing, InsertTextFormats.PlainText, texteditfor(state, spartial, string(m.name, ".", n)),
-                        missing, missing, missing, missing))
+                        missing, missing, missing, missing, missing))
                 end
             end
         end
@@ -266,7 +382,7 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
         possible_names = String[]
         for n in x.names
             resize!(possible_names, 0)
-            if is_completion_match(n[1], spartial)
+            if is_completion_match(n[1], spartial) && n[1] != spartial
                 push!(possible_names, n[1])
             end
             if (nn = string_macro_altname(n[1]); nn !== nothing) && is_completion_match(nn, spartial)
@@ -274,12 +390,13 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
             end
             if length(possible_names) > 0
                 documentation = ""
-                if n[2] isa StaticLint.Binding
-                    documentation = get_tooltip(n[2], documentation, state.server)
-                    sanitize_docstring(documentation)
+                b = n[2]
+                if b isa StaticLint.Binding
+                    documentation = get_tooltip(b, documentation, state.server)
+                    documentation = sanitize_docstring(documentation)
                 end
                 foreach(possible_names) do nn
-                    add_completion_item(state, CompletionItem(nn, _completion_kind(n[2]), get_typed_definition(n[2]), MarkupContent(documentation), texteditfor(state, spartial, nn)))
+                    add_completion_item(state, CompletionItem(nn, _completion_kind(b), get_typed_definition(b), _completion_details_label(b), MarkupContent(documentation), texteditfor(state, spartial, nn)))
                 end
             end
         end
@@ -308,14 +425,14 @@ function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
                 for a in refof(px).type.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
                 for a in refof(px).type.val.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
-                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), MarkupContent(a), texteditfor(state, spartial, a)))
+                        add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
             elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
@@ -355,7 +472,14 @@ function _completion_kind(b)
     end
 end
 
-
+function _completion_details_label(b)
+    if b isa StaticLint.Binding
+        if b.is_public
+            return CompletionItemLabelDetails(" (public)", get_typed_definition(b))
+        end
+    end
+    return missing
+end
 
 function get_import_root(x::EXPR)
     if CSTParser.isoperator(headof(x.args[1])) && valof(headof(x.args[1])) == ":"
@@ -449,9 +573,42 @@ end
 is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :import))
 
 function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
-    import_statement = StaticLint.get_parent_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
+    # 1) Relative import completions: . .. ... and partials
+    depth = _relative_dot_depth_at(state.doc, state.offset)
+    if depth > 0
+        # Find a nearby EXPR so we can locate the current module reliably even at EOL
+        x0 = x isa EXPR ? x : get_expr(getcst(state.doc), state.offset, 0, true)
+        # Current and ancestor module EXPR by CST
+        cur_modexpr = x0 isa EXPR ? _current_module_expr(x0) : nothing
+        target_modexpr = cur_modexpr === nothing ? nothing : _module_ancestor_expr(cur_modexpr, depth - 1)
+        # Child module names by scanning CST
+        names = if target_modexpr isa EXPR
+            _child_module_names(target_modexpr)
+        elseif cur_modexpr === nothing && depth == 1
+            _child_module_names(getcst(state.doc)) # file-level '.'
+        else
+            String[]
+        end
+        if !isempty(names)
+            partial = (t.kind == CSTParser.Tokenize.Tokens.IDENTIFIER && is_at_end) ? t.val : ""
+            for n in names
+                if isempty(partial) || startswith(n, partial)
+                    add_completion_item(state, CompletionItem(
+                        n,
+                        CompletionItemKinds.Module,
+                        missing,
+                        MarkupContent(n),
+                        texteditfor(state, partial, n)
+                    ))
+                end
+            end
+        end
+        return
+    end
 
-    import_root = get_import_root(import_statement)
+    # 2) Non-relative path: proceed with original logic, but guard x
+    import_statement = x isa EXPR ? StaticLint.get_parent_fexpr(x, y -> headof(y) === :using || headof(y) === :import) : nothing
+    import_root = import_statement isa EXPR ? get_import_root(import_statement) : nothing
 
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
        (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))

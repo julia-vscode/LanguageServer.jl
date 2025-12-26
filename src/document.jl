@@ -76,9 +76,6 @@ get_offset(doc::Document, line::Integer, character::Integer) = get_offset(doc._t
 get_offset(doc::Document, p::Position) = get_offset(doc, p.line, p.character)
 get_offset(doc::Document, r::Range) = get_offset(doc, r.start):get_offset(doc, r.stop)
 
-# get_offset, but correct
-get_offset3(args...) = index_at(args...) - 1
-
 index_at(doc::Document, pos, args...) = index_at(doc._text_document, pos, args...)
 
 get_position_from_offset(doc::Document, offset::Integer) = get_position_from_offset(doc._text_document, offset)

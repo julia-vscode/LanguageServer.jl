@@ -19,6 +19,7 @@ const textDocument_willSaveWaitUntil_request_type = JSONRPC.RequestType("textDoc
 const textDocument_publishDiagnostics_notification_type = JSONRPC.NotificationType("textDocument/publishDiagnostics", PublishDiagnosticsParams)
 const textDocument_selectionRange_request_type = JSONRPC.RequestType("textDocument/selectionRange", SelectionRangeParams, Union{Vector{SelectionRange}, Nothing})
 const textDocument_documentLink_request_type = JSONRPC.RequestType("textDocument/documentLink", DocumentLinkParams, Union{Vector{DocumentLink}, Nothing})
+const textDocument_inlayHint_request_type = JSONRPC.RequestType("textDocument/inlayHint", InlayHintParams, Union{Vector{InlayHint}, Nothing})
 
 const workspace_executeCommand_request_type = JSONRPC.RequestType("workspace/executeCommand", ExecuteCommandParams, Any)
 const workspace_symbol_request_type = JSONRPC.RequestType("workspace/symbol", WorkspaceSymbolParams, Union{Vector{SymbolInformation}, Nothing})
@@ -36,7 +37,6 @@ const shutdown_request_type = JSONRPC.RequestType("shutdown", Nothing, Nothing)
 const exit_notification_type = JSONRPC.NotificationType("exit", Nothing)
 const client_registerCapability_request_type = JSONRPC.RequestType("client/registerCapability", RegistrationParams, Nothing)
 
-const cancel_notification_type = JSONRPC.NotificationType("\$/cancelRequest", CancelParams)
 const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTraceParams)
 # TODO This seems to not exist in the spec?
 const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setTraceNotification", Nothing)

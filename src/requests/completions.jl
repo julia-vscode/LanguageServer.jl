@@ -46,7 +46,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
         rng = Range(doc, offset:offset)
         x = get_expr(getcst(doc), offset)
         using_stmts = if server.completion_mode == :import
-            !isnothing(x) ? get_preexisting_using_stmts(x, doc) : Dict{String, Any}()
+            !isnothing(x) ? get_preexisting_using_stmts(x, doc) : Dict{String,Any}()
         else
             Dict()
         end
@@ -803,7 +803,7 @@ function method_completion(x, state, xlen, spartial)
             item = CompletionItem(n, 2, missing, missing, n,
                 missing, missing, missing, missing, missing,
                 InsertTextFormats.PlainText, inplace_edit, [additional_edit],
-                missing, missing, n)
+                missing, missing, n, missing)
 
             if is_completion_match(n, spartial)
                 add_completion_item(state, item)

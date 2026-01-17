@@ -6,8 +6,8 @@ else
     parsed_toml(file) = Pkg.TOML.parsefile(file)
 end
 
-const project_names = ("JuliaProject.toml", "Project.toml")
-const manifest_names = ("JuliaManifest.toml", "Manifest.toml")
+const project_names = ("Project.toml", "JuliaProject.toml")
+const manifest_names = ("Manifest-v$(VERSION.major).$(VERSION.minor).toml", "Manifest.toml", "JuliaManifest.toml")
 
 # return nothing or the project file at env
 function env_file(env::String, names = project_names)::Union{Nothing,String}

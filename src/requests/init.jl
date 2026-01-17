@@ -210,7 +210,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             client_capabilities_registrations,
             Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions([
                 FileSystemWatcher("**/*.{jl,jmd,md}", missing),
-                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,.JuliaLint.toml}", missing)
+                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,.JuliaLint.toml}", missing),
+                FileSystemWatcher("**/Manifest-v$(VERSION.major).$(VERSION.minor).toml", missing),
             ]))
         )
     end

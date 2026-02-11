@@ -8,7 +8,7 @@ struct TextDocument
 
     function TextDocument(uri::URI, text::AbstractString, version::Int, lid = nothing)
         # TODO Remove this check eventually
-        occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content."))
+        occursin('\0', text) && throw(LSInvalidFile("Tried to set a text with an embedded NULL as the document content.", uri))
 
         line_offsets = _compute_line_offsets(text)
         line_indices = _compute_line_indices(text)

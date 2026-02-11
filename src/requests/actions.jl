@@ -488,7 +488,7 @@ function organize_import_block(x, _, conn)
             elseif CSTParser.is_dot(a.head)
                 push!(isusing ? using_mods : import_mods, module_join(a))
             elseif !isusing && headof(a) === :as
-                push!(import_mods, join((module_join(a.args[1]), a.head, a.args[2].val), " "))
+                push!(import_mods, join((module_join(a.args[1]), "as", a.args[2].val), " "))
             else
                 error("Unexpected using/import expression.")
             end

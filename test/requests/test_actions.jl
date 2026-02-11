@@ -107,6 +107,7 @@ end
 
     doc = settestdoc("using JSON\nusing Example: foo, bar\nimport Example as E\nf(x) = x\n")
 
+    @test any(c.command == "OrganizeImports" for c in action_request_test(0, 1))
     @test any(c.command == "OrganizeImports" for c in action_request_test(1, 10))
     @test any(c.command == "OrganizeImports" for c in action_request_test(2, 10))
     @test !any(c.command == "OrganizeImports" for c in action_request_test(3, 2))

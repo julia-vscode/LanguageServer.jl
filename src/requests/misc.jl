@@ -94,24 +94,19 @@ function track_project_files!(server::LanguageServerInstance)
     # Add project files separately in case they are not in a workspace folder
     if server.env_path != ""
         # Base project files
-        project_files = ["Project.toml", "JuliaProject.toml"]
-
-        # Add version-specific manifest files if Julia >= 1.10.8
-        if VERSION >= v"1.10.8"
-            version_specific_manifest = "Manifest-v$(VERSION.major).$(VERSION.minor).toml"
-
-            # Only add version-specific manifests if they exist, otherwise keep the base ones
-            if isfile(joinpath(server.env_path, version_specific_manifest))
-                push!(project_files, version_specific_manifest)
-            else
-                append!(project_files, ("Manifest.toml", "JuliaManifest.toml"))
-            end
-        end
+        project_files = [
+            "Project.toml",
+            "JuliaProject.toml",
+            "Manifest.toml",
+            "JuliaManifest.toml",
+            "Manifest-v$(VERSION.major).$(VERSION.minor).toml",
+            "JuliaManifest-v$(VERSION.major).$(VERSION.minor).toml"]
 
         for file in project_files
             file_full_path = joinpath(server.env_path, file)
-            uri = filepath2uri(file_full_path)
+
             if isfile(file_full_path)
+                uri = filepath2uri(file_full_path)
                 @static if Sys.iswindows()
                     # Normalize drive letter to lowercase
                     if length(file_full_path) > 1 && isletter(file_full_path[1]) && file_full_path[2] == ':'

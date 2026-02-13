@@ -93,10 +93,21 @@ end
 function track_project_files!(server::LanguageServerInstance)
     # Add project files separately in case they are not in a workspace folder
     if server.env_path != ""
-        for file in ["Project.toml", "JuliaProject.toml", "Manifest.toml", "JuliaManifest.toml"]
+        # Base project files
+        project_files = [
+            "Project.toml",
+            "JuliaProject.toml",
+            "Manifest.toml",
+            "JuliaManifest.toml",
+            "Manifest-v$(VERSION.major).$(VERSION.minor).toml",
+            "JuliaManifest-v$(VERSION.major).$(VERSION.minor).toml"
+        ]
+
+        for file in project_files
             file_full_path = joinpath(server.env_path, file)
-            uri = filepath2uri(file_full_path)
+
             if isfile(file_full_path)
+                uri = filepath2uri(file_full_path)
                 @static if Sys.iswindows()
                     # Normalize drive letter to lowercase
                     if length(file_full_path) > 1 && isletter(file_full_path[1]) && file_full_path[2] == ':'

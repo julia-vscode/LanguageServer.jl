@@ -55,6 +55,38 @@ end
     versionSupport::Union{Bool,Missing}
 end
 
+@dict_readable struct SemanticTokensClientCapabilitiesRequestsFull <: Outbound
+    delta::Union{Bool,Missing}
+end
+
+struct SemanticTokensClientCapabilitiesRequests <: Outbound
+    range::Union{Bool,Missing}
+    full::Union{Bool,Missing,SemanticTokensClientCapabilitiesRequestsFull}
+end
+
+# Requires handwritten implementaiton to account for 3-part Unions
+function SemanticTokensClientCapabilitiesRequests(dict::Dict)
+    range = get(dict, "range", missing)
+    full = get(dict, "full", missing)
+    if full isa Dict
+        full = SemanticTokensClientCapabilitiesRequestsFull(full)
+    end
+
+    return SemanticTokensClientCapabilitiesRequests(range, full)
+end
+
+@dict_readable struct SemanticTokensClientCapabilities
+    dynamicRegistration::Union{Bool,Missing}
+    requests::SemanticTokensClientCapabilitiesRequests
+    tokenTypes::Vector{String}
+    tokenModifiers::Vector{String}
+    formats::Vector{String}
+    overlappingTokenSupport::Union{Bool,Missing}
+    multilineTokenSupport::Union{Bool,Missing}
+    serverCancelSupport::Union{Bool,Missing}
+    augmentsSyntaxTokens::Union{Bool,Missing}
+end
+
 @dict_readable struct TextDocumentClientCapabilities <: Outbound
     synchronization::Union{TextDocumentSyncClientCapabilities,Missing}
     completion::Union{CompletionClientCapabilities,Missing}
@@ -78,6 +110,7 @@ end
     publishDiagnostics::Union{PublishDiagnosticsClientCapabilities,Missing}
     foldingRange::Union{FoldingRangeClientCapabilities,Missing}
     selectionRange::Union{SelectionRangeClientCapabilities,Missing}
+    semanticTokens::Union{SemanticTokensClientCapabilities,Missing}
 end
 
 @dict_readable struct WindowClientCapabilities <: Outbound

@@ -72,3 +72,23 @@ end
     """)
     @test hover_test(3, 5).contents.value == "Argument 1 of 5 in call to `M.f`\n"
 end
+
+@testitem "hover docs from @doc macro" begin
+    include("../test_shared_server.jl")
+
+    settestdoc("""
+    @doc "Function doc via @doc" function docfun() end
+    @doc "Struct doc via @doc" struct DocType end
+    @doc "Variable doc via @doc" docvar = 1
+    @doc raw\"\"\"Raw doc via @doc\"\"\" function rawdocfun() end
+    docfun
+    DocType
+    docvar
+    rawdocfun
+    """)
+
+    @test occursin("Function doc via @doc", hover_test(3, 6).contents.value)
+    @test occursin("Struct doc via @doc", hover_test(4, 6).contents.value)
+    @test occursin("Variable doc via @doc", hover_test(5, 6).contents.value)
+    @test occursin("Raw doc via @doc", hover_test(6, 8).contents.value)
+end

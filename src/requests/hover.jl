@@ -58,9 +58,11 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr 
                     )
                 end
                 documentation = if binding_has_preceding_docs(b)
-                    string(documentation, to_codeobject(maybe_get_doc_expr(b.val).args[3]))
+                    string(documentation, to_codeobject(get_doc_payload_expr(maybe_get_doc_expr(b.val))))
                 elseif const_binding_has_preceding_docs(b)
-                    string(documentation, to_codeobject(maybe_get_doc_expr(parentof(b.val)).args[3]))
+                    string(documentation, to_codeobject(get_doc_payload_expr(maybe_get_doc_expr(parentof(b.val)))))
+                elseif (doc_expr = maybe_get_doc_expr_from_refs(b)) !== nothing
+                    string(documentation, to_codeobject(get_doc_payload_expr(doc_expr)))
                 else
                     documentation
                 end
@@ -214,9 +216,9 @@ get_func_hover(x::SymbolServer.SymStore, documentation, server, expr, env) = get
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
-        string(documentation, to_codeobject(maybe_get_doc_expr(expr).args[3]))
+        string(documentation, to_codeobject(get_doc_payload_expr(maybe_get_doc_expr(expr))))
     elseif is_const_expr(parentof(expr)) && expr_has_preceding_docs(parentof(expr))
-        string(documentation, to_codeobject(maybe_get_doc_expr(parentof(expr)).args[3]))
+        string(documentation, to_codeobject(get_doc_payload_expr(maybe_get_doc_expr(parentof(expr)))))
     else
         documentation
     end
@@ -236,9 +238,60 @@ function maybe_get_doc_expr(x)
     while CSTParser.hasparent(x) &&
         CSTParser.ismacrocall(parentof(x))
         x = parentof(x)
-        headof(x.args[1]) === :globalrefdoc && return x
+        is_doc_expr(x) && return x
     end
     return x
+end
+
+function is_doc_macro_name(x)
+    if headof(x) === :globalrefdoc
+        return true
+    elseif CSTParser.isidentifier(x)
+        return valof(x) == "@doc"
+    elseif CSTParser.is_getfield_w_quotenode(x)
+        return is_doc_macro_name(CSTParser.unquotenode(CSTParser.rhs_getfield(x)))
+    else
+        return false
+    end
+end
+
+function is_string_macro_name(x)
+    if CSTParser.isidentifier(x)
+        name = valof(x)
+        return name isa String && endswith(name, "_str")
+    elseif CSTParser.is_getfield_w_quotenode(x)
+        return is_string_macro_name(CSTParser.unquotenode(CSTParser.rhs_getfield(x)))
+    else
+        return false
+    end
+end
+
+normalize_doc_payload_expr(x) = x
+function normalize_doc_payload_expr(x::EXPR)
+    if CSTParser.ismacrocall(x) &&
+       length(x.args) >= 3 &&
+       is_string_macro_name(x.args[1]) &&
+       CSTParser.isstring(x.args[3])
+        return x.args[3]
+    end
+    return x
+end
+
+get_doc_payload_expr(x::EXPR) = length(x.args) >= 3 ? normalize_doc_payload_expr(x.args[3]) : nothing
+get_doc_target_expr(x::EXPR) = length(x.args) >= 4 ? x.args[4] : nothing
+
+function maybe_get_doc_expr_from_refs(b::StaticLint.Binding)
+    for r in b.refs
+        r isa EXPR || continue
+        doc_expr = maybe_get_doc_expr(r)
+        is_doc_expr(doc_expr) || continue
+        doc_target = get_doc_target_expr(doc_expr)
+        doc_target isa EXPR || continue
+        if doc_target === r || bindingof(doc_target) === b
+            return doc_expr
+        end
+    end
+    return nothing
 end
 
 expr_has_preceding_docs(x) = false
@@ -251,8 +304,8 @@ is_doc_expr(x) = false
 function is_doc_expr(x::EXPR)
     return CSTParser.ismacrocall(x) &&
            length(x.args) == 4 &&
-           headof(x.args[1]) === :globalrefdoc &&
-           CSTParser.isstring(x.args[3])
+           is_doc_macro_name(x.args[1]) &&
+           CSTParser.isstring(get_doc_payload_expr(x))
 end
 
 get_fcall_position(x, documentation, visited=nothing) = documentation

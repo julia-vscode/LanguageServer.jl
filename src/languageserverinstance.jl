@@ -539,9 +539,7 @@ function relintserver(server)
         end
     end
     for doc in documents
-        if get_language_id(doc) in ("julia", "markdown", "juliamarkdown")
-            lint!(doc, server)
-        end
+        lint!(doc, server)
     end
     publish_diagnostics_testitems(server, marked_versions, get_uri.(documents))
 end

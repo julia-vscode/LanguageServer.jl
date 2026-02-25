@@ -72,6 +72,8 @@ function setserver(file::Document, server::LanguageServerInstance)
 end
 
 function lint!(doc::Document, server)
+    get_language_id(doc) in ("julia", "markdown", "juliamarkdown") || return
+
     StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
     empty!(doc.diagnostics)
     mark_errors(doc, doc.diagnostics)

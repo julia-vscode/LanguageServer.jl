@@ -541,7 +541,7 @@ function poll_editor_pid(server::LanguageServerInstance)
     end
     @debug "Monitoring editor process with pid $(server.editor_pid)"
 
-    return @async while !server.shutdown_requested
+    Threads.@spawn while !server.shutdown_requested
         sleep(30)
 
         # kill -0 $editor_pid

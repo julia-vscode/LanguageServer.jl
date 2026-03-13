@@ -539,13 +539,15 @@ function poll_editor_pid(server::LanguageServerInstance)
     if server.editor_pid === nothing
         return
     end
-    @info "Monitoring editor process with id $(server.editor_pid)"
-    return @async while !server.shutdown_requested
-        sleep(10)
+    @debug "Monitoring editor process with pid $(server.editor_pid)"
+
+    Threads.@spawn while !server.shutdown_requested
+        sleep(30)
 
         # kill -0 $editor_pid
         r = ccall(:uv_kill, Cint, (Cint, Cint), server.editor_pid, 0)
         if r != 0
+            @info "Parent process $(server.editor_pid) has shut down. Exiting..."
             exit(1)
         end
     end

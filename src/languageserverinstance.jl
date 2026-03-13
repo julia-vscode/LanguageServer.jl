@@ -357,8 +357,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
     trigger_symbolstore_reload(server)
 
-    poll_editor_pid(server)
-
     @async try
         @debug "LS: Starting client listener task."
         add_timer_message!(did_show_timer, timings, "(async) listening to client events")

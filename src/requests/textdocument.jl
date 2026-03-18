@@ -154,7 +154,7 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
         error("This should not happen")
     end
 
-    if server._open_file_versions[uri]>params.textDocument.version
+    if server._open_file_versions[uri] > params.textDocument.version
         error("Outdated version: server $(server._open_file_versions[uri]) params $(params.textDocument.version)")
     end
 
@@ -163,6 +163,8 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     # For now we just use the new text that we already created for the legacy TextDocument
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(get_text(new_text_document), get_language_id(doc)))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)
+
+    server._open_file_versions[uri] = params.textDocument.version
 
     if get_language_id(doc) in ("markdown", "juliamarkdown")
         parse_all(doc, server)

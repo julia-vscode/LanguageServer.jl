@@ -124,7 +124,7 @@ end
 
 Base.convert(::Type{MarkedString}, x::String) = MarkedString("julia", string(x))
 MarkedString(x) = MarkedString("julia", string(x))
-Base.hash(x::MarkedString) = hash(x.value) # for unique
+Base.hash(x::MarkedString, h::UInt) = hash(x.value, h) # for unique
 
 
 ##############################################################################

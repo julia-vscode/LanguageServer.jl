@@ -103,7 +103,7 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
         end
     end
 
-    for (uri,diags) in diagnostics
+    for (uri, diags) in diagnostics
         version = get(server._open_file_versions, uri, missing)
         params = PublishDiagnosticsParams(uri, version, diags)
         JSONRPC.send(server.jr_endpoint, textDocument_publishDiagnostics_notification_type, params)

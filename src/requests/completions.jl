@@ -373,14 +373,26 @@ end
 function collect_completions(x::StaticLint.Scope, spartial, state::CompletionState, inclexported=false, dotcomps=false)
     if x.names !== nothing
         possible_names = String[]
+        possible_unicode_altnames = Tuple{String,String}[]
         for n in x.names
+
             resize!(possible_names, 0)
+            resize!(possible_unicode_altnames, 0)
+
+            # name, binding = n[1], n[2] # name and binding
+
             if is_completion_match(n[1], spartial) && n[1] != spartial
                 push!(possible_names, n[1])
             end
+
             if (nn = string_macro_altname(n[1]); nn !== nothing) && is_completion_match(nn, spartial)
                 push!(possible_names, nn)
             end
+
+            if (nn = latex_symbol_altname(n[1]); nn !== nothing) && is_completion_match(nn, spartial)
+                push!(possible_unicode_altnames, (n[1], nn)) # store unicode and alt name, e.g. (α, alpha)
+            end
+
             if length(possible_names) > 0
                 documentation = ""
                 b = n[2]
@@ -390,6 +402,31 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
                 end
                 foreach(possible_names) do nn
                     add_completion_item(state, CompletionItem(nn, _completion_kind(b), get_typed_definition(b), _completion_details_label(b), MarkupContent(documentation), texteditfor(state, spartial, nn)))
+                end
+            end
+
+
+            # If we have a unicode altname, add the completion item
+            if length(possible_unicode_altnames) > 0
+                documentation = ""
+                if n[2] isa StaticLint.Binding
+                    documentation = get_tooltip(n[2], documentation, state.server)
+                    sanitize_docstring(documentation)
+                end
+                for (n_orig, nn) in possible_unicode_altnames
+                    # Define the label text that is shown in the completion list in the editor
+                    # TODO Find out why the typed name (e.g. "alpha") has to be shown in the compltion list instead of just the unicode symbol
+                    label_ext = nn * " (" * n_orig * ")" # e.g. "alpha (α)" 
+                    add_completion_item(
+                        state,
+                        CompletionItem(
+                            label_ext,
+                            _completion_kind(n[2]),
+                            get_typed_definition(n[2]),
+                            MarkupContent(documentation),
+                            texteditfor(state, spartial, n[1])
+                        )
+                    )
                 end
             end
         end

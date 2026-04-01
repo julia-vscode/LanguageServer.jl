@@ -75,7 +75,7 @@
     client = connect(global_socket_name)
     try
         endpoint = JSONRPC.JSONRPCEndpoint(client, client)
-        run(endpoint)
+        JSONRPC.start(endpoint)
 
         response = JSONRPC.send_request(endpoint, "initialize", init_request)
 

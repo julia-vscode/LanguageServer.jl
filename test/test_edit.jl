@@ -64,6 +64,6 @@
         @test test_edit(server, "a\nb\ne", (1, 1), (1, 1), "\nc\nd")[1]
         @test test_edit(server, "aaa\nbbb", (0, 0), (0, 0), "\n")[1]
 
-        @test server._open_file_versions[uri"untitled:none"] == docversion
+        @test !haskey(server._open_file_versions, uri"untitled:none")
     end
 end

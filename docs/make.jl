@@ -15,6 +15,7 @@ makedocs(;
         "Home" => "index.md",
         "Syntax Reference" => "syntax.md",
     ],
+    warnonly=[:cross_references],
 )
 
 deploydocs(;

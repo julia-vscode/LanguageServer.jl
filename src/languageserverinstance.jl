@@ -80,7 +80,7 @@ mutable struct LanguageServerInstance
     _send_request_metrics::Bool
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
-        endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler)
+        endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
         jw = JuliaWorkspace()
         # if hasfield(typeof(jw.runtime), :performance_tracing_callback)
         #     jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
@@ -351,7 +351,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
     server.status = :started
 
-    run(server.jr_endpoint)
+    JSONRPC.start(server.jr_endpoint)
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 

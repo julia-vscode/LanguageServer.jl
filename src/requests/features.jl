@@ -1,61 +1,5 @@
 
 
-# TODO: should be in StaticLint. visited check is costly.
-resolve_shadow_binding(b) = b
-function resolve_shadow_binding(b::StaticLint.Binding, visited=StaticLint.Binding[])
-    if b in visited
-        throw(LSInfiniteLoop("Infinite loop in bindings."))
-    else
-        push!(visited, b)
-    end
-    if b.val isa StaticLint.Binding
-        return resolve_shadow_binding(b.val, visited)
-    else
-        return b
-    end
-end
-
-function get_definitions(x, tls, env, locations, server) end # Fallback
-
-function get_definitions(x::SymbolServer.ModuleStore, tls, env, locations, server)
-    if haskey(x.vals, :eval) && x[:eval] isa SymbolServer.FunctionStore
-        get_definitions(x[:eval], tls, env, locations, server)
-    end
-end
-
-function get_definitions(x::Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}, tls, env, locations, server)
-    StaticLint.iterate_over_ss_methods(x, tls, env, function (m)
-        if safe_isfile(m.file)
-            push!(locations, Location(filepath2uri(m.file), Range(m.line - 1, 0, m.line - 1, 0)))
-        end
-        return false
-    end)
-end
-
-function get_definitions(b::StaticLint.Binding, tls, env, locations, server)
-    if !(b.val isa EXPR)
-        get_definitions(b.val, tls, env, locations, server)
-    end
-    if b.type === StaticLint.CoreTypes.Function || b.type === StaticLint.CoreTypes.DataType
-        for ref in b.refs
-            method = StaticLint.get_method(ref)
-            if method !== nothing
-                get_definitions(method, tls, env, locations, server)
-            end
-        end
-    elseif b.val isa EXPR
-        get_definitions(b.val, tls, env, locations, server)
-    end
-end
-
-function get_definitions(x::EXPR, tls::StaticLint.Scope, env, locations, server)
-    loc = get_file_loc(x, server)
-    if loc !== nothing
-        uri, o = loc
-        push!(locations, Location(uri, jw_range(server, uri, o .+ (0:x.span))))
-    end
-end
-
 safe_isfile(s::Symbol) = safe_isfile(string(s))
 safe_isfile(::Nothing) = false
 function safe_isfile(s::AbstractString)
@@ -68,18 +12,14 @@ function safe_isfile(s::AbstractString)
 end
 
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    locations = Location[]
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    meta_dict, env = get_meta_data(server, uri)
-    offset = get_offset(st, params.position)
-    x = get_expr1(jw_cst(server, uri), offset)
-    if x isa EXPR && hasref(x, meta_dict)
-        # Replace with own function to retrieve references (with loop saftey-breaker)
-        b = refof(x, meta_dict)
-        b = resolve_shadow_binding(b)
-        (tls = retrieve_toplevel_scope(x, meta_dict)) === nothing && return locations
-        get_definitions(b, tls, env, locations, server)
+    index = index_at(st, params.position)
+
+    results = JuliaWorkspaces.get_definitions(server.workspace, uri, index)
+
+    locations = map(results) do r
+        Location(r.uri, jw_range(server, r.uri, (r.start_index - 1):(r.end_index - 1)))
     end
 
     return unique!(locations)
@@ -218,48 +158,32 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line + 1, 0), formatted_block)]
 end
 
-function find_references(textDocument::TextDocumentIdentifier, position::Position, server, meta_dict)
-    locations = Location[]
-    st = jw_source_text(server, textDocument.uri)
-    offset = get_offset(st, position)
-    x = get_expr1(jw_cst(server, textDocument.uri), offset)
-    x === nothing && return locations
-    for_each_ref(x, meta_dict, server) do r, uri, o
-        push!(locations, Location(uri, jw_range(server, uri, o .+ (0:r.span))))
-    end
-    return locations
-end
-
-function for_each_ref(f, identifier::EXPR, meta_dict, server)
-    if identifier isa EXPR && hasref(identifier, meta_dict) && refof(identifier, meta_dict) isa StaticLint.Binding
-        for r in loose_refs(refof(identifier, meta_dict), meta_dict)
-            if r isa EXPR
-                loc = get_file_loc(r, server)
-                if loc !== nothing
-                    uri, o = loc
-                    f(r, uri, o)
-                end
-            end
-        end
-    end
-end
-
 function textDocument_references_request(params::ReferenceParams, server::LanguageServerInstance, conn)
-    meta_dict, _ = get_meta_data(server, params.textDocument.uri)
-    return find_references(params.textDocument, params.position, server, meta_dict)
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    index = index_at(st, params.position)
+
+    results = JuliaWorkspaces.get_references(server.workspace, uri, index)
+
+    return map(results) do r
+        Location(r.uri, jw_range(server, r.uri, (r.start_index - 1):(r.end_index - 1)))
+    end
 end
 
 function textDocument_rename_request(params::RenameParams, server::LanguageServerInstance, conn)
-    tdes = Dict{URI,TextDocumentEdit}()
-    meta_dict, _ = get_meta_data(server, params.textDocument.uri)
-    locations = find_references(params.textDocument, params.position, server, meta_dict)
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    index = index_at(st, params.position)
 
-    for loc in locations
-        if loc.uri in keys(tdes)
-            push!(tdes[loc.uri].edits, TextEdit(loc.range, params.newName))
-        else
-            tdes[loc.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(loc.uri, jw_version(server, loc.uri)), [TextEdit(loc.range, params.newName)])
+    edits = JuliaWorkspaces.get_rename_edits(server.workspace, uri, index, params.newName)
+    isempty(edits) && return WorkspaceEdit(missing, TextDocumentEdit[])
+
+    tdes = Dict{URI,TextDocumentEdit}()
+    for e in edits
+        if !haskey(tdes, e.uri)
+            tdes[e.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(e.uri, jw_version(server, e.uri)), TextEdit[])
         end
+        push!(tdes[e.uri].edits, TextEdit(jw_range(server, e.uri, (e.start_index - 1):(e.end_index - 1)), e.new_text))
     end
 
     return WorkspaceEdit(missing, collect(values(tdes)))
@@ -268,178 +192,25 @@ end
 function textDocument_prepareRename_request(params::PrepareRenameParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    x = get_expr1(jw_cst(server, uri), get_offset(st, params.position))
-    x isa EXPR || return nothing
-    loc = get_file_loc(x, server)
-    loc === nothing && return nothing
-    uri, x_start_offset = loc
-    x_range = jw_range(server, uri, x_start_offset .+ (0:x.span))
-    return x_range
-end
+    index = index_at(st, params.position)
 
-function is_callable_object_binding(name::EXPR)
-    CSTParser.isoperator(headof(name)) && valof(headof(name)) === "::" && length(name.args) >= 1
-end
-is_valid_binding_name(name) = false
-function is_valid_binding_name(name::EXPR)
-    (headof(name) === :IDENTIFIER && valof(name) isa String && !isempty(valof(name))) ||
-    CSTParser.isoperator(name) ||
-    (headof(name) === :NONSTDIDENTIFIER && length(name.args) == 2 && valof(name.args[2]) isa String && !isempty(valof(name.args[2]))) ||
-    is_callable_object_binding(name)
-end
-function get_name_of_binding(name::EXPR)
-    if headof(name) === :IDENTIFIER
-        valof(name)
-    elseif CSTParser.isoperator(name)
-        string(to_codeobject(name))
-    elseif headof(name) === :NONSTDIDENTIFIER
-        valof(name.args[2])
-    elseif is_callable_object_binding(name)
-        string(to_codeobject(name))
-    else
-        ""
-    end
+    result = JuliaWorkspaces.can_rename(server.workspace, uri, index)
+    result === nothing && return nothing
+
+    return jw_range(server, uri, (result.start_index - 1):(result.end_index - 1))
 end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    meta_dict, _ = get_meta_data(server, uri)
+    results = JuliaWorkspaces.get_document_symbols(server.workspace, uri)
 
-    return collect_document_symbols(jw_cst(server, uri), server, uri, meta_dict)
-end
+    function convert_symbol(r::JuliaWorkspaces.DocumentSymbolResult)
+        children = DocumentSymbol[convert_symbol(c) for c in r.children]
+        rng = jw_range(server, uri, r.start_offset:r.end_offset)
+        DocumentSymbol(r.name, missing, r.kind, false, rng, rng, children)
+    end
 
-struct BindingContext
-    is_function_def::Bool
-    is_datatype_def::Bool
-    is_datatype_def_body::Bool
-end
-BindingContext() = BindingContext(false, false, false)
-
-function collect_document_symbols(x::EXPR, server::LanguageServerInstance, uri, meta_dict, pos=0, ctx=BindingContext(), symbols=DocumentSymbol[])
-    is_datatype_def_body = ctx.is_datatype_def_body
-    if ctx.is_datatype_def && !is_datatype_def_body
-        is_datatype_def_body = x.head === :block && length(x.parent.args) >= 3 && x.parent.args[3] == x
-    end
-    ctx = BindingContext(
-        ctx.is_function_def || CSTParser.defines_function(x),
-        ctx.is_datatype_def || CSTParser.defines_datatype(x),
-        is_datatype_def_body,
-    )
-
-    if bindingof(x, meta_dict) !== nothing
-        b =  bindingof(x, meta_dict)
-        if b.val isa EXPR && is_valid_binding_name(b.name)
-            ds = DocumentSymbol(
-                get_name_of_binding(b.name), # name
-                missing, # detail
-                _binding_kind(b, ctx), # kind
-                false, # deprecated
-                jw_range(server, uri, (pos .+ (0:x.span))), # range
-                jw_range(server, uri, (pos .+ (0:x.span))), # selection range
-                DocumentSymbol[] # children
-            )
-            push!(symbols, ds)
-            symbols = ds.children
-        end
-    elseif x.head == :macrocall
-        # detect @testitem/testset "testname" ...
-        child_nodes = filter(i -> !(isa(i, EXPR) && i.head == :NOTHING && i.args === nothing), x.args)
-        if length(child_nodes) > 1
-            macroname = CSTParser.valof(child_nodes[1])
-            if macroname == "@testitem" || macroname == "@testset"
-                if (child_nodes[2] isa EXPR && child_nodes[2].head == :STRING)
-                    testname = CSTParser.valof(child_nodes[2])
-                    ds = DocumentSymbol(
-                        "$(macroname) \"$(testname)\"", # name
-                        missing, # detail
-                        3, # kind (namespace)
-                        false, # deprecated
-                        jw_range(server, uri, (pos .+ (0:x.span))), # range
-                        jw_range(server, uri, (pos .+ (0:x.span))), # selection range
-                        DocumentSymbol[] # children
-                    )
-                    push!(symbols, ds)
-                    symbols = ds.children
-                end
-            end
-        end
-    end
-    if length(x) > 0
-        for a in x
-            collect_document_symbols(a, server, uri, meta_dict, pos, ctx, symbols)
-            pos += a.fullspan
-        end
-    end
-    return symbols
-end
-
-function collect_bindings_w_loc(x::EXPR, meta_dict, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[])
-    if bindingof(x, meta_dict) !== nothing
-        push!(bindings, (pos .+ (0:x.span), bindingof(x, meta_dict)))
-    end
-    if length(x) > 0
-        for a in x
-            collect_bindings_w_loc(a, meta_dict, pos, bindings)
-            pos += a.fullspan
-        end
-    end
-    return bindings
-end
-
-function collect_toplevel_bindings_w_loc(x::EXPR, meta_dict, pos=0, bindings=Tuple{UnitRange{Int},StaticLint.Binding}[]; query="")
-    if bindingof(x, meta_dict) isa StaticLint.Binding && valof(bindingof(x, meta_dict).name) isa String && bindingof(x, meta_dict).val isa EXPR && startswith(valof(bindingof(x, meta_dict).name), query)
-        push!(bindings, (pos .+ (0:x.span), bindingof(x, meta_dict)))
-    end
-    if scopeof(x, meta_dict) !== nothing && !(headof(x) === :file || CSTParser.defines_module(x))
-        return bindings
-    end
-    if length(x) > 0
-        for a in x
-            collect_toplevel_bindings_w_loc(a, meta_dict, pos, bindings, query=query)
-            pos += a.fullspan
-        end
-    end
-    return bindings
-end
-
-function _binding_kind(b, ctx::BindingContext)
-    if b isa StaticLint.Binding
-        if b.type === nothing
-            if ctx.is_datatype_def_body && !ctx.is_function_def
-                return 8
-            elseif ctx.is_datatype_def
-                return 26
-            else
-                return 13
-            end
-        elseif b.type == StaticLint.CoreTypes.Module
-            return 2
-        elseif b.type == StaticLint.CoreTypes.Function
-            return 12
-        elseif b.type == StaticLint.CoreTypes.String
-            return 15
-        elseif b.type == StaticLint.CoreTypes.Int || b.type == StaticLint.CoreTypes.Float64
-            return 16
-        elseif b.type == StaticLint.CoreTypes.DataType
-            if ctx.is_datatype_def && !ctx.is_datatype_def_body
-                return 23
-            else
-                return 26
-            end
-        else
-            return 13
-        end
-    elseif b isa SymbolServer.ModuleStore
-        return 2
-    elseif b isa SymbolServer.MethodStore
-        return 6
-    elseif b isa SymbolServer.FunctionStore
-        return 12
-    elseif b isa SymbolServer.DataTypeStore
-        return 23
-    else
-        return 13
-    end
+    return DocumentSymbol[convert_symbol(r) for r in results]
 end
 
 function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)
@@ -448,44 +219,14 @@ function julia_getModuleAt_request(params::VersionedTextDocumentPositionParams, 
     if JuliaWorkspaces.has_file(server.workspace, uri)
         if jw_version(server, uri) == params.version
             st = jw_source_text(server, uri)
-            offset = index_at(st, params.position, true)
-            x, p = get_expr_or_parent(jw_cst(server, uri), offset, 1)
-            if x isa EXPR
-                if x.head === :MODULE || x.head === :IDENTIFIER || x.head === :END
-                    if x.parent !== nothing && x.parent.head === :module
-                        x = x.parent
-                        if CSTParser.defines_module(x)
-                            x = x.parent
-                        end
-                    end
-                end
-                if CSTParser.defines_module(x) && p <= offset <= p + x[1].fullspan + x[2].fullspan
-                    x = x.parent
-                end
-
-                meta_dict, _ = get_meta_data(server, uri)
-                scope = retrieve_scope(x, meta_dict)
-                if scope !== nothing
-                    return get_module_of(scope)
-                end
-            end
+            index = index_at(st, params.position, true)
+            result = JuliaWorkspaces.get_module_at(server.workspace, uri, index)
+            return result === nothing ? "Main" : result
         else
             return mismatched_version_error(uri, jw_version(server, uri), params, "getModuleAt")
         end
     else
         return nodocument_error(uri, "getModuleAt")
-    end
-    return "Main"
-end
-
-function get_module_of(s::StaticLint.Scope, ms=[])
-    if CSTParser.defines_module(s.expr) && CSTParser.isidentifier(s.expr.args[2])
-        pushfirst!(ms, StaticLint.valofid(s.expr.args[2]))
-    end
-    if parentof(s) isa StaticLint.Scope
-        return get_module_of(parentof(s), ms)
-    else
-        return isempty(ms) ? "Main" : join(ms, ".")
     end
 end
 
@@ -543,27 +284,18 @@ end
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    cst = jw_cst(server, uri)
-    ret = map(params.positions) do position
-        offset = get_offset(st, position)
-        x = get_expr1(cst, offset)
-        get_selection_range_of_expr(x, server)
-    end
-    return ret isa Vector{SelectionRange} ?
-        ret :
-        nothing
-end
 
-# Just returns a selection for each parent EXPR, should be more selective
-get_selection_range_of_expr(x, server) = missing
-function get_selection_range_of_expr(x::EXPR, server)
-    loc = get_file_loc(x, server)
-    loc === nothing && return missing
-    uri, offset = loc
-    st = jw_source_text(server, uri)
-    l1, c1 = JuliaWorkspaces.position_at(st, offset)
-    l2, c2 = JuliaWorkspaces.position_at(st, offset + x.span)
-    SelectionRange(Range(l1 - 1, c1 - 1, l2 - 1, c2 - 1), get_selection_range_of_expr(x.parent, server))
+    indices = [index_at(st, p) for p in params.positions]
+    results = JuliaWorkspaces.get_selection_ranges(server.workspace, uri, indices)
+
+    function convert_selection(r::Union{Nothing, JuliaWorkspaces.SelectionRangeResult})
+        r === nothing && return missing
+        parent = convert_selection(r.parent)
+        SelectionRange(jw_range(server, uri, r.start_offset:r.end_offset), parent)
+    end
+
+    ret = SelectionRange[convert_selection(r) for r in results]
+    return isempty(ret) ? nothing : ret
 end
 
 function textDocument_inlayHint_request(params::InlayHintParams, server::LanguageServerInstance, conn)::Union{Vector{InlayHint},Nothing}
@@ -573,104 +305,30 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
 
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    meta_dict, _ = get_meta_data(server, uri)
 
-    start, stop = get_offset(st, params.range.start), get_offset(st, params.range.stop)
+    start_index = index_at(st, params.range.start)
+    end_index = index_at(st, params.range.stop)
 
-    return collect_inlay_hints(jw_cst(server, uri), server, uri, st, meta_dict, start, stop)
-end
-
-function get_inlay_parameter_hints(x::EXPR, server::LanguageServerInstance, uri, st, meta_dict, pos=0)
-    if server.inlay_hints_parameter_names === :all || (
-        server.inlay_hints_parameter_names === :literals &&
-        CSTParser.isliteral(x)
+    config = JuliaWorkspaces.InlayHintConfig(
+        server.inlay_hints,
+        server.inlay_hints_variable_types,
+        server.inlay_hints_parameter_names
     )
-        sigs = collect_signatures(x, server, uri, meta_dict)
 
-        nargs = length(parentof(x).args) - 1
-        nargs < 2 && return nothing
+    results = JuliaWorkspaces.get_inlay_hints(server.workspace, uri, start_index, end_index, config)
+    isempty(results) && return nothing
 
-        filter!(s -> length(s.parameters) == nargs, sigs)
-        isempty(sigs) && return nothing
-
-        pars = first(sigs).parameters
-        thisarg = 0
-        for a in parentof(x).args
-            if x == a
-                break
-            end
-            thisarg += 1
-        end
-        if thisarg <= nargs && thisarg <= length(pars)
-            label = pars[thisarg].label
-            label == "#unused#" && return nothing
-            length(label) <= 2 && return nothing
-            CSTParser.str_value(x) == label && return nothing
-            x.head == :parameters && return nothing
-            if x.head isa CSTParser.EXPR && x.head.head == :OPERATOR && x.head.val == "."
-                if x.args[end] isa CSTParser.EXPR && x.args[end].args[end] isa CSTParser.EXPR
-                    x.args[end].args[end].val == label && return nothing
-                end
-            end
-
-            return InlayHint(
-                Position(get_position_from_offset(st, pos)...),
-                string(label, "="),
-                InlayHintKinds.Parameter,
-                missing,
-                pars[thisarg].documentation,
-                false,
-                false,
-                missing
-            )
-        end
+    return map(results) do r
+        kind = r.kind === :parameter ? InlayHintKinds.Parameter : InlayHintKinds.Type
+        InlayHint(
+            Position(get_position_from_offset(st, r.offset)...),
+            r.label,
+            kind,
+            missing,
+            missing,
+            r.padding_left,
+            r.padding_right,
+            missing
+        )
     end
-    return nothing
-end
-
-function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, uri, st, meta_dict, start, stop, pos=0, hints=InlayHint[])
-    if x isa EXPR && parentof(x) isa EXPR &&
-            CSTParser.iscall(parentof(x)) &&
-            !(
-                parentof(parentof(x)) isa EXPR &&
-                CSTParser.defines_function(parentof(parentof(x)))
-            ) &&
-            parentof(x).args[1] != x # function calls
-        maybe_hint = get_inlay_parameter_hints(x, server, uri, st, meta_dict, pos)
-        if maybe_hint !== nothing
-            push!(hints, maybe_hint)
-        end
-    elseif x isa EXPR && parentof(x) isa EXPR &&
-            CSTParser.isassignment(parentof(x)) &&
-            parentof(x).args[1] == x &&
-            hasbinding(x, meta_dict) # assignment
-        if server.inlay_hints_variable_types
-            typ = completion_type(bindingof(x, meta_dict))
-            if typ !== missing
-                push!(
-                    hints,
-                    InlayHint(
-                        Position(get_position_from_offset(st, pos + x.span)...),
-                        string("::", typ),
-                        InlayHintKinds.Type,
-                        missing,
-                        missing,
-                        missing,
-                        missing,
-                        missing
-                    )
-                )
-            end
-        end
-    end
-    if length(x) > 0
-        for a in x
-            if pos < stop && pos + a.fullspan > start
-                collect_inlay_hints(a, server, uri, st, meta_dict, start, stop, pos, hints)
-            end
-            pos += a.fullspan
-            pos > stop && break
-        end
-    end
-    return hints
 end

@@ -170,15 +170,9 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
 end
 
 function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)
-    syms = SymbolInformation[]
-    for uri in JuliaWorkspaces.get_text_files(server.workspace)
-        meta_dict, _ = get_meta_data(server, uri)
-        bs = collect_toplevel_bindings_w_loc(jw_cst(server, uri), meta_dict, query=params.query)
-        for x in bs
-            p, b = x[1], x[2]
-            push!(syms, SymbolInformation(valof(b.name), 1, false, Location(uri, jw_range(server, uri, p)), missing))
-        end
-    end
+    results = JuliaWorkspaces.get_workspace_symbols(server.workspace, params.query)
 
-    return syms
+    return map(results) do r
+        SymbolInformation(r.name, r.kind, false, Location(r.uri, jw_range(server, r.uri, r.start_offset:r.end_offset)), missing)
+    end
 end

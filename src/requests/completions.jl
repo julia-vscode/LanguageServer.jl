@@ -7,9 +7,9 @@ const is_completion_match = JuliaWorkspaces.is_completion_match
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    offset = get_offset(st, params.position)
+    index = index_at(st, params.position)
 
-    result = JuliaWorkspaces.get_completions(server.workspace, uri, offset, server.completion_mode)
+    result = JuliaWorkspaces.get_completions(server.workspace, uri, index, server.completion_mode)
 
     # Convert JuliaWorkspaces.CompletionResult → LSP CompletionList
     items = CompletionItem[]
@@ -57,7 +57,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 end
 
 """
-Convert a JuliaWorkspaces.CompletionEdit (byte offsets) to an LSP TextEdit (line/char).
+Convert a JuliaWorkspaces.CompletionEdit (1-based string indices) to an LSP TextEdit (line/char).
 """
 function _convert_completion_edit(st::JuliaWorkspaces.SourceText, edit::JuliaWorkspaces.CompletionEdit, current_uri::URI, server)
     # If the edit targets a different file, use that file's SourceText for position conversion
@@ -66,7 +66,7 @@ function _convert_completion_edit(st::JuliaWorkspaces.SourceText, edit::JuliaWor
     else
         st
     end
-    start_l, start_c = get_position_from_offset(target_st, edit.start_offset)
-    end_l, end_c = get_position_from_offset(target_st, edit.end_offset)
+    start_l, start_c = get_position_from_offset(target_st, edit.start_index - 1)
+    end_l, end_c = get_position_from_offset(target_st, edit.end_index - 1)
     return TextEdit(Range(start_l, start_c, end_l, end_c), edit.new_text)
 end

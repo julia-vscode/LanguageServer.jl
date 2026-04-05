@@ -1,10 +1,12 @@
 function textDocument_signatureHelp_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, params.textDocument.uri)
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    meta_dict, _ = get_meta_data(server, uri)
     sigs = SignatureInformation[]
-    offset = get_offset(doc, params.position)
-    x = get_expr(getcst(doc), offset)
+    offset = get_offset(st, params.position)
+    x = get_expr(jw_cst(server, uri), offset)
 
-    sigs = collect_signatures(x, doc, server)
+    sigs = collect_signatures(x, server, uri, meta_dict)
 
     if (isempty(sigs) || (headof(x) === :RPAREN))
         return SignatureHelp(SignatureInformation[], 0, 0)
@@ -23,7 +25,7 @@ function fcall_arg_number(x)
     end
 end
 
-function collect_signatures(x, doc, server)
+function collect_signatures(x, server, uri, meta_dict)
     sigs = SignatureInformation[]
 
     if x isa EXPR && parentof(x) isa EXPR && CSTParser.iscall(parentof(x))
@@ -36,45 +38,45 @@ function collect_signatures(x, doc, server)
         else
             call_name = nothing
         end
-        if call_name !== nothing && (f_binding = refof(call_name)) !== nothing && (tls = StaticLint.retrieve_toplevel_scope(call_name)) !== nothing
-            get_signatures(f_binding, tls, sigs, getenv(doc, server))
+        if call_name !== nothing && (f_binding = refof(call_name, meta_dict)) !== nothing && (tls = retrieve_toplevel_scope(call_name, meta_dict)) !== nothing
+            get_signatures(f_binding, tls, sigs, getenv(server, uri), meta_dict)
         end
     end
 
     return sigs
 end
 
-function get_signatures(b, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) end
+function get_signatures(b, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env, meta_dict) end
 
-function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
+function get_signatures(b::StaticLint.Binding, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env, meta_dict)
     if b.val isa StaticLint.Binding
-        get_signatures(b.val, tls, sigs, env)
+        get_signatures(b.val, tls, sigs, env, meta_dict)
     end
     if b.type == StaticLint.CoreTypes.Function || b.type == StaticLint.CoreTypes.DataType
-        b.val isa SymbolServer.SymStore && get_signatures(b.val, tls, sigs, env)
+        b.val isa SymbolServer.SymStore && get_signatures(b.val, tls, sigs, env, meta_dict)
         for ref in b.refs
             method = StaticLint.get_method(ref)
             if method !== nothing
-                get_signatures(method, tls, sigs, env)
+                get_signatures(method, tls, sigs, env, meta_dict)
             end
         end
     end
 end
 
-function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
+function get_signatures(b::T, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env, meta_dict) where T <: Union{SymbolServer.FunctionStore,SymbolServer.DataTypeStore}
     StaticLint.iterate_over_ss_methods(b, tls, env, function (m)
         push!(sigs, SignatureInformation(string(m), "", (a -> ParameterInformation(string(a[1]), string(a[2]))).(m.sig)))
         return false
     end)
 end
 
-function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env)
+function get_signatures(x::EXPR, tls::StaticLint.Scope, sigs::Vector{SignatureInformation}, env, meta_dict)
     if CSTParser.defines_function(x)
         sig = CSTParser.rem_where_decl(CSTParser.get_sig(x))
         params = ParameterInformation[]
         if sig isa EXPR && sig.args !== nothing
             for i = 2:length(sig.args)
-                if (argbinding = bindingof(sig.args[i])) !== nothing
+                if (argbinding = bindingof(sig.args[i], meta_dict)) !== nothing
                     push!(params, ParameterInformation(valof(argbinding.name) isa String ? valof(argbinding.name) : "", missing))
                 end
             end

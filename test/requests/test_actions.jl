@@ -33,10 +33,13 @@ end
 end
 
 @testitem "fixmissingref" begin
+    # mark_errors was removed — diagnostics now come from JuliaWorkspaces.
+    # This test needs to be rewritten to use JW-provided diagnostics.
     include("../test_shared_server.jl")
 
     doc = settestdoc("argtail\n")
-    e = LanguageServer.mark_errors(doc)[1]
+    # Construct a synthetic diagnostic that would trigger FixMissingRef
+    e = LanguageServer.Diagnostic(LanguageServer.Range(0, 0, 0, 7), LanguageServer.DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: argtail", missing, missing)
     @test any(c.command == "FixMissingRef" for c in action_request_test(0, 5, diags=[e]))
     c = filter(c -> c.command == "FixMissingRef", action_request_test(0, 5, diags=[e]))[1]
     

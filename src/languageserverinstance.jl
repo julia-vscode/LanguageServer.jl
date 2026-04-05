@@ -28,15 +28,9 @@ For normal usage, the language server can be instantiated with
 mutable struct LanguageServerInstance
     jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
     workspaceFolders::Set{String}
-    _documents::Dict{URI,Document}
 
     env_path::String
     depot_path::String
-    symbol_server::SymbolServer.SymbolServerInstance
-    symbol_results_channel::Channel{Any}
-    global_env::StaticLint.ExternalEnv
-    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
-    symbol_store_ready::Bool
 
     runlinter::Bool
     lint_options::StaticLint.LintOptions
@@ -53,11 +47,6 @@ mutable struct LanguageServerInstance
 
     status::Symbol
 
-    number_of_outstanding_symserver_requests::Int
-    symserver_use_download::Bool
-
-    current_symserver_progress_token::Union{Nothing,String}
-
     clientcapability_window_workdoneprogress::Bool
     clientcapability_workspace_didChangeConfiguration::Bool
     # Can probably drop the above 2 and use the below.
@@ -73,6 +62,8 @@ mutable struct LanguageServerInstance
     # and the value is the version of the file that the LS client sent.
     _open_file_versions::Dict{URI,Int}
     _files_from_disc::Dict{URI,JuliaWorkspaces.TextFile}
+    # Tracks which files are workspace files (found on disc in a workspace folder).
+    _workspace_files::Set{URI}
     # This is a list of files that should be kept around that are potentially not in a workspace
     # folder. Primarily for projects and manifests outside of the workspace.
     _extra_tracked_files::Vector{URI}
@@ -80,38 +71,14 @@ mutable struct LanguageServerInstance
     _send_request_metrics::Bool
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
-        endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out, err_handler)
+        endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
         jw = JuliaWorkspace()
-        # if hasfield(typeof(jw.runtime), :performance_tracing_callback)
-        #     jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
-        #         if g_operationId[] != "" && endpoint.status === :running
-        #             JSONRPC.send(
-        #                 endpoint,
-        #                 telemetry_event_notification_type,
-        #                 Dict(
-        #                     "command" => "request_metric",
-        #                     "operationId" => string(uuid4()),
-        #                     "operationParentId" => g_operationId[],
-        #                     "name" => name,
-        #                     "duration" => duration,
-        #                     "time" => string(Dates.unix2datetime(start_time), "Z")
-        #                 )
-        #             )
-        #         end
-        #     end
-        # end
 
         new(
             endpoint,
             Set{String}(),
-            Dict{URI,Document}(),
             env_path,
             depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path, julia_exe; symbolcache_upstream=symbolcache_upstream),
-            Channel(Inf),
-            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
-            Dict(),
-            false,
             true,
             StaticLint.LintOptions(),
             :all,
@@ -123,9 +90,6 @@ mutable struct LanguageServerInstance
             Channel{Any}(Inf),
             err_handler,
             :created,
-            0,
-            download,
-            nothing,
             false,
             false,
             missing,
@@ -136,6 +100,7 @@ mutable struct LanguageServerInstance
             jw,
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
+            Set{URI}(),
             URI[],
             false
         )
@@ -143,149 +108,8 @@ mutable struct LanguageServerInstance
 end
 function Base.display(server::LanguageServerInstance)
     println(stderr, "Root: ", server.workspaceFolders)
-    for d in getdocuments_value(server)
-        display(d)
-    end
-end
-
-function hasdocument(server::LanguageServerInstance, uri::URI)
-    return haskey(server._documents, uri)
-end
-
-function getdocument(server::LanguageServerInstance, uri::URI)
-    return server._documents[uri]
-end
-
-function getdocuments_key(server::LanguageServerInstance)
-    return keys(server._documents)
-end
-
-function getdocuments_pair(server::LanguageServerInstance)
-    return pairs(server._documents)
-end
-
-function getdocuments_value(server::LanguageServerInstance)
-    return values(server._documents)
-end
-
-function setdocument!(server::LanguageServerInstance, uri::URI, doc::Document)
-    server._documents[uri] = doc
-end
-
-function deletedocument!(server::LanguageServerInstance, uri::URI)
-    doc = getdocument(server, uri)
-    StaticLint.clear_meta(getcst(doc))
-    delete!(server._documents, uri)
-
-    for d in getdocuments_value(server)
-        if getroot(d) === doc
-            setroot(d, d)
-            semantic_pass(getroot(d))
-        end
-    end
-end
-
-function create_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress
-        token = string(uuid4())
-        server.current_symserver_progress_token = token
-        JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
-
-        JSONRPC.send(
-            server.jr_endpoint,
-            progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", missing))
-        )
-    end
-end
-
-function destroy_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-        progress_token = server.current_symserver_progress_token
-        server.current_symserver_progress_token = nothing
-        JSONRPC.send(
-            server.jr_endpoint,
-            progress_notification_type,
-            ProgressParams(progress_token, WorkDoneProgressEnd(missing))
-        )
-    end
-end
-
-function trigger_symbolstore_reload(server::LanguageServerInstance)
-    server.symbol_store_ready = false
-    if server.number_of_outstanding_symserver_requests == 0 && server.status == :running
-        create_symserver_progress_ui(server)
-    end
-    server.number_of_outstanding_symserver_requests += 1
-
-    if server.symserver_use_download
-        @debug "Will download symbol server caches for this instance."
-    end
-
-    @async try
-        ssi_ret, payload = SymbolServer.getstore(
-            server.symbol_server,
-            server.env_path,
-            function (msg, percentage=missing)
-                if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-                    msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
-                    JSONRPC.send(
-                        server.jr_endpoint,
-                        progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, percentage))
-                    )
-                    if percentage == 100
-                        JSONRPC.send(
-                            server.jr_endpoint,
-                            progress_notification_type,
-                            ProgressParams(server.current_symserver_progress_token, WorkDoneProgressEnd(missing))
-                        )
-                    end
-                end
-                @info msg
-            end,
-            server.err_handler,
-            download=server.symserver_use_download
-        )
-
-        server.number_of_outstanding_symserver_requests -= 1
-
-        if server.number_of_outstanding_symserver_requests == 0
-            destroy_symserver_progress_ui(server)
-        end
-
-        if ssi_ret == :success
-            push!(server.symbol_results_channel, payload)
-        elseif ssi_ret == :failure
-            error_payload = Dict(
-                "command" => "symserv_crash",
-                "name" => "LSSymbolServerFailure",
-                "message" => payload === nothing ? "" : String(take!(payload)),
-                "stacktrace" => "")
-            JSONRPC.send(
-                server.jr_endpoint,
-                telemetry_event_notification_type,
-                error_payload
-            )
-        elseif ssi_ret == :package_load_crash
-            error_payload = Dict(
-                "command" => "symserv_pkgload_crash",
-                "name" => payload.package_name,
-                "message" => payload.stderr === nothing ? "" : String(take!(payload.stderr)))
-            JSONRPC.send(
-                server.jr_endpoint,
-                telemetry_event_notification_type,
-                error_payload
-            )
-        end
-        server.symbol_store_ready = true
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            Base.display_error(stderr, err, bt)
-        end
+    for uri in JuliaWorkspaces.get_text_files(server.workspace)
+        println(stderr, "  ", uri)
     end
 end
 
@@ -351,11 +175,9 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
     server.status = :started
 
-    run(server.jr_endpoint)
+    JSONRPC.start(server.jr_endpoint)
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
-
-    trigger_symbolstore_reload(server)
 
     poll_editor_pid(server)
 
@@ -379,29 +201,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
             close(server.combined_msg_queue)
         end
         @debug "LS: Client listener task done."
-    end
-    yield()
-
-    @async try
-        @debug "LS: Starting symbol server listener task."
-        add_timer_message!(did_show_timer, timings, "(async) listening to symbol server events")
-        while true
-            msg = take!(server.symbol_results_channel)
-            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
-        end
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            @error "LS: Queue op failed" ex=(err, bt)
-        end
-    finally
-        if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type=:close,))
-            close(server.combined_msg_queue)
-        end
-        @debug "LS: Symbol server listener task done."
     end
     yield()
 
@@ -487,61 +286,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
                     "duration" => duration)
                 )
             end
-        elseif message.type == :symservmsg
-            @debug "Received new data from Julia Symbol Server."
-
-            server.global_env.symbols = message.msg
-            add_timer_message!(did_show_timer, timings, "symbols received")
-            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
-            add_timer_message!(did_show_timer, timings, "extended methods computed")
-            server.global_env.project_deps = collect(keys(server.global_env.symbols))
-            add_timer_message!(did_show_timer, timings, "project deps computed")
-
-            # redo roots_env_map
-            for (root, _) in server.roots_env_map
-                @debug "resetting get_env_for_root"
-                newenv = get_env_for_root(root, server)
-                if newenv === nothing
-                    delete!(server.roots_env_map, root)
-                else
-                    server.roots_env_map[root] = newenv
-                end
-            end
-            add_timer_message!(did_show_timer, timings, "env map computed")
-
-            @debug "Linting started at $(round(Int, time()))"
-
-            relintserver(server)
-
-            @debug "Linting finished at $(round(Int, time()))"
-            add_timer_message!(did_show_timer, timings, "initial lint done")
         end
     end
-end
-
-function relintserver(server)
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
-    roots = Set{Document}()
-    documents = collect(getdocuments_value(server))
-    for doc in documents
-        StaticLint.clear_meta(getcst(doc))
-        set_doc(getcst(doc), doc)
-    end
-    for doc in documents
-        # only do a pass on documents once
-        root = getroot(doc)
-        if !(root in roots)
-            if get_language_id(root) in ("julia", "markdown", "juliamarkdown")
-                push!(roots, root)
-                semantic_pass(root)
-            end
-        end
-    end
-    for doc in documents
-        if get_language_id(doc) in ("julia", "markdown", "juliamarkdown")
-            lint!(doc, server)
-        end
-    end
-    publish_diagnostics_testitems(server, marked_versions, get_uri.(documents))
 end

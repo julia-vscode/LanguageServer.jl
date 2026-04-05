@@ -1,25 +1,26 @@
 function textDocument_hover_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, params.textDocument.uri)
-    env = getenv(doc, server)
-    x = get_expr1(getcst(doc), get_offset(doc, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
-    documentation = get_hover(x, "", server, x, env)
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    meta_dict, env = get_meta_data(server, uri)
+    x = get_expr1(jw_cst(server, uri), get_offset(st, params.position))
+    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env, meta_dict)
+    documentation = get_hover(x, "", server, x, env, meta_dict)
     documentation = get_closer_hover(x, documentation)
-    documentation = get_fcall_position(x, documentation)
+    documentation = get_fcall_position(x, documentation, meta_dict)
     documentation = sanitize_docstring(documentation)
 
     return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
 end
 
-get_hover(x, documentation::String, server, expr, env) = documentation
+get_hover(x, documentation::String, server, expr, env, meta_dict) = documentation
 
-function get_hover(x::EXPR, documentation::String, server, expr, env)
-    if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && StaticLint.hasref(x)
-        r = refof(x)
+function get_hover(x::EXPR, documentation::String, server, expr, env, meta_dict)
+    if (CSTParser.isidentifier(x) || CSTParser.isoperator(x)) && hasref(x, meta_dict)
+        r = refof(x, meta_dict)
         documentation = if r isa StaticLint.Binding
-            get_hover(r, documentation, server, expr, env)
+            get_hover(r, documentation, server, expr, env, meta_dict)
         elseif r isa SymbolServer.SymStore
-            get_hover(r, documentation, server, expr, env)
+            get_hover(r, documentation, server, expr, env, meta_dict)
         else
             documentation
         end
@@ -27,12 +28,12 @@ function get_hover(x::EXPR, documentation::String, server, expr, env)
     return documentation
 end
 
-function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr = nothing, env = nothing; show_definition = false)
+function get_tooltip(b::StaticLint.Binding, documentation::String, server, meta_dict=_empty_meta_dict, expr = nothing, env = nothing; show_definition = false)
     if b.val isa StaticLint.Binding
-        documentation = get_hover(b.val, documentation, server, expr, env)
+        documentation = get_hover(b.val, documentation, server, expr, env, meta_dict)
     elseif b.val isa EXPR
         if CSTParser.defines_function(b.val) || CSTParser.defines_datatype(b.val)
-            documentation = get_func_hover(b, documentation, server, expr, env)
+            documentation = get_func_hover(b, documentation, server, expr, env, meta_dict)
             for r in b.refs
                 method = StaticLint.get_method(r)
                 if method isa EXPR
@@ -43,7 +44,7 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr 
                         documentation = string(ensure_ends_with(documentation), "```julia\n", to_codeobject(method), "\n```\n")
                     end
                 elseif method isa SymbolServer.SymStore
-                    documentation = get_hover(method, documentation, server, expr, env)
+                    documentation = get_hover(method, documentation, server, expr, env, meta_dict)
                 end
             end
         else
@@ -70,13 +71,13 @@ function get_tooltip(b::StaticLint.Binding, documentation::String, server, expr 
             end
         end
     elseif b.val isa SymbolServer.SymStore
-        documentation = get_hover(b.val, documentation, server, expr, env)
+        documentation = get_hover(b.val, documentation, server, expr, env, meta_dict)
     end
     return documentation
 end
 
-get_hover(b::StaticLint.Binding, documentation::String, server, expr, env) =
-    get_tooltip(b, documentation, server, expr, env; show_definition = true)
+get_hover(b::StaticLint.Binding, documentation::String, server, expr, env, meta_dict) =
+    get_tooltip(b, documentation, server, meta_dict, expr, env; show_definition = true)
 
 get_typed_definition(b) = _completion_type(b)
 get_typed_definition(b::StaticLint.Binding) =
@@ -137,14 +138,14 @@ end
 prettify_expr(ex) = string(ex)
 
 # print(io, x::SymStore) methods are defined in SymbolServer
-function get_hover(b::SymbolServer.SymStore, documentation::String, server, expr, env)
+function get_hover(b::SymbolServer.SymStore, documentation::String, server, expr, env, meta_dict)
     if !isempty(b.doc)
         documentation = string(documentation, b.doc, "\n")
     end
     documentation = string(documentation, "```julia\n", b, "\n```")
 end
 
-function get_hover(f::SymbolServer.FunctionStore, documentation::String, server, expr, env)
+function get_hover(f::SymbolServer.FunctionStore, documentation::String, server, expr, env, meta_dict)
     if !isempty(f.doc)
         documentation = string(documentation, f.doc, "\n\n")
     end
@@ -152,12 +153,12 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server,
     if !isnothing(env)
         edt = StaticLint.get_eventual_datatype(f, env)
         if edt isa SymbolServer.DataTypeStore
-            documentation = string(get_hover(edt, documentation, server, expr, env), "\n\n")
+            documentation = string(get_hover(edt, documentation, server, expr, env, meta_dict), "\n\n")
         end
     end
 
     if expr !== nothing && env !== nothing
-        tls = StaticLint.retrieve_toplevel_scope(expr)
+        tls = retrieve_toplevel_scope(expr, meta_dict)
         itr = func -> StaticLint.iterate_over_ss_methods(f, tls, env, func)
     else
         itr = func -> begin
@@ -209,8 +210,8 @@ function get_hover(f::SymbolServer.FunctionStore, documentation::String, server,
     return documentation
 end
 
-get_func_hover(x, documentation, server, expr, env) = documentation
-get_func_hover(x::SymbolServer.SymStore, documentation, server, expr, env) = get_hover(x, documentation, server, expr, env)
+get_func_hover(x, documentation, server, expr, env, meta_dict) = documentation
+get_func_hover(x::SymbolServer.SymStore, documentation, server, expr, env, meta_dict) = get_hover(x, documentation, server, expr, env, meta_dict)
 
 function get_preceding_docs(expr::EXPR, documentation)
     if expr_has_preceding_docs(expr)
@@ -255,9 +256,9 @@ function is_doc_expr(x::EXPR)
            CSTParser.isstring(x.args[3])
 end
 
-get_fcall_position(x, documentation, visited=nothing) = documentation
+get_fcall_position(x, documentation, meta_dict, visited=nothing) = documentation
 
-function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
+function get_fcall_position(x::EXPR, documentation, meta_dict, visited=Set{EXPR}())
     if x in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -276,21 +277,21 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
 
             # hovering over the function name, so we might as well check the parent
             if arg_i == 0
-                return get_fcall_position(parentof(x), documentation, visited)
+                return get_fcall_position(parentof(x), documentation, meta_dict, visited)
             end
 
             minargs < 4 && return documentation
 
             fname = CSTParser.get_name(parentof(x))
-            if StaticLint.hasref(fname) &&
-               (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == minargs)
-                dt_ex = refof(fname).val
+            if hasref(fname, meta_dict) &&
+               (refof(fname, meta_dict) isa StaticLint.Binding && refof(fname, meta_dict).val isa EXPR && CSTParser.defines_struct(refof(fname, meta_dict).val) && StaticLint.struct_nargs(refof(fname, meta_dict).val)[1] == minargs)
+                dt_ex = refof(fname, meta_dict).val
                 args = dt_ex.args[3]
                 args.args === nothing || arg_i > length(args.args) && return documentation
                 _fieldname = CSTParser.str_value(CSTParser.get_arg_name(args.args[arg_i]))
                 documentation = string("Datatype field `$_fieldname` of $(CSTParser.str_value(CSTParser.get_name(dt_ex)))", "\n", documentation)
-            elseif StaticLint.hasref(fname) && (refof(fname) isa SymbolServer.DataTypeStore || refof(fname) isa StaticLint.Binding && refof(fname).val isa SymbolServer.DataTypeStore)
-                dts = refof(fname) isa StaticLint.Binding ? refof(fname).val : refof(fname)
+            elseif hasref(fname, meta_dict) && (refof(fname, meta_dict) isa SymbolServer.DataTypeStore || refof(fname, meta_dict) isa StaticLint.Binding && refof(fname, meta_dict).val isa SymbolServer.DataTypeStore)
+                dts = refof(fname, meta_dict) isa StaticLint.Binding ? refof(fname, meta_dict).val : refof(fname, meta_dict)
                 if length(dts.fieldnames) == minargs && arg_i <= length(dts.fieldnames)
                     documentation = string("Datatype field `$(dts.fieldnames[arg_i])`", "\n", documentation)
                 end
@@ -304,7 +305,7 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
             end
             return documentation
         else
-            return get_fcall_position(parentof(x), documentation, visited)
+            return get_fcall_position(parentof(x), documentation, meta_dict, visited)
         end
     end
     return documentation

@@ -7,9 +7,12 @@ struct CompletionState
     completions::Dict{String,CompletionItem}
     range::Range
     x::Union{Nothing, EXPR}
-    doc::Document
+    cst::EXPR
+    uri::URI
+    st::JuliaWorkspaces.SourceText
     server::LanguageServerInstance
     using_stmts::Dict{String,Any}
+    meta_dict::MetaDict
 end
 
 function add_completion_item(state::CompletionState, completion::CompletionItem)
@@ -20,7 +23,7 @@ function add_completion_item(state::CompletionState, completion::CompletionItem)
     state.completions[completion.label] = completion
 end
 
-StaticLint.getenv(state::CompletionState) = getenv(state.doc, state.server)
+getenv(state::CompletionState) = getenv(state.server, state.uri)
 
 using REPL
 
@@ -40,16 +43,19 @@ end
 
 function textDocument_completion_request(params::CompletionParams, server::LanguageServerInstance, conn)
     state = let
-        doc = getdocument(server, params.textDocument.uri)
-        offset = get_offset(get_text_document(doc), params.position)
-        rng = Range(doc, offset:offset)
-        x = get_expr(getcst(doc), offset)
+        uri = params.textDocument.uri
+        st = jw_source_text(server, uri)
+        cst = jw_cst(server, uri)
+        meta_dict, _ = get_meta_data(server, uri)
+        offset = get_offset(st, params.position)
+        rng = Range(st, offset:offset)
+        x = get_expr(cst, offset)
         using_stmts = if server.completion_mode == :import
-            !isnothing(x) ? get_preexisting_using_stmts(x, doc) : Dict{String, Any}()
+            !isnothing(x) ? get_preexisting_using_stmts(x, cst, meta_dict, server) : Dict{String, Any}()
         else
             Dict()
         end
-        CompletionState(offset, Dict{String,CompletionItem}(), rng, x, doc, server, using_stmts)
+        CompletionState(offset, Dict{String,CompletionItem}(), rng, x, cst, uri, st, server, using_stmts, meta_dict)
     end
 
     ppt, pt, t, is_at_end  = get_partial_completion(state)
@@ -66,15 +72,15 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
                                                        CSTParser.Tokenize.Tokens.CMD,
                                                        CSTParser.Tokenize.Tokens.TRIPLE_CMD))
         string_completion(t, state)
-    elseif state.x isa EXPR && is_in_import_statement(state.x) || _relative_dot_depth_at(state.doc, state.offset) > 0
+    elseif state.x isa EXPR && is_in_import_statement(state.x) || _relative_dot_depth_at(state.st.content, state.offset) > 0
         import_completions(ppt, pt, t, is_at_end, state.x, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.DOT && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, no partial
-        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte))
+        px = get_expr(state.cst, state.offset - (1 + t.endbyte - t.startbyte))
         _get_dot_completion(px, "", state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER && pt isa CSTParser.Tokens.Token && pt.kind == CSTParser.Tokens.DOT && ppt isa CSTParser.Tokens.Token && ppt.kind == CSTParser.Tokens.IDENTIFIER
         # getfield completion, partial
-        px = get_expr(getcst(state.doc), state.offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
+        px = get_expr(state.cst, state.offset - (1 + t.endbyte - t.startbyte) - (1 + pt.endbyte - pt.startbyte)) # get offset 2 tokens back
         _get_dot_completion(px, t.val, state)
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.IDENTIFIER
         # token completion
@@ -85,7 +91,7 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
                 spartial = t.val
             end
             kw_completion(spartial, state)
-            rng = Range(state.doc, state.offset:state.offset)
+            rng = Range(state.st, state.offset:state.offset)
             collect_completions(state.x, spartial, state, false)
         end
     elseif t isa CSTParser.Tokens.Token && t.kind == CSTParser.Tokens.AT_SIGN
@@ -104,7 +110,7 @@ end
 
 
 function get_partial_completion(state::CompletionState)
-    ppt, pt, t = get_toks(state.doc, state.offset)
+    ppt, pt, t = get_toks(state.st.content, state.offset)
     is_at_end = state.offset == t.endbyte + 1
     return ppt, pt, t, is_at_end
 end
@@ -112,7 +118,7 @@ end
 function latex_completions(partial::String, state::CompletionState)
     for (k, v) in Iterators.flatten((REPL.REPLCompletions.latex_symbols, REPL.REPLCompletions.emoji_symbols))
         if is_completion_match(string(k), partial)
-            # t1 = TextEdit(Range(state.doc, (state.offset - sizeof(partial)):state.offset), v)
+            # t1 = TextEdit(Range(state.st, (state.offset - sizeof(partial)):state.offset), v)
             add_completion_item(state, CompletionItem(k, CompletionItemKinds.Unit, missing, v, v, missing, missing, missing, missing, missing, missing, texteditfor(state, partial, v), missing, missing, missing, missing, missing))
         end
     end
@@ -206,8 +212,7 @@ end
 
 # Count contiguous '.' for relative import at the current cursor/line end.
 # Handles: "import .", "import ..", "import ...", "import .Foo", "import ..Foo", etc.
-function _relative_dot_depth_at(doc::Document, offset::Int)
-    s = get_text(doc)
+function _relative_dot_depth_at(s::AbstractString, offset::Int)
     k = offset + 1  # 1-based
 
     # Skip trailing whitespace (space, tab, CR, LF)
@@ -357,10 +362,10 @@ function import_has_x(expr::EXPR, x::String)
 end
 
 function collect_completions(x::EXPR, spartial, state::CompletionState, inclexported=false, dotcomps=false)
-    if scopeof(x) !== nothing
-        collect_completions(scopeof(x), spartial, state, inclexported, dotcomps)
-        if scopeof(x).modules isa Dict
-            for m in scopeof(x).modules
+    if scopeof(x, state.meta_dict) !== nothing
+        collect_completions(scopeof(x, state.meta_dict), spartial, state, inclexported, dotcomps)
+        if scopeof(x, state.meta_dict).modules isa Dict
+            for m in scopeof(x, state.meta_dict).modules
                 collect_completions(m[2], spartial, state, inclexported, dotcomps)
             end
         end
@@ -385,7 +390,7 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
                 documentation = ""
                 b = n[2]
                 if b isa StaticLint.Binding
-                    documentation = get_tooltip(b, documentation, state.server)
+                    documentation = get_tooltip(b, documentation, state.server, state.meta_dict)
                     documentation = sanitize_docstring(documentation)
                 end
                 foreach(possible_names) do nn
@@ -397,42 +402,42 @@ function collect_completions(x::StaticLint.Scope, spartial, state::CompletionSta
 end
 
 
-function is_rebinding_of_module(x)
-    x isa EXPR && refof(x).type === StaticLint.CoreTypes.Module && # binding is a Module
-    refof(x).val isa EXPR && CSTParser.isassignment(refof(x).val) && # binding expr is an assignment
-    StaticLint.hasref(refof(x).val.args[2]) && refof(refof(x).val.args[2]).type === StaticLint.CoreTypes.Module &&
-    refof(refof(x).val.args[2]).val isa EXPR && CSTParser.defines_module(refof(refof(x).val.args[2]).val)# double check the rhs points to a module
+function is_rebinding_of_module(x, meta_dict)
+    x isa EXPR && refof(x, meta_dict).type === StaticLint.CoreTypes.Module && # binding is a Module
+    refof(x, meta_dict).val isa EXPR && CSTParser.isassignment(refof(x, meta_dict).val) && # binding expr is an assignment
+    hasref(refof(x, meta_dict).val.args[2], meta_dict) && refof(refof(x, meta_dict).val.args[2], meta_dict).type === StaticLint.CoreTypes.Module &&
+    refof(refof(x, meta_dict).val.args[2], meta_dict).val isa EXPR && CSTParser.defines_module(refof(refof(x, meta_dict).val.args[2], meta_dict).val)# double check the rhs points to a module
 end
 
 function _get_dot_completion(px, spartial, state::CompletionState) end
 function _get_dot_completion(px::EXPR, spartial, state::CompletionState)
     if px !== nothing
-        if refof(px) isa StaticLint.Binding
-            if refof(px).val isa StaticLint.SymbolServer.ModuleStore
-                collect_completions(refof(px).val, spartial, state, true)
-            elseif refof(px).val isa EXPR && CSTParser.defines_module(refof(px).val) && scopeof(refof(px).val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).val), spartial, state, true)
-            elseif is_rebinding_of_module(px)
-                collect_completions(scopeof(refof(refof(px).val.args[2]).val), spartial, state, true)
-            elseif refof(px).type isa SymbolServer.DataTypeStore
-                for a in refof(px).type.fieldnames
+        if refof(px, state.meta_dict) isa StaticLint.Binding
+            if refof(px, state.meta_dict).val isa StaticLint.SymbolServer.ModuleStore
+                collect_completions(refof(px, state.meta_dict).val, spartial, state, true)
+            elseif refof(px, state.meta_dict).val isa EXPR && CSTParser.defines_module(refof(px, state.meta_dict).val) && scopeof(refof(px, state.meta_dict).val, state.meta_dict) isa StaticLint.Scope
+                collect_completions(scopeof(refof(px, state.meta_dict).val, state.meta_dict), spartial, state, true)
+            elseif is_rebinding_of_module(px, state.meta_dict)
+                collect_completions(scopeof(refof(refof(px, state.meta_dict).val.args[2], state.meta_dict).val, state.meta_dict), spartial, state, true)
+            elseif refof(px, state.meta_dict).type isa SymbolServer.DataTypeStore
+                for a in refof(px, state.meta_dict).type.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
                         add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa SymbolServer.DataTypeStore
-                for a in refof(px).type.val.fieldnames
+            elseif refof(px, state.meta_dict).type isa StaticLint.Binding && refof(px, state.meta_dict).type.val isa SymbolServer.DataTypeStore
+                for a in refof(px, state.meta_dict).type.val.fieldnames
                     a = String(a)
                     if is_completion_match(a, spartial)
                         add_completion_item(state, CompletionItem(a, CompletionItemKinds.Method, get_typed_definition(a), _completion_details_label(a), MarkupContent(a), texteditfor(state, spartial, a)))
                     end
                 end
-            elseif refof(px).type isa StaticLint.Binding && refof(px).type.val isa EXPR && CSTParser.defines_struct(refof(px).type.val) && scopeof(refof(px).type.val) isa StaticLint.Scope
-                collect_completions(scopeof(refof(px).type.val), spartial, state, true)
+            elseif refof(px, state.meta_dict).type isa StaticLint.Binding && refof(px, state.meta_dict).type.val isa EXPR && CSTParser.defines_struct(refof(px, state.meta_dict).type.val) && scopeof(refof(px, state.meta_dict).type.val, state.meta_dict) isa StaticLint.Scope
+                collect_completions(scopeof(refof(px, state.meta_dict).type.val, state.meta_dict), spartial, state, true)
             end
-        elseif refof(px) isa StaticLint.SymbolServer.ModuleStore
-            collect_completions(refof(px), spartial, state, true)
+        elseif refof(px, state.meta_dict) isa StaticLint.SymbolServer.ModuleStore
+            collect_completions(refof(px, state.meta_dict), spartial, state, true)
         end
     end
 end
@@ -537,7 +542,7 @@ function path_completion(t, state::CompletionState)
         else
             dir, partial = _splitdir(path)
             if !startswith(dir, "/")
-                doc_path = getpath(state.doc)
+                doc_path = something(uri2filepath(state.uri), "")
                 isempty(doc_path) && return
                 dir = joinpath(_dirname(doc_path), dir)
             end
@@ -550,7 +555,7 @@ function path_completion(t, state::CompletionState)
                         if isdir(joinpath(dir, f))
                             f = string(f, "/")
                         end
-                        rng1 = Range(state.doc, state.offset - sizeof(partial):state.offset)
+                        rng1 = Range(state.st, state.offset - sizeof(partial):state.offset)
                         add_completion_item(state, CompletionItem(f, CompletionItemKinds.File, f, TextEdit(rng1, f)))
                     catch err
                         isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
@@ -567,10 +572,10 @@ is_in_import_statement(x::EXPR) = is_in_fexpr(x, x -> headof(x) in (:using, :imp
 
 function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
     # 1) Relative import completions: . .. ... and partials
-    depth = _relative_dot_depth_at(state.doc, state.offset)
+    depth = _relative_dot_depth_at(state.st.content, state.offset)
     if depth > 0
         # Find a nearby EXPR so we can locate the current module reliably even at EOL
-        x0 = x isa EXPR ? x : get_expr(getcst(state.doc), state.offset, 0, true)
+        x0 = x isa EXPR ? x : get_expr(state.cst, state.offset, 0, true)
         # Current and ancestor module EXPR by CST
         cur_modexpr = x0 isa EXPR ? _current_module_expr(x0) : nothing
         target_modexpr = cur_modexpr === nothing ? nothing : _module_ancestor_expr(cur_modexpr, depth - 1)
@@ -578,7 +583,7 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
         names = if target_modexpr isa EXPR
             _child_module_names(target_modexpr)
         elseif cur_modexpr === nothing && depth == 1
-            _child_module_names(getcst(state.doc)) # file-level '.'
+            _child_module_names(state.cst) # file-level '.'
         else
             String[]
         end
@@ -606,8 +611,8 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
     if (t.kind == CSTParser.Tokens.WHITESPACE && pt.kind ∈ (CSTParser.Tokens.USING, CSTParser.Tokens.IMPORT, CSTParser.Tokens.IMPORTALL, CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON)) ||
         (t.kind in (CSTParser.Tokens.COMMA, CSTParser.Tokens.COLON))
         # no partial, no dot
-        if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-            for (n, m) in refof(import_root).vals
+        if import_root !== nothing && refof(import_root, state.meta_dict) isa SymbolServer.ModuleStore
+            for (n, m) in refof(import_root, state.meta_dict).vals
                 n = String(n)
                 if is_completion_match(n, t.val) && !startswith(n, "#")
                     add_completion_item(state, CompletionItem(n, _completion_kind(m), get_typed_definition(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
@@ -638,8 +643,8 @@ function import_completions(ppt, pt, t, is_at_end, x, state::CompletionState)
                 end
             end
         else
-            if import_root !== nothing && refof(import_root) isa SymbolServer.ModuleStore
-                for (n, m) in refof(import_root).vals
+            if import_root !== nothing && refof(import_root, state.meta_dict) isa SymbolServer.ModuleStore
+                for (n, m) in refof(import_root, state.meta_dict).vals
                     n = String(n)
                     if is_completion_match(n, t.val) && !startswith(n, "#")
                         add_completion_item(state, CompletionItem(n, _completion_kind(m), get_typed_definition(m), MarkupContent(m isa SymbolServer.SymStore ? sanitize_docstring(m.doc) : n), texteditfor(state, t.val, n)))
@@ -659,16 +664,16 @@ end
 
 
 
-function get_preexisting_using_stmts(x::EXPR, doc::Document)
+function get_preexisting_using_stmts(x::EXPR, cst::EXPR, meta_dict, server)
     using_stmts = Dict{String,Any}()
-    tls = StaticLint.retrieve_toplevel_scope(x)
+    tls = retrieve_toplevel_scope(x, meta_dict)
     file_level_arg = get_file_level_parent(x)
 
-    if scopeof(getcst(doc)) == tls
+    if scopeof(cst, meta_dict) == tls
         # check for :using stmts in current file
-        for a in getcst(doc).args
+        for a in cst.args
             if headof(a) === :using
-                add_using_stmt(a, using_stmts)
+                add_using_stmt(a, using_stmts, server)
             end
             a == file_level_arg && break
         end
@@ -678,7 +683,7 @@ function get_preexisting_using_stmts(x::EXPR, doc::Document)
         args = get_tls_arglist(tls)
         for a in args
             if headof(a) === :using
-                add_using_stmt(a, using_stmts)
+                add_using_stmt(a, using_stmts, server)
             end
 
         end
@@ -686,10 +691,13 @@ function get_preexisting_using_stmts(x::EXPR, doc::Document)
     return using_stmts
 end
 
-function add_using_stmt(x::EXPR, using_stmts)
+function add_using_stmt(x::EXPR, using_stmts, server)
     if length(x.args) > 0 && CSTParser.is_colon(x.args[1].head)
         if CSTParser.is_dot(x.args[1].args[1].head) && length(x.args[1].args[1].args) == 1
-            using_stmts[valof(x.args[1].args[1].args[1])] = (x, get_file_loc(x))
+            loc = get_file_loc(x, server)
+            if loc !== nothing
+                using_stmts[valof(x.args[1].args[1].args[1])] = (x, loc)
+            end
         end
     end
 end
@@ -706,24 +714,30 @@ function get_file_level_parent(x::EXPR)
 end
 
 function textedit_to_insert_using_stmt(m::SymbolServer.ModuleStore, n::String, state::CompletionState)
-    tls = StaticLint.retrieve_toplevel_scope(state.x)
+    server = state.server
+    tls = retrieve_toplevel_scope(state.x, state.meta_dict)
     if haskey(state.using_stmts, String(m.name.name))
-        (using_stmt, (using_doc, using_offset)) = state.using_stmts[String(m.name.name)]
+        (using_stmt, (uri, using_offset)) = state.using_stmts[String(m.name.name)]
 
-        l, c = get_position_from_offset(using_doc, using_offset + using_stmt.span)
-        return [TextEdit(Range(l, c, l, c), ", $n")]
+        st = jw_source_text(server, uri)
+        l, c = JuliaWorkspaces.position_at(st, using_offset + using_stmt.span)
+        return [TextEdit(Range(l - 1, c - 1, l - 1, c - 1), ", $n")]
     elseif tls !== nothing
         if tls.expr.head === :file
             # Insert at the head of the file
-            tlsdoc, offset1 = get_file_loc(tls.expr)
             return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
         elseif tls.expr.head === :module
             # Insert at start of module
-            tlsdoc, offset1 = get_file_loc(tls.expr)
-            offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
-            l, c = get_position_from_offset(tlsdoc, offset1 + offset2)
-
-            return [TextEdit(Range(l, c, l, c), "using $(m.name): $(n)\n")]
+            tls_loc = get_file_loc(tls.expr, server)
+            if tls_loc !== nothing
+                uri, offset1 = tls_loc
+                offset2 = tls.expr.trivia[1].fullspan + tls.expr.args[2].fullspan
+                st = jw_source_text(server, uri)
+                l, c = JuliaWorkspaces.position_at(st, offset1 + offset2)
+                return [TextEdit(Range(l - 1, c - 1, l - 1, c - 1), "using $(m.name): $(n)\n")]
+            else
+                return [TextEdit(Range(0, 0, 0, 0), "using $(m.name): $(n)\n")]
+            end
         else
             error()
         end

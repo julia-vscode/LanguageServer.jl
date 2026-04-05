@@ -47,13 +47,15 @@ end
 
 function textDocument_codeAction_request(params::CodeActionParams, server::LanguageServerInstance, conn)
     actions = CodeAction[]
-    doc = getdocument(server, params.textDocument.uri)
-    offset = index_at(doc, params.range.start)
-    x = get_expr(getcst(doc), offset)
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    meta_dict, _ = get_meta_data(server, uri)
+    offset = index_at(st, params.range.start)
+    x = get_expr(jw_cst(server, uri), offset)
     arguments = Any[params.textDocument.uri, offset] # use the same arguments for all commands
     if x isa EXPR
         for (_, sa) in LSActions
-            if sa.when(x, params)
+            if sa.when(x, params, meta_dict)
                 kind = sa.kind
                 if sa.kind !== missing && sa.kind == CodeActionKinds.SourceOrganizeImports &&
                     server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
@@ -85,15 +87,15 @@ function workspace_executeCommand_request(params::ExecuteCommandParams, server::
     if haskey(LSActions, params.command)
         uri = URI(params.arguments[1])
         offset = params.arguments[2]
-        doc = getdocument(server, uri)
-        x = get_expr(getcst(doc), offset)
-        LSActions[params.command].handler(x, server, conn)
+        meta_dict, _ = get_meta_data(server, uri)
+        x = get_expr(jw_cst(server, uri), offset)
+        LSActions[params.command].handler(x, server, conn, meta_dict)
     end
 end
 
 
-function find_using_statement(x::EXPR)
-    for ref in refof(x).refs
+function find_using_statement(x::EXPR, meta_dict)
+    for ref in refof(x, meta_dict).refs
         if StaticLint.is_in_fexpr(ref, x -> headof(x) === :using || headof(x) === :import)
             return parentof(ref)
         end
@@ -101,25 +103,27 @@ function find_using_statement(x::EXPR)
     return nothing
 end
 
-function explicitly_import_used_variables(x::EXPR, server, conn)
-    !(refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore) && return
-    using_stmt = find_using_statement(x)
+function explicitly_import_used_variables(x::EXPR, server, conn, meta_dict)
+    !(refof(x, meta_dict) isa StaticLint.Binding && refof(x, meta_dict).val isa SymbolServer.ModuleStore) && return
+    using_stmt = find_using_statement(x, meta_dict)
     using_stmt isa Nothing && return
 
     tdes = Dict{URI,TextDocumentEdit}()
     vars = Set{String}() # names that need to be imported
     # Find uses of `x` and mark edits
-    for ref in refof(x).refs
+    for ref in refof(x, meta_dict).refs
         if parentof(ref) isa EXPR && CSTParser.is_getfield_w_quotenode(parentof(ref)) && parentof(ref).args[1] == ref
             childname = parentof(ref).args[2].args[1]
-            StaticLint.hasref(childname) && refof(childname) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
-            !haskey(refof(x).val.vals, Symbol(valof(childname))) && continue # skip, perhaps mark as missing ref ?
+            hasref(childname, meta_dict) && refof(childname, meta_dict) isa StaticLint.Binding && continue # check this isn't the name of something being explictly overwritten
+            !haskey(refof(x, meta_dict).val.vals, Symbol(valof(childname))) && continue # skip, perhaps mark as missing ref ?
 
-            file, offset = get_file_loc(ref)
-            if !haskey(tdes, get_uri(file))
-                tdes[get_uri(file)] = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[])
+            loc = get_file_loc(ref, server)
+            loc === nothing && continue
+            uri, offset = loc
+            if !haskey(tdes, uri)
+                tdes[uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[])
             end
-            push!(tdes[get_uri(file)].edits, TextEdit(Range(file, offset .+ (0:parentof(ref).span)), valof(childname)))
+            push!(tdes[uri].edits, TextEdit(jw_range(server, uri, offset .+ (0:parentof(ref).span)), valof(childname)))
             push!(vars, valof(childname))
         end
     end
@@ -137,14 +141,16 @@ function explicitly_import_used_variables(x::EXPR, server, conn)
         end
         i1 == 0 && return WorkspaceEdit(missing, missing)
 
-        file, offset = get_file_loc(using_stmt)
-        insertpos = get_next_line_offset(using_stmt)
+        loc = get_file_loc(using_stmt, server)
+        loc === nothing && return
+        uri, offset = loc
+        insertpos = get_next_line_offset(using_stmt, server)
         insertpos == -1 && return
 
-        if !haskey(tdes, get_uri(file))
-            tdes[get_uri(file)] = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[])
+        if !haskey(tdes, uri)
+            tdes[uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[])
         end
-        push!(tdes[get_uri(file)].edits, TextEdit(Range(file, insertpos .+ (0:0)), string("using ", valof(x), ": ", join(vars, ", "), "\n")))
+        push!(tdes[uri].edits, TextEdit(jw_range(server, uri, insertpos .+ (0:0)), string("using ", valof(x), ": ", join(vars, ", "), "\n")))
     else
         return
     end
@@ -154,29 +160,35 @@ end
 
 is_single_line_func(x) = CSTParser.defines_function(x) && headof(x) !== :function
 
-function expand_inline_func(x, server, conn)
+function expand_inline_func(x, server, conn, meta_dict)
     func = _get_parent_fexpr(x, is_single_line_func)
     length(func) < 3 && return
     sig = func.args[1]
     op = func.head
     body = func.args[2]
     if headof(body) == :block && length(body) == 1
-        file, offset = get_file_loc(func)
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-            TextEdit(Range(file, offset .+ (0:func.span)), string("function ", get_text(file)[offset .+ (1:sig.span)], "\n    ", get_text(file)[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend"))
+        loc = get_file_loc(func, server)
+        loc === nothing && return
+        uri, offset = loc
+        text = jw_text(server, uri)
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+            TextEdit(jw_range(server, uri, offset .+ (0:func.span)), string("function ", text[offset .+ (1:sig.span)], "\n    ", text[offset + sig.fullspan + op.fullspan .+ (1:body.span)], "\nend"))
         ])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     elseif (headof(body) === :begin || CSTParser.isbracketed(body)) &&
         headof(body.args[1]) === :block && length(body.args[1]) > 0
-        file, offset = get_file_loc(func)
-        newtext = string("function ", get_text(file)[offset .+ (1:sig.span)])
+        loc = get_file_loc(func, server)
+        loc === nothing && return
+        uri, offset = loc
+        text = jw_text(server, uri)
+        newtext = string("function ", text[offset .+ (1:sig.span)])
         blockoffset = offset + sig.fullspan + op.fullspan + body.trivia[1].fullspan
         for i = 1:length(body.args[1].args)
-            newtext = string(newtext, "\n    ", get_text(file)[blockoffset .+ (1:body.args[1].args[i].span)])
+            newtext = string(newtext, "\n    ", text[blockoffset .+ (1:body.args[1].args[i].span)])
             blockoffset += body.args[1].args[i].fullspan
         end
         newtext = string(newtext, "\nend")
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[TextEdit(Range(file, offset .+ (0:func.span)), newtext)])
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[TextEdit(jw_range(server, uri, offset .+ (0:func.span)), newtext)])
         JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     end
 end
@@ -198,37 +210,43 @@ function _get_parent_fexpr(x::EXPR, f)
         return _get_parent_fexpr(parentof(x), f)
     end
 end
-function get_next_line_offset(x)
-    file, offset = get_file_loc(x)
-    # get next line after using_stmt
+function get_next_line_offset(x, server)
+    loc = get_file_loc(x, server)
+    loc === nothing && return -1
+    uri, offset = loc
+    text = jw_text(server, uri)
+    # get next line after the expression
     insertpos = -1
-    line_offsets = get_line_offsets(get_text_document(file))
-    for i = 1:length(line_offsets) - 1
-        if line_offsets[i] < offset + x.span <= line_offsets[i + 1]
-            insertpos = line_offsets[i + 1]
+    pos = 0
+    for line in eachline(IOBuffer(text); keep=true)
+        nextpos = pos + sizeof(line)
+        if pos < offset + x.span <= nextpos
+            insertpos = nextpos
+            break
         end
+        pos = nextpos
     end
     return insertpos
 end
 
-function reexport_package(x::EXPR, server, conn)
-    (refof(x) isa SymbolServer.ModuleStore || refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module)) || (refof(x).val isa SymbolServer.ModuleStore) || return
-    mod = if refof(x) isa SymbolServer.ModuleStore
-        refof(x)
-    elseif refof(x).val isa SymbolServer.ModuleStore
-        refof(x).val
+function reexport_package(x::EXPR, server, conn, meta_dict)
+    (refof(x, meta_dict) isa SymbolServer.ModuleStore || refof(x, meta_dict).type === StaticLint.CoreTypes.Module || (refof(x, meta_dict).val isa StaticLint.Binding && refof(x, meta_dict).val.type === StaticLint.CoreTypes.Module)) || (refof(x, meta_dict).val isa SymbolServer.ModuleStore) || return
+    mod = if refof(x, meta_dict) isa SymbolServer.ModuleStore
+        refof(x, meta_dict)
+    elseif refof(x, meta_dict).val isa SymbolServer.ModuleStore
+        refof(x, meta_dict).val
     else
         return
     end
     using_stmt = parentof(x)
-    file, _ = get_file_loc(x)
-    insertpos = get_next_line_offset(using_stmt)
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, _ = loc
+    insertpos = get_next_line_offset(using_stmt, server)
     insertpos == -1 && return
 
-    text_document = get_text_document(file)
-
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(text_document), get_version(text_document)), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n, v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, insertpos .+ (0:0)), string("export ", join(sort([string(n) for (n, v) in mod.vals if StaticLint.isexportedby(n, mod)]), ", "), "\n"))
     ])
 
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
@@ -236,13 +254,13 @@ end
 
 # TODO move to StaticL  int
 # to be called where typof(x) === CSTParser.ModuleH/BareModule
-function find_exported_names(x::EXPR)
+function find_exported_names(x::EXPR, meta_dict)
     exported_vars = EXPR[]
     for i in 1:length(x.args[3].args)
         expr = x.args[3].args[i]
         if headof(expr) === :export
             for j = 2:length(expr)
-                if CSTParser.isidentifier(expr.args[j]) && StaticLint.hasref(expr.args[j])
+                if CSTParser.isidentifier(expr.args[j]) && hasref(expr.args[j], meta_dict)
                     push!(exported_vars, expr.args[j])
                 end
             end
@@ -251,20 +269,22 @@ function find_exported_names(x::EXPR)
     return exported_vars
 end
 
-function reexport_module(x::EXPR, server, conn)
+function reexport_module(x::EXPR, server, conn, meta_dict)
     using_stmt = parentof(x)
-    mod_expr = refof(x).val isa StaticLint.Binding ? refof(x).val.val : refof(x).val
+    mod_expr = refof(x, meta_dict).val isa StaticLint.Binding ? refof(x, meta_dict).val.val : refof(x, meta_dict).val
     (mod_expr.args isa Nothing || length(mod_expr.args) < 3 || headof(mod_expr.args[3]) !== :block || mod_expr.args[3].args isa Nothing) && return # module expr without block
     # find export EXPR
-    exported_names = find_exported_names(mod_expr)
+    exported_names = find_exported_names(mod_expr, meta_dict)
 
     isempty(exported_names) && return
-    file, _ = get_file_loc(x)
-    insertpos = get_next_line_offset(using_stmt)
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, _ = loc
+    insertpos = get_next_line_offset(using_stmt, server)
     insertpos == -1 && return
     names = filter!(s -> !isempty(s), collect(CSTParser.str_value.(exported_names)))
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, insertpos .+ (0:0)), string("export ", join(sort(names), ", "), "\n"))
     ])
 
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
@@ -272,11 +292,13 @@ end
 
 function wrap_block(x, server, type, conn) end
 function wrap_block(x::EXPR, server, type, conn)
-    file, offset = get_file_loc(x) # rese
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, offset = loc
     if type == :if
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-            TextEdit(Range(file, offset .+ (0:0)), "if CONDITION\n"),
-            TextEdit(Range(file, offset + x.span .+ (0:0)), "\nend")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+            TextEdit(jw_range(server, uri, offset .+ (0:0)), "if CONDITION\n"),
+            TextEdit(jw_range(server, uri, offset + x.span .+ (0:0)), "\nend")
         ])
     end
 
@@ -284,10 +306,10 @@ function wrap_block(x::EXPR, server, type, conn)
 end
 
 
-function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
+function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext, meta_dict)
     if !isempty(cac.diagnostics) && any(startswith(d.message, "Missing reference") for d::Diagnostic in cac.diagnostics) && CSTParser.isidentifier(x)
         xname = StaticLint.valofid(x)
-        tls = StaticLint.retrieve_toplevel_scope(x)
+        tls = retrieve_toplevel_scope(x, meta_dict)
         if tls isa StaticLint.Scope && tls.modules !== nothing
             for m in values(tls.modules)
                 if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
@@ -299,15 +321,17 @@ function is_fixable_missing_ref(x::EXPR, cac::CodeActionContext)
     return false
 end
 
-function applymissingreffix(x, server, conn)
+function applymissingreffix(x, server, conn, meta_dict)
     xname = StaticLint.valofid(x)
-    file, offset = get_file_loc(x)
-    tls = StaticLint.retrieve_toplevel_scope(x)
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, offset = loc
+    tls = retrieve_toplevel_scope(x, meta_dict)
     if tls.modules !== nothing
         for (n, m) in tls.modules
             if (m isa SymbolServer.ModuleStore && haskey(m, Symbol(xname))) || (m isa StaticLint.Scope && StaticLint.scopehasbinding(m, xname))
-                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                    TextEdit(Range(file, offset .+ (0:0)), string(n, "."))
+                tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+                    TextEdit(jw_range(server, uri, offset .+ (0:0)), string(n, "."))
                 ])
                 JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
                 return # TODO: This should probably offer multiple actions instead of just inserting the first hit
@@ -316,43 +340,49 @@ function applymissingreffix(x, server, conn)
     end
 end
 
-function remove_farg_name(x, server, conn)
-    x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument)
-    file, offset = get_file_loc(x1)
+function remove_farg_name(x, server, conn, meta_dict)
+    x1 = StaticLint.get_parent_fexpr(x, x -> haserror(x, meta_dict) && errorof(x, meta_dict) == StaticLint.UnusedFunctionArgument)
+    loc = get_file_loc(x1, server)
+    loc === nothing && return
+    uri, offset = loc
     if CSTParser.isdeclaration(x1)
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.args[1].fullspan)), "")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+                        TextEdit(jw_range(server, uri, offset .+ (0:x1.args[1].fullspan)), "")
                     ])
     else
-        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                        TextEdit(Range(file, offset .+ (0:x1.fullspan)), "_")
+        tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+                        TextEdit(jw_range(server, uri, offset .+ (0:x1.fullspan)), "_")
                     ])
     end
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
-function remove_unused_assignment_name(x, _, conn)
-    x1 = StaticLint.get_parent_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER)
-    file, offset = get_file_loc(x1)
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-                    TextEdit(Range(file, offset .+ (0:x1.span)), "_")
+function remove_unused_assignment_name(x, server, conn, meta_dict)
+    x1 = StaticLint.get_parent_fexpr(x, x -> haserror(x, meta_dict) && errorof(x, meta_dict) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER)
+    loc = get_file_loc(x1, server)
+    loc === nothing && return
+    uri, offset = loc
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+                    TextEdit(jw_range(server, uri, offset .+ (0:x1.span)), "_")
                 ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
-function double_to_triple_equal(x, _, conn)
-    x1 = StaticLint.get_parent_fexpr(x, y -> StaticLint.haserror(y) && StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
-    file, offset = get_file_loc(x1)
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, offset .+ (0:x1.span)), StaticLint.errorof(x1) == StaticLint.NothingEquality ? "===" : "!==")
+function double_to_triple_equal(x, server, conn, meta_dict)
+    x1 = StaticLint.get_parent_fexpr(x, y -> haserror(y, meta_dict) && errorof(y, meta_dict) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))
+    loc = get_file_loc(x1, server)
+    loc === nothing && return
+    uri, offset = loc
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, offset .+ (0:x1.span)), errorof(x1, meta_dict) == StaticLint.NothingEquality ? "===" : "!==")
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
-function get_spdx_header(doc::Document)
+function get_spdx_header(server::LanguageServerInstance, uri::URI)
     # note the multiline flag - without that, we'd try to match the end of the _document_
     # instead of the end of the line.
-    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\h+((?:[\w\.-]+)(?:\h+[\w\.-]+)*)\h*$"m, get_text(doc))
+    m = match(r"(*ANYCRLF)^# SPDX-License-Identifier:\h+((?:[\w\.-]+)(?:\h+[\w\.-]+)*)\h*$"m, jw_text(server, uri))
     return m === nothing ? m : String(m[1])
 end
 
@@ -369,12 +399,12 @@ function in_same_workspace_folder(server::LanguageServerInstance, file1::URI, fi
     return false
 end
 
-function identify_short_identifier(server::LanguageServerInstance, file::Document)
+function identify_short_identifier(server::LanguageServerInstance, file_uri::URI)
     # First look in tracked files (in the same workspace folder) for existing headers
     candidate_identifiers = Set{String}()
-    for doc in getdocuments_value(server)
-        in_same_workspace_folder(server, get_uri(file), get_uri(doc)) || continue
-        id = get_spdx_header(doc)
+    for uri in JuliaWorkspaces.get_text_files(server.workspace)
+        in_same_workspace_folder(server, file_uri, uri) || continue
+        id = get_spdx_header(server, uri)
         id === nothing || push!(candidate_identifiers, id)
     end
     if length(candidate_identifiers) == 1
@@ -388,7 +418,7 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
     candidate_files = String[]
     for dir in server.workspaceFolders
         for f in joinpath.(dir, ["LICENSE", "LICENSE.md"])
-            if in_same_workspace_folder(server, get_uri(file), filepath2uri(f)) && safe_isfile(f)
+            if in_same_workspace_folder(server, file_uri, filepath2uri(f)) && safe_isfile(f)
                 push!(candidate_files, f)
             end
         end
@@ -418,20 +448,22 @@ function identify_short_identifier(server::LanguageServerInstance, file::Documen
     return nothing
 end
 
-function add_license_header(x, server::LanguageServerInstance, conn)
-    file, _ = get_file_loc(x)
+function add_license_header(x, server::LanguageServerInstance, conn, meta_dict)
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, _ = loc
     # does the current file already have a header?
-    get_spdx_header(file) === nothing || return # TODO: Would be nice to check this already before offering the action
+    get_spdx_header(server, uri) === nothing || return # TODO: Would be nice to check this already before offering the action
     # no, so try to find one
-    short_identifier = identify_short_identifier(server, file)
+    short_identifier = identify_short_identifier(server, uri)
     short_identifier === nothing && return
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, 0:0), "# SPDX-License-Identifier: $(short_identifier)\n\n")
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, 0:0), "# SPDX-License-Identifier: $(short_identifier)\n\n")
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
 
-function organize_import_block(x, _, conn)
+function organize_import_block(x, server, conn, meta_dict)
     if !StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import)
         return
     end
@@ -534,12 +566,15 @@ function organize_import_block(x, _, conn)
     formatted = JuliaFormatter.format_text(str_to_fmt; join_lines_based_on_source=true)
 
     # Compute range of original blocks
-    file, firstoffset = get_file_loc(first(siblings))
-    _, lastoffset = get_file_loc(last(siblings))
+    first_loc = get_file_loc(first(siblings), server)
+    last_loc = get_file_loc(last(siblings), server)
+    (first_loc === nothing || last_loc === nothing) && return
+    uri, firstoffset = first_loc
+    _, lastoffset = last_loc
     lastoffset += last(siblings).span
 
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, firstoffset:lastoffset), formatted)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, firstoffset:lastoffset), formatted)
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
 end
@@ -598,26 +633,30 @@ else
     end
 end
 
-function convert_to_raw(x, _, conn)
+function convert_to_raw(x, server, conn, meta_dict)
     is_string_literal(x) || return
-    file, offset = get_file_loc(x)
+    loc = get_file_loc(x, server)
+    loc === nothing && return
+    uri, offset = loc
     quotes = headof(x) === :TRIPLESTRING ? "\"\"\"" : "\"" # TODO: """ not supported yet
     raw = string("raw", quotes, sprint(escape_raw_string, valof(x)), quotes)
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, offset .+ (0:x.span)), raw)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, offset .+ (0:x.span)), raw)
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     return nothing
 end
 
-function convert_from_raw(x, _, conn)
+function convert_from_raw(x, server, conn, meta_dict)
     is_string_literal(x; inraw = true) || return
     xparent = x.parent
-    file, offset = get_file_loc(xparent)
+    loc = get_file_loc(xparent, server)
+    loc === nothing && return
+    uri, offset = loc
     quotes = headof(x) === :TRIPLESTRING ? "\"\"" : "" # TODO: raw""" not supported yet
     regular = quotes * repr(valof(x)) * quotes
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, offset .+ (0:xparent.span)), regular)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, offset .+ (0:xparent.span)), regular)
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     return nothing
@@ -634,7 +673,7 @@ function is_parent_of(parent::EXPR, child::EXPR)
     return false
 end
 
-function is_in_function_signature(x::EXPR, params; with_docstring=false)
+function is_in_function_signature(x::EXPR, params, meta_dict=nothing; with_docstring=false)
     func = _get_parent_fexpr(x, CSTParser.defines_function)
     func === nothing && return false
     sig = func.args[1]
@@ -646,28 +685,33 @@ function is_in_function_signature(x::EXPR, params; with_docstring=false)
     return false
 end
 
-function add_docstring_template(x, _, conn)
+function add_docstring_template(x, server, conn, meta_dict)
     is_in_function_signature(x, nothing) || return
     func = _get_parent_fexpr(x, CSTParser.defines_function)
     func === nothing && return
-    file, func_offset = get_file_loc(func)
+    func_loc = get_file_loc(func, server)
+    func_loc === nothing && return
+    uri, func_offset = func_loc
     sig = func.args[1]
-    _, sig_offset = get_file_loc(sig)
-    docstr = "\"\"\"\n    " * get_text(file)[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, func_offset:func_offset), docstr)
+    sig_loc = get_file_loc(sig, server)
+    sig_loc === nothing && return
+    _, sig_offset = sig_loc
+    text = jw_text(server, uri)
+    docstr = "\"\"\"\n    " * text[sig_offset .+ (1:sig.span)] * "\n\nTBW\n\"\"\"\n"
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, func_offset:func_offset), docstr)
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     return
 end
 
-function is_in_docstring_for_function(x::EXPR, _)
+function is_in_docstring_for_function(x::EXPR, params, meta_dict=nothing)
     return CSTParser.isstringliteral(x) && x.parent isa EXPR && headof(x.parent) === :macrocall &&
        length(x.parent.args) == 4 && x.parent.args[1] isa EXPR &&
        headof(x.parent.args[1]) === :globalrefdoc && CSTParser.defines_function(x.parent.args[4])
 end
 
-function update_docstring_sig(x, _, conn)
+function update_docstring_sig(x, server, conn, meta_dict)
     if is_in_function_signature(x, nothing; with_docstring=true)
         func = _get_parent_fexpr(x, CSTParser.defines_function)
     elseif is_in_docstring_for_function(x, nothing)
@@ -679,11 +723,16 @@ function update_docstring_sig(x, _, conn)
     # Current docstring
     docstr_expr = func.parent.args[3]
     docstr = valof(docstr_expr)
-    file, docstr_offset = get_file_loc(docstr_expr)
+    docstr_loc = get_file_loc(docstr_expr, server)
+    docstr_loc === nothing && return
+    uri, docstr_offset = docstr_loc
+    text = jw_text(server, uri)
     # New signature in the code
     sig = func.args[1]
-    _, sig_offset = get_file_loc(sig)
-    sig_str = get_text(file)[sig_offset .+ (1:sig.span)]
+    sig_loc = get_file_loc(sig, server)
+    sig_loc === nothing && return
+    _, sig_offset = sig_loc
+    sig_str = text[sig_offset .+ (1:sig.span)]
     # Heuristic for finding a signature in the current docstring
     reg = r"\A    .*$"m
     if (m = match(reg, valof(docstr_expr)); m !== nothing)
@@ -694,8 +743,8 @@ function update_docstring_sig(x, _, conn)
     newline = endswith(docstr, "\n") ? "" : "\n"
     # Rewrap in """"
     docstr = string("\"\"\"\n", docstr, newline, "\"\"\"")
-    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(get_uri(file), get_version(file)), TextEdit[
-        TextEdit(Range(file, docstr_offset .+ (0:docstr_expr.span)), docstr)
+    tde = TextDocumentEdit(VersionedTextDocumentIdentifier(uri, jw_version(server, uri)), TextEdit[
+        TextEdit(jw_range(server, uri, docstr_offset .+ (0:docstr_expr.span)), docstr)
     ])
     JSONRPC.send(conn, workspace_applyEdit_request_type, ApplyWorkspaceEditParams(missing, WorkspaceEdit(missing, TextDocumentEdit[tde])))
     return
@@ -714,7 +763,7 @@ LSActions["ExplicitPackageVarImport"] = ServerAction(
     "Explicitly import used package variables.",
     missing,
     missing,
-    (x, params) -> refof(x) isa StaticLint.Binding && refof(x).val isa SymbolServer.ModuleStore,
+    (x, params, meta_dict) -> refof(x, meta_dict) isa StaticLint.Binding && refof(x, meta_dict).val isa SymbolServer.ModuleStore,
     explicitly_import_used_variables
 )
 
@@ -723,7 +772,7 @@ LSActions["ExpandFunction"] = ServerAction(
     "Expand function definition.",
     CodeActionKinds.Refactor,
     missing,
-    (x, params) -> is_in_fexpr(x, is_single_line_func),
+    (x, params, meta_dict) -> is_in_fexpr(x, is_single_line_func),
     expand_inline_func,
 )
 
@@ -732,7 +781,7 @@ LSActions["FixMissingRef"] = ServerAction(
     "Fix missing reference",
     missing,
     missing,
-    (x, params) -> is_fixable_missing_ref(x, params.context),
+    (x, params, meta_dict) -> is_fixable_missing_ref(x, params.context, meta_dict),
     applymissingreffix,
 )
 
@@ -741,7 +790,7 @@ LSActions["ReexportModule"] = ServerAction(
     "Re-export package variables.",
     missing,
     missing,
-    (x, params) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x) isa StaticLint.Binding && (refof(x).type === StaticLint.CoreTypes.Module || (refof(x).val isa StaticLint.Binding && refof(x).val.type === StaticLint.CoreTypes.Module) || refof(x).val isa SymbolServer.ModuleStore) || refof(x) isa SymbolServer.ModuleStore),
+    (x, params, meta_dict) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import) && (refof(x, meta_dict) isa StaticLint.Binding && (refof(x, meta_dict).type === StaticLint.CoreTypes.Module || (refof(x, meta_dict).val isa StaticLint.Binding && refof(x, meta_dict).val.type === StaticLint.CoreTypes.Module) || refof(x, meta_dict).val isa SymbolServer.ModuleStore) || refof(x, meta_dict) isa SymbolServer.ModuleStore),
     reexport_package,
 )
 
@@ -750,7 +799,7 @@ LSActions["DeleteUnusedFunctionArgumentName"] = ServerAction(
     "Delete name of unused function argument.",
     CodeActionKinds.QuickFix,
     missing,
-    (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedFunctionArgument),
+    (x, params, meta_dict) -> StaticLint.is_in_fexpr(x, x -> haserror(x, meta_dict) && errorof(x, meta_dict) == StaticLint.UnusedFunctionArgument),
     remove_farg_name,
 )
 
@@ -759,7 +808,7 @@ LSActions["ReplaceUnusedAssignmentName"] = ServerAction(
     "Replace unused assignment name with _.",
     CodeActionKinds.QuickFix,
     missing,
-    (x, params) -> StaticLint.is_in_fexpr(x, x -> StaticLint.haserror(x) && StaticLint.errorof(x) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER),
+    (x, params, meta_dict) -> StaticLint.is_in_fexpr(x, x -> haserror(x, meta_dict) && errorof(x, meta_dict) == StaticLint.UnusedBinding && x isa EXPR && x.head === :IDENTIFIER),
     remove_unused_assignment_name,
 )
 
@@ -768,7 +817,7 @@ LSActions["CompareNothingWithTripleEqual"] = ServerAction(
     "Change ==/!= to ===/!==.",
     CodeActionKinds.QuickFix,
     true,
-    (x, _) -> StaticLint.is_in_fexpr(x, y -> StaticLint.haserror(y) && (StaticLint.errorof(y) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
+    (x, _, meta_dict) -> StaticLint.is_in_fexpr(x, y -> haserror(y, meta_dict) && (errorof(y, meta_dict) in (StaticLint.NothingEquality, StaticLint.NothingNotEq))),
     double_to_triple_equal,
 )
 
@@ -777,7 +826,7 @@ LSActions["AddLicenseIdentifier"] = ServerAction(
     "Add SPDX license identifier.",
     missing,
     missing,
-    (_, params) -> params.range.start.line == 0,
+    (_, params, meta_dict) -> params.range.start.line == 0,
     add_license_header,
 )
 
@@ -786,7 +835,7 @@ LSActions["OrganizeImports"] = ServerAction(
     "Organize `using` and `import` statements.",
     CodeActionKinds.SourceOrganizeImports,
     missing,
-    (x, _) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import),
+    (x, _, meta_dict) -> StaticLint.is_in_fexpr(x, x -> headof(x) === :using || headof(x) === :import),
     organize_import_block,
 )
 
@@ -795,7 +844,7 @@ LSActions["RewriteAsRawString"] = ServerAction(
     "Rewrite as raw string",
     CodeActionKinds.RefactorRewrite,
     missing,
-    (x, _) -> is_string_literal(x),
+    (x, _, meta_dict) -> is_string_literal(x),
     convert_to_raw,
 )
 
@@ -804,7 +853,7 @@ LSActions["RewriteAsRegularString"] = ServerAction(
     "Rewrite as regular string",
     CodeActionKinds.RefactorRewrite,
     missing,
-    (x, _) -> is_string_literal(x; inraw=true),
+    (x, _, meta_dict) -> is_string_literal(x; inraw=true),
     convert_from_raw,
 )
 

@@ -9,10 +9,10 @@ function nodocument_error(uri, request_name, data=nothing)
     )
 end
 
-function mismatched_version_error(uri, doc, params, msg, data=nothing)
+function mismatched_version_error(uri, version::Integer, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
         -33101,
-        "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
+        "version mismatch in $(msg) request for $(uri): JLS $(version), client: $(params.version)",
         data
     )
 end
@@ -69,36 +69,23 @@ end
 # not because they are part of the workspace, but by either StaticLint or
 # the include follow logic.
 function remove_workspace_files(root, server)
-    for (uri, doc) in getdocuments_pair(server)
-        # We first check whether the doc still exists on the server
-        # because a previous loop iteration could have deleted it
-        # via dependency removal of files
-        hasdocument(server, uri) || continue
-        fpath = getpath(doc)
+    for uri in collect(server._workspace_files)
+        fpath = something(uri2filepath(uri), "")
         isempty(fpath) && continue
-        get_open_in_editor(doc) && continue
+        haskey(server._open_file_versions, uri) && continue
         # If the file is in any other workspace folder, don't delete it
         any(folder -> startswith(fpath, folder), server.workspaceFolders) && continue
-            deletedocument!(server, uri)
-        end
+        delete!(server._workspace_files, uri)
     end
+end
 
-
-# TODO DA removed this, make sure it really isn't needed
-# function Base.getindex(server::LanguageServerInstance, r::Regex)
-#     out = []
-#     for (uri, doc) in getdocuments_pair(server)
-#         occursin(r, uri._uri) && push!(out, doc)
-#     end
-#     return out
-# end
 
 function _offset_unitrange(r::UnitRange{Int}, first=true)
     return r.start - 1:r.stop
 end
 
-function get_toks(doc, offset)
-    ts = CSTParser.Tokenize.tokenize(get_text(doc))
+function get_toks(text::AbstractString, offset)
+    ts = CSTParser.Tokenize.tokenize(text)
     ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
     t = CSTParser.Tokenize.Lexers.next_token(ts)
@@ -200,7 +187,6 @@ function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
     end
 end
 
-get_inner_expr(doc::Document, rng::Range) = get_inner_expr(getcst(doc), get_offset(doc, rng))
 # full (not only trivia) expr containing rng, modulo whitespace
 function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
     if all(pos .> rng)
@@ -378,45 +364,41 @@ function sanitize_docstring(doc::String)
     return doc
 end
 
-function parent_file(x::EXPR)
-    if parentof(x) isa EXPR
-        return parent_file(parentof(x))
-    elseif parentof(x) === nothing && StaticLint.haserror(x) && StaticLint.errorof(x) isa Document
-        return x.meta.error
-    else
-        return nothing
+function has_parent_file(x::EXPR)
+    while parentof(x) isa EXPR
+        x = parentof(x)
     end
+    return parentof(x) === nothing && headof(x) === :file
 end
 
-function resolve_op_ref(x::EXPR, env)
-    StaticLint.hasref(x) && return true
+function resolve_op_ref(x::EXPR, env, meta_dict)
+    hasref(x, meta_dict) && return true
     !CSTParser.isoperator(x) && return false
-    pf = parent_file(x)
-    pf === nothing && return false
-    scope = StaticLint.retrieve_scope(x)
+    has_parent_file(x) || return false
+    scope = retrieve_scope(x, meta_dict)
     scope === nothing && return false
 
-    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env)
+    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env, meta_dict)
 end
 
-function op_resolve_up_scopes(x, mn, scope, env)
+function op_resolve_up_scopes(x, mn, scope, env, meta_dict)
     scope isa StaticLint.Scope || return false
     if StaticLint.scopehasbinding(scope, mn)
-        StaticLint.setref!(x, scope.names[mn])
+        setref!(x, scope.names[mn], meta_dict)
         return true
     elseif scope.modules isa Dict && length(scope.modules) > 0
         for (_, m) in scope.modules
             if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                StaticLint.setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env))
+                setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env), meta_dict)
                 return true
             elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                StaticLint.setref!(x, StaticLint.maybe_lookup(m.names[mn], env))
+                setref!(x, StaticLint.maybe_lookup(m.names[mn], env), meta_dict)
                 return true
             end
         end
     end
     CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
-    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env)
+    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env, meta_dict)
 end
 
 

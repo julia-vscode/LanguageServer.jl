@@ -90,12 +90,12 @@ function load_rootpath(path)
     end
 end
 
-function load_folder(wf::WorkspaceFolder, server, added_docs)
+function load_folder(wf::WorkspaceFolder, server, added_uris)
     path = uri2filepath(wf.uri)
-    load_folder(path, server, added_docs)
+    load_folder(path, server, added_uris)
 end
 
-function load_folder(path::String, server, added_docs)
+function load_folder(path::String, server, added_uris)
     if load_rootpath(path)
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
@@ -103,27 +103,10 @@ function load_folder(path::String, server, added_docs)
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
                         uri = filepath2uri(filepath)
-                        if hasdocument(server, uri)
-                            set_is_workspace_file(getdocument(server, uri), true)
-                            continue
-                        else
-                            content = try
-                                s = read(filepath, String)
-                                our_isvalid(s) || continue
-                                s
-                            catch err
-                                is_walkdir_error(err) || rethrow()
-                                continue
-                            end
-                            doc = Document(TextDocument(uri, content, 0), true, server)
-                            setdocument!(server, uri, doc)
-                            try
-                                parse_all(doc, server)
-                                push!(added_docs, doc)
-                            catch ex
-                                @error "Error parsing file $(uri)"
-                                rethrow()
-                            end
+                        already_tracked = uri in server._workspace_files
+                        push!(server._workspace_files, uri)
+                        if !already_tracked && JuliaWorkspaces.has_file(server.workspace, uri)
+                            push!(added_uris, uri)
                         end
                     end
                 end
@@ -226,7 +209,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
-    added_docs = Document[]
+    added_uris = URI[]
 
     if server.workspaceFolders !== nothing
         for i in server.workspaceFolders
@@ -250,21 +233,13 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
         for wkspc in server.workspaceFolders
-            load_folder(wkspc, server, added_docs)
-        end
-
-        for doc in added_docs
-            lint!(doc, server)
+            load_folder(wkspc, server, added_uris)
         end
     end
 
-    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
+    publish_diagnostics_testitems(server, marked_versions, added_uris)
 
     request_julia_config(server, conn)
-
-    if server.number_of_outstanding_symserver_requests > 0
-        create_symserver_progress_ui(server)
-    end
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
@@ -273,6 +248,5 @@ function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
 end
 
 function exit_notification(params::Nothing, server::LanguageServerInstance, conn)
-    server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
     exit(server.shutdown_requested ? 0 : 1)
 end

@@ -212,52 +212,6 @@ function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
     end
 end
 
-function get_expr1(x, offset, pos=0)
-    if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
-        if pos <= offset <= pos + x.span
-            return x
-        else
-            return nothing
-        end
-    else
-        for i = 1:length(x)
-            arg = x[i]
-            if pos < offset < (pos + arg.span) # def within span
-                return get_expr1(arg, offset, pos)
-            elseif arg.span == arg.fullspan
-                if offset == pos
-                    if i == 1
-                        return get_expr1(arg, offset, pos)
-                    elseif headof(x[i - 1]) === :IDENTIFIER
-                        return get_expr1(x[i - 1], offset, pos)
-                    else
-                        return get_expr1(arg, offset, pos)
-                    end
-                elseif i == length(x) # offset == pos + arg.fullspan
-                    return get_expr1(arg, offset, pos)
-                end
-            else
-                if offset == pos
-                    if i == 1
-                        return get_expr1(arg, offset, pos)
-                    elseif headof(x[i - 1]) === :IDENTIFIER
-                        return get_expr1(x[i - 1], offset, pos)
-                    else
-                        return get_expr1(arg, offset, pos)
-                    end
-                elseif offset == pos + arg.span
-                    return get_expr1(arg, offset, pos)
-                elseif offset == pos + arg.fullspan
-                elseif pos + arg.span < offset < pos + arg.fullspan
-                    return nothing
-                end
-            end
-            pos += arg.fullspan
-        end
-        return nothing
-    end
-end
-
 
 function get_identifier(x, offset, pos=0)
     if pos > offset
@@ -362,43 +316,6 @@ function sanitize_docstring(doc::String)
     doc = replace(doc, "```jldoctest" => "```julia")
     doc = replace(doc, "\n#" => "\n###")
     return doc
-end
-
-function has_parent_file(x::EXPR)
-    while parentof(x) isa EXPR
-        x = parentof(x)
-    end
-    return parentof(x) === nothing && headof(x) === :file
-end
-
-function resolve_op_ref(x::EXPR, env, meta_dict)
-    hasref(x, meta_dict) && return true
-    !CSTParser.isoperator(x) && return false
-    has_parent_file(x) || return false
-    scope = retrieve_scope(x, meta_dict)
-    scope === nothing && return false
-
-    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env, meta_dict)
-end
-
-function op_resolve_up_scopes(x, mn, scope, env, meta_dict)
-    scope isa StaticLint.Scope || return false
-    if StaticLint.scopehasbinding(scope, mn)
-        setref!(x, scope.names[mn], meta_dict)
-        return true
-    elseif scope.modules isa Dict && length(scope.modules) > 0
-        for (_, m) in scope.modules
-            if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env), meta_dict)
-                return true
-            elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                setref!(x, StaticLint.maybe_lookup(m.names[mn], env), meta_dict)
-                return true
-            end
-        end
-    end
-    CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
-    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env, meta_dict)
 end
 
 

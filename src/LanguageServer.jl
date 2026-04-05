@@ -7,7 +7,7 @@ import JSONRPC
 using JSONRPC: Outbound, @dict_readable
 import Logging
 import JuliaWorkspaces
-using JuliaWorkspaces: JuliaWorkspace, URIs2
+using JuliaWorkspaces: JuliaWorkspace, URIs2, get_typed_definition, completion_type, get_expr1
 using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
 import Dates
@@ -34,7 +34,6 @@ include("textdocument.jl")
 include("languageserverinstance.jl")
 include("runserver.jl")
 include("staticlint.jl")
-include("jw_bridge.jl")
 include("testitem_diagnostic_marking.jl")
 
 include("requests/misc.jl")

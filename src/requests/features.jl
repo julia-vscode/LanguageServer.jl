@@ -494,16 +494,14 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     JuliaWorkspaces.has_file(server.workspace, uri) || return nodocument_error(uri, "getDocAt")
 
     st = jw_source_text(server, uri)
-    meta_dict, env = get_meta_data(server, uri)
     if jw_version(server, uri) !== params.version
         return mismatched_version_error(uri, jw_version(server, uri), params, "getDocAt")
     end
 
-    x = get_expr1(jw_cst(server, uri), get_offset(st, params.position))
-    x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env, meta_dict)
-    documentation = get_hover(x, "", server, x, env, meta_dict)
+    index = index_at(st, params.position)
+    documentation = JuliaWorkspaces.get_hover_text(server.workspace, uri, index)
 
-    return documentation
+    return documentation === nothing ? "" : documentation
 end
 
 function _score(needle::Symbol, haystack::Symbol)
@@ -528,7 +526,7 @@ function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}
         # this would ideally use the Damerau-Levenshtein distance or even something fancier:
         score = _score(needle, sym)
         if score < 2
-            val = get_hover(val, "", server, nothing, getenv(server), _empty_meta_dict)
+            val = JuliaWorkspaces._get_hover(val, "", nothing, getenv(server), _empty_meta_dict)
             if !isempty(val)
                 nfound += 1
                 push!(matches, score => val)
@@ -647,7 +645,7 @@ function collect_inlay_hints(x::EXPR, server::LanguageServerInstance, uri, st, m
             parentof(x).args[1] == x &&
             hasbinding(x, meta_dict) # assignment
         if server.inlay_hints_variable_types
-            typ = _completion_type(bindingof(x, meta_dict))
+            typ = completion_type(bindingof(x, meta_dict))
             if typ !== missing
                 push!(
                     hints,

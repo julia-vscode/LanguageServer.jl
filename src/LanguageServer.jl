@@ -1,23 +1,18 @@
 module LanguageServer
-using JSON, REPL, CSTParser, JuliaFormatter
-using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof, to_codeobject
+using JSON, JuliaFormatter
 using UUIDs
-using Base.Docs, Markdown
+using Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
 import Logging
 import JuliaWorkspaces
-using JuliaWorkspaces: JuliaWorkspace, URIs2, get_typed_definition, completion_type, get_expr1
+using JuliaWorkspaces: JuliaWorkspace, URIs2
 using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
 import Dates
 
-# JuliaWorkspaces-bundled modules — these replace the standalone StaticLint/SymbolServer packages
-const JWStat = JuliaWorkspaces.StaticLint
-const JWSymServer = JuliaWorkspaces.SymbolServer
-# Backward-compat aliases so existing code referencing StaticLint.X / SymbolServer.X compiles
-const StaticLint = JWStat
-const SymbolServer = JWSymServer
+# JuliaWorkspaces-bundled StaticLint — needed for LintOptions
+const StaticLint = JuliaWorkspaces.StaticLint
 
 export LanguageServerInstance, runserver
 

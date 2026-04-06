@@ -1,16 +1,5 @@
 
 
-safe_isfile(s::Symbol) = safe_isfile(string(s))
-safe_isfile(::Nothing) = false
-function safe_isfile(s::AbstractString)
-    try
-        !occursin("\0", s) && isfile(s)
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        false
-    end
-end
-
 function textDocument_definition_request(params::TextDocumentPositionParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
@@ -24,8 +13,6 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
 
     return unique!(locations)
 end
-
-## Old descend/get_file_loc removed — replaced by JW-based get_file_loc(x, server) in staticlint.jl
 
 function search_file(filename, dir, topdir)
     parent_dir = dirname(dir)
@@ -245,40 +232,9 @@ function julia_getDocAt_request(params::VersionedTextDocumentPositionParams, ser
     return documentation === nothing ? "" : documentation
 end
 
-function _score(needle::Symbol, haystack::Symbol)
-    if needle === haystack
-        return 0
-    end
-    needle, haystack = lowercase(string(needle)), lowercase(string(haystack))
-    ldist = REPL.levenshtein(needle, haystack)
-
-    if startswith(haystack, needle)
-        ldist *= 0.5
-    end
-
-    return ldist
-end
 # TODO: handle documentation resolving properly, respect how Documenter handles that
 function julia_getDocFromWord_request(params::NamedTuple{(:word,),Tuple{String}}, server::LanguageServerInstance, conn)
-    matches = Pair{Float64, String}[]
-    needle = Symbol(params.word)
-    nfound = 0
-    traverse_by_name(getsymbols(getenv(server))) do sym, val
-        # this would ideally use the Damerau-Levenshtein distance or even something fancier:
-        score = _score(needle, sym)
-        if score < 2
-            val = JuliaWorkspaces._get_hover(val, "", nothing, getenv(server), _empty_meta_dict)
-            if !isempty(val)
-                nfound += 1
-                push!(matches, score => val)
-            end
-        end
-    end
-    if isempty(matches)
-        return "No results found."
-    else
-        return join(map(x -> x.second, sort!(unique!(matches), by = x -> x.first)[1:min(end, 25)]), "\n---\n")
-    end
+    return JuliaWorkspaces.get_doc_from_word(server.workspace, params.word)
 end
 
 function textDocument_selectionRange_request(params::SelectionRangeParams, server::LanguageServerInstance, conn)

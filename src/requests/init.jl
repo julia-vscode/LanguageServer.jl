@@ -28,7 +28,7 @@ function ServerCapabilities(client::ClientCapabilities)
         missing,
         RenameOptions(missing, prepareSupport),
         false,
-        ExecuteCommandOptions(missing, collect(keys(LSActions))),
+        ExecuteCommandOptions(missing, collect(keys(JuliaWorkspaces._JW_ACTIONS))),
         true,
         true,
         true,

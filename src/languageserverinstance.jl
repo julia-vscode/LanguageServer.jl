@@ -30,7 +30,6 @@ mutable struct LanguageServerInstance
     workspaceFolders::Set{String}
 
     env_path::String
-    depot_path::String
 
     runlinter::Bool
     lint_options::StaticLint.LintOptions
@@ -70,15 +69,14 @@ mutable struct LanguageServerInstance
 
     _send_request_metrics::Bool
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
-        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly)
+        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path)
 
         new(
             endpoint,
             Set{String}(),
             env_path,
-            depot_path,
             true,
             StaticLint.LintOptions(),
             :all,

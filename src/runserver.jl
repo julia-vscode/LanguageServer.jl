@@ -35,8 +35,8 @@ julia --project=/path/to/LanguageServer.jl \\
 ```
 """
 function runserver(@nospecialize(pipe_in)=stdin, pipe_out=stdout, env_path=choose_env(),
-                   depot_path="", err_handler=nothing, symserver_store_path=nothing)
-    server = LanguageServerInstance(pipe_in, pipe_out, env_path, depot_path,
+                   err_handler=nothing, symserver_store_path=nothing)
+    server = LanguageServerInstance(pipe_in, pipe_out, env_path,
                                     err_handler, symserver_store_path)
     run(server)
 end

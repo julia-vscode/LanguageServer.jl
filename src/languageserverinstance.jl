@@ -258,6 +258,8 @@ function Base.run(server::LanguageServerInstance; timings = [])
     while true
         message = take!(server.combined_msg_queue)
 
+        @debug "Processing message" message
+
         if message.type == :close
             @debug "Shutting down server instance."
             return

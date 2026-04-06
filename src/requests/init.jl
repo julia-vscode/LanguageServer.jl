@@ -165,11 +165,17 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.initialization_options = params.initializationOptions
     end
 
+    if !ismissing(params.trace)
+        server.trace_value[] = Int(parse_lsp_trace_value(params.trace))
+    end
+
     return InitializeResult(ServerCapabilities(server.clientCapabilities), missing)
 end
 
 
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
+    Base.@logmsg Trace "initialized_notification"
+
     server.status = :running
 
     client_capabilities_registrations = Registration[]

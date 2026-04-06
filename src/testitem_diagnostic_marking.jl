@@ -49,6 +49,8 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
 end
 
 function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_deleted, uris::Vector{URI})
+    Base.@logmsg Trace "publish_diagnostics" updated_count=length(jw_diagnostics_updated) deleted_count=length(jw_diagnostics_deleted) uri_count=length(uris)
+
     all_uris_with_updates = Set{URI}()
 
     for uri in uris
@@ -180,6 +182,8 @@ end
 
 
 function publish_diagnostics_testitems(server, marked_versions, uris::Vector{URI})
+    Base.@logmsg Trace "publish_diagnostics_testitems" uri_count=length(uris)
+
     updated_files = get_files_with_updated_diagnostics_testitems(server.workspace, marked_versions)
 
     publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)

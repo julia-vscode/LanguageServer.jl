@@ -1,8 +1,5 @@
 function setTrace_notification(params::SetTraceParams, server::LanguageServerInstance, conn)
-end
-
-# TODO Provide type for params
-function setTraceNotification_notification(params, server::LanguageServerInstance, conn)
+    server.trace_value[] = Int(parse_lsp_trace_value(params.value))
 end
 
 function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionParams, server::LanguageServerInstance, conn)

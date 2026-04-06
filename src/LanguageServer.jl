@@ -9,7 +9,7 @@ import JuliaWorkspaces
 using JuliaWorkspaces: JuliaWorkspace, URIs2
 using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
-import Dates
+import Dates, Logging, LoggingExtras
 
 # JuliaWorkspaces-bundled StaticLint — needed for LintOptions
 const StaticLint = JuliaWorkspaces.StaticLint
@@ -22,6 +22,7 @@ const g_operationId = Ref{String}("")
 
 JSON.lower(uri::URI) = string(uri)
 
+include("lsp_trace_logger.jl")
 include("exception_types.jl")
 include("protocol/protocol.jl")
 include("extensions/extensions.jl")

@@ -1,4 +1,6 @@
 function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
+    Base.@logmsg Trace "textDocument/didOpen" uri=params.textDocument.uri
+
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     uri = params.textDocument.uri
@@ -28,6 +30,8 @@ end
 
 function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
+
+    Base.@logmsg Trace "textDocument/didClose" uri=uri
 
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
@@ -99,6 +103,8 @@ function measure_sub_operation(f, request_name, server)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
+    Base.@logmsg Trace "textDocument/didChange" uri=params.textDocument.uri change_count=length(params.contentChanges)
+
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     uri = params.textDocument.uri

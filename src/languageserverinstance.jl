@@ -69,6 +69,8 @@ mutable struct LanguageServerInstance
 
     _send_request_metrics::Bool
 
+    trace_value::Threads.Atomic{Int}
+
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
         jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path)
@@ -100,7 +102,8 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             URI[],
-            false
+            false,
+            Threads.Atomic{Int}(Int(lsp_trace_off))
         )
     end
 end
@@ -177,114 +180,120 @@ function Base.run(server::LanguageServerInstance; timings = [])
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
-    poll_editor_pid(server)
+    Logging.disable_logging(Logging.LogLevel(-1002))
 
-    @async try
-        @debug "LS: Starting client listener task."
-        add_timer_message!(did_show_timer, timings, "(async) listening to client events")
+    new_logger = LoggingExtras.TeeLogger(
+        LoggingExtras.MinLevelLogger(Logging.current_logger(), Logging.Debug),
+        LSPTraceLogger(server)
+    )
+    Logging.with_logger(new_logger) do
+
+        poll_editor_pid(server)
+
+        @async try
+            @debug "LS: Starting client listener task."
+            add_timer_message!(did_show_timer, timings, "(async) listening to client events")
+            while true
+                msg = JSONRPC.get_next_message(server.jr_endpoint)
+                put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
+            end
+        catch err
+            bt = catch_backtrace()
+            if server.err_handler !== nothing
+                server.err_handler(err, bt)
+            else
+                @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
+            end
+        finally
+            if isopen(server.combined_msg_queue)
+                put!(server.combined_msg_queue, (type=:close,))
+                close(server.combined_msg_queue)
+            end
+            @debug "LS: Client listener task done."
+        end
+        yield()
+
+        @debug "async tasks started at $(round(Int, time()))"
+
+        msg_dispatcher = JSONRPC.MsgDispatcher()
+
+        msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
+        msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
+        msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
+        msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
+        msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
+        msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+        msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
+        msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
+        msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+        msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
+        msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
+        msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
+        msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
+        msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
+        msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
+        msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
+        msg_dispatcher[initialized_notification_type] = notification_wrapper(initialized_notification, server)
+        msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
+        msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
+        msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
+        msg_dispatcher[julia_activateenvironment_notification_type] = notification_wrapper(julia_activateenvironment_notification, server)
+        msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
+        msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
+        msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
+        msg_dispatcher[textDocument_willSave_notification_type] = notification_wrapper(textDocument_willSave_notification, server)
+        msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
+        msg_dispatcher[textDocument_didChange_notification_type] = notification_wrapper(textDocument_didChange_notification, server)
+        msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = notification_wrapper(workspace_didChangeWatchedFiles_notification, server)
+        msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
+        msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
+        msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
+        msg_dispatcher[julia_refreshLanguageServer_notification_type] = notification_wrapper(julia_refreshLanguageServer_notification, server)
+        msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
+        msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+        msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
+        msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
+        msg_dispatcher[julia_get_test_env_request_type] = request_wrapper(julia_get_test_env_request, server)
+
+        # The exit notification message should not be wrapped in request_wrapper (which checks
+        # if the server have been requested to be shut down). Instead, this message needs to be
+        # handled directly.
+        msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
+
+        @debug "Starting event listener loop at $(round(Int, time()))"
+        add_timer_message!(did_show_timer, timings, "starting combined listener")
+
         while true
-            msg = JSONRPC.get_next_message(server.jr_endpoint)
-            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
-        end
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
-        end
-    finally
-        if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type=:close,))
-            close(server.combined_msg_queue)
-        end
-        @debug "LS: Client listener task done."
-    end
-    yield()
+            message = take!(server.combined_msg_queue)
 
-    @debug "async tasks started at $(round(Int, time()))"
+            if message.type == :close
+                @debug "Shutting down server instance."
+                return
+            elseif message.type == :clientmsg
+                msg = message.msg
 
-    msg_dispatcher = JSONRPC.MsgDispatcher()
+                add_timer_message!(did_show_timer, timings, msg)
 
-    msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
-    msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
-    msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
-    msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
-    msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
-    msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
-    msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
-    msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
-    msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
-    msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
-    msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
-    msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
-    msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
-    msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
-    msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
-    msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
-    msg_dispatcher[initialized_notification_type] = notification_wrapper(initialized_notification, server)
-    msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
-    msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
-    msg_dispatcher[setTraceNotification_notification_type] = notification_wrapper(setTraceNotification_notification, server)
-    msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
-    msg_dispatcher[julia_activateenvironment_notification_type] = notification_wrapper(julia_activateenvironment_notification, server)
-    msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
-    msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
-    msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
-    msg_dispatcher[textDocument_willSave_notification_type] = notification_wrapper(textDocument_willSave_notification, server)
-    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
-    msg_dispatcher[textDocument_didChange_notification_type] = notification_wrapper(textDocument_didChange_notification, server)
-    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = notification_wrapper(workspace_didChangeWatchedFiles_notification, server)
-    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
-    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
-    msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
-    msg_dispatcher[julia_refreshLanguageServer_notification_type] = notification_wrapper(julia_refreshLanguageServer_notification, server)
-    msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
-    msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
-    msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
-    msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
-    msg_dispatcher[julia_get_test_env_request_type] = request_wrapper(julia_get_test_env_request, server)
+                g_operationId[] = string(uuid4())
 
-    # The exit notification message should not be wrapped in request_wrapper (which checks
-    # if the server have been requested to be shut down). Instead, this message needs to be
-    # handled directly.
-    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
+                start_time = string(Dates.unix2datetime(time()), "Z")
+                tic = time_ns()
+                JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
+                toc = time_ns()
+                duration = (toc - tic) / 1e+6
 
-    @debug "Starting event listener loop at $(round(Int, time()))"
-    add_timer_message!(did_show_timer, timings, "starting combined listener")
-
-    while true
-        message = take!(server.combined_msg_queue)
-
-        @debug "Processing message" message
-
-        if message.type == :close
-            @debug "Shutting down server instance."
-            return
-        elseif message.type == :clientmsg
-            msg = message.msg
-
-            add_timer_message!(did_show_timer, timings, msg)
-
-            g_operationId[] = string(uuid4())
-
-            start_time = string(Dates.unix2datetime(time()), "Z")
-            tic = time_ns()
-            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-            toc = time_ns()
-            duration = (toc - tic) / 1e+6
-
-            if server._send_request_metrics
-                JSONRPC.send(
-                    server.jr_endpoint,
-                    telemetry_event_notification_type,
-                    Dict(
-                    "command" => "request_metric",
-                    "operationId" => g_operationId[],
-                    "name" => msg["method"],
-                    "time" => start_time,
-                    "duration" => duration)
-                )
+                if server._send_request_metrics
+                    JSONRPC.send(
+                        server.jr_endpoint,
+                        telemetry_event_notification_type,
+                        Dict(
+                        "command" => "request_metric",
+                        "operationId" => g_operationId[],
+                        "name" => msg["method"],
+                        "time" => start_time,
+                        "duration" => duration)
+                    )
+                end
             end
         end
     end

@@ -38,8 +38,7 @@ const exit_notification_type = JSONRPC.NotificationType("exit", Nothing)
 const client_registerCapability_request_type = JSONRPC.RequestType("client/registerCapability", RegistrationParams, Nothing)
 
 const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTraceParams)
-# TODO This seems to not exist in the spec?
-const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setTraceNotification", Nothing)
+const logTrace_notification_type = JSONRPC.NotificationType("\$/logTrace", LogTraceParams)
 
 const window_workDoneProgress_create_request_type = JSONRPC.RequestType("window/workDoneProgress/create", WorkDoneProgressCreateParams, Nothing)
 const window_showMessage_notification_type = JSONRPC.NotificationType("window/showMessage", ShowMessageParams)

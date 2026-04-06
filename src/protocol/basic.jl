@@ -10,6 +10,11 @@ struct SetTraceParams
 end
 SetTraceParams(d::Dict) = SetTraceParams(d["value"])
 
+mutable struct LogTraceParams <: Outbound
+    message::String
+    verbose::Union{String,Missing}
+end
+
 struct ProgressParams{T}
     token::Union{Int,String} # ProgressToken
     value::T

@@ -22,9 +22,9 @@ function julia_getCurrentBlockRange_request(tdpp::VersionedTextDocumentPositionP
     result === nothing && return fallback
 
     return (
-        Position(get_position_from_offset(st, result.highlight_start_offset)...),
-        Position(get_position_from_offset(st, result.highlight_end_offset)...),
-        Position(get_position_from_offset(st, result.block_end_offset)...)
+        jw_position_to_lsp(server, uri, result.highlight_start),
+        jw_position_to_lsp(server, uri, result.highlight_stop),
+        jw_position_to_lsp(server, uri, result.block_stop)
     )
 end
 
@@ -96,6 +96,6 @@ function textDocument_documentLink_request(params::DocumentLinkParams, server::L
     results = JuliaWorkspaces.get_document_links(server.workspace, uri)
 
     return map(results) do r
-        DocumentLink(jw_range(server, uri, r.start_offset:r.end_offset), r.target_uri, missing, missing)
+        DocumentLink(jw_range(server, uri, r.start, r.stop), r.target_uri, missing, missing)
     end
 end

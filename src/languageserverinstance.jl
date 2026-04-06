@@ -72,7 +72,7 @@ mutable struct LanguageServerInstance
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
-        jw = JuliaWorkspace()
+        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly)
 
         new(
             endpoint,

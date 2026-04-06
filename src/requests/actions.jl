@@ -93,7 +93,7 @@ function workspace_executeCommand_request(params::ExecuteCommandParams, server::
     tdes = TextDocumentEdit[]
     for fe in file_edits
         edits = TextEdit[
-            TextEdit(jw_range(server, fe.uri, te.start_offset:te.end_offset), te.new_text)
+            TextEdit(jw_range(server, fe.uri, te.start, te.stop), te.new_text)
             for te in fe.edits
         ]
         push!(tdes, TextDocumentEdit(VersionedTextDocumentIdentifier(fe.uri, jw_version(server, fe.uri)), edits))

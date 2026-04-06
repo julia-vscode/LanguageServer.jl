@@ -8,6 +8,6 @@ function textDocument_documentHighlight_request(params::DocumentHighlightParams,
 
     return map(results) do r
         kind = r.kind === :write ? DocumentHighlightKinds.Write : DocumentHighlightKinds.Read
-        DocumentHighlight(jw_range(server, uri, (r.start_index - 1):(r.end_index - 1)), kind)
+        DocumentHighlight(jw_range(server, uri, r.start, r.stop), kind)
     end
 end

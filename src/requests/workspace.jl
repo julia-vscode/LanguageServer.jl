@@ -173,6 +173,6 @@ function workspace_symbol_request(params::WorkspaceSymbolParams, server::Languag
     results = JuliaWorkspaces.get_workspace_symbols(server.workspace, params.query)
 
     return map(results) do r
-        SymbolInformation(r.name, r.kind, false, Location(r.uri, jw_range(server, r.uri, r.start_offset:r.end_offset)), missing)
+        SymbolInformation(r.name, r.kind, false, Location(r.uri, jw_range(server, r.uri, r.start, r.stop)), missing)
     end
 end

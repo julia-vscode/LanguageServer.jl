@@ -14,11 +14,11 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
     # Convert JuliaWorkspaces.CompletionResult → LSP CompletionList
     items = CompletionItem[]
     for item in result.items
-        text_edit = _convert_completion_edit(st, item.text_edit, uri, server)
+        text_edit = _convert_completion_edit(item.text_edit, uri, server)
         additional_edits = if isempty(item.additional_edits)
             missing
         else
-            [_convert_completion_edit(st, e, uri, server) for e in item.additional_edits]
+            [_convert_completion_edit(e, uri, server) for e in item.additional_edits]
         end
         doc = item.documentation === nothing ? missing : MarkupContent(item.documentation)
         detail = item.detail === nothing ? missing : item.detail
@@ -57,16 +57,9 @@ function textDocument_completion_request(params::CompletionParams, server::Langu
 end
 
 """
-Convert a JuliaWorkspaces.CompletionEdit (1-based string indices) to an LSP TextEdit (line/char).
+Convert a JuliaWorkspaces.CompletionEdit (Position-based) to an LSP TextEdit.
 """
-function _convert_completion_edit(st::JuliaWorkspaces.SourceText, edit::JuliaWorkspaces.CompletionEdit, current_uri::URI, server)
-    # If the edit targets a different file, use that file's SourceText for position conversion
-    target_st = if edit.uri !== nothing && edit.uri != current_uri
-        jw_source_text(server, edit.uri)
-    else
-        st
-    end
-    start_l, start_c = get_position_from_offset(target_st, edit.start_index - 1)
-    end_l, end_c = get_position_from_offset(target_st, edit.end_index - 1)
-    return TextEdit(Range(start_l, start_c, end_l, end_c), edit.new_text)
+function _convert_completion_edit(edit::JuliaWorkspaces.CompletionEdit, current_uri::URI, server)
+    uri = edit.uri !== nothing ? edit.uri : current_uri
+    return TextEdit(jw_range(server, uri, edit.start, edit.stop), edit.new_text)
 end

@@ -8,7 +8,7 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     results = JuliaWorkspaces.get_definitions(server.workspace, uri, index)
 
     locations = map(results) do r
-        Location(r.uri, jw_range(server, r.uri, (r.start_index - 1):(r.end_index - 1)))
+        Location(r.uri, jw_range(server, r.uri, r.start, r.stop))
     end
 
     return unique!(locations)
@@ -153,7 +153,7 @@ function textDocument_references_request(params::ReferenceParams, server::Langua
     results = JuliaWorkspaces.get_references(server.workspace, uri, index)
 
     return map(results) do r
-        Location(r.uri, jw_range(server, r.uri, (r.start_index - 1):(r.end_index - 1)))
+        Location(r.uri, jw_range(server, r.uri, r.start, r.stop))
     end
 end
 
@@ -170,7 +170,7 @@ function textDocument_rename_request(params::RenameParams, server::LanguageServe
         if !haskey(tdes, e.uri)
             tdes[e.uri] = TextDocumentEdit(VersionedTextDocumentIdentifier(e.uri, jw_version(server, e.uri)), TextEdit[])
         end
-        push!(tdes[e.uri].edits, TextEdit(jw_range(server, e.uri, (e.start_index - 1):(e.end_index - 1)), e.new_text))
+        push!(tdes[e.uri].edits, TextEdit(jw_range(server, e.uri, e.start, e.stop), e.new_text))
     end
 
     return WorkspaceEdit(missing, collect(values(tdes)))
@@ -184,7 +184,7 @@ function textDocument_prepareRename_request(params::PrepareRenameParams, server:
     result = JuliaWorkspaces.can_rename(server.workspace, uri, index)
     result === nothing && return nothing
 
-    return jw_range(server, uri, (result.start_index - 1):(result.end_index - 1))
+    return jw_range(server, uri, result.start, result.stop)
 end
 
 function textDocument_documentSymbol_request(params::DocumentSymbolParams, server::LanguageServerInstance, conn)
@@ -193,7 +193,7 @@ function textDocument_documentSymbol_request(params::DocumentSymbolParams, serve
 
     function convert_symbol(r::JuliaWorkspaces.DocumentSymbolResult)
         children = DocumentSymbol[convert_symbol(c) for c in r.children]
-        rng = jw_range(server, uri, r.start_offset:r.end_offset)
+        rng = jw_range(server, uri, r.start, r.stop)
         DocumentSymbol(r.name, missing, r.kind, false, rng, rng, children)
     end
 
@@ -247,7 +247,7 @@ function textDocument_selectionRange_request(params::SelectionRangeParams, serve
     function convert_selection(r::Union{Nothing, JuliaWorkspaces.SelectionRangeResult})
         r === nothing && return missing
         parent = convert_selection(r.parent)
-        SelectionRange(jw_range(server, uri, r.start_offset:r.end_offset), parent)
+        SelectionRange(jw_range(server, uri, r.start, r.stop), parent)
     end
 
     ret = SelectionRange[convert_selection(r) for r in results]
@@ -277,7 +277,7 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
     return map(results) do r
         kind = r.kind === :parameter ? InlayHintKinds.Parameter : InlayHintKinds.Type
         InlayHint(
-            Position(get_position_from_offset(st, r.offset)...),
+            jw_position_to_lsp(server, uri, r.position),
             r.label,
             kind,
             missing,

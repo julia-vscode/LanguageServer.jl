@@ -16,7 +16,7 @@ mutable struct LSPTraceLogger{T} <: Logging.AbstractLogger
 end
 
 function Logging.handle_message(logger::LSPTraceLogger, level, message, _module, group, id, file, line; kwargs...)
-    level == Trace || return nothing
+    level >= Trace || return nothing
 
     endpoint = logger.lsi.jr_endpoint
     endpoint === nothing && return nothing
@@ -42,9 +42,9 @@ function Logging.handle_message(logger::LSPTraceLogger, level, message, _module,
 end
 
 function Logging.shouldlog(logger::LSPTraceLogger, level, _module, group, id)
-    return level == Trace && LSPTraceValue(logger.lsi.trace_value[]) != lsp_trace_off
+    return level >= Trace && LSPTraceValue(logger.lsi.trace_value[]) != lsp_trace_off
 end
 
 function Logging.min_enabled_level(logger::LSPTraceLogger)
-    return LSPTraceValue(logger.lsi.trace_value[]) == lsp_trace_off ? Logging.AboveMaxLevel : Trace
+    return Trace
 end

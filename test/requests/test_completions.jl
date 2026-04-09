@@ -32,8 +32,7 @@
     @test completion_test(6, 14).items[1].textEdit.range == LanguageServer.Range(6, 0, 6, 14)
 end
 
-@testitem "path completions" begin
-end
+@testitem "path completions" begin end
 
 @testitem "import completions" begin
     include("../test_shared_server.jl")
@@ -95,7 +94,7 @@ end
     x = Expr()
     x.
     """)
-    @test (r = all(item.label in ("head", "args") for item in completion_test(1, 2).items)) && (!isempty(r))
+    @test (r = all(item.label in ("head", "args", "findmeta") for item in completion_test(1, 2).items)) && (!isempty(r))
     closetestdoc()
 
     settestdoc("""

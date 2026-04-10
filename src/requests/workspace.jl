@@ -1,5 +1,5 @@
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
-    Base.@logmsg Trace "workspace/didChangeWatchedFiles" change_count=length(params.changes)
+    @debug "workspace/didChangeWatchedFiles" change_count=length(params.changes)
 
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
@@ -54,7 +54,7 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
-    Base.@logmsg Trace "workspace/didChangeConfiguration"
+    @debug "workspace/didChangeConfiguration"
 
     if !server.clientcapability_workspace_didChangeConfiguration
         @debug "Client sent a `workspace/didChangeConfiguration` request despite claiming no support for it. " *
@@ -139,7 +139,7 @@ function gc_files_from_workspace(server::LanguageServerInstance)
 end
 
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
-    Base.@logmsg Trace "workspace/didChangeWorkspaceFolders" added=length(params.event.added) removed=length(params.event.removed)
+    @debug "workspace/didChangeWorkspaceFolders" added=length(params.event.added) removed=length(params.event.removed)
 
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
 

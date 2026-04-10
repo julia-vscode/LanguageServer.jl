@@ -174,7 +174,7 @@ end
 
 
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
-    Base.@logmsg Trace "initialized_notification"
+    @debug "initialized_notification"
 
     server.status = :running
 

@@ -1,9 +1,5 @@
 @enum LSPTraceValue lsp_trace_off lsp_trace_messages lsp_trace_verbose
 
-# Below Debug (-1000). Requires Logging.disable_logging(LogLevel(-1002)) to lower
-# the global early filter so that @logmsg Trace actually reaches the logger.
-const Trace = Logging.LogLevel(-1001)
-
 function parse_lsp_trace_value(s::AbstractString)
     s == "off" && return lsp_trace_off
     s == "messages" && return lsp_trace_messages
@@ -16,8 +12,6 @@ mutable struct LSPTraceLogger{T} <: Logging.AbstractLogger
 end
 
 function Logging.handle_message(logger::LSPTraceLogger, level, message, _module, group, id, file, line; kwargs...)
-    level >= Trace || return nothing
-
     endpoint = logger.lsi.jr_endpoint
     endpoint === nothing && return nothing
 
@@ -42,9 +36,9 @@ function Logging.handle_message(logger::LSPTraceLogger, level, message, _module,
 end
 
 function Logging.shouldlog(logger::LSPTraceLogger, level, _module, group, id)
-    return level >= Trace && LSPTraceValue(logger.lsi.trace_value[]) != lsp_trace_off
+    return LSPTraceValue(logger.lsi.trace_value[]) != lsp_trace_off
 end
 
 function Logging.min_enabled_level(logger::LSPTraceLogger)
-    return Trace
+    return Debug
 end

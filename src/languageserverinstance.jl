@@ -180,8 +180,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
-    Logging.disable_logging(Logging.LogLevel(-10002))
-
     new_logger = LoggingExtras.TeeLogger(
         Logging.current_logger(),
         LSPTraceLogger(server)

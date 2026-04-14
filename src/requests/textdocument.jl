@@ -250,16 +250,9 @@ function mark_errors(doc, out=Diagnostic[])
                     elseif StaticLint.haserror(errs[i][2]) && StaticLint.errorof(errs[i][2]) isa StaticLint.LintCodes
                         code = StaticLint.errorof(errs[i][2])
                         description = get(StaticLint.LintCodeDescriptions, code, "")
-                        severity, tags = if code in (StaticLint.UnusedFunctionArgument, StaticLint.UnusedBinding, StaticLint.UnusedTypeParameter)
-                            DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]
-                        else
-                            DiagnosticSeverities.Information, missing
-                        end
-                        code_details = if isdefined(StaticLint, :IndexFromLength) && code === StaticLint.IndexFromLength
-                            CodeDescription(URI("https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex"))
-                        else
-                            missing
-                        end
+                        severity, tags = get(LintCodeSeverities, code, (DiagnosticSeverities.Information, missing))
+                        url = get(LintCodeDescriptionURLs, code, nothing)
+                        code_details = url !== nothing ? CodeDescription(URI(url)) : missing
                         push!(out, Diagnostic(rng, severity, string(code), code_details, "Julia", description, tags, missing))
                     end
                     i += 1

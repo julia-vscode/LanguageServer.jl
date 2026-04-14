@@ -71,6 +71,19 @@ function setserver(file::Document, server::LanguageServerInstance)
     return file
 end
 
+const LintCodeSeverities = Dict{StaticLint.LintCodes,Tuple{Int,Any}}(
+    StaticLint.UnusedBinding =>          (DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]),
+    StaticLint.UnusedTypeParameter =>    (DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]),
+    StaticLint.UnusedFunctionArgument => (DiagnosticSeverities.Hint, [DiagnosticTags.Unnecessary]),
+    StaticLint.IncludeLoop =>            (DiagnosticSeverities.Error, missing),
+    StaticLint.DuplicateInclude =>       (DiagnosticSeverities.Warning, missing),
+    StaticLint.MissingFile =>            (DiagnosticSeverities.Error, missing),
+)
+
+const LintCodeDescriptionURLs = Dict{StaticLint.LintCodes,String}(
+    StaticLint.IndexFromLength => "https://docs.julialang.org/en/v1/base/arrays/#Base.eachindex",
+)
+
 function lint!(doc::Document, server)
     get_language_id(doc) in ("julia", "markdown", "juliamarkdown") || return
 

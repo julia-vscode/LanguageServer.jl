@@ -40,5 +40,5 @@ function Logging.shouldlog(logger::LSPTraceLogger, level, _module, group, id)
 end
 
 function Logging.min_enabled_level(logger::LSPTraceLogger)
-    return Debug
+    return Logging.Debug
 end

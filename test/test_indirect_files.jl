@@ -7,7 +7,6 @@
     # In-process LS with dynamic-registration capabilities enabled so the
     # reconcile function actually emits register/unregister.
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
-    server.runlinter = true
     server.jr_endpoint = nothing  # JSONRPC.send is stubbed to a no-op below
     @eval LanguageServer.JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 

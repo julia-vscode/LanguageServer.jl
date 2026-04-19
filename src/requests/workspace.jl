@@ -81,52 +81,21 @@ end
     isnothing(::Nothing) = true
 end
 
-const LINT_DIABLED_DIRS = ["test", "docs"]
-
 function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
-        ConfigurationItem(missing, "julia.lint.call"), # LintOptions
-        ConfigurationItem(missing, "julia.lint.iter"),
-        ConfigurationItem(missing, "julia.lint.nothingcomp"),
-        ConfigurationItem(missing, "julia.lint.constif"),
-        ConfigurationItem(missing, "julia.lint.lazy"),
-        ConfigurationItem(missing, "julia.lint.datadecl"),
-        ConfigurationItem(missing, "julia.lint.typeparam"),
-        ConfigurationItem(missing, "julia.lint.modname"),
-        ConfigurationItem(missing, "julia.lint.pirates"),
-        ConfigurationItem(missing, "julia.lint.useoffuncargs"),
-        ConfigurationItem(missing, "julia.lint.run"),
-        ConfigurationItem(missing, "julia.lint.missingrefs"),
-        ConfigurationItem(missing, "julia.lint.disabledDirs"),
         ConfigurationItem(missing, "julia.completionmode"),
         ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
     ]))
 
-    new_runlinter = something(response[11], true)
-    new_SL_opts = StaticLint.LintOptions(response[1:10]...)
+    new_completion_mode = Symbol(something(response[1], :import))
+    inlayHints = something(response[2], true)
+    inlayHintsVariableTypes = something(response[3], true)
+    inlayHintsParameterNames = Symbol(something(response[4], :literals))
 
-    new_lint_missingrefs = Symbol(something(response[12], :all))
-    new_lint_disableddirs = something(response[13], LINT_DIABLED_DIRS)
-    new_completion_mode = Symbol(something(response[14], :import))
-    inlayHints = something(response[15], true)
-    inlayHintsVariableTypes = something(response[16], true)
-    inlayHintsParameterNames = Symbol(something(response[17], :literals))
-
-    rerun_lint = begin
-        any(getproperty(server.lint_options, opt) != getproperty(new_SL_opts, opt) for opt in fieldnames(StaticLint.LintOptions)) ||
-        server.runlinter != new_runlinter ||
-        server.lint_missingrefs != new_lint_missingrefs ||
-        server.lint_disableddirs != new_lint_disableddirs
-    end
-
-    server.lint_options = new_SL_opts
-    server.runlinter = new_runlinter
-    server.lint_missingrefs = new_lint_missingrefs
-    server.lint_disableddirs = new_lint_disableddirs
     server.completion_mode = new_completion_mode
     server.inlay_hints = inlayHints
     server.inlay_hints_variable_types = inlayHintsVariableTypes

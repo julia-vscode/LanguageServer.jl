@@ -32,6 +32,5 @@ range_formatting_test(line0, char0, line1, char1) = LanguageServer.textDocument_
 JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
-server.runlinter = true
 server.jr_endpoint = nothing
 LanguageServer.initialize_request(init_request, server, nothing)

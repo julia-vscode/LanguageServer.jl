@@ -31,10 +31,6 @@ mutable struct LanguageServerInstance
 
     env_path::String
 
-    runlinter::Bool
-    lint_options::StaticLint.LintOptions
-    lint_missingrefs::Symbol
-    lint_disableddirs::Vector{String}
     completion_mode::Symbol
     inlay_hints::Bool
     inlay_hints_variable_types::Bool
@@ -88,10 +84,6 @@ mutable struct LanguageServerInstance
             endpoint,
             Set{String}(),
             env_path,
-            true,
-            StaticLint.LintOptions(),
-            :all,
-            LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
             false,
             true,

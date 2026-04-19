@@ -61,15 +61,6 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
         push!(all_uris_with_updates, uri)
     end
 
-    # Check if a JW diagnostic depends on environment data (matching the old is_diag_dependent_on_env logic)
-    function _is_jw_diag_dependent_on_env(d::JuliaWorkspaces.Diagnostic)
-        d.source != "StaticLint.jl" && return false
-        startswith(d.message, "Missing reference:") && return true
-        startswith(d.message, "Possible method call error") && return true
-        startswith(d.message, "An imported") && return true
-        return false
-    end
-
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
     for uri in all_uris_with_updates
@@ -77,23 +68,11 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
         diagnostics[uri] = diags
 
         if JuliaWorkspaces.has_file(server.workspace, uri)
-            # Check if linting is disabled for this file's directory
-            filepath = something(uri2filepath(uri), "")
-            skip_env_diags = !isempty(filepath) && any(is_in_target_dir_of_package.(Ref(filepath), server.lint_disableddirs))
-
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
 
             new_diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
 
             for i in new_diags
-                # Skip env-dependent diagnostics from disabled directories
-                if skip_env_diags && _is_jw_diag_dependent_on_env(i)
-                    continue
-                end
-                # Respect the runlinter flag for StaticLint diagnostics
-                if !server.runlinter && i.source == "StaticLint.jl"
-                    continue
-                end
 
                 push!(diags, Diagnostic(
                     Range(st, i.range),

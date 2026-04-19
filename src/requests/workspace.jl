@@ -10,6 +10,19 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
         uri.scheme=="file" || continue
 
+        # If this URI is currently tracked as an indirect file, route updates
+        # to JW's indirect-file API instead of the regular file path. The
+        # indirect file does not appear in `_files_from_disc` / `_workspace_files`.
+        if haskey(server._watched_indirect_files, uri) && !JuliaWorkspaces.has_file(server.workspace, uri)
+            if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
+                text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
+                JuliaWorkspaces.set_indirect_file_content!(server.workspace, uri, text_file)
+            elseif change.type == FileChangeTypes.Deleted
+                JuliaWorkspaces.set_indirect_file_content!(server.workspace, uri, nothing)
+            end
+            continue
+        end
+
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
 

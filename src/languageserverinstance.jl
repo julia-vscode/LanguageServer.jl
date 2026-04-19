@@ -67,6 +67,11 @@ mutable struct LanguageServerInstance
     # folder. Primarily for projects and manifests outside of the workspace.
     _extra_tracked_files::Vector{URI}
 
+    # Indirect files: URIs requested by JW (via include traversal) for which we
+    # have registered an LSP file watcher. Maps URI -> registration id so we can
+    # unregister later. Reconciled in `reconcile_indirect_file_watchers`.
+    _watched_indirect_files::Dict{URI,String}
+
     _send_request_metrics::Bool
 
     trace_value::Threads.Atomic{Int}
@@ -102,6 +107,7 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             URI[],
+            Dict{URI,String}(),
             false,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )

@@ -36,6 +36,7 @@ const initialized_notification_type = JSONRPC.NotificationType("initialized", In
 const shutdown_request_type = JSONRPC.RequestType("shutdown", Nothing, Nothing)
 const exit_notification_type = JSONRPC.NotificationType("exit", Nothing)
 const client_registerCapability_request_type = JSONRPC.RequestType("client/registerCapability", RegistrationParams, Nothing)
+const client_unregisterCapability_request_type = JSONRPC.RequestType("client/unregisterCapability", UnregistrationParams, Nothing)
 
 const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTraceParams)
 const logTrace_notification_type = JSONRPC.NotificationType("\$/logTrace", LogTraceParams)

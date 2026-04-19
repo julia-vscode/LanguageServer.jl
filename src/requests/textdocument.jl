@@ -20,6 +20,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     if haskey(server._files_from_disc, uri)
         JuliaWorkspaces.update_file!(server.workspace, new_text_file)
     else
+        # `add_file!` handles promotion from indirect → regular automatically.
         JuliaWorkspaces.add_file!(server.workspace, new_text_file)
     end
     server._open_file_versions[uri] = params.textDocument.version

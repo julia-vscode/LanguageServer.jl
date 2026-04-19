@@ -188,4 +188,89 @@ function publish_diagnostics_testitems(server, marked_versions, uris::Vector{URI
 
     publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
     publish_tests(server, updated_files.updated_files_ti, updated_files.deleted_files_ti)
+
+    reconcile_indirect_file_watchers(server)
+end
+
+"""
+    reconcile_indirect_file_watchers(server::LanguageServerInstance)
+
+Compares JuliaWorkspaces' current set of indirect files against
+`server._watched_indirect_files` and sends `client/registerCapability` for
+newly-introduced indirect URIs and `client/unregisterCapability` for URIs
+that are no longer indirect (because they were promoted, removed from the
+include graph, or deleted on disc). Also performs an initial disc read for
+freshly-watched URIs and feeds the content back in via
+`set_indirect_file_content!`.
+"""
+function reconcile_indirect_file_watchers(server::LanguageServerInstance)
+    # Capability gate: only proceed if the client supports dynamic registration
+    # of `workspace/didChangeWatchedFiles` with relative patterns.
+    if ismissing(server.clientCapabilities) ||
+        ismissing(server.clientCapabilities.workspace) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) ||
+        !server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration ||
+        !server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
+        return
+    end
+
+    current_indirect = JuliaWorkspaces.get_indirect_files(server.workspace)
+    watched = server._watched_indirect_files
+
+    # Unregister watchers for URIs no longer indirect.
+    to_unregister = Unregistration[]
+    for (uri, id) in collect(watched)
+        if !(uri in current_indirect)
+            push!(to_unregister, Unregistration(id, "workspace/didChangeWatchedFiles"))
+            delete!(watched, uri)
+        end
+    end
+    if !isempty(to_unregister)
+        try
+            JSONRPC.send(
+                server.jr_endpoint,
+                client_unregisterCapability_request_type,
+                UnregistrationParams(to_unregister)
+            )
+        catch err
+            @error "Failed to send client/unregisterCapability for indirect file watchers" exception=(err, catch_backtrace())
+        end
+    end
+
+    # Register watchers for newly-discovered indirect URIs.
+    for uri in current_indirect
+        haskey(watched, uri) && continue
+        uri.scheme == "file" || continue
+
+        path = JuliaWorkspaces.URIs2.uri2filepath(uri)
+        path === nothing && continue
+
+        dir = dirname(path)
+        base = basename(path)
+
+        registration_id = string(uuid4())
+        registration = Registration(
+            registration_id,
+            "workspace/didChangeWatchedFiles",
+            DidChangeWatchedFilesRegistrationOptions([
+                FileSystemWatcher(
+                    RelativePattern(JuliaWorkspaces.URIs2.filepath2uri(dir), base),
+                    missing
+                )
+            ])
+        )
+
+        try
+            JSONRPC.send(
+                server.jr_endpoint,
+                client_registerCapability_request_type,
+                RegistrationParams([registration])
+            )
+            watched[uri] = registration_id
+        catch err
+            @error "Failed to send client/registerCapability for indirect file watcher" uri=uri exception=(err, catch_backtrace())
+        end
+    end
 end

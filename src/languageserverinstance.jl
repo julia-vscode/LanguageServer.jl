@@ -78,9 +78,13 @@ mutable struct LanguageServerInstance
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
-        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path)
 
-        new(
+        server_ref = Ref{LanguageServerInstance}()
+        _progress_cb = _create_deferred_progress_callback(server_ref)
+
+        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path, progress_callback=_progress_cb)
+
+        server = new(
             endpoint,
             Set{String}(),
             env_path,
@@ -111,6 +115,8 @@ mutable struct LanguageServerInstance
             false,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
+        server_ref[] = server
+        return server
     end
 end
 function Base.display(server::LanguageServerInstance)

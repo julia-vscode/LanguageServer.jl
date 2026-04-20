@@ -77,7 +77,7 @@ mutable struct LanguageServerInstance
 
     trace_value::Threads.Atomic{Int}
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path_unused="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
 
         combined_queue = Channel{Any}(Inf)

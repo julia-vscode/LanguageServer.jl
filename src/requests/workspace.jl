@@ -90,6 +90,9 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
         ConfigurationItem(missing, "julia.environmentPath"),
+        ConfigurationItem(missing, "julia.symbolCacheDownload"),
+        ConfigurationItem(missing, "julia.symbolserverUpstream"),
+        ConfigurationItem(missing, "julia.enableDynamicIndexing"),
     ]))
 
     new_completion_mode = Symbol(something(response[1], :import))
@@ -107,6 +110,11 @@ function request_julia_config(server::LanguageServerInstance, conn)
         server.env_path = new_env_path
         JuliaWorkspaces.set_active_project!(server.workspace, isempty(new_env_path) ? nothing : filepath2uri(new_env_path))
     end
+
+    # Store new settings on server; JW is not reconfigured at runtime (future work).
+    server.symbolcache_download = something(response[6], false)
+    server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
+    server.enable_dynamic_indexing = something(response[8], true)
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)
@@ -166,4 +174,28 @@ function workspace_symbol_request(params::WorkspaceSymbolParams, server::Languag
     return map(results) do r
         SymbolInformation(r.name, r.kind, false, Location(r.uri, jw_range(server, r.uri, r.start, r.stop)), missing)
     end
+end
+
+function workspace_diagnostic_request(params::WorkspaceDiagnosticParams, server::LanguageServerInstance, conn)
+    previous_result_ids = Dict{String,String}()
+    for pr in params.previousResultIds
+        previous_result_ids[string(pr.uri)] = pr.value
+    end
+
+    items = Union{WorkspaceFullDocumentDiagnosticReport,WorkspaceUnchangedDocumentDiagnosticReport}[]
+
+    for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)
+        diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
+        result_id = string(hash(diags))
+        version = get(server._open_file_versions, uri, missing)
+
+        if get(previous_result_ids, string(uri), nothing) == result_id
+            push!(items, WorkspaceUnchangedDocumentDiagnosticReport(uri, version, "unchanged", result_id))
+        else
+            lsp_diags = build_lsp_diagnostics(server, uri, diags)
+            push!(items, WorkspaceFullDocumentDiagnosticReport(uri, version, "full", result_id, lsp_diags))
+        end
+    end
+
+    return WorkspaceDiagnosticReport(items)
 end

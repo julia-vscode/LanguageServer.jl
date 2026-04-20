@@ -36,6 +36,7 @@ function create_progress_callback(server::LanguageServerInstance)
         elseif percentage >= 100
             JSONRPC.send(ep, progress_notification_type, ProgressParams(token[], WorkDoneProgressEnd(message)))
             active[] = false
+            put!(server.combined_msg_queue, (type=:jw_indexing_complete,))
         else
             JSONRPC.send(ep, progress_notification_type, ProgressParams(token[], WorkDoneProgressReport(false, message, percentage)))
         end

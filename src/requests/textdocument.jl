@@ -129,6 +129,20 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     publish_diagnostics_testitems(server, marked_versions, [uri])
 end
 
+function textDocument_diagnostic_request(params::DocumentDiagnosticParams, server::LanguageServerInstance, conn)
+    uri = params.textDocument.uri
+    jw_diags = JuliaWorkspaces.has_file(server.workspace, uri) ?
+        JuliaWorkspaces.get_diagnostic(server.workspace, uri) : []
+    result_id = string(hash(jw_diags))
+
+    if !ismissing(params.previousResultId) && params.previousResultId == result_id
+        return UnchangedDocumentDiagnosticReport("unchanged", result_id)
+    end
+
+    lsp_diags = build_lsp_diagnostics(server, uri, jw_diags)
+    return FullDocumentDiagnosticReport("full", result_id, lsp_diags)
+end
+
 """
 is_diag_dependent_on_env(diag::Diagnostic)::Bool
 

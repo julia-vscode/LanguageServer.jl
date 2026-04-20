@@ -48,6 +48,37 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
     return (;updated_files_ti, deleted_files_ti, updated_files_diag, deleted_files_diag)
 end
 
+function build_lsp_diagnostics(server, uri::URI, jw_diags)
+    diags = Diagnostic[]
+    if JuliaWorkspaces.has_file(server.workspace, uri)
+        st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+
+        for i in jw_diags
+            push!(diags, Diagnostic(
+                Range(st, i.range),
+                if i.severity==:error
+                    DiagnosticSeverities.Error
+                elseif i.severity==:warning
+                    DiagnosticSeverities.Warning
+                elseif i.severity==:information
+                    DiagnosticSeverities.Information
+                elseif i.severity==:hint
+                    DiagnosticSeverities.Hint
+                else
+                    error("Unknown severity $(i.severity)")
+                end,
+                missing,
+                i.uri === nothing ? missing : CodeDescription(i.uri),
+                i.source,
+                i.message,
+                length(i.tags)==0 ? missing : DiagnosticTag[j==:unnecessary ? DiagnosticTags.Unnecessary : j==:deprecated ? DiagnosticTags.Deprecated : error("Unknown tag $j") for j in i.tags],
+                missing
+            ))
+        end
+    end
+    return diags
+end
+
 function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_deleted, uris::Vector{URI})
     @debug "publish_diagnostics" updated_count=length(jw_diagnostics_updated) deleted_count=length(jw_diagnostics_deleted) uri_count=length(uris)
 
@@ -64,38 +95,9 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
     for uri in all_uris_with_updates
-        diags = Diagnostic[]
-        diagnostics[uri] = diags
-
-        if JuliaWorkspaces.has_file(server.workspace, uri)
-            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-
-            new_diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
-
-            for i in new_diags
-
-                push!(diags, Diagnostic(
-                    Range(st, i.range),
-                    if i.severity==:error
-                        DiagnosticSeverities.Error
-                    elseif i.severity==:warning
-                        DiagnosticSeverities.Warning
-                    elseif i.severity==:information
-                        DiagnosticSeverities.Information
-                    elseif i.severity==:hint
-                        DiagnosticSeverities.Hint
-                    else
-                        error("Unknown severity $(i.severity)")
-                    end,
-                    missing,
-                    i.uri === nothing ? missing : CodeDescription(i.uri),
-                    i.source,
-                    i.message,
-                    length(i.tags)==0 ? missing : DiagnosticTag[j==:unnecessary ? DiagnosticTags.Unnecessary : j==:deprecated ? DiagnosticTags.Deprecated : error("Unknown tag $j") for j in i.tags],
-                    missing
-                ))
-            end
-        end
+        new_diags = JuliaWorkspaces.has_file(server.workspace, uri) ?
+            JuliaWorkspaces.get_diagnostic(server.workspace, uri) : []
+        diagnostics[uri] = build_lsp_diagnostics(server, uri, new_diags)
     end
 
     for (uri,diags) in diagnostics
@@ -165,7 +167,9 @@ function publish_diagnostics_testitems(server, marked_versions, uris::Vector{URI
 
     updated_files = get_files_with_updated_diagnostics_testitems(server.workspace, marked_versions)
 
-    publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
+    if !server.clientcapability_workspace_diagnostic_refreshsupport
+        publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
+    end
     publish_tests(server, updated_files.updated_files_ti, updated_files.deleted_files_ti)
 
     reconcile_indirect_file_watchers(server)

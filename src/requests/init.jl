@@ -1,6 +1,11 @@
 function ServerCapabilities(client::ClientCapabilities)
     prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
+    client_supports_pull_diagnostics = !ismissing(client.textDocument) && !ismissing(client.textDocument.diagnostic)
+
+    diagnostic_provider = client_supports_pull_diagnostics ?
+        DiagnosticOptions(missing, true, true) : missing
+
     ServerCapabilities(
         TextDocumentSyncOptions(
             true,
@@ -33,6 +38,7 @@ function ServerCapabilities(client::ClientCapabilities)
         true,
         true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
+        diagnostic_provider,
         missing
     )
 
@@ -214,6 +220,62 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     end
 
+    # Record whether the client supports workspace/diagnostic/refresh
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        !ismissing(server.clientCapabilities.workspace.diagnostics) &&
+        !ismissing(server.clientCapabilities.workspace.diagnostics.refreshSupport) &&
+        server.clientCapabilities.workspace.diagnostics.refreshSupport === true
+        server.clientcapability_workspace_diagnostic_refreshsupport = true
+    end
+
+    # Fetch all initial configuration in one combined request, then construct JuliaWorkspace.
+    # We do this inline (rather than via request_julia_config) because JW must be constructed
+    # before we can call set_active_project! and load files. request_julia_config continues to
+    # be called from workspace/didChangeConfiguration as before.
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        server.clientCapabilities.workspace.configuration === true
+
+        response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
+            ConfigurationItem(missing, "julia.completionmode"),
+            ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
+            ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
+            ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
+            ConfigurationItem(missing, "julia.environmentPath"),
+            ConfigurationItem(missing, "julia.symbolCacheDownload"),
+            ConfigurationItem(missing, "julia.symbolserverUpstream"),
+            ConfigurationItem(missing, "julia.enableDynamicIndexing"),
+        ]))
+
+        server.completion_mode = Symbol(something(response[1], :import))
+        server.inlay_hints = something(response[2], true)
+        server.inlay_hints_variable_types = something(response[3], true)
+        server.inlay_hints_parameter_names = Symbol(something(response[4], :literals))
+        new_env_path = something(response[5], "")
+        if !isempty(new_env_path)
+            server.env_path = new_env_path
+        end
+        server.symbolcache_download = something(response[6], false)
+        server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
+        server.enable_dynamic_indexing = something(response[8], true)
+    end
+
+    # Construct JuliaWorkspace now that configuration values are available.
+    indirect_cb = function(uri)
+        put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
+    end
+    progress_cb = create_progress_callback(server)
+    dynamic_mode = server.enable_dynamic_indexing ? JuliaWorkspaces.DynamicIndexingOnly : JuliaWorkspaces.DynamicOff
+    server.workspace = JuliaWorkspace(;
+        dynamic=dynamic_mode,
+        store_path=server.symserver_store_path,
+        symbolcache_download=server.symbolcache_download,
+        symbolcache_upstream=server.symbolcache_upstream,
+        indirect_file_watch_callback=indirect_cb,
+        progress_callback=progress_cb
+    )
+
     marked_versions = mark_current_diagnostics_testitems(server.workspace)
     added_uris = URI[]
 
@@ -242,8 +304,6 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
 
     publish_diagnostics_testitems(server, marked_versions, added_uris)
-
-    request_julia_config(server, conn)
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)

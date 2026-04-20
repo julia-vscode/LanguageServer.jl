@@ -26,6 +26,10 @@ end
     relativePatternSupport::Union{Bool,Missing}
 end
 
+@dict_readable struct DiagnosticWorkspaceClientCapabilities <: Outbound
+    refreshSupport::Union{Bool,Missing}
+end
+
 @dict_readable struct WorkspaceClientCapabilities <: Outbound
     applyEdit::Union{Bool,Missing}
     workspaceEdit::Union{WorkspaceEditClientCapabilities,Missing}
@@ -35,6 +39,7 @@ end
     executeCommand::Union{ExecuteCommandClientCapabilities,Missing}
     workspaceFolders::Union{Bool,Missing}
     configuration::Union{Bool,Missing}
+    diagnostics::Union{DiagnosticWorkspaceClientCapabilities,Missing}
 end
 
 @dict_readable struct TextDocumentSyncClientCapabilities <: Outbound
@@ -53,6 +58,11 @@ end
     relatedInformation::Union{Bool,Missing}
     tagSupport::Union{TagClientCapabilities,Missing}
     versionSupport::Union{Bool,Missing}
+end
+
+@dict_readable struct DiagnosticClientCapabilities <: Outbound
+    dynamicRegistration::Union{Bool,Missing}
+    relatedDocumentSupport::Union{Bool,Missing}
 end
 
 @dict_readable struct TextDocumentClientCapabilities <: Outbound
@@ -78,6 +88,7 @@ end
     publishDiagnostics::Union{PublishDiagnosticsClientCapabilities,Missing}
     foldingRange::Union{FoldingRangeClientCapabilities,Missing}
     selectionRange::Union{SelectionRangeClientCapabilities,Missing}
+    diagnostic::Union{DiagnosticClientCapabilities,Missing}
 end
 
 @dict_readable struct WindowClientCapabilities <: Outbound
@@ -161,6 +172,12 @@ struct WorkspaceFoldersServerCapabilities <: Outbound
     changeNotifications::Union{String,Bool,Missing}
 end
 
+struct DiagnosticOptions
+    identifier::Union{String,Missing}
+    interFileDependencies::Bool
+    workspaceDiagnostics::Bool
+end
+
 struct ServerCapabilities <: Outbound
     textDocumentSync::Union{TextDocumentSyncOptions,Int,Missing}
     completionProvider::Union{CompletionOptions,Missing}
@@ -187,6 +204,7 @@ struct ServerCapabilities <: Outbound
     inlayHintProvider::Union{Bool,InlayHintOptions,InlayHintRegistrationOptions}
     workspaceSymbolProvider::Union{Bool,Missing}
     workspace::Union{WorkspaceOptions,Missing}
+    diagnosticProvider::Union{DiagnosticOptions,Missing}
     experimental::Union{Any,Missing}
 end
 

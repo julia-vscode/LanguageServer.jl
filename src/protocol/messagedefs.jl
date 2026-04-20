@@ -17,6 +17,56 @@ const textDocument_didSave_notification_type = JSONRPC.NotificationType("textDoc
 const textDocument_willSave_notification_type = JSONRPC.NotificationType("textDocument/willSave", WillSaveTextDocumentParams)
 const textDocument_willSaveWaitUntil_request_type = JSONRPC.RequestType("textDocument/willSaveWaitUntil", WillSaveTextDocumentParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_publishDiagnostics_notification_type = JSONRPC.NotificationType("textDocument/publishDiagnostics", PublishDiagnosticsParams)
+
+@dict_readable struct DocumentDiagnosticParams <: Outbound
+    textDocument::TextDocumentIdentifier
+    identifier::Union{String,Missing}
+    previousResultId::Union{String,Missing}
+end
+
+struct FullDocumentDiagnosticReport
+    kind::String
+    resultId::Union{String,Missing}
+    items::Vector{Diagnostic}
+end
+
+struct UnchangedDocumentDiagnosticReport
+    kind::String
+    resultId::String
+end
+
+@dict_readable struct PreviousResultId <: Outbound
+    uri::URI
+    value::String
+end
+
+@dict_readable struct WorkspaceDiagnosticParams <: Outbound
+    identifier::Union{String,Missing}
+    previousResultIds::Vector{PreviousResultId}
+end
+
+struct WorkspaceFullDocumentDiagnosticReport
+    uri::URI
+    version::Union{Int,Missing}
+    kind::String
+    resultId::Union{String,Missing}
+    items::Vector{Diagnostic}
+end
+
+struct WorkspaceUnchangedDocumentDiagnosticReport
+    uri::URI
+    version::Union{Int,Missing}
+    kind::String
+    resultId::String
+end
+
+struct WorkspaceDiagnosticReport
+    items::Vector{Union{WorkspaceFullDocumentDiagnosticReport,WorkspaceUnchangedDocumentDiagnosticReport}}
+end
+
+const textDocument_diagnostic_request_type = JSONRPC.RequestType("textDocument/diagnostic", DocumentDiagnosticParams, Union{FullDocumentDiagnosticReport,UnchangedDocumentDiagnosticReport,Nothing})
+const workspace_diagnostic_request_type = JSONRPC.RequestType("workspace/diagnostic", WorkspaceDiagnosticParams, WorkspaceDiagnosticReport)
+const workspace_diagnosticRefresh_request_type = JSONRPC.RequestType("workspace/diagnostic/refresh", Nothing, Nothing)
 const textDocument_selectionRange_request_type = JSONRPC.RequestType("textDocument/selectionRange", SelectionRangeParams, Union{Vector{SelectionRange}, Nothing})
 const textDocument_documentLink_request_type = JSONRPC.RequestType("textDocument/documentLink", DocumentLinkParams, Union{Vector{DocumentLink}, Nothing})
 const textDocument_inlayHint_request_type = JSONRPC.RequestType("textDocument/inlayHint", InlayHintParams, Union{Vector{InlayHint}, Nothing})

@@ -52,7 +52,14 @@ mutable struct LanguageServerInstance
     editor_pid::Union{Nothing,Int}
     shutdown_requested::Bool
 
-    workspace::JuliaWorkspace
+    workspace::Union{JuliaWorkspace,Nothing}
+    symserver_store_path::Union{Nothing,String}
+    symbolcache_download::Bool
+    symbolcache_upstream::String
+    enable_dynamic_indexing::Bool
+
+    clientcapability_workspace_diagnostic_refreshsupport::Bool
+
     # This has one entry for each open file (in the LSP sense). The key is the uri fo the file
     # and the value is the version of the file that the LS client sent.
     _open_file_versions::Dict{URI,Int}
@@ -70,22 +77,10 @@ mutable struct LanguageServerInstance
 
     trace_value::Threads.Atomic{Int}
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path_unused="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path_unused="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
 
-        server_ref = Ref{LanguageServerInstance}()
-        _progress_cb = _create_deferred_progress_callback(server_ref)
-
         combined_queue = Channel{Any}(Inf)
-
-        # Callback fired by JW when an indirect file is first accessed (lazy
-        # input). Puts a message onto the combined queue so the main event loop
-        # can register an LSP per-file watcher on the main thread.
-        indirect_cb = function(uri)
-            put!(combined_queue, (type=:indirect_file_discovered, uri=uri))
-        end
-
-        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path, indirect_file_watch_callback=indirect_cb, progress_callback=_progress_cb)
 
         server = new(
             endpoint,
@@ -105,7 +100,12 @@ mutable struct LanguageServerInstance
             missing,
             nothing,
             false,
-            jw,
+            nothing,
+            symserver_store_path,
+            false,
+            "",
+            true,
+            false,
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
@@ -113,14 +113,15 @@ mutable struct LanguageServerInstance
             false,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
-        server_ref[] = server
         return server
     end
 end
 function Base.display(server::LanguageServerInstance)
     println(stderr, "Root: ", server.workspaceFolders)
-    for uri in JuliaWorkspaces.get_text_files(server.workspace)
-        println(stderr, "  ", uri)
+    if server.workspace !== nothing
+        for uri in JuliaWorkspaces.get_text_files(server.workspace)
+            println(stderr, "  ", uri)
+        end
     end
 end
 
@@ -261,6 +262,8 @@ function Base.run(server::LanguageServerInstance; timings = [])
         msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
         msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
         msg_dispatcher[julia_get_test_env_request_type] = request_wrapper(julia_get_test_env_request, server)
+        msg_dispatcher[textDocument_diagnostic_request_type] = request_wrapper(textDocument_diagnostic_request, server)
+        msg_dispatcher[workspace_diagnostic_request_type] = request_wrapper(workspace_diagnostic_request, server)
 
         # The exit notification message should not be wrapped in request_wrapper (which checks
         # if the server have been requested to be shut down). Instead, this message needs to be
@@ -308,6 +311,15 @@ function Base.run(server::LanguageServerInstance; timings = [])
                             @error "Failed to register file watcher for indirect file" uri=uri exception=(err, catch_backtrace())
                         end
                     end
+                end
+            elseif message.type == :jw_indexing_complete
+                if server.clientcapability_workspace_diagnostic_refreshsupport
+                    JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
+                else
+                    all_diag_uris = URI[uri for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)]
+                    all_open_uris = URI[uri for uri in keys(server._open_file_versions)]
+                    all_uris = unique(vcat(all_diag_uris, all_open_uris))
+                    publish_diagnostics(server, all_uris, URI[], all_uris)
                 end
             elseif message.type == :clientmsg
                 msg = message.msg

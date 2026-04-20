@@ -172,7 +172,7 @@ struct WorkspaceFoldersServerCapabilities <: Outbound
     changeNotifications::Union{String,Bool,Missing}
 end
 
-struct DiagnosticOptions
+struct DiagnosticOptions <: Outbound
     identifier::Union{String,Missing}
     interFileDependencies::Bool
     workspaceDiagnostics::Bool
@@ -214,5 +214,5 @@ struct InitializeResult <: Outbound
 end
 
 ##############################################################################
-@dict_readable struct InitializedParams
+@dict_readable struct InitializedParams <: Outbound
 end

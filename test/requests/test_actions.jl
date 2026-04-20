@@ -1,6 +1,4 @@
-@testitem "reexport" begin
-    include("../test_shared_server.jl")
-
+@testitem "reexport" setup=[TestSetup, SharedServer] begin
     settestdoc("using Base.Meta\n")
     @test any(c.command == "ReexportModule" for c in action_request_test(0, 15))
     c = filter(c -> c.command == "ReexportModule", action_request_test(0, 15))[1]
@@ -8,9 +6,7 @@
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "inline expand" begin
-    include("../test_shared_server.jl")
-
+@testitem "inline expand" setup=[TestSetup, SharedServer] begin
     settestdoc("f(x) = x")
     @test any(c.command == "ExpandFunction" for c in action_request_test(0, 5))
     c = filter(c -> c.command == "ExpandFunction", action_request_test(0, 5))[1]
@@ -32,11 +28,9 @@ end
     closetestdoc()
 end
 
-@testitem "fixmissingref" begin
+@testitem "fixmissingref" setup=[TestSetup, SharedServer] begin
     # mark_errors was removed — diagnostics now come from JuliaWorkspaces.
     # This test needs to be rewritten to use JW-provided diagnostics.
-    include("../test_shared_server.jl")
-
     doc = settestdoc("argtail\n")
     # Construct a synthetic diagnostic that would trigger FixMissingRef
     e = LanguageServer.Diagnostic(LanguageServer.Range(0, 0, 0, 7), LanguageServer.DiagnosticSeverities.Warning, missing, missing, "Julia", "Missing reference: argtail", missing, missing)
@@ -46,9 +40,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "explicit import" begin
-    include("../test_shared_server.jl")
-
+@testitem "explicit import" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("using Base.Meta\nMeta.quot")
     @test LanguageServer.find_using_statement(doc.cst.args[2].args[1]) !== nothing
     
@@ -58,9 +50,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "farg unused" begin
-    include("../test_shared_server.jl")
-
+@testitem "farg unused" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("function f(arg::T) end\n")
     
     @test any(c.command == "DeleteUnusedFunctionArgumentName" for c in action_request_test(0, 12))
@@ -69,9 +59,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "unused assignment" begin
-    include("../test_shared_server.jl")
-
+@testitem "unused assignment" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("function f()\n    x = 1 + 2\n    return 3\nend\n")
 
     @test any(c.command == "ReplaceUnusedAssignmentName" for c in action_request_test(1, 4))
@@ -80,9 +68,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "===/!== for nothing comparison" begin
-    include("../test_shared_server.jl")
-
+@testitem "===/!== for nothing comparison" setup=[TestSetup, SharedServer] begin
     for str in ("x = 1\nif x == nothing end", "x = 1\nif x != nothing end")
         doc = settestdoc(str)
         @test any(c.command == "CompareNothingWithTripleEqual" for c in action_request_test(1, 6))
@@ -92,9 +78,7 @@ end
     end
 end
 
-@testitem "Add license header" begin
-    include("../test_shared_server.jl")
-
+@testitem "Add license header" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("hello\nworld\n")
 
     @test !any(c.command == "AddLicenseIdentifier" for c in action_request_test(1, 1))
@@ -105,9 +89,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "Organize imports" begin
-    include("../test_shared_server.jl")
-
+@testitem "Organize imports" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("using JSON\nusing Example: foo, bar\nimport Example as E\nf(x) = x\n")
 
     @test any(c.command == "OrganizeImports" for c in action_request_test(0, 1))
@@ -125,9 +107,7 @@ end
     closetestdoc()
 end
 
-@testitem "Convert between string and raw strings" begin
-    include("../test_shared_server.jl")
-
+@testitem "Convert between string and raw strings" setup=[TestSetup, SharedServer] begin
     # "..." -> raw"..."
     doc = settestdoc("""
         "this is fine"
@@ -184,9 +164,7 @@ end
     @test repr(raw_str) == str
 end
 
-@testitem "Add docstring template" begin
-    include("../test_shared_server.jl")
-
+@testitem "Add docstring template" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
         f(x) = x
 
@@ -230,9 +208,7 @@ end
     LanguageServer.workspace_executeCommand_request(LanguageServer.ExecuteCommandParams(missing, c.command, c.arguments), server, server.jr_endpoint)
 end
 
-@testitem "Update docstring signature" begin
-    include("../test_shared_server.jl")
-    
+@testitem "Update docstring signature" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
         "hello"
         f(x) = x

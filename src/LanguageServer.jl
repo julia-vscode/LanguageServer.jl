@@ -16,9 +16,6 @@ const StaticLint = JuliaWorkspaces.StaticLint
 
 export LanguageServerInstance, runserver
 
-# No-op for Nothing endpoints (used in tests and when no client is connected).
-JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
-
 const INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS = "useFormatterConfigDefaults"
 
 const g_operationId = Ref{String}("")

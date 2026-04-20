@@ -1,6 +1,4 @@
-@testitem "signatures" begin
-    include("../test_shared_server.jl")
-
+@testitem "signatures" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
     rand()
     Base.rand()
@@ -47,9 +45,7 @@
     end
 end
 
-@testitem "definitions" begin
-    include("../test_shared_server.jl")
-
+@testitem "definitions" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     rand()
     func(arg) = 1
@@ -61,9 +57,7 @@ end
     @test !isempty(def_test(3, 3))
 end
 
-@testitem "references" begin
-    include("../test_shared_server.jl")
-
+@testitem "references" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     func(arg) = 1
     func()
@@ -71,9 +65,7 @@ end
     @test length(ref_test(1, 2)) == 2
 end
 
-@testitem "rename" begin
-    include("../test_shared_server.jl")
-
+@testitem "rename" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     func(arg) = 1
     func()
@@ -81,9 +73,7 @@ end
     @test length(rename_test(0, 2).documentChanges[1].edits) == 2
 end
 
-@testitem "get_file_loc" begin
-    include("../test_shared_server.jl")
-
+@testitem "get_file_loc" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
     func(arg) = 1
     func()
@@ -91,9 +81,7 @@ end
     @test LanguageServer.get_file_loc(doc.cst.args[2].args[1]) == (doc, 14)
 end
 
-@testitem "doc symbols" begin
-    include("../test_shared_server.jl")
-
+@testitem "doc symbols" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
     a = 1
     b = 2
@@ -104,9 +92,7 @@ end
     @test all(item.name in ("a", "b", "func", "::Bar", "::Type{Foo}") for item in LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), missing, missing), server, server.jr_endpoint))
 end
 
-@testitem "range formatting" begin
-    include("../test_shared_server.jl")
-
+@testitem "range formatting" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("""
     map([A,B,C]) do x
     if x<0 && iseven(x)

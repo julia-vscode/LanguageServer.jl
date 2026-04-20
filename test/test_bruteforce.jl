@@ -1,6 +1,5 @@
-@testitem "brute force tests" begin
+@testitem "brute force tests" setup=[TestSetup, SharedServer] begin
     using LanguageServer: get_text, get_uri
-    include("test_shared_server.jl")
 
     function on_all_docs(server, f)
         for doc in values(server._documents)

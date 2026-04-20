@@ -1,6 +1,4 @@
-@testitem "TextDocument" begin
-    include("../test_shared_server.jl")
-
+@testitem "TextDocument" setup=[TestSetup, SharedServer] begin
     empty!(server._documents)
 
     LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(uri"untitled:none", "julia", 0, "")), server, server.jr_endpoint)

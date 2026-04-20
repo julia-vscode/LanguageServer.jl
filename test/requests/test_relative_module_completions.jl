@@ -1,9 +1,8 @@
 ### To run this test:
 ### $ julia --project -e 'using TestItemRunner; @run_package_tests filter=ti->ti.name=="relative module completions"'
 
-@testitem "relative module completions" begin
+@testitem "relative module completions" setup=[TestSetup, SharedServer] begin
     using LanguageServer
-    include(pkgdir(LanguageServer, "test", "test_shared_server.jl"))
 
     # Helper returns context but does not print
     function ctx(line::Int, col::Int)

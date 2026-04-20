@@ -1,8 +1,6 @@
-@testitem "Intellisense" begin
+@testitem "Intellisense" setup=[TestSetup, SharedServer] begin
     import Pkg, StaticLint
     using LanguageServer.URIs2
-
-    include("test_shared_server.jl")
 
     testtext = """
     module testmodule

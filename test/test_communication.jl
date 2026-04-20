@@ -1,8 +1,6 @@
-@testitem "Communication" begin
+@testitem "Communication" setup=[TestSetup] begin
     import JSON, JSONRPC, Pkg
     using Sockets
-
-    include("test_shared_init_request.jl")
 
     init_response = JSON.parse("""
     {
@@ -77,7 +75,7 @@
         endpoint = JSONRPC.JSONRPCEndpoint(client, client)
         JSONRPC.start(endpoint)
 
-        response = JSONRPC.send_request(endpoint, "initialize", init_request)
+        response = JSONRPC.send_request(endpoint, "initialize", TestSetup.init_request)
 
         @test_broken init_response == response
         @test response["capabilities"]["typeDefinitionProvider"] == false

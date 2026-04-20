@@ -1,10 +1,7 @@
-@testitem "Edit" begin
+@testitem "Edit" setup=[TestSetup] begin
     using JSON, Pkg, LanguageServer.URIs2
     using LanguageServer: get_uri, get_text_document
     import JSONRPC, CSTParser
-
-    # TODO Replace this with a proper mock endpoint
-    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
     server = LanguageServer.LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 

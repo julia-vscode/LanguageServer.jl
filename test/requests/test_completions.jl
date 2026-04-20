@@ -1,6 +1,4 @@
-@testitem "latex completions" begin
-    include("../test_shared_server.jl")
-
+@testitem "latex completions" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     \\therefor
     .\\therefor
@@ -35,9 +33,7 @@ end
 @testitem "path completions" begin
 end
 
-@testitem "import completions" begin
-    include("../test_shared_server.jl")
-
+@testitem "import completions" setup=[TestSetup, SharedServer] begin
     settestdoc("import Base: r")
     @test any(item.label == "rand" for item in completion_test(0, 14).items)
     closetestdoc()
@@ -60,9 +56,7 @@ end
     closetestdoc()
 end
 
-@testitem "getfield completions" begin
-    include("../test_shared_server.jl")
-
+@testitem "getfield completions" setup=[TestSetup, SharedServer] begin
     settestdoc("Base.")
     @test length(completion_test(0, 5).items) > 10
     closetestdoc()
@@ -110,9 +104,7 @@ end
     closetestdoc()
 end
 
-@testitem "token completions" begin
-    include("../test_shared_server.jl")
-
+@testitem "token completions" setup=[TestSetup, SharedServer] begin
     settestdoc("B")
     @test any(item.label == "Base" for item in completion_test(0, 1).items)
     closetestdoc()
@@ -164,9 +156,7 @@ end
     closetestdoc()
 end
 
-@testitem "scope var completions" begin
-    include("../test_shared_server.jl")
-
+@testitem "scope var completions" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     myvar = 1
     βbb = 2
@@ -180,9 +170,7 @@ end
     @test any(item.label == "bβb" for item in completion_test(5, 2).items)
 end
 
-@testitem "completion kinds" begin
-    include("../test_shared_server.jl")
-
+@testitem "completion kinds" setup=[TestSetup, SharedServer] begin
     Kinds = LanguageServer.CompletionItemKinds
     # issue #872
     settestdoc("""
@@ -196,9 +184,7 @@ end
     @test any(i -> i.label == "kind_variable_arg" && i.kind == Kinds.Variable, items)
 end
 
-@testitem "completion details" begin
-    include("../test_shared_server.jl")
-
+@testitem "completion details" setup=[TestSetup, SharedServer] begin
     settestdoc("""
         struct Bar end
         struct Foo
@@ -218,9 +204,7 @@ end
 end
 
 if VERSION >= v"1.12"
-    @testitem "completion public annotation" begin
-        include("../test_shared_server.jl")
-
+    @testitem "completion public annotation" setup=[TestSetup, SharedServer] begin
         settestdoc("""
             module Foo
             public bar

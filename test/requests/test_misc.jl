@@ -1,6 +1,4 @@
-@testitem "getCurrentBlockRange" begin
-    include("../test_shared_server.jl")
-
+@testitem "getCurrentBlockRange" setup=[TestSetup, SharedServer] begin
     doc = settestdoc("ab")
 
     res = (LanguageServer.Position(0, 0), LanguageServer.Position(0, 2), LanguageServer.Position(0, 2))

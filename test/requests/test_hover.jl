@@ -1,6 +1,4 @@
-@testitem "Hover" begin
-    include("../test_shared_server.jl")
-
+@testitem "Hover" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     1234
     Base
@@ -49,9 +47,7 @@
     @test hover_test(25, 15) !== nothing
 end
 
-@testitem "hover docs" begin
-    include("../test_shared_server.jl")
-
+@testitem "hover docs" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     "I have a docstring"
     Base.@kwdef struct SomeStruct
@@ -61,9 +57,7 @@ end
     @test startswith(hover_test(1, 20).contents.value, "I have a docstring")
 end
 
-@testitem "hover argument qualified function" begin
-    include("../test_shared_server.jl")
-
+@testitem "hover argument qualified function" setup=[TestSetup, SharedServer] begin
     settestdoc("""
     module M
         f(a,b,c,d,e) = 1

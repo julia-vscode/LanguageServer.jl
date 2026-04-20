@@ -59,9 +59,7 @@ mutable struct LanguageServerInstance
     _files_from_disc::Dict{URI,JuliaWorkspaces.TextFile}
     # Tracks which files are workspace files (found on disc in a workspace folder).
     _workspace_files::Set{URI}
-    # This is a list of files that should be kept around that are potentially not in a workspace
-    # folder. Primarily for projects and manifests outside of the workspace.
-    _extra_tracked_files::Vector{URI}
+
 
     # Indirect files: URIs requested by JW (via include traversal) for which we
     # have registered an LSP file watcher. Maps URI -> registration id so we can
@@ -72,13 +70,22 @@ mutable struct LanguageServerInstance
 
     trace_value::Threads.Atomic{Int}
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path_unused="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
 
         server_ref = Ref{LanguageServerInstance}()
         _progress_cb = _create_deferred_progress_callback(server_ref)
 
-        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path, progress_callback=_progress_cb)
+        combined_queue = Channel{Any}(Inf)
+
+        # Callback fired by JW when an indirect file is first accessed (lazy
+        # input). Puts a message onto the combined queue so the main event loop
+        # can register an LSP per-file watcher on the main thread.
+        indirect_cb = function(uri)
+            put!(combined_queue, (type=:indirect_file_discovered, uri=uri))
+        end
+
+        jw = JuliaWorkspace(;dynamic=JuliaWorkspaces.DynamicIndexingOnly, store_path=symserver_store_path, indirect_file_watch_callback=indirect_cb, progress_callback=_progress_cb)
 
         server = new(
             endpoint,
@@ -88,7 +95,7 @@ mutable struct LanguageServerInstance
             false,
             true,
             :literals,
-            Channel{Any}(Inf),
+            combined_queue,
             err_handler,
             :created,
             false,
@@ -102,7 +109,6 @@ mutable struct LanguageServerInstance
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
-            URI[],
             Dict{URI,String}(),
             false,
             Threads.Atomic{Int}(Int(lsp_trace_off))
@@ -240,7 +246,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
         msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
         msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
         msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
-        msg_dispatcher[julia_activateenvironment_notification_type] = notification_wrapper(julia_activateenvironment_notification, server)
         msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
         msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
         msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
@@ -251,7 +256,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
         msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
         msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
         msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
-        msg_dispatcher[julia_refreshLanguageServer_notification_type] = notification_wrapper(julia_refreshLanguageServer_notification, server)
         msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
         msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
         msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
@@ -272,6 +276,39 @@ function Base.run(server::LanguageServerInstance; timings = [])
             if message.type == :close
                 @debug "Shutting down server instance."
                 return
+            elseif message.type == :indirect_file_discovered
+                # Fired by JW's indirect_file_watch_callback from a Salsa
+                # computation thread. Register a per-file LSP watcher so we
+                # get notified when the file changes on disc.
+                uri = message.uri
+                if !haskey(server._watched_indirect_files, uri) && uri.scheme == "file"
+                    path = JuliaWorkspaces.URIs2.uri2filepath(uri)
+                    if path !== nothing
+                        dir = dirname(path)
+                        base = basename(path)
+                        registration_id = string(uuid4())
+                        registration = Registration(
+                            registration_id,
+                            "workspace/didChangeWatchedFiles",
+                            DidChangeWatchedFilesRegistrationOptions([
+                                FileSystemWatcher(
+                                    RelativePattern(JuliaWorkspaces.URIs2.filepath2uri(dir), base),
+                                    missing
+                                )
+                            ])
+                        )
+                        try
+                            JSONRPC.send(
+                                server.jr_endpoint,
+                                client_registerCapability_request_type,
+                                RegistrationParams([registration])
+                            )
+                            server._watched_indirect_files[uri] = registration_id
+                        catch err
+                            @error "Failed to register file watcher for indirect file" uri=uri exception=(err, catch_backtrace())
+                        end
+                    end
+                end
             elseif message.type == :clientmsg
                 msg = message.msg
 

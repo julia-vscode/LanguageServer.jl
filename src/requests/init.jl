@@ -234,9 +234,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             end
         end
 
-        track_project_files!(server)
-
-        JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+        JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
         for wkspc in server.workspaceFolders
             load_folder(wkspc, server, added_uris)

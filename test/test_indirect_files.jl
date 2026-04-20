@@ -4,11 +4,8 @@
     using LanguageServer: LanguageServerInstance
     using JuliaWorkspaces: JuliaWorkspaces, get_indirect_files, is_indirect_file, has_file, TextFile, SourceText
 
-    # In-process LS with dynamic-registration capabilities enabled so the
-    # reconcile function actually emits register/unregister.
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
-    server.jr_endpoint = nothing  # JSONRPC.send is stubbed to a no-op below
-    @eval LanguageServer.JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+    server.jr_endpoint = nothing
 
     # Fake clientCapabilities that pass the dynamic-registration gate.
     server.clientCapabilities = LanguageServer.ClientCapabilities(
@@ -63,7 +60,6 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
-    @eval LanguageServer.JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
     server.clientCapabilities = LanguageServer.ClientCapabilities(
         LanguageServer.WorkspaceClientCapabilities(
             true,
@@ -120,7 +116,6 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
-    @eval LanguageServer.JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
     server.clientCapabilities = LanguageServer.ClientCapabilities(
         LanguageServer.WorkspaceClientCapabilities(
             true,
@@ -171,7 +166,6 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
-    @eval LanguageServer.JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
     mktempdir() do dir
         a_path = joinpath(dir, "A.jl")

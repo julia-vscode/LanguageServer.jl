@@ -28,8 +28,7 @@ rename_test(line, char) = LanguageServer.textDocument_rename_request(LanguageSer
 hover_test(line, char) = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char)), server, server.jr_endpoint)
 range_formatting_test(line0, char0, line1, char1) = LanguageServer.textDocument_range_formatting_request(LanguageServer.DocumentRangeFormattingParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Range(LanguageServer.Position(line0, char0), LanguageServer.Position(line1, char1)), LanguageServer.FormattingOptions(4, true, missing, missing, missing)), server, server.jr_endpoint)
 
-# TODO Replace this with a proper mock endpoint
-JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+# JSONRPC.send(::Nothing, ...) is defined at module level in LanguageServer.jl
 
 server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), first(Base.DEPOT_PATH))
 server.jr_endpoint = nothing

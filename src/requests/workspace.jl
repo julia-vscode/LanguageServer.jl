@@ -89,6 +89,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
+        ConfigurationItem(missing, "julia.environmentPath"),
     ]))
 
     new_completion_mode = Symbol(something(response[1], :import))
@@ -100,15 +101,17 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.inlay_hints = inlayHints
     server.inlay_hints_variable_types = inlayHintsVariableTypes
     server.inlay_hints_parameter_names = inlayHintsParameterNames
+
+    new_env_path = something(response[5], "")
+    if server.env_path != new_env_path
+        server.env_path = new_env_path
+        JuliaWorkspaces.set_active_project!(server.workspace, isempty(new_env_path) ? nothing : filepath2uri(new_env_path))
+    end
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)
     for uri in keys(server._files_from_disc)
         if any(i->startswith(string(uri), i), string.(filepath2uri.(server.workspaceFolders)))
-            continue
-        end
-
-        if uri in server._extra_tracked_files
             continue
         end
 

@@ -101,7 +101,7 @@ struct Unregistration <: Outbound
 end
 
 struct UnregistrationParams <: Outbound
-    unregistrations::Vector{Unregistration}
+    unregisterations::Vector{Unregistration}
 end
 
 

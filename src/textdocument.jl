@@ -143,10 +143,13 @@ end
 """
     Range(st::JuliaWorkspaces.SourceText, rng::UnitRange)
 
-Converts a byte offset range to a LSP Range with proper UTF-16 character encoding.
+Converts a 1-based half-open byte range (as produced by JuliaWorkspaces
+diagnostics and test items) to an LSP Range with UTF-16 character
+encoding. `first(rng)` is the 1-based inclusive start byte and `last(rng)`
+is the 1-based exclusive end.
 """
 function Range(st::JuliaWorkspaces.SourceText, rng::UnitRange)
-    start_l, start_c = get_position_from_offset(st, first(rng))
-    end_l, end_c = get_position_from_offset(st, last(rng))
+    start_l, start_c = get_position_from_offset(st, first(rng) - 1)
+    end_l, end_c = get_position_from_offset(st, last(rng) - 1)
     return Range(start_l, start_c, end_l, end_c)
 end

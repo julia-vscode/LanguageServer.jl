@@ -87,8 +87,8 @@ end
     rawdocfun
     """)
 
-    @test occursin("Function doc via @doc", hover_test(3, 6).contents.value)
-    @test occursin("Struct doc via @doc", hover_test(4, 6).contents.value)
-    @test occursin("Variable doc via @doc", hover_test(5, 6).contents.value)
-    @test occursin("Raw doc via @doc", hover_test(6, 8).contents.value)
+    @test occursin("Function doc via @doc", hover_test(4, 6).contents.value)
+    @test occursin("Struct doc via @doc", hover_test(5, 6).contents.value)
+    @test occursin("Variable doc via @doc", hover_test(6, 6).contents.value)
+    @test occursin("Raw doc via @doc", hover_test(7, 8).contents.value)
 end

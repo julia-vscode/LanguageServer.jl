@@ -78,8 +78,8 @@ end
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     doc = getdocument(server, uri)
-    if params.text isa String
-        if get_text(doc) != params.text
+    if params.text isa String && get_text(doc) != params.text
+        if get_open_in_editor(doc) && get_version(doc) > 0
             println(stderr, "Mismatch between server and client text")
             println(stderr, "========== BEGIN SERVER SIDE TEXT ==========")
             println(stderr, get_text(doc))
@@ -87,11 +87,10 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
             println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
             println(stderr, params.text)
             println(stderr, "========== END CLIENT SIDE TEXT ==========")
-            JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(get_uri(doc)). _open_in_editor is $(doc._open_in_editor). _workspace_file is $(doc._workspace_file). _version is $(get_version(doc))."))
         end
+        parse_all(doc, server)
     end
-    # parse_all(doc, server)
 end
 
 function textDocument_willSave_notification(params::WillSaveTextDocumentParams, server::LanguageServerInstance, conn)

@@ -109,7 +109,7 @@ end
 
     doc = settestdoc("""
     map([A,B,C]) do x
-    if x<0 && iseven(x)
+    if x <0 && iseven(x)
     return 0
     elseif x==0
     return 1
@@ -122,7 +122,7 @@ end
     map([A, B, C]) do x
         if x < 0 && iseven(x)
             return 0
-        elseif x == 0
+        elseif x==0
             return 1
         else
             return x
@@ -152,7 +152,7 @@ end
     """)
     @test range_formatting_test(1, 0, 1, 0)[1].newText == """
     function sub(a, b)
-        a - b
+        a-b
     end
     """
     closetestdoc()

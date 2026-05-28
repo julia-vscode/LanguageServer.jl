@@ -5,7 +5,7 @@ function textDocument_hover_request(params::TextDocumentPositionParams, server::
     x isa EXPR && CSTParser.isoperator(x) && resolve_op_ref(x, env)
     documentation = get_hover(x, "", server, x, env)
     documentation = get_closer_hover(x, documentation)
-    documentation = get_fcall_position(x, documentation)
+    documentation = get_fcall_position(x, documentation, env)
     documentation = sanitize_docstring(documentation)
 
     return isempty(documentation) ? nothing : Hover(MarkupContent(documentation), missing)
@@ -308,9 +308,9 @@ function is_doc_expr(x::EXPR)
            CSTParser.isstring(get_doc_payload_expr(x))
 end
 
-get_fcall_position(x, documentation, visited=nothing) = documentation
+get_fcall_position(x, documentation, env, visited=nothing) = documentation
 
-function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
+function get_fcall_position(x::EXPR, documentation, env, visited=Set{EXPR}())
     if x in visited                                      # TODO: remove
         throw(LSInfiniteLoop("Possible infinite loop.")) # TODO: remove
     else                                                 # TODO: remove
@@ -329,14 +329,14 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
 
             # hovering over the function name, so we might as well check the parent
             if arg_i == 0
-                return get_fcall_position(parentof(x), documentation, visited)
+                return get_fcall_position(parentof(x), documentation, env, visited)
             end
 
             minargs < 4 && return documentation
 
             fname = CSTParser.get_name(parentof(x))
             if StaticLint.hasref(fname) &&
-               (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val)[1] == minargs)
+               (refof(fname) isa StaticLint.Binding && refof(fname).val isa EXPR && CSTParser.defines_struct(refof(fname).val) && StaticLint.struct_nargs(refof(fname).val, env)[1] == minargs)
                 dt_ex = refof(fname).val
                 args = dt_ex.args[3]
                 args.args === nothing || arg_i > length(args.args) && return documentation
@@ -357,7 +357,7 @@ function get_fcall_position(x::EXPR, documentation, visited=Set{EXPR}())
             end
             return documentation
         else
-            return get_fcall_position(parentof(x), documentation, visited)
+            return get_fcall_position(parentof(x), documentation, env, visited)
         end
     end
     return documentation

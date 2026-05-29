@@ -152,7 +152,12 @@ function hasdocument(server::LanguageServerInstance, uri::URI)
     return haskey(server._documents, uri)
 end
 
+struct MissingDocumentError <: Exception
+    uri::URI
+end
+
 function getdocument(server::LanguageServerInstance, uri::URI)
+    haskey(server._documents, uri) || throw(MissingDocumentError(uri))
     return server._documents[uri]
 end
 
@@ -292,6 +297,24 @@ end
 # Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
 const USE_REVISE = Ref(false)
 
+function invoke_handler(func, params, server::LanguageServerInstance, conn)
+    try
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            return Base.invokelatest(func, params, server, conn)
+        else
+            return func(params, server, conn)
+        end
+    catch err
+        err isa MissingDocumentError || rethrow()
+        return nodocument_error(err.uri, string(nameof(func)))
+    end
+end
+
 function request_wrapper(func, server::LanguageServerInstance)
     return function (conn, params, token)
         if server.shutdown_requested
@@ -303,16 +326,7 @@ function request_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        if USE_REVISE[] && isdefined(Main, :Revise)
-            try
-                Main.Revise.revise()
-            catch e
-                @warn "Reloading with Revise failed" exception = e
-            end
-            Base.invokelatest(func, params, server, conn)
-        else
-            func(params, server, conn)
-        end
+        invoke_handler(func, params, server, conn)
     end
 end
 
@@ -327,16 +341,7 @@ function notification_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        if USE_REVISE[] && isdefined(Main, :Revise)
-            try
-                Main.Revise.revise()
-            catch e
-                @warn "Reloading with Revise failed" exception = e
-            end
-            Base.invokelatest(func, params, server, conn)
-        else
-            func(params, server, conn)
-        end
+        invoke_handler(func, params, server, conn)
     end
 end
 

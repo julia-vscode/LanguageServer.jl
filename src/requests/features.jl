@@ -14,56 +14,11 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return unique!(locations)
 end
 
-function search_file(filename, dir, topdir)
-    parent_dir = dirname(dir)
-    return if (!startswith(dir, topdir) || parent_dir == dir || isempty(dir))
-        nothing
-    else
-        path = joinpath(dir, filename)
-        isfile(path) ? path : search_file(filename, parent_dir, topdir)
-    end
-end
-
-function get_juliaformatter_config(uri, server)
-    path = something(uri2filepath(uri), "")
-
-    # search through workspace for a `.JuliaFormatter.toml`
-    workspace_dirs = sort(filter(f -> startswith(path, f), collect(server.workspaceFolders)), by = length, rev = true)
-    if ismissing(server.initialization_options) || !get(server.initialization_options, INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS, false)
-        config_path = length(workspace_dirs) > 0 ?
-                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, workspace_dirs[1]) :
-                      nothing
-    else
-        @debug "using standard formatter config file locations"
-        config_path = length(workspace_dirs) > 0 ?
-                      search_file(JuliaFormatter.CONFIG_FILE_NAME, path, "/") :
-                      nothing
-        if isnothing(config_path) && haskey(ENV, "HOME")
-            local home = ENV["HOME"]
-            config_path = search_file(JuliaFormatter.CONFIG_FILE_NAME, home, home)
-        end
-    end
-
-    config_path === nothing && return nothing
-
-    @debug "Found JuliaFormatter config at $(config_path)"
-    return JuliaFormatter.parse_config(config_path)
-end
-
-function default_juliaformatter_config(params)
-    return (;
-        JuliaFormatter.options(JuliaFormatter.MinimalStyle())...,
-        indent = params.options.tabSize,
-    )
-end
-
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    st = jw_source_text(server, uri)
 
-    newcontent = try
-        config = get_juliaformatter_config(uri, server)
-        format_text(st.content, params, config)
+    file_edit = try
+        JuliaWorkspaces.get_format_edits(server.workspace, uri)
     catch err
         return JSONRPC.JSONRPCError(
             -32000,
@@ -72,49 +27,19 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         )
     end
 
-    end_l, end_c = get_position_from_offset(st, sizeof(st.content)) # AUDIT: OK
-    lsedits = TextEdit[TextEdit(Range(0, 0, end_l, end_c), newcontent)]
-
-    return lsedits
+    return TextEdit[
+        TextEdit(jw_range(server, uri, te.start, te.stop), te.new_text)
+        for te in file_edit.edits
+    ]
 end
-
-function format_text(text::AbstractString, params, config)
-    if config === nothing
-        return JuliaFormatter.format_text(text; default_juliaformatter_config(params)...)
-    else
-        # Some valid options in config file are not valid for format_text
-        VALID_OPTIONS = (fieldnames(JuliaFormatter.Options)..., :style)
-        config = filter(p -> in(first(p), VALID_OPTIONS), JuliaFormatter.kwargs(config))
-        return JuliaFormatter.format_text(text; config...)
-    end
-end
-
-# Strings broken up and joined with * to make this file formattable
-const FORMAT_MARK_BEGIN = "---- BEGIN LANGUAGESERVER" * " RANGE FORMATTING ----"
-const FORMAT_MARK_END = "---- END LANGUAGESERVER" * " RANGE FORMATTING ----"
 
 function textDocument_range_formatting_request(params::DocumentRangeFormattingParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    st = jw_source_text(server, uri)
-    oldcontent = st.content
-    startline = params.range.start.line + 1
-    stopline = params.range.stop.line + 1
+    start_line = params.range.start.line + 1
+    stop_line = params.range.stop.line + 1
 
-    # Insert start and stop line comments as markers in the original text
-    original_lines = collect(eachline(IOBuffer(oldcontent); keep=true))
-    stopline = min(stopline, length(original_lines))
-    original_block = join(@view(original_lines[startline:stopline]))
-    # If the stopline do not have a trailing newline we need to add that before our stop
-    # comment marker. This is removed after formatting.
-    stopline_has_newline = original_lines[stopline] != chomp(original_lines[stopline])
-    insert!(original_lines, stopline + 1, (stopline_has_newline ? "# " : "\n# ") * FORMAT_MARK_END * "\n")
-    insert!(original_lines, startline, "# " * FORMAT_MARK_BEGIN * "\n")
-    text_marked = join(original_lines)
-
-    # Format the full marked text
-    text_formatted = try
-        config = get_juliaformatter_config(uri, server)
-        format_text(text_marked, params, config)
+    file_edit = try
+        JuliaWorkspaces.get_format_edits(server.workspace, uri, start_line, stop_line)
     catch err
         return JSONRPC.JSONRPCError(
             -33000,
@@ -123,26 +48,10 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         )
     end
 
-    # Find the markers in the formatted text and extract the lines in between
-    formatted_lines = collect(eachline(IOBuffer(text_formatted); keep=true))
-    start_idx = findfirst(x -> occursin(FORMAT_MARK_BEGIN, x), formatted_lines)
-    start_idx === nothing && return TextEdit[]
-    stop_idx = findfirst(x -> occursin(FORMAT_MARK_END, x), formatted_lines)
-    stop_idx === nothing && return TextEdit[]
-    formatted_block = join(@view(formatted_lines[(start_idx+1):(stop_idx-1)]))
-
-    # Remove the extra inserted newline if there was none from the start
-    if !stopline_has_newline
-        formatted_block = chomp(formatted_block)
-    end
-
-    # Don't suggest an edit in case the formatted text is identical to original text
-    if formatted_block == original_block
-        return TextEdit[]
-    end
-
-    # End position is exclusive, replace until start of next line
-    return TextEdit[TextEdit(Range(params.range.start.line, 0, params.range.stop.line + 1, 0), formatted_block)]
+    return TextEdit[
+        TextEdit(jw_range(server, uri, te.start, te.stop), te.new_text)
+        for te in file_edit.edits
+    ]
 end
 
 function textDocument_references_request(params::ReferenceParams, server::LanguageServerInstance, conn)

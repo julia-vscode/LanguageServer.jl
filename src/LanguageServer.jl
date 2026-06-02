@@ -1,5 +1,5 @@
 module LanguageServer
-using JSON, JuliaFormatter
+using JSON
 using UUIDs
 using Markdown
 import JSONRPC

@@ -3,9 +3,14 @@
     using LanguageServer.URIs2
     using LanguageServer: LanguageServerInstance
     using JuliaWorkspaces: JuliaWorkspaces, get_indirect_files, is_indirect_file, has_file, TextFile, SourceText
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace(;
+        indirect_file_watch_callback = uri -> put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
+    )
 
     # Fake clientCapabilities that pass the dynamic-registration gate.
     server.clientCapabilities = LanguageServer.ClientCapabilities(
@@ -16,6 +21,7 @@
             LanguageServer.DidChangeWatchedFilesClientCapabilities(true, true),
             LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
             LanguageServer.ExecuteCommandClientCapabilities(true),
+            missing,
             missing,
             missing
         ),
@@ -57,9 +63,14 @@ end
     using LanguageServer.URIs2
     using LanguageServer: LanguageServerInstance
     using JuliaWorkspaces: JuliaWorkspaces, is_indirect_file, has_file, TextFile, SourceText, get_julia_files
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace(;
+        indirect_file_watch_callback = uri -> put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
+    )
     server.clientCapabilities = LanguageServer.ClientCapabilities(
         LanguageServer.WorkspaceClientCapabilities(
             true,
@@ -68,6 +79,7 @@ end
             LanguageServer.DidChangeWatchedFilesClientCapabilities(true, true),
             LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
             LanguageServer.ExecuteCommandClientCapabilities(true),
+            missing,
             missing,
             missing
         ),
@@ -113,9 +125,14 @@ end
     using LanguageServer.URIs2
     using LanguageServer: LanguageServerInstance
     using JuliaWorkspaces: JuliaWorkspaces, is_indirect_file, has_file, TextFile, SourceText
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace(;
+        indirect_file_watch_callback = uri -> put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
+    )
     server.clientCapabilities = LanguageServer.ClientCapabilities(
         LanguageServer.WorkspaceClientCapabilities(
             true,
@@ -124,6 +141,7 @@ end
             LanguageServer.DidChangeWatchedFilesClientCapabilities(true, true),
             LanguageServer.WorkspaceSymbolClientCapabilities(true, missing),
             LanguageServer.ExecuteCommandClientCapabilities(true),
+            missing,
             missing,
             missing
         ),
@@ -166,6 +184,7 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
     server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace()
 
     mktempdir() do dir
         a_path = joinpath(dir, "A.jl")

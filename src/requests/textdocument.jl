@@ -81,26 +81,7 @@ function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentPara
 end
 
 function measure_sub_operation(f, request_name, server)
-    start_time = string(Dates.unix2datetime(time()), "Z")
-    tic = time_ns()
-    res = f()
-    toc = time_ns()
-    duration = (toc - tic) / 1e+6
-
-    JSONRPC.send(
-        server.jr_endpoint,
-        telemetry_event_notification_type,
-        Dict(
-            "command" => "request_metric",
-            "operationId" => string(uuid4()),
-            "operationParentId" => g_operationId[],
-            "name" => request_name,
-            "duration" => duration,
-            "time" => start_time
-        )
-    )
-
-    return res
+    return TraceLogging.trace(f, request_name)
 end
 
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)

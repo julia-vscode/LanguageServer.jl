@@ -110,12 +110,13 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             Dict{URI,String}(),
-            false,
+            true,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
     end
 end
+
 function Base.display(server::LanguageServerInstance)
     println(stderr, "Root: ", server.workspaceFolders)
     if server.workspace !== nothing
@@ -176,6 +177,22 @@ function notification_wrapper(func, server::LanguageServerInstance)
     end
 end
 
+# Convert a raw monotonic `time_ns()` value into an OpenTelemetry `HrTime` pair
+# `[seconds, nanoseconds]`, where `seconds` is whole seconds since the Unix epoch and
+# `nanoseconds` is the partial second in nanoseconds. `ref_unix`/`ref_ns` are a wall-clock
+# (`time()`) and monotonic (`time_ns()`) pair captured at the same instant. The relative
+# timing between events keeps full nanosecond resolution from the monotonic clock; only the
+# absolute anchor is limited by the resolution of `time()`. Arithmetic on the nanosecond
+# component is done in integers to avoid any floating-point precision loss.
+function ns_to_hrtime(ns::UInt64, ref_unix::Float64, ref_ns::UInt64)
+    ref_seconds = floor(Int64, ref_unix)
+    ref_frac_ns = round(Int64, (ref_unix - ref_seconds) * 1e9)
+    total_ns = ref_frac_ns + (signed(ns) - signed(ref_ns))
+    seconds = ref_seconds + fld(total_ns, 1_000_000_000)
+    partial_ns = mod(total_ns, 1_000_000_000)
+    return (seconds, partial_ns)
+end
+
 """
     run(server::LanguageServerInstance)
 
@@ -191,9 +208,57 @@ function Base.run(server::LanguageServerInstance; timings = [])
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
+    # Reference pair used to convert the raw monotonic `time_ns()` timestamps carried by trace
+    # spans and log records into wall-clock `HrTime` values for the client. Captured once here
+    # so every event shares the same anchor.
+    trace_time_reference_unix = time()
+    trace_time_reference_ns = time_ns()
+
     new_logger = LoggingExtras.TeeLogger(
         Logging.current_logger(),
-        LSPTraceLogger(server)
+        LSPTraceLogger(server),
+        TraceLogging.TracingLogger(
+            # Completed trace spans (top-level requests and the derived-function computations
+            # they trigger) are sent to the client as `request_metric` telemetry.
+            on_trace = function (span)
+                server._send_request_metrics || return nothing
+                endpoint = server.jr_endpoint
+                endpoint === nothing && return nothing
+                payload = Dict{String,Any}(
+                    "command" => "request_metric",
+                    "operationId" => span.operation_id,
+                    "operationParentId" => span.parent_operation_id,
+                    "operationRootId" => span.root_operation_id,
+                    "name" => span.name,
+                    "time" => collect(ns_to_hrtime(span.start_time_ns, trace_time_reference_unix, trace_time_reference_ns)),
+                    "duration" => span.duration_ns
+                )
+                # Only attach attributes when the span actually carries some, to avoid
+                # allocating and serializing an empty dict on every request.
+                isempty(span.attributes) || (payload["attributes"] = Dict{String,Any}(string(k) => v for (k, v) in pairs(span.attributes)))
+                JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+                return nothing
+            end,
+            # Regular log records emitted while inside a trace scope are forwarded as `trace_log`
+            # telemetry, correlated with the enclosing span (parent) and the shared trace id (root).
+            on_log = function (log)
+                server._send_request_metrics || return nothing
+                endpoint = server.jr_endpoint
+                endpoint === nothing && return nothing
+                payload = Dict{String,Any}(
+                    "command" => "trace_log",
+                    "operationId" => string(uuid4()),
+                    "operationParentId" => log.span_id,
+                    "operationRootId" => log.trace_id,
+                    "message" => string(log._module, ": ", log.message),
+                    "severity" => string(log.level),
+                    "time" => collect(ns_to_hrtime(log.time_ns, trace_time_reference_unix, trace_time_reference_ns))
+                )
+                isempty(log.kwargs) || (payload["attributes"] = Dict{String,Any}(string(k) => string(v) for (k, v) in log.kwargs))
+                JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+                return nothing
+            end
+        )
     )
 
     Logging.with_logger(new_logger) do
@@ -326,25 +391,12 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
                 add_timer_message!(did_show_timer, timings, msg)
 
-                g_operationId[] = string(uuid4())
-
-                start_time = string(Dates.unix2datetime(time()), "Z")
-                tic = time_ns()
-                JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-                toc = time_ns()
-                duration = (toc - tic) / 1e+6
-
-                if server._send_request_metrics
-                    JSONRPC.send(
-                        server.jr_endpoint,
-                        telemetry_event_notification_type,
-                        Dict(
-                        "command" => "request_metric",
-                        "operationId" => g_operationId[],
-                        "name" => msg["method"],
-                        "time" => start_time,
-                        "duration" => duration)
-                    )
+                # Wrap dispatch in a trace span named after the request method. The span (and
+                # any nested derived-function spans) are reported via the TracingLogger's
+                # `on_trace` callback as request metrics. The raw message parameters are
+                # attached as a span attribute so they show up in the request telemetry.
+                TraceLogging.trace(msg.method; params = msg.params) do
+                    JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
                 end
             end
         end

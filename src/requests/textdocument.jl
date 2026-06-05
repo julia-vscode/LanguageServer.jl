@@ -80,10 +80,6 @@ function textDocument_willSaveWaitUntil_request(params::WillSaveTextDocumentPara
     return TextEdit[]
 end
 
-function measure_sub_operation(f, request_name, server)
-    return TraceLogging.trace(f, request_name)
-end
-
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     @debug "textDocument/didChange" uri=params.textDocument.uri change_count=length(params.contentChanges)
 

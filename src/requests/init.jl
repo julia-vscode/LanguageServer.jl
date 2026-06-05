@@ -273,8 +273,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         symbolcache_download=server.symbolcache_download,
         symbolcache_upstream=server.symbolcache_upstream,
         indirect_file_watch_callback=indirect_cb,
-        progress_callback=progress_cb,
-        tracing=server._send_request_metrics
+        progress_callback=progress_cb
     )
 
     marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)

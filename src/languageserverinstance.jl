@@ -73,8 +73,6 @@ mutable struct LanguageServerInstance
     # unregister later. Reconciled in `reconcile_indirect_file_watchers`.
     _watched_indirect_files::Dict{URI,String}
 
-    _send_request_metrics::Bool
-
     trace_value::Threads.Atomic{Int}
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
@@ -110,12 +108,12 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             Dict{URI,String}(),
-            false,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
     end
 end
+
 function Base.display(server::LanguageServerInstance)
     println(stderr, "Root: ", server.workspaceFolders)
     if server.workspace !== nothing
@@ -176,6 +174,72 @@ function notification_wrapper(func, server::LanguageServerInstance)
     end
 end
 
+# Convert a raw monotonic `time_ns()` value into an OpenTelemetry `HrTime` pair
+# `[seconds, nanoseconds]`, where `seconds` is whole seconds since the Unix epoch and
+# `nanoseconds` is the partial second in nanoseconds. `ref_unix`/`ref_ns` are a wall-clock
+# (`time()`) and monotonic (`time_ns()`) pair captured at the same instant. The relative
+# timing between events keeps full nanosecond resolution from the monotonic clock; only the
+# absolute anchor is limited by the resolution of `time()`. Arithmetic on the nanosecond
+# component is done in integers to avoid any floating-point precision loss.
+function ns_to_hrtime(ns::UInt64, ref_unix::Float64, ref_ns::UInt64)
+    ref_seconds = floor(Int64, ref_unix)
+    ref_frac_ns = round(Int64, (ref_unix - ref_seconds) * 1e9)
+    total_ns = ref_frac_ns + (signed(ns) - signed(ref_ns))
+    seconds = ref_seconds + fld(total_ns, 1_000_000_000)
+    partial_ns = mod(total_ns, 1_000_000_000)
+    return (seconds, partial_ns)
+end
+
+# Trace receiver that forwards completed spans and correlated log records to the client as
+# telemetry events. Established for the dynamic extent of each request dispatch via
+# `TraceLogging.with_tracing`. `ref_unix`/`ref_ns` are the shared wall-clock/monotonic anchor
+# used to convert the raw monotonic timestamps carried by spans and log records into `HrTime`.
+struct LSPTraceReceiver{T} <: TraceLogging.AbstractTraceReceiver
+    server::T
+    ref_unix::Float64
+    ref_ns::UInt64
+end
+
+# Completed trace spans (top-level requests and the derived-function computations they
+# trigger) are sent to the client as `request_metric` telemetry.
+function TraceLogging.receive_span(r::LSPTraceReceiver, span::TraceLogging.TraceSpan)
+    endpoint = r.server.jr_endpoint
+    endpoint === nothing && return nothing
+    payload = Dict{String,Any}(
+        "command" => "request_metric",
+        "spanId" => TraceLogging.format_span_id(span.span_id),
+        "parentSpanId" => span.parent_span_id === nothing ? nothing : TraceLogging.format_span_id(span.parent_span_id),
+        "traceId" => TraceLogging.format_trace_id(span.trace_id),
+        "name" => span.name,
+        "time" => collect(ns_to_hrtime(span.start_time_ns, r.ref_unix, r.ref_ns)),
+        "duration" => span.duration_ns
+    )
+    # Only attach attributes when the span actually carries some, to avoid allocating and
+    # serializing an empty dict on every request.
+    span.attributes === nothing || (payload["attributes"] = Dict{String,Any}(string(k) => v for (k, v) in pairs(span.attributes)))
+    JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+    return nothing
+end
+
+# Regular log records emitted while inside a trace scope are forwarded as `trace_log`
+# telemetry, correlated with the enclosing span (parent) and the shared trace id (root).
+function TraceLogging.receive_log(r::LSPTraceReceiver, log::NamedTuple)
+    endpoint = r.server.jr_endpoint
+    endpoint === nothing && return nothing
+    payload = Dict{String,Any}(
+        "command" => "trace_log",
+        "spanId" => TraceLogging.format_span_id(TraceLogging._new_span_id()),
+        "parentSpanId" => log.span_id === nothing ? nothing : TraceLogging.format_span_id(log.span_id),
+        "traceId" => log.trace_id === nothing ? nothing : TraceLogging.format_trace_id(log.trace_id),
+        "message" => string(log._module, ": ", log.message),
+        "severity" => string(log.level),
+        "time" => collect(ns_to_hrtime(log.time_ns, r.ref_unix, r.ref_ns))
+    )
+    isempty(log.kwargs) || (payload["attributes"] = Dict{String,Any}(string(k) => string(v) for (k, v) in log.kwargs))
+    JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+    return nothing
+end
+
 """
     run(server::LanguageServerInstance)
 
@@ -191,9 +255,23 @@ function Base.run(server::LanguageServerInstance; timings = [])
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
+    # Reference pair used to convert the raw monotonic `time_ns()` timestamps carried by trace
+    # spans and log records into wall-clock `HrTime` values for the client. Captured once here
+    # so every event shares the same anchor.
+    trace_time_reference_unix = time()
+    trace_time_reference_ns = time_ns()
+
+    # Receiver that turns completed spans and correlated log records into client telemetry. It
+    # is established for the dynamic extent of each request dispatch (see below), so that
+    # `trace`/`@trace` calls anywhere beneath a request — including Salsa
+    # derived-function computations — are reported.
+    trace_receiver = LSPTraceReceiver(server, trace_time_reference_unix, trace_time_reference_ns)
+
     new_logger = LoggingExtras.TeeLogger(
-        Logging.current_logger(),
-        LSPTraceLogger(server)
+        # Enrich log records with the enclosing trace/span ids and forward them to the active
+        # trace receiver (as `trace_log` telemetry) while still logging to the current logger.
+        TraceLogging.TraceContextLogger(Logging.current_logger()),
+        LSPTraceLogger(server),
     )
 
     Logging.with_logger(new_logger) do
@@ -326,25 +404,20 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
                 add_timer_message!(did_show_timer, timings, msg)
 
-                g_operationId[] = string(uuid4())
-
-                start_time = string(Dates.unix2datetime(time()), "Z")
-                tic = time_ns()
-                JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-                toc = time_ns()
-                duration = (toc - tic) / 1e+6
-
-                if server._send_request_metrics
-                    JSONRPC.send(
-                        server.jr_endpoint,
-                        telemetry_event_notification_type,
-                        Dict(
-                        "command" => "request_metric",
-                        "operationId" => g_operationId[],
-                        "name" => msg["method"],
-                        "time" => start_time,
-                        "duration" => duration)
-                    )
+                # Wrap dispatch in a trace span named after the request method. The span (and
+                # any nested derived-function spans) are delivered to the `LSPTraceReceiver` as
+                # request metrics. The raw message parameters are attached as a span attribute
+                # so they show up in the request telemetry. Tracing is only enabled (the
+                # receiver only installed) when the client asked for request metrics; otherwise
+                # dispatch runs with no tracing overhead.
+                if LSPTraceValue(server.trace_value[]) == lsp_trace_verbose
+                    TraceLogging.with_tracing(trace_receiver) do
+                        TraceLogging.@trace msg.method (; params = msg.params) begin
+                            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
+                        end
+                    end
+                else
+                    JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
                 end
             end
         end

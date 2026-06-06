@@ -276,34 +276,36 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         progress_callback=progress_cb
     )
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
+    marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
     added_uris = URI[]
 
-    if server.workspaceFolders !== nothing
-        for i in server.workspaceFolders
-            files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
+    TraceLogging.trace("initial_workspace_load") do
+        if server.workspaceFolders !== nothing
+            for i in server.workspaceFolders
+                files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
 
-            for i in files
-                # This might be a sub folder of a folder that is already watched
-                # so we make sure we don't have duplicates
-                if !haskey(server._files_from_disc, i.uri)
-                    server._files_from_disc[i.uri] = i
+                for i in files
+                    # This might be a sub folder of a folder that is already watched
+                    # so we make sure we don't have duplicates
+                    if !haskey(server._files_from_disc, i.uri)
+                        server._files_from_disc[i.uri] = i
 
-                    if !haskey(server._open_file_versions, i.uri)
-                        JuliaWorkspaces.add_file!(server.workspace, i)
+                        if !haskey(server._open_file_versions, i.uri)
+                            JuliaWorkspaces.add_file!(server.workspace, i)
+                        end
                     end
                 end
             end
-        end
 
-        JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+            JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
-        for wkspc in server.workspaceFolders
-            load_folder(wkspc, server, added_uris)
+            for wkspc in server.workspaceFolders
+                load_folder(wkspc, server, added_uris)
+            end
         end
     end
 
-    publish_diagnostics_testitems(server, marked_versions, added_uris)
+    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)

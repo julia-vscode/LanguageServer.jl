@@ -14,11 +14,12 @@ import Dates, Logging, LoggingExtras
 # JuliaWorkspaces-bundled StaticLint — needed for LintOptions
 const StaticLint = JuliaWorkspaces.StaticLint
 
+# Tracing/telemetry support reused from the Salsa runtime bundled with JuliaWorkspaces.
+const TraceLogging = JuliaWorkspaces.Salsa.TraceLogging
+
 export LanguageServerInstance, runserver
 
 const INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS = "useFormatterConfigDefaults"
-
-const g_operationId = Ref{String}("")
 
 JSON.lower(uri::URI) = string(uri)
 

@@ -279,12 +279,12 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
     added_uris = URI[]
 
-    TraceLogging.trace("initial_workspace_load") do
+    TraceLogging.@trace "initial_workspace_load" begin
         if server.workspaceFolders !== nothing
-            for i in server.workspaceFolders
+            TraceLogging.@trace "first workspace folder loop" for i in server.workspaceFolders
                 files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
 
-                for i in files
+                TraceLogging.@trace "file loop" for i in files
                     # This might be a sub folder of a folder that is already watched
                     # so we make sure we don't have duplicates
                     if !haskey(server._files_from_disc, i.uri)
@@ -297,9 +297,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                 end
             end
 
-            JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+            TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
-            for wkspc in server.workspaceFolders
+            TraceLogging.@trace "second workspace folder loop" for wkspc in server.workspaceFolders
                 load_folder(wkspc, server, added_uris)
             end
         end

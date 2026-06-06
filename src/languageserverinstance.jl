@@ -73,8 +73,6 @@ mutable struct LanguageServerInstance
     # unregister later. Reconciled in `reconcile_indirect_file_watchers`.
     _watched_indirect_files::Dict{URI,String}
 
-    _send_request_metrics::Bool
-
     trace_value::Threads.Atomic{Int}
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
@@ -110,7 +108,6 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             Dict{URI,String}(),
-            true,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
@@ -267,8 +264,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
     # Receiver that turns completed spans and correlated log records into client telemetry. It
     # is established for the dynamic extent of each request dispatch (see below), so that
     # `trace`/`@trace` calls anywhere beneath a request — including Salsa
-    # derived-function computations — are reported. When `_send_request_metrics` is false the
-    # receiver is simply never installed, leaving all tracing inert.
+    # derived-function computations — are reported.
     trace_receiver = LSPTraceReceiver(server, trace_time_reference_unix, trace_time_reference_ns)
 
     new_logger = LoggingExtras.TeeLogger(
@@ -414,7 +410,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
                 # so they show up in the request telemetry. Tracing is only enabled (the
                 # receiver only installed) when the client asked for request metrics; otherwise
                 # dispatch runs with no tracing overhead.
-                if server._send_request_metrics
+                if LSPTraceValue(server.trace_value[]) == lsp_trace_verbose
                     TraceLogging.with_tracing(trace_receiver) do
                         TraceLogging.@trace msg.method (; params = msg.params) begin
                             JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)

@@ -4,7 +4,7 @@ function ServerCapabilities(client::ClientCapabilities)
     client_supports_pull_diagnostics = !ismissing(client.textDocument) && !ismissing(client.textDocument.diagnostic)
 
     diagnostic_provider = client_supports_pull_diagnostics ?
-        DiagnosticOptions(missing, true, false) : missing
+        DiagnosticOptions(missing, true, true) : missing
 
     ServerCapabilities(
         TextDocumentSyncOptions(

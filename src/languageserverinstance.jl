@@ -210,9 +210,9 @@ function TraceLogging.receive_span(r::LSPTraceReceiver, span::TraceLogging.Trace
     endpoint === nothing && return nothing
     payload = Dict{String,Any}(
         "command" => "request_metric",
-        "operationId" => TraceLogging.format_span_id(span.span_id),
-        "operationParentId" => span.parent_span_id === nothing ? nothing : TraceLogging.format_span_id(span.parent_span_id),
-        "operationRootId" => TraceLogging.format_trace_id(span.trace_id),
+        "spanId" => TraceLogging.format_span_id(span.span_id),
+        "parentSpanId" => span.parent_span_id === nothing ? nothing : TraceLogging.format_span_id(span.parent_span_id),
+        "traceId" => TraceLogging.format_trace_id(span.trace_id),
         "name" => span.name,
         "time" => collect(ns_to_hrtime(span.start_time_ns, r.ref_unix, r.ref_ns)),
         "duration" => span.duration_ns
@@ -231,9 +231,9 @@ function TraceLogging.receive_log(r::LSPTraceReceiver, log::NamedTuple)
     endpoint === nothing && return nothing
     payload = Dict{String,Any}(
         "command" => "trace_log",
-        "operationId" => TraceLogging.format_span_id(TraceLogging._new_span_id()),
-        "operationParentId" => log.span_id === nothing ? nothing : TraceLogging.format_span_id(log.span_id),
-        "operationRootId" => log.trace_id === nothing ? nothing : TraceLogging.format_trace_id(log.trace_id),
+        "spanId" => TraceLogging.format_span_id(TraceLogging._new_span_id()),
+        "parentSpanId" => log.span_id === nothing ? nothing : TraceLogging.format_span_id(log.span_id),
+        "traceId" => log.trace_id === nothing ? nothing : TraceLogging.format_trace_id(log.trace_id),
         "message" => string(log._module, ": ", log.message),
         "severity" => string(log.level),
         "time" => collect(ns_to_hrtime(log.time_ns, r.ref_unix, r.ref_ns))

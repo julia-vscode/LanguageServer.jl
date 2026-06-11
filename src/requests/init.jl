@@ -153,6 +153,10 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     server.clientInfo = params.clientInfo
     server.editor_pid = params.processId
 
+    # Start watching the editor process now that its pid is known. (Previously
+    # this ran in Base.run before initialize set editor_pid, so it was a no-op.)
+    poll_editor_pid(server)
+
     if !ismissing(params.capabilities.window) && !ismissing(params.capabilities.window.workDoneProgress) && params.capabilities.window.workDoneProgress
         server.clientcapability_window_workdoneprogress = true
     else

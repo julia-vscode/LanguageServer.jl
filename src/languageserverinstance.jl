@@ -285,8 +285,6 @@ function Base.run(server::LanguageServerInstance; timings = [])
 
     Logging.with_logger(new_logger) do
 
-        poll_editor_pid(server)
-
         @async try
             @debug "LS: Starting client listener task."
             add_timer_message!(did_show_timer, timings, "(async) listening to client events")

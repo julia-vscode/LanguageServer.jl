@@ -18,3 +18,16 @@
     result = wrapped(server.jr_endpoint, params, missing)
     @test result isa LanguageServer.JSONRPC.JSONRPCError
 end
+
+@testitem "editor pid monitoring (#1379)" setup=[TestSetup, SharedServer] begin
+    # No editor pid known → no monitor task.
+    server.editor_pid = nothing
+    @test LanguageServer.poll_editor_pid(server) === nothing
+
+    # Once a pid is set, a monitor task is spawned. Pre-set shutdown_requested so
+    # the loop exits on its first check (no sleep, no exit path).
+    server.editor_pid = Int(Base.Libc.getpid())
+    server.shutdown_requested = true
+    t = LanguageServer.poll_editor_pid(server)
+    @test t isa Task
+end

@@ -4,8 +4,11 @@
     # No-op for Nothing endpoints (used when no client is connected in tests).
     JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
 
+    # Use the live test process as the "editor" pid: since #1379 starts editor
+    # process monitoring during initialize, a dead/fake pid would make the
+    # monitor task exit(1) the test worker after its poll interval.
     const init_request = LanguageServer.InitializeParams(
-        9902,
+        Int(Base.Libc.getpid()),
         missing,
         nothing,
         nothing,

@@ -126,6 +126,33 @@ end
 # Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
 const USE_REVISE = Ref(false)
 
+# Thrown when a request/notification targets a document the server doesn't know
+# about (e.g. a `vscode-notebook-cell:` URI we never received a didOpen for).
+# Handlers fetch documents through jw_source_text, which raises this; the
+# wrapper below turns it into a graceful JSON-RPC error instead of crashing.
+struct MissingDocumentError <: Exception
+    uri::URI
+end
+
+function invoke_handler(func, params, server::LanguageServerInstance, conn)
+    try
+        if USE_REVISE[] && isdefined(Main, :Revise)
+            try
+                Main.Revise.revise()
+            catch e
+                @warn "Reloading with Revise failed" exception = e
+            end
+            return Base.invokelatest(func, params, server, conn)
+        else
+            return func(params, server, conn)
+        end
+    catch err
+        err isa MissingDocumentError || rethrow()
+        @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
+        return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
+    end
+end
+
 function request_wrapper(func, server::LanguageServerInstance)
     return function (conn, params, token)
         if server.shutdown_requested
@@ -137,16 +164,7 @@ function request_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        if USE_REVISE[] && isdefined(Main, :Revise)
-            try
-                Main.Revise.revise()
-            catch e
-                @warn "Reloading with Revise failed" exception = e
-            end
-            Base.invokelatest(func, params, server, conn)
-        else
-            func(params, server, conn)
-        end
+        invoke_handler(func, params, server, conn)
     end
 end
 
@@ -161,16 +179,7 @@ function notification_wrapper(func, server::LanguageServerInstance)
                 nothing
             )
         end
-        if USE_REVISE[] && isdefined(Main, :Revise)
-            try
-                Main.Revise.revise()
-            catch e
-                @warn "Reloading with Revise failed" exception = e
-            end
-            Base.invokelatest(func, params, server, conn)
-        else
-            func(params, server, conn)
-        end
+        invoke_handler(func, params, server, conn)
     end
 end
 

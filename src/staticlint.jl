@@ -8,6 +8,7 @@
 Get the SourceText for a URI from JuliaWorkspaces.
 """
 function jw_source_text(server::LanguageServerInstance, uri::URI)
+    JuliaWorkspaces.has_file(server.workspace, uri) || throw(MissingDocumentError(uri))
     return JuliaWorkspaces.get_text_file(server.workspace, uri).content
 end
 

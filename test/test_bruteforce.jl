@@ -6,7 +6,9 @@
         @info "skipping brute-force tests on CI"
     else
         # Load the LanguageServer source folder into the workspace.
-        srcdir = dirname(String(first(methods(LanguageServer.eval)).file))
+        # (`methods(eval).file` points at Julia's boot.jl, not our source, so
+        # its dirname is empty — use pkgdir to locate the src folder.)
+        srcdir = pkgdir(LanguageServer, "src")
         folder_uri = LanguageServer.filepath2uri(srcdir)
         for f in JuliaWorkspaces.read_path_into_textdocuments(folder_uri, ignore_io_errors=true)
             if !haskey(server._files_from_disc, f.uri)

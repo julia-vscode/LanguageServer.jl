@@ -58,8 +58,13 @@ end
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
-    if params.text isa String
-        if st.content != params.text
+    if params.text isa String && st.content != params.text
+        # Only treat a save-time text mismatch as a fatal sync error when the
+        # document is actually open in the editor and has received at least one
+        # versioned update. Mismatches for closed/unversioned documents are
+        # spurious (e.g. workspace files we track but the client never synced),
+        # so we ignore them rather than crashing the server (see #1390).
+        if haskey(server._open_file_versions, uri) && get(server._open_file_versions, uri, 0) > 0
             println(stderr, "Mismatch between server and client text")
             println(stderr, "========== BEGIN SERVER SIDE TEXT ==========")
             println(stderr, st.content)
@@ -67,7 +72,6 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
             println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
             println(stderr, params.text)
             println(stderr, "========== END CLIENT SIDE TEXT ==========")
-            JSONRPC.send(conn, window_showMessage_notification_type, ShowMessageParams(MessageTypes.Error, "Julia Extension: Please contact us! Your extension just crashed with a bug that we have been trying to replicate for a long time. You could help the development team a lot by contacting us at https://github.com/julia-vscode/julia-vscode so that we can work together to fix this issue."))
             throw(LSSyncMismatch("Mismatch between server and client text for $(uri). _open_in_editor is $(haskey(server._open_file_versions, uri)). _workspace_file is $(uri in server._workspace_files). _version is $(get(server._open_file_versions, uri, 0))."))
         end
     end

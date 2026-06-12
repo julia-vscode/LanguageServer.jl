@@ -9,7 +9,7 @@ on:
 
 jobs:
   julia-ci:
-    uses: julia-vscode/testitem-workflow/.github/workflows/juliaci.yml@v1
+    uses: julia-testitems/testitem-workflow/.github/workflows/juliaci.yml@v1
     with:
       include-all-compatible-minor-versions: true
       include-rc-versions: true

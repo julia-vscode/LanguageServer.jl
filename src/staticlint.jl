@@ -1,80 +1,71 @@
-import StaticLint: hasfile, canloadfile, loadfile, setfile, getfile, getsymbols, getsymbolextendeds, getenv
-import StaticLint: getpath, getroot, setroot, getcst, setcst, semantic_pass, getserver, setserver
-hasfile(server::LanguageServerInstance, path::String) = !isempty(path) && hasdocument(server, filepath2uri(path))
-function canloadfile(server::LanguageServerInstance, path::String)
-    try
-        return !isempty(path) && safe_isfile(path)
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        return false
+# StaticLint ↔ LanguageServer bridge
+#
+# JW-based helpers for source text, range, and data access.
+
+"""
+    jw_source_text(server, uri)
+
+Get the SourceText for a URI from JuliaWorkspaces.
+"""
+function jw_source_text(server::LanguageServerInstance, uri::URI)
+    JuliaWorkspaces.has_file(server.workspace, uri) || throw(MissingDocumentError(uri))
+    return JuliaWorkspaces.get_text_file(server.workspace, uri).content
+end
+
+"""
+    jw_text(server, uri)
+
+Get the file content string for a URI.
+"""
+function jw_text(server::LanguageServerInstance, uri::URI)
+    return jw_source_text(server, uri).content
+end
+
+"""
+    jw_version(server, uri)
+
+Get the LSP document version for a URI (from open file tracking).
+"""
+function jw_version(server::LanguageServerInstance, uri::URI)
+    return get(server._open_file_versions, uri, 0)
+end
+
+"""
+    jw_position_to_lsp(server, uri, pos)
+
+Convert a `JuliaWorkspaces.Position` (1-based line, 1-based UTF-8 byte column)
+to an LSP `Position` (0-based line, 0-based UTF-16 character).
+
+When column == 1, the conversion is trivial (character = 0) and no SourceText
+lookup is needed.
+"""
+function jw_position_to_lsp(server::LanguageServerInstance, uri::URI, pos::JuliaWorkspaces.Position)
+    line = pos.line - 1  # 1-based → 0-based
+    if pos.column == 1
+        return Position(line, 0)
     end
-end
-function loadfile(server::LanguageServerInstance, path::String)
-    source = try
-        s = read(path, String)
-        our_isvalid(s) || return
-        s
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        return
+    st = jw_source_text(server, uri)
+    line_start = st.line_indices[pos.line]
+    target = line_start + pos.column - 1
+    text = st.content
+    character = 0
+    i = line_start
+    while i < target
+        c = text[i]
+        character += UInt32(c) >= 0x010000 ? 2 : 1
+        i = nextind(text, i)
     end
-    uri = filepath2uri(path)
-    doc = Document(TextDocument(uri, source, 0), true, server)
-    StaticLint.setfile(server, path, doc)
-end
-function setfile(server::LanguageServerInstance, path::String, x::Document)
-    uri = filepath2uri(path)
-    if hasdocument(server, uri)
-        error("StaticLint should not try to set documents that are already tracked.")
-    end
-
-    setdocument!(server, uri, x)
-end
-getfile(server::LanguageServerInstance, path::String) = getdocument(server, filepath2uri(path))
-
-function getenv(doc::Document, server::LanguageServerInstance)
-    get(server.roots_env_map, doc.root, server.global_env)
-end
-getenv(doc::Document) = getenv(doc, doc.server)
-getenv(server::LanguageServerInstance) = server.global_env
-
-getpath(d::Document) = d._path
-
-getroot(d::Document) = d.root
-function setroot(doc::Document, root::Document)
-    if isdefined(doc, :root) && doc == doc.root && root !== doc
-        # doc is being unset as a root - remove ExternalEnv if there is one
-        if doc.server isa LanguageServerInstance && haskey(doc.server.roots_env_map, doc)
-            delete!(doc.server.roots_env_map, doc)
-        end
-    end
-    doc.root = root
-    if doc == root && doc.server isa LanguageServerInstance
-        # doc is being set as it's own root, lets find
-        extenv = get_env_for_root(doc, doc.server)
-        if extenv !== nothing
-            doc.server.roots_env_map[doc] = extenv
-        end
-    end
-    return doc
+    return Position(line, character)
 end
 
-getcst(d::Document) = d.cst
-function setcst(d::Document, cst::EXPR)
-    d.cst = cst
-    return d
-end
+"""
+    jw_range(server, uri, start, stop)
 
-getserver(file::Document) = file.server
-function setserver(file::Document, server::LanguageServerInstance)
-    file.server = server
-    return file
-end
-
-function lint!(doc::Document, server)
-    get_language_id(doc) in ("julia", "markdown", "juliamarkdown") || return
-
-    StaticLint.check_all(getcst(doc), server.lint_options, getenv(doc, server))
-    empty!(doc.diagnostics)
-    mark_errors(doc, doc.diagnostics)
+Convert a pair of `JuliaWorkspaces.Position` values to an LSP `Range`.
+"""
+function jw_range(server::LanguageServerInstance, uri::URI, start::JuliaWorkspaces.Position, stop::JuliaWorkspaces.Position)
+    return Range(
+        jw_position_to_lsp(server, uri, start),
+        jw_position_to_lsp(server, uri, stop)
+    )
 end

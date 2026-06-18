@@ -1,14 +1,13 @@
 function textDocument_documentHighlight_request(params::DocumentHighlightParams, server::LanguageServerInstance, conn)
-    doc = getdocument(server, params.textDocument.uri)
-    offset = get_offset(doc, params.position)
-    identifier = get_identifier(getcst(doc), offset)
-    identifier !== nothing || return nothing
-    highlights = DocumentHighlight[]
-    for_each_ref(identifier) do ref, doc1, o
-        if get_uri(doc1) == get_uri(doc)
-            kind = StaticLint.hasbinding(ref) ? DocumentHighlightKinds.Write : DocumentHighlightKinds.Read
-            push!(highlights, DocumentHighlight(Range(doc, o .+ (0:ref.span)), kind))
-        end
+    uri = params.textDocument.uri
+    st = jw_source_text(server, uri)
+    index = index_at(st, params.position)
+
+    results = JuliaWorkspaces.get_highlights(server.workspace, uri, index)
+    isempty(results) && return nothing
+
+    return map(results) do r
+        kind = r.kind === :write ? DocumentHighlightKinds.Write : DocumentHighlightKinds.Read
+        DocumentHighlight(jw_range(server, uri, r.start, r.stop), kind)
     end
-    return isempty(highlights) ? nothing : highlights
 end

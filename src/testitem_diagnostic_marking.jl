@@ -48,7 +48,40 @@ function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_ma
     return (;updated_files_ti, deleted_files_ti, updated_files_diag, deleted_files_diag)
 end
 
+function build_lsp_diagnostics(server, uri::URI, jw_diags)
+    diags = Diagnostic[]
+    if JuliaWorkspaces.has_file(server.workspace, uri)
+        st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+
+        for i in jw_diags
+            push!(diags, Diagnostic(
+                Range(st, i.range),
+                if i.severity==:error
+                    DiagnosticSeverities.Error
+                elseif i.severity==:warning
+                    DiagnosticSeverities.Warning
+                elseif i.severity==:information
+                    DiagnosticSeverities.Information
+                elseif i.severity==:hint
+                    DiagnosticSeverities.Hint
+                else
+                    error("Unknown severity $(i.severity)")
+                end,
+                missing,
+                i.uri === nothing ? missing : CodeDescription(i.uri),
+                i.source,
+                i.message,
+                length(i.tags)==0 ? missing : DiagnosticTag[j==:unnecessary ? DiagnosticTags.Unnecessary : j==:deprecated ? DiagnosticTags.Deprecated : error("Unknown tag $j") for j in i.tags],
+                missing
+            ))
+        end
+    end
+    return diags
+end
+
 function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_deleted, uris::Vector{URI})
+    @debug "publish_diagnostics" updated_count=length(jw_diagnostics_updated) deleted_count=length(jw_diagnostics_deleted) uri_count=length(uris)
+
     all_uris_with_updates = Set{URI}()
 
     for uri in uris
@@ -62,45 +95,9 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
     for uri in all_uris_with_updates
-        diags = Diagnostic[]
-        diagnostics[uri] = diags
-
-        if hasdocument(server, uri)
-            doc = getdocument(server, uri)
-
-            if server.runlinter && (is_workspace_file(doc) || isunsavedfile(doc))
-                pkgpath = getpath(doc)
-                if any(is_in_target_dir_of_package.(Ref(pkgpath), server.lint_disableddirs))
-                    filter!(!is_diag_dependent_on_env, doc.diagnostics)
-                end
-                append!(diags, doc.diagnostics)
-            end
-        end
-
-        if JuliaWorkspaces.has_file(server.workspace, uri)
-            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
-
-            new_diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
-
-            append!(diags, Diagnostic(
-                Range(st, i.range),
-                if i.severity==:error
-                    DiagnosticSeverities.Error
-                elseif i.severity==:warning
-                    DiagnosticSeverities.Warning
-                elseif i.severity==:info
-                    DiagnosticSeverities.Information
-                else
-                    error("Unknown severity $(i.severity)")
-                end,
-                missing,
-                missing,
-                i.source,
-                i.message,
-                missing,
-                missing
-            ) for i in new_diags)
-        end
+        new_diags = JuliaWorkspaces.has_file(server.workspace, uri) ?
+            JuliaWorkspaces.get_diagnostic(server.workspace, uri) : []
+        diagnostics[uri] = build_lsp_diagnostics(server, uri, new_diags)
     end
 
     for (uri, diags) in diagnostics
@@ -166,8 +163,97 @@ end
 
 
 function publish_diagnostics_testitems(server, marked_versions, uris::Vector{URI})
+    @debug "publish_diagnostics_testitems" uri_count=length(uris)
+
     updated_files = get_files_with_updated_diagnostics_testitems(server.workspace, marked_versions)
 
-    publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
+    if !server.clientcapability_workspace_diagnostic_refreshsupport
+        publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
+    end
     publish_tests(server, updated_files.updated_files_ti, updated_files.deleted_files_ti)
+
+    reconcile_indirect_file_watchers(server)
+end
+
+"""
+    reconcile_indirect_file_watchers(server::LanguageServerInstance)
+
+Compares JuliaWorkspaces' current set of indirect files against
+`server._watched_indirect_files` and sends `client/registerCapability` for
+newly-introduced indirect URIs and `client/unregisterCapability` for URIs
+that are no longer indirect (because they were promoted, removed from the
+include graph, or deleted on disc). Also performs an initial disc read for
+freshly-watched URIs and feeds the content back in via
+`set_indirect_file_content!`.
+"""
+function reconcile_indirect_file_watchers(server::LanguageServerInstance)
+    # Capability gate: only proceed if the client supports dynamic registration
+    # of `workspace/didChangeWatchedFiles` with relative patterns.
+    if ismissing(server.clientCapabilities) ||
+        ismissing(server.clientCapabilities.workspace) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration) ||
+        ismissing(server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport) ||
+        !server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration ||
+        !server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
+        return
+    end
+
+    current_indirect = JuliaWorkspaces.get_indirect_files(server.workspace)
+    watched = server._watched_indirect_files
+
+    # Unregister watchers for URIs no longer indirect.
+    to_unregister = Unregistration[]
+    for (uri, id) in collect(watched)
+        if !(uri in current_indirect)
+            push!(to_unregister, Unregistration(id, "workspace/didChangeWatchedFiles"))
+            delete!(watched, uri)
+        end
+    end
+    if !isempty(to_unregister)
+        try
+            JSONRPC.send(
+                server.jr_endpoint,
+                client_unregisterCapability_request_type,
+                UnregistrationParams(to_unregister)
+            )
+        catch err
+            @error "Failed to send client/unregisterCapability for indirect file watchers" exception=(err, catch_backtrace())
+        end
+    end
+
+    # Register watchers for newly-discovered indirect URIs.
+    for uri in current_indirect
+        haskey(watched, uri) && continue
+        uri.scheme == "file" || continue
+
+        path = JuliaWorkspaces.URIs2.uri2filepath(uri)
+        path === nothing && continue
+
+        dir = dirname(path)
+        base = basename(path)
+
+        registration_id = string(uuid4())
+        registration = Registration(
+            registration_id,
+            "workspace/didChangeWatchedFiles",
+            DidChangeWatchedFilesRegistrationOptions([
+                FileSystemWatcher(
+                    RelativePattern(JuliaWorkspaces.URIs2.filepath2uri(dir), base),
+                    missing
+                )
+            ])
+        )
+
+        try
+            JSONRPC.send(
+                server.jr_endpoint,
+                client_registerCapability_request_type,
+                RegistrationParams([registration])
+            )
+            watched[uri] = registration_id
+        catch err
+            @error "Failed to send client/registerCapability for indirect file watcher" uri=uri exception=(err, catch_backtrace())
+        end
+    end
 end

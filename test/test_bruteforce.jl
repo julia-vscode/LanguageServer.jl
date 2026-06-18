@@ -1,47 +1,45 @@
-@testitem "brute force tests" begin
-    using LanguageServer: get_text, get_uri
-    include("test_shared_server.jl")
-
-    function on_all_docs(server, f)
-        for doc in values(server._documents)
-            f(doc)
-        end
-    end
-
-    function on_all_offsets(doc, f)
-        offset = 1
-        while offset <= lastindex(get_text(doc))
-            f(doc, offset)
-            offset = nextind(get_text(doc), offset)
-        end
-    end
+@testitem "brute force tests" setup=[TestSetup, SharedServer] begin
+    using JuliaWorkspaces
 
     @info "Self-parse test"
     if get(ENV, "CI", false) != false
         @info "skipping brute-force tests on CI"
     else
+        # Load the LanguageServer source folder into the workspace.
+        # (`methods(eval).file` points at Julia's boot.jl, not our source, so
+        # its dirname is empty — use pkgdir to locate the src folder.)
+        srcdir = pkgdir(LanguageServer, "src")
+        folder_uri = LanguageServer.filepath2uri(srcdir)
+        for f in JuliaWorkspaces.read_path_into_textdocuments(folder_uri, ignore_io_errors=true)
+            if !haskey(server._files_from_disc, f.uri)
+                server._files_from_disc[f.uri] = f
+                JuliaWorkspaces.add_file!(server.workspace, f)
+            end
+        end
+
         # run tests against each position in each document
-        empty!(server._documents)
-        LanguageServer.load_folder(dirname(String(first(methods(LanguageServer.eval)).file)), server, [])
-        on_all_docs(server, doc -> begin
-            @info "Testing LS functionality at all offsets" file=get_uri(doc)
-            on_all_offsets(doc, function (doc, offset)
-                tdi = LanguageServer.TextDocumentIdentifier(get_uri(doc))
-                pos = LanguageServer.Position(LanguageServer.get_position_from_offset(doc, offset)...)
-                @test LanguageServer.get_offset(doc, LanguageServer.get_position_from_offset(doc, offset)...) == offset
+        for uri in JuliaWorkspaces.get_text_files(server.workspace)
+            st = LanguageServer.jw_source_text(server, uri)
+            text = st.content
+            @info "Testing LS functionality at all offsets" file=uri
+            offsets = push!([i - 1 for i in eachindex(text)], sizeof(text))
+            for offset in offsets
+                tdi = LanguageServer.TextDocumentIdentifier(uri)
+                pos = LanguageServer.Position(LanguageServer.get_position_from_offset(st, offset)...)
+                @test LanguageServer.get_offset(st, LanguageServer.get_position_from_offset(st, offset)...) == offset
                 LanguageServer.textDocument_completion_request(LanguageServer.CompletionParams(tdi, pos, missing), server, server.jr_endpoint)
                 LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
                 LanguageServer.textDocument_signatureHelp_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
                 LanguageServer.textDocument_definition_request(LanguageServer.TextDocumentPositionParams(tdi, pos), server, server.jr_endpoint)
                 LanguageServer.textDocument_references_request(LanguageServer.ReferenceParams(tdi, pos, missing, missing, LanguageServer.ReferenceContext(true)), server, server.jr_endpoint)
                 LanguageServer.textDocument_rename_request(LanguageServer.RenameParams(tdi, pos, missing, "newname"), server, server.jr_endpoint)
-            end)
-        end)
+            end
+        end
 
-        on_all_docs(server, doc -> begin
-            symbols=length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(get_uri(doc)),missing, missing), server, server.jr_endpoint))
-            @info "Found $symbols symbols" file=get_uri(doc)
-        end)
+        for uri in JuliaWorkspaces.get_text_files(server.workspace)
+            symbols = length(LanguageServer.textDocument_documentSymbol_request(LanguageServer.DocumentSymbolParams(LanguageServer.TextDocumentIdentifier(uri), missing, missing), server, server.jr_endpoint))
+            @info "Found $symbols symbols" file=uri
+        end
 
         LanguageServer.workspace_symbol_request(LanguageServer.WorkspaceSymbolParams("", missing, missing), server, server.jr_endpoint)
     end

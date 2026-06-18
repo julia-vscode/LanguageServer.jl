@@ -1,6 +1,11 @@
 function ServerCapabilities(client::ClientCapabilities)
     prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
+    client_supports_pull_diagnostics = !ismissing(client.textDocument) && !ismissing(client.textDocument.diagnostic)
+
+    diagnostic_provider = client_supports_pull_diagnostics ?
+        DiagnosticOptions(missing, true, true) : missing
+
     ServerCapabilities(
         TextDocumentSyncOptions(
             true,
@@ -28,11 +33,12 @@ function ServerCapabilities(client::ClientCapabilities)
         missing,
         RenameOptions(missing, prepareSupport),
         false,
-        ExecuteCommandOptions(missing, collect(keys(LSActions))),
+        ExecuteCommandOptions(missing, collect(keys(JuliaWorkspaces._JW_ACTIONS))),
         true,
         true,
         true,
         WorkspaceOptions(WorkspaceFoldersOptions(true, true)),
+        diagnostic_provider,
         missing
     )
 
@@ -90,12 +96,12 @@ function load_rootpath(path)
     end
 end
 
-function load_folder(wf::WorkspaceFolder, server, added_docs)
+function load_folder(wf::WorkspaceFolder, server, added_uris)
     path = uri2filepath(wf.uri)
-    load_folder(path, server, added_docs)
+    load_folder(path, server, added_uris)
 end
 
-function load_folder(path::String, server, added_docs)
+function load_folder(path::String, server, added_uris)
     if load_rootpath(path)
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
@@ -103,27 +109,10 @@ function load_folder(path::String, server, added_docs)
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
                         uri = filepath2uri(filepath)
-                        if hasdocument(server, uri)
-                            set_is_workspace_file(getdocument(server, uri), true)
-                            continue
-                        else
-                            content = try
-                                s = read(filepath, String)
-                                our_isvalid(s) || continue
-                                s
-                            catch err
-                                is_walkdir_error(err) || rethrow()
-                                continue
-                            end
-                            doc = Document(TextDocument(uri, content, 0), true, server)
-                            setdocument!(server, uri, doc)
-                            try
-                                parse_all(doc, server)
-                                push!(added_docs, doc)
-                            catch ex
-                                @error "Error parsing file $(uri)"
-                                rethrow()
-                            end
+                        already_tracked = uri in server._workspace_files
+                        push!(server._workspace_files, uri)
+                        if !already_tracked && JuliaWorkspaces.has_file(server.workspace, uri)
+                            push!(added_uris, uri)
                         end
                     end
                 end
@@ -164,6 +153,8 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
     server.clientInfo = params.clientInfo
     server.editor_pid = params.processId
 
+    # Start watching the editor process now that its pid is known. (Previously
+    # this ran in Base.run before initialize set editor_pid, so it was a no-op.)
     poll_editor_pid(server)
 
     if !ismissing(params.capabilities.window) && !ismissing(params.capabilities.window.workDoneProgress) && params.capabilities.window.workDoneProgress
@@ -184,11 +175,17 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
         server.initialization_options = params.initializationOptions
     end
 
+    if !ismissing(params.trace)
+        server.trace_value[] = Int(parse_lsp_trace_value(params.trace))
+    end
+
     return InitializeResult(ServerCapabilities(server.clientCapabilities), missing)
 end
 
 
 function initialized_notification(params::InitializedParams, server::LanguageServerInstance, conn)
+    @debug "initialized_notification"
+
     server.status = :running
 
     client_capabilities_registrations = Registration[]
@@ -212,7 +209,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             client_capabilities_registrations,
             Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions([
                 FileSystemWatcher("**/*.{jl,jmd,md}", missing),
-                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,.JuliaLint.toml}", missing),
+                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,JuliaLint.toml,JuliaFormat.toml}", missing),
                 FileSystemWatcher("**/{JuliaManifest,Manifest}-v$(VERSION.major).$(VERSION.minor).toml", missing),
             ]))
         )
@@ -227,46 +224,92 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     end
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-    added_docs = Document[]
+    # Record whether the client supports workspace/diagnostic/refresh
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        !ismissing(server.clientCapabilities.workspace.diagnostics) &&
+        !ismissing(server.clientCapabilities.workspace.diagnostics.refreshSupport) &&
+        server.clientCapabilities.workspace.diagnostics.refreshSupport === true
+        server.clientcapability_workspace_diagnostic_refreshsupport = true
+    end
 
-    if server.workspaceFolders !== nothing
-        for i in server.workspaceFolders
-            files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
+    # Fetch all initial configuration in one combined request, then construct JuliaWorkspace.
+    # We do this inline (rather than via request_julia_config) because JW must be constructed
+    # before we can call set_active_project! and load files. request_julia_config continues to
+    # be called from workspace/didChangeConfiguration as before.
+    if !ismissing(server.clientCapabilities) &&
+        !ismissing(server.clientCapabilities.workspace) &&
+        server.clientCapabilities.workspace.configuration === true
 
-            for i in files
-                # This might be a sub folder of a folder that is already watched
-                # so we make sure we don't have duplicates
-                if !haskey(server._files_from_disc, i.uri)
-                    server._files_from_disc[i.uri] = i
+        response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
+            ConfigurationItem(missing, "julia.completionmode"),
+            ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
+            ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
+            ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
+            ConfigurationItem(missing, "julia.environmentPath"),
+            ConfigurationItem(missing, "julia.symbolCacheDownload"),
+            ConfigurationItem(missing, "julia.symbolserverUpstream"),
+            ConfigurationItem(missing, "julia.enableDynamicIndexing"),
+        ]))
 
-                    if !haskey(server._open_file_versions, i.uri)
-                        JuliaWorkspaces.add_file!(server.workspace, i)
+        server.completion_mode = Symbol(something(response[1], :import))
+        server.inlay_hints = something(response[2], true)
+        server.inlay_hints_variable_types = something(response[3], true)
+        server.inlay_hints_parameter_names = Symbol(something(response[4], :literals))
+        new_env_path = something(response[5], "")
+        if !isempty(new_env_path)
+            server.env_path = new_env_path
+        end
+        server.symbolcache_download = something(response[6], false)
+        server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
+        server.enable_dynamic_indexing = something(response[8], true)
+    end
+
+    # Construct JuliaWorkspace now that configuration values are available.
+    indirect_cb = function(uri)
+        put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
+    end
+    progress_cb = create_progress_callback(server)
+    dynamic_mode = server.enable_dynamic_indexing ? JuliaWorkspaces.DynamicIndexingOnly : JuliaWorkspaces.DynamicOff
+    server.workspace = JuliaWorkspace(;
+        dynamic=dynamic_mode,
+        store_path=server.symserver_store_path,
+        symbolcache_download=server.symbolcache_download,
+        symbolcache_upstream=server.symbolcache_upstream,
+        indirect_file_watch_callback=indirect_cb,
+        progress_callback=progress_cb
+    )
+
+    marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
+    added_uris = URI[]
+
+    TraceLogging.@trace "initial_workspace_load" begin
+        if server.workspaceFolders !== nothing
+            TraceLogging.@trace "first workspace folder loop" for i in server.workspaceFolders
+                files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
+
+                TraceLogging.@trace "file loop" for i in files
+                    # This might be a sub folder of a folder that is already watched
+                    # so we make sure we don't have duplicates
+                    if !haskey(server._files_from_disc, i.uri)
+                        server._files_from_disc[i.uri] = i
+
+                        if !haskey(server._open_file_versions, i.uri)
+                            JuliaWorkspaces.add_file!(server.workspace, i)
+                        end
                     end
                 end
             end
-        end
 
-        track_project_files!(server)
+            TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 
-        JuliaWorkspaces.set_input_fallback_test_project!(server.workspace.runtime, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
-
-        for wkspc in server.workspaceFolders
-            load_folder(wkspc, server, added_docs)
-        end
-
-        for doc in added_docs
-            lint!(doc, server)
+            TraceLogging.@trace "second workspace folder loop" for wkspc in server.workspaceFolders
+                load_folder(wkspc, server, added_uris)
+            end
         end
     end
 
-    publish_diagnostics_testitems(server, marked_versions, get_uri.(added_docs))
-
-    request_julia_config(server, conn)
-
-    if server.number_of_outstanding_symserver_requests > 0
-        create_symserver_progress_ui(server)
-    end
+    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
@@ -275,6 +318,5 @@ function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)
 end
 
 function exit_notification(params::Nothing, server::LanguageServerInstance, conn)
-    server.symbol_server.process isa Base.Process && kill(server.symbol_server.process)
     exit(server.shutdown_requested ? 0 : 1)
 end

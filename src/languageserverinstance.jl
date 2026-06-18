@@ -28,20 +28,9 @@ For normal usage, the language server can be instantiated with
 mutable struct LanguageServerInstance
     jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
     workspaceFolders::Set{String}
-    _documents::Dict{URI,Document}
 
     env_path::String
-    depot_path::String
-    symbol_server::SymbolServer.SymbolServerInstance
-    symbol_results_channel::Channel{Any}
-    global_env::StaticLint.ExternalEnv
-    roots_env_map::Dict{Document,StaticLint.ExternalEnv}
-    symbol_store_ready::Bool
 
-    runlinter::Bool
-    lint_options::StaticLint.LintOptions
-    lint_missingrefs::Symbol
-    lint_disableddirs::Vector{String}
     completion_mode::Symbol
     inlay_hints::Bool
     inlay_hints_variable_types::Bool
@@ -53,11 +42,6 @@ mutable struct LanguageServerInstance
 
     status::Symbol
 
-    number_of_outstanding_symserver_requests::Int
-    symserver_use_download::Bool
-
-    current_symserver_progress_token::Union{Nothing,String}
-
     clientcapability_window_workdoneprogress::Bool
     clientcapability_workspace_didChangeConfiguration::Bool
     # Can probably drop the above 2 and use the below.
@@ -68,64 +52,45 @@ mutable struct LanguageServerInstance
     editor_pid::Union{Nothing,Int}
     shutdown_requested::Bool
 
-    workspace::JuliaWorkspace
+    workspace::Union{JuliaWorkspace,Nothing}
+    symserver_store_path::Union{Nothing,String}
+    symbolcache_download::Bool
+    symbolcache_upstream::String
+    enable_dynamic_indexing::Bool
+
+    clientcapability_workspace_diagnostic_refreshsupport::Bool
+
     # This has one entry for each open file (in the LSP sense). The key is the uri fo the file
     # and the value is the version of the file that the LS client sent.
     _open_file_versions::Dict{URI,Int}
     _files_from_disc::Dict{URI,JuliaWorkspaces.TextFile}
-    # This is a list of files that should be kept around that are potentially not in a workspace
-    # folder. Primarily for projects and manifests outside of the workspace.
-    _extra_tracked_files::Vector{URI}
+    # Tracks which files are workspace files (found on disc in a workspace folder).
+    _workspace_files::Set{URI}
 
-    _send_request_metrics::Bool
 
-    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", depot_path="", err_handler=nothing, symserver_store_path=nothing, download=true, symbolcache_upstream = nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
+    # Indirect files: URIs requested by JW (via include traversal) for which we
+    # have registered an LSP file watcher. Maps URI -> registration id so we can
+    # unregister later. Reconciled in `reconcile_indirect_file_watchers`.
+    _watched_indirect_files::Dict{URI,String}
+
+    trace_value::Threads.Atomic{Int}
+
+    function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
         endpoint = JSONRPC.JSONRPCEndpoint(pipe_in, pipe_out)
-        jw = JuliaWorkspace()
-        # if hasfield(typeof(jw.runtime), :performance_tracing_callback)
-        #     jw.runtime.performance_tracing_callback = (name, start_time, duration) -> begin
-        #         if g_operationId[] != "" && endpoint.status === :running
-        #             JSONRPC.send(
-        #                 endpoint,
-        #                 telemetry_event_notification_type,
-        #                 Dict(
-        #                     "command" => "request_metric",
-        #                     "operationId" => string(uuid4()),
-        #                     "operationParentId" => g_operationId[],
-        #                     "name" => name,
-        #                     "duration" => duration,
-        #                     "time" => string(Dates.unix2datetime(start_time), "Z")
-        #                 )
-        #             )
-        #         end
-        #     end
-        # end
 
-        new(
+        combined_queue = Channel{Any}(Inf)
+
+        server = new(
             endpoint,
             Set{String}(),
-            Dict{URI,Document}(),
             env_path,
-            depot_path,
-            SymbolServer.SymbolServerInstance(depot_path, symserver_store_path, julia_exe; symbolcache_upstream=symbolcache_upstream),
-            Channel(Inf),
-            StaticLint.ExternalEnv(deepcopy(SymbolServer.stdlibs), SymbolServer.collect_extended_methods(SymbolServer.stdlibs), collect(keys(SymbolServer.stdlibs))),
-            Dict(),
-            false,
-            true,
-            StaticLint.LintOptions(),
-            :all,
-            LINT_DIABLED_DIRS,
             :qualify, # options: :import or :qualify, anything else turns this off
             false,
             true,
             :literals,
-            Channel{Any}(Inf),
+            combined_queue,
             err_handler,
             :created,
-            0,
-            download,
-            nothing,
             false,
             false,
             missing,
@@ -133,169 +98,41 @@ mutable struct LanguageServerInstance
             missing,
             nothing,
             false,
-            jw,
+            nothing,
+            symserver_store_path,
+            false,
+            "",
+            true,
+            false,
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
-            URI[],
-            false
+            Set{URI}(),
+            Dict{URI,String}(),
+            Threads.Atomic{Int}(Int(lsp_trace_off))
         )
+        return server
     end
 end
+
 function Base.display(server::LanguageServerInstance)
     println(stderr, "Root: ", server.workspaceFolders)
-    for d in getdocuments_value(server)
-        display(d)
-    end
-end
-
-function hasdocument(server::LanguageServerInstance, uri::URI)
-    return haskey(server._documents, uri)
-end
-
-struct MissingDocumentError <: Exception
-    uri::URI
-end
-
-function getdocument(server::LanguageServerInstance, uri::URI)
-    haskey(server._documents, uri) || throw(MissingDocumentError(uri))
-    return server._documents[uri]
-end
-
-function getdocuments_key(server::LanguageServerInstance)
-    return keys(server._documents)
-end
-
-function getdocuments_pair(server::LanguageServerInstance)
-    return pairs(server._documents)
-end
-
-function getdocuments_value(server::LanguageServerInstance)
-    return values(server._documents)
-end
-
-function setdocument!(server::LanguageServerInstance, uri::URI, doc::Document)
-    server._documents[uri] = doc
-end
-
-function deletedocument!(server::LanguageServerInstance, uri::URI)
-    doc = getdocument(server, uri)
-    StaticLint.clear_meta(getcst(doc))
-    delete!(server._documents, uri)
-
-    for d in getdocuments_value(server)
-        if getroot(d) === doc
-            setroot(d, d)
-            semantic_pass(getroot(d))
-        end
-    end
-end
-
-function create_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress
-        token = string(uuid4())
-        server.current_symserver_progress_token = token
-        JSONRPC.send(server.jr_endpoint, window_workDoneProgress_create_request_type, WorkDoneProgressCreateParams(token))
-
-        JSONRPC.send(
-            server.jr_endpoint,
-            progress_notification_type,
-            ProgressParams(token, WorkDoneProgressBegin("Julia", missing, "Starting async tasks...", missing))
-        )
-    end
-end
-
-function destroy_symserver_progress_ui(server)
-    if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-        progress_token = server.current_symserver_progress_token
-        server.current_symserver_progress_token = nothing
-        JSONRPC.send(
-            server.jr_endpoint,
-            progress_notification_type,
-            ProgressParams(progress_token, WorkDoneProgressEnd(missing))
-        )
-    end
-end
-
-function trigger_symbolstore_reload(server::LanguageServerInstance)
-    server.symbol_store_ready = false
-    if server.number_of_outstanding_symserver_requests == 0 && server.status == :running
-        create_symserver_progress_ui(server)
-    end
-    server.number_of_outstanding_symserver_requests += 1
-
-    if server.symserver_use_download
-        @debug "Will download symbol server caches for this instance."
-    end
-
-    @async try
-        ssi_ret, payload = SymbolServer.getstore(
-            server.symbol_server,
-            server.env_path,
-            function (msg, percentage=missing)
-                if server.clientcapability_window_workdoneprogress && server.current_symserver_progress_token !== nothing
-                    msg = ismissing(percentage) ? msg : string(msg, " ($percentage%)")
-                    JSONRPC.send(
-                        server.jr_endpoint,
-                        progress_notification_type,
-                        ProgressParams(server.current_symserver_progress_token, WorkDoneProgressReport(missing, msg, percentage))
-                    )
-                    if percentage == 100
-                        JSONRPC.send(
-                            server.jr_endpoint,
-                            progress_notification_type,
-                            ProgressParams(server.current_symserver_progress_token, WorkDoneProgressEnd(missing))
-                        )
-                    end
-                end
-                @info msg
-            end,
-            server.err_handler,
-            download=server.symserver_use_download
-        )
-
-        server.number_of_outstanding_symserver_requests -= 1
-
-        if server.number_of_outstanding_symserver_requests == 0
-            destroy_symserver_progress_ui(server)
-        end
-
-        if ssi_ret == :success
-            push!(server.symbol_results_channel, payload)
-        elseif ssi_ret == :failure
-            error_payload = Dict(
-                "command" => "symserv_crash",
-                "name" => "LSSymbolServerFailure",
-                "message" => payload === nothing ? "" : String(take!(payload)),
-                "stacktrace" => "")
-            JSONRPC.send(
-                server.jr_endpoint,
-                telemetry_event_notification_type,
-                error_payload
-            )
-        elseif ssi_ret == :package_load_crash
-            error_payload = Dict(
-                "command" => "symserv_pkgload_crash",
-                "name" => payload.package_name,
-                "message" => payload.stderr === nothing ? "" : String(take!(payload.stderr)))
-            JSONRPC.send(
-                server.jr_endpoint,
-                telemetry_event_notification_type,
-                error_payload
-            )
-        end
-        server.symbol_store_ready = true
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            Base.display_error(stderr, err, bt)
+    if server.workspace !== nothing
+        for uri in JuliaWorkspaces.get_text_files(server.workspace)
+            println(stderr, "  ", uri)
         end
     end
 end
 
 # Set to true to reload request handler functions with Revise (requires Revise loaded in Main)
 const USE_REVISE = Ref(false)
+
+# Thrown when a request/notification targets a document the server doesn't know
+# about (e.g. a `vscode-notebook-cell:` URI we never received a didOpen for).
+# Handlers fetch documents through jw_source_text, which raises this; the
+# wrapper below turns it into a graceful JSON-RPC error instead of crashing.
+struct MissingDocumentError <: Exception
+    uri::URI
+end
 
 function invoke_handler(func, params, server::LanguageServerInstance, conn)
     try
@@ -311,7 +148,8 @@ function invoke_handler(func, params, server::LanguageServerInstance, conn)
         end
     catch err
         err isa MissingDocumentError || rethrow()
-        return nodocument_error(err.uri, string(nameof(func)))
+        @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
+        return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
     end
 end
 
@@ -345,6 +183,72 @@ function notification_wrapper(func, server::LanguageServerInstance)
     end
 end
 
+# Convert a raw monotonic `time_ns()` value into an OpenTelemetry `HrTime` pair
+# `[seconds, nanoseconds]`, where `seconds` is whole seconds since the Unix epoch and
+# `nanoseconds` is the partial second in nanoseconds. `ref_unix`/`ref_ns` are a wall-clock
+# (`time()`) and monotonic (`time_ns()`) pair captured at the same instant. The relative
+# timing between events keeps full nanosecond resolution from the monotonic clock; only the
+# absolute anchor is limited by the resolution of `time()`. Arithmetic on the nanosecond
+# component is done in integers to avoid any floating-point precision loss.
+function ns_to_hrtime(ns::UInt64, ref_unix::Float64, ref_ns::UInt64)
+    ref_seconds = floor(Int64, ref_unix)
+    ref_frac_ns = round(Int64, (ref_unix - ref_seconds) * 1e9)
+    total_ns = ref_frac_ns + (signed(ns) - signed(ref_ns))
+    seconds = ref_seconds + fld(total_ns, 1_000_000_000)
+    partial_ns = mod(total_ns, 1_000_000_000)
+    return (seconds, partial_ns)
+end
+
+# Trace receiver that forwards completed spans and correlated log records to the client as
+# telemetry events. Established for the dynamic extent of each request dispatch via
+# `TraceLogging.with_tracing`. `ref_unix`/`ref_ns` are the shared wall-clock/monotonic anchor
+# used to convert the raw monotonic timestamps carried by spans and log records into `HrTime`.
+struct LSPTraceReceiver{T} <: TraceLogging.AbstractTraceReceiver
+    server::T
+    ref_unix::Float64
+    ref_ns::UInt64
+end
+
+# Completed trace spans (top-level requests and the derived-function computations they
+# trigger) are sent to the client as `request_metric` telemetry.
+function TraceLogging.receive_span(r::LSPTraceReceiver, span::TraceLogging.TraceSpan)
+    endpoint = r.server.jr_endpoint
+    endpoint === nothing && return nothing
+    payload = Dict{String,Any}(
+        "command" => "request_metric",
+        "spanId" => TraceLogging.format_span_id(span.span_id),
+        "parentSpanId" => span.parent_span_id === nothing ? nothing : TraceLogging.format_span_id(span.parent_span_id),
+        "traceId" => TraceLogging.format_trace_id(span.trace_id),
+        "name" => span.name,
+        "time" => collect(ns_to_hrtime(span.start_time_ns, r.ref_unix, r.ref_ns)),
+        "duration" => span.duration_ns
+    )
+    # Only attach attributes when the span actually carries some, to avoid allocating and
+    # serializing an empty dict on every request.
+    span.attributes === nothing || (payload["attributes"] = Dict{String,Any}(string(k) => v for (k, v) in pairs(span.attributes)))
+    JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+    return nothing
+end
+
+# Regular log records emitted while inside a trace scope are forwarded as `trace_log`
+# telemetry, correlated with the enclosing span (parent) and the shared trace id (root).
+function TraceLogging.receive_log(r::LSPTraceReceiver, log::NamedTuple)
+    endpoint = r.server.jr_endpoint
+    endpoint === nothing && return nothing
+    payload = Dict{String,Any}(
+        "command" => "trace_log",
+        "spanId" => TraceLogging.format_span_id(TraceLogging._new_span_id()),
+        "parentSpanId" => log.span_id === nothing ? nothing : TraceLogging.format_span_id(log.span_id),
+        "traceId" => log.trace_id === nothing ? nothing : TraceLogging.format_trace_id(log.trace_id),
+        "message" => string(log._module, ": ", log.message),
+        "severity" => string(log.level),
+        "time" => collect(ns_to_hrtime(log.time_ns, r.ref_unix, r.ref_ns))
+    )
+    isempty(log.kwargs) || (payload["attributes"] = Dict{String,Any}(string(k) => string(v) for (k, v) in log.kwargs))
+    JSONRPC.send(endpoint, telemetry_event_notification_type, payload)
+    return nothing
+end
+
 """
     run(server::LanguageServerInstance)
 
@@ -360,189 +264,169 @@ function Base.run(server::LanguageServerInstance; timings = [])
     @debug "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
-    trigger_symbolstore_reload(server)
+    # Reference pair used to convert the raw monotonic `time_ns()` timestamps carried by trace
+    # spans and log records into wall-clock `HrTime` values for the client. Captured once here
+    # so every event shares the same anchor.
+    trace_time_reference_unix = time()
+    trace_time_reference_ns = time_ns()
 
-    @async try
-        @debug "LS: Starting client listener task."
-        add_timer_message!(did_show_timer, timings, "(async) listening to client events")
-        while true
-            msg = JSONRPC.get_next_message(server.jr_endpoint)
-            put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
-        end
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
-        end
-    finally
-        if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type=:close,))
-            close(server.combined_msg_queue)
-        end
-        @debug "LS: Client listener task done."
-    end
-    yield()
+    # Receiver that turns completed spans and correlated log records into client telemetry. It
+    # is established for the dynamic extent of each request dispatch (see below), so that
+    # `trace`/`@trace` calls anywhere beneath a request — including Salsa
+    # derived-function computations — are reported.
+    trace_receiver = LSPTraceReceiver(server, trace_time_reference_unix, trace_time_reference_ns)
 
-    @async try
-        @debug "LS: Starting symbol server listener task."
-        add_timer_message!(did_show_timer, timings, "(async) listening to symbol server events")
-        while true
-            msg = take!(server.symbol_results_channel)
-            put!(server.combined_msg_queue, (type=:symservmsg, msg=msg))
-        end
-    catch err
-        bt = catch_backtrace()
-        if server.err_handler !== nothing
-            server.err_handler(err, bt)
-        else
-            @error "LS: Queue op failed" ex=(err, bt)
-        end
-    finally
-        if isopen(server.combined_msg_queue)
-            put!(server.combined_msg_queue, (type=:close,))
-            close(server.combined_msg_queue)
-        end
-        @debug "LS: Symbol server listener task done."
-    end
-    yield()
+    new_logger = LoggingExtras.TeeLogger(
+        # Enrich log records with the enclosing trace/span ids and forward them to the active
+        # trace receiver (as `trace_log` telemetry) while still logging to the current logger.
+        TraceLogging.TraceContextLogger(Logging.current_logger()),
+        LSPTraceLogger(server),
+    )
 
-    @debug "async tasks started at $(round(Int, time()))"
+    Logging.with_logger(new_logger) do
 
-    msg_dispatcher = JSONRPC.MsgDispatcher()
-
-    msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
-    msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
-    msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
-    msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
-    msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
-    msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
-    msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
-    msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
-    msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
-    msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
-    msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
-    msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
-    msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
-    msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
-    msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
-    msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
-    msg_dispatcher[initialized_notification_type] = notification_wrapper(initialized_notification, server)
-    msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
-    msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
-    msg_dispatcher[setTraceNotification_notification_type] = notification_wrapper(setTraceNotification_notification, server)
-    msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
-    msg_dispatcher[julia_activateenvironment_notification_type] = notification_wrapper(julia_activateenvironment_notification, server)
-    msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
-    msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
-    msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
-    msg_dispatcher[textDocument_willSave_notification_type] = notification_wrapper(textDocument_willSave_notification, server)
-    msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
-    msg_dispatcher[textDocument_didChange_notification_type] = notification_wrapper(textDocument_didChange_notification, server)
-    msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = notification_wrapper(workspace_didChangeWatchedFiles_notification, server)
-    msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
-    msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
-    msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
-    msg_dispatcher[julia_refreshLanguageServer_notification_type] = notification_wrapper(julia_refreshLanguageServer_notification, server)
-    msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
-    msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
-    msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
-    msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
-    msg_dispatcher[julia_get_test_env_request_type] = request_wrapper(julia_get_test_env_request, server)
-
-    # The exit notification message should not be wrapped in request_wrapper (which checks
-    # if the server have been requested to be shut down). Instead, this message needs to be
-    # handled directly.
-    msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
-
-    @debug "Starting event listener loop at $(round(Int, time()))"
-    add_timer_message!(did_show_timer, timings, "starting combined listener")
-
-    while true
-        message = take!(server.combined_msg_queue)
-
-        if message.type == :close
-            @debug "Shutting down server instance."
-            return
-        elseif message.type == :clientmsg
-            msg = message.msg
-
-            add_timer_message!(did_show_timer, timings, msg)
-
-            g_operationId[] = string(uuid4())
-
-            start_time = string(Dates.unix2datetime(time()), "Z")
-            tic = time_ns()
-            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
-            toc = time_ns()
-            duration = (toc - tic) / 1e+6
-
-            if server._send_request_metrics
-                JSONRPC.send(
-                    server.jr_endpoint,
-                    telemetry_event_notification_type,
-                    Dict(
-                    "command" => "request_metric",
-                    "operationId" => g_operationId[],
-                    "name" => msg["method"],
-                    "time" => start_time,
-                    "duration" => duration)
-                )
+        @async try
+            @debug "LS: Starting client listener task."
+            add_timer_message!(did_show_timer, timings, "(async) listening to client events")
+            while true
+                msg = JSONRPC.get_next_message(server.jr_endpoint)
+                put!(server.combined_msg_queue, (type=:clientmsg, msg=msg))
             end
-        elseif message.type == :symservmsg
-            @debug "Received new data from Julia Symbol Server."
+        catch err
+            bt = catch_backtrace()
+            if server.err_handler !== nothing
+                server.err_handler(err, bt)
+            else
+                @warn "LS: An error occurred in the client listener task. This may be normal." exception=(err, bt)
+            end
+        finally
+            if isopen(server.combined_msg_queue)
+                put!(server.combined_msg_queue, (type=:close,))
+                close(server.combined_msg_queue)
+            end
+            @debug "LS: Client listener task done."
+        end
+        yield()
 
-            server.global_env.symbols = message.msg
-            add_timer_message!(did_show_timer, timings, "symbols received")
-            server.global_env.extended_methods = SymbolServer.collect_extended_methods(server.global_env.symbols)
-            add_timer_message!(did_show_timer, timings, "extended methods computed")
-            server.global_env.project_deps = collect(keys(server.global_env.symbols))
-            add_timer_message!(did_show_timer, timings, "project deps computed")
+        @debug "async tasks started at $(round(Int, time()))"
 
-            # redo roots_env_map
-            for (root, _) in server.roots_env_map
-                @debug "resetting get_env_for_root"
-                newenv = get_env_for_root(root, server)
-                if newenv === nothing
-                    delete!(server.roots_env_map, root)
+        msg_dispatcher = JSONRPC.MsgDispatcher()
+
+        msg_dispatcher[textDocument_codeAction_request_type] = request_wrapper(textDocument_codeAction_request, server)
+        msg_dispatcher[workspace_executeCommand_request_type] = request_wrapper(workspace_executeCommand_request, server)
+        msg_dispatcher[textDocument_completion_request_type] = request_wrapper(textDocument_completion_request, server)
+        msg_dispatcher[textDocument_signatureHelp_request_type] = request_wrapper(textDocument_signatureHelp_request, server)
+        msg_dispatcher[textDocument_definition_request_type] = request_wrapper(textDocument_definition_request, server)
+        msg_dispatcher[textDocument_formatting_request_type] = request_wrapper(textDocument_formatting_request, server)
+        msg_dispatcher[textDocument_range_formatting_request_type] = request_wrapper(textDocument_range_formatting_request, server)
+        msg_dispatcher[textDocument_references_request_type] = request_wrapper(textDocument_references_request, server)
+        msg_dispatcher[textDocument_rename_request_type] = request_wrapper(textDocument_rename_request, server)
+        msg_dispatcher[textDocument_prepareRename_request_type] = request_wrapper(textDocument_prepareRename_request, server)
+        msg_dispatcher[textDocument_documentSymbol_request_type] = request_wrapper(textDocument_documentSymbol_request, server)
+        msg_dispatcher[textDocument_documentHighlight_request_type] = request_wrapper(textDocument_documentHighlight_request, server)
+        msg_dispatcher[julia_getModuleAt_request_type] = request_wrapper(julia_getModuleAt_request, server)
+        msg_dispatcher[julia_getDocAt_request_type] = request_wrapper(julia_getDocAt_request, server)
+        msg_dispatcher[textDocument_hover_request_type] = request_wrapper(textDocument_hover_request, server)
+        msg_dispatcher[initialize_request_type] = request_wrapper(initialize_request, server)
+        msg_dispatcher[initialized_notification_type] = notification_wrapper(initialized_notification, server)
+        msg_dispatcher[shutdown_request_type] = request_wrapper(shutdown_request, server)
+        msg_dispatcher[setTrace_notification_type] = notification_wrapper(setTrace_notification, server)
+        msg_dispatcher[julia_getCurrentBlockRange_request_type] = request_wrapper(julia_getCurrentBlockRange_request, server)
+        msg_dispatcher[textDocument_didOpen_notification_type] = notification_wrapper(textDocument_didOpen_notification, server)
+        msg_dispatcher[textDocument_didClose_notification_type] = notification_wrapper(textDocument_didClose_notification, server)
+        msg_dispatcher[textDocument_didSave_notification_type] = notification_wrapper(textDocument_didSave_notification, server)
+        msg_dispatcher[textDocument_willSave_notification_type] = notification_wrapper(textDocument_willSave_notification, server)
+        msg_dispatcher[textDocument_willSaveWaitUntil_request_type] = request_wrapper(textDocument_willSaveWaitUntil_request, server)
+        msg_dispatcher[textDocument_didChange_notification_type] = notification_wrapper(textDocument_didChange_notification, server)
+        msg_dispatcher[workspace_didChangeWatchedFiles_notification_type] = notification_wrapper(workspace_didChangeWatchedFiles_notification, server)
+        msg_dispatcher[workspace_didChangeConfiguration_notification_type] = notification_wrapper(workspace_didChangeConfiguration_notification, server)
+        msg_dispatcher[workspace_didChangeWorkspaceFolders_notification_type] = notification_wrapper(workspace_didChangeWorkspaceFolders_notification, server)
+        msg_dispatcher[workspace_symbol_request_type] = request_wrapper(workspace_symbol_request, server)
+        msg_dispatcher[julia_getDocFromWord_request_type] = request_wrapper(julia_getDocFromWord_request, server)
+        msg_dispatcher[textDocument_selectionRange_request_type] = request_wrapper(textDocument_selectionRange_request, server)
+        msg_dispatcher[textDocument_documentLink_request_type] = request_wrapper(textDocument_documentLink_request, server)
+        msg_dispatcher[textDocument_inlayHint_request_type] = request_wrapper(textDocument_inlayHint_request, server)
+        msg_dispatcher[julia_get_test_env_request_type] = request_wrapper(julia_get_test_env_request, server)
+        msg_dispatcher[textDocument_diagnostic_request_type] = request_wrapper(textDocument_diagnostic_request, server)
+        msg_dispatcher[workspace_diagnostic_request_type] = request_wrapper(workspace_diagnostic_request, server)
+
+        # The exit notification message should not be wrapped in request_wrapper (which checks
+        # if the server have been requested to be shut down). Instead, this message needs to be
+        # handled directly.
+        msg_dispatcher[exit_notification_type] = (conn, params) -> exit_notification(params, server, conn)
+
+        @debug "Starting event listener loop at $(round(Int, time()))"
+        add_timer_message!(did_show_timer, timings, "starting combined listener")
+
+        while true
+            message = take!(server.combined_msg_queue)
+
+            if message.type == :close
+                @debug "Shutting down server instance."
+                return
+            elseif message.type == :indirect_file_discovered
+                # Fired by JW's indirect_file_watch_callback from a Salsa
+                # computation thread. Register a per-file LSP watcher so we
+                # get notified when the file changes on disc.
+                uri = message.uri
+                if !haskey(server._watched_indirect_files, uri) && uri.scheme == "file"
+                    path = JuliaWorkspaces.URIs2.uri2filepath(uri)
+                    if path !== nothing
+                        dir = dirname(path)
+                        base = basename(path)
+                        registration_id = string(uuid4())
+                        registration = Registration(
+                            registration_id,
+                            "workspace/didChangeWatchedFiles",
+                            DidChangeWatchedFilesRegistrationOptions([
+                                FileSystemWatcher(
+                                    RelativePattern(JuliaWorkspaces.URIs2.filepath2uri(dir), base),
+                                    missing
+                                )
+                            ])
+                        )
+                        try
+                            JSONRPC.send(
+                                server.jr_endpoint,
+                                client_registerCapability_request_type,
+                                RegistrationParams([registration])
+                            )
+                            server._watched_indirect_files[uri] = registration_id
+                        catch err
+                            @error "Failed to register file watcher for indirect file" uri=uri exception=(err, catch_backtrace())
+                        end
+                    end
+                end
+            elseif message.type == :jw_indexing_complete
+                if server.clientcapability_workspace_diagnostic_refreshsupport
+                    JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
                 else
-                    server.roots_env_map[root] = newenv
+                    all_diag_uris = URI[uri for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)]
+                    all_open_uris = URI[uri for uri in keys(server._open_file_versions)]
+                    all_uris = unique(vcat(all_diag_uris, all_open_uris))
+                    publish_diagnostics(server, all_uris, URI[], all_uris)
+                end
+            elseif message.type == :clientmsg
+                msg = message.msg
+
+                add_timer_message!(did_show_timer, timings, msg)
+
+                # Wrap dispatch in a trace span named after the request method. The span (and
+                # any nested derived-function spans) are delivered to the `LSPTraceReceiver` as
+                # request metrics. The raw message parameters are attached as a span attribute
+                # so they show up in the request telemetry. Tracing is only enabled (the
+                # receiver only installed) when the client asked for request metrics; otherwise
+                # dispatch runs with no tracing overhead.
+                if LSPTraceValue(server.trace_value[]) == lsp_trace_verbose
+                    TraceLogging.with_tracing(trace_receiver) do
+                        TraceLogging.@trace msg.method (; params = msg.params) begin
+                            JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
+                        end
+                    end
+                else
+                    JSONRPC.dispatch_msg(server.jr_endpoint, msg_dispatcher, msg)
                 end
             end
-            add_timer_message!(did_show_timer, timings, "env map computed")
-
-            @debug "Linting started at $(round(Int, time()))"
-
-            relintserver(server)
-
-            @debug "Linting finished at $(round(Int, time()))"
-            add_timer_message!(did_show_timer, timings, "initial lint done")
         end
     end
-end
-
-function relintserver(server)
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
-    roots = Set{Document}()
-    documents = collect(getdocuments_value(server))
-    for doc in documents
-        StaticLint.clear_meta(getcst(doc))
-        set_doc(getcst(doc), doc)
-    end
-    for doc in documents
-        # only do a pass on documents once
-        root = getroot(doc)
-        if !(root in roots)
-            if get_language_id(root) in ("julia", "markdown", "juliamarkdown")
-                push!(roots, root)
-                semantic_pass(root)
-            end
-        end
-    end
-    for doc in documents
-        lint!(doc, server)
-    end
-    publish_diagnostics_testitems(server, marked_versions, get_uri.(documents))
 end

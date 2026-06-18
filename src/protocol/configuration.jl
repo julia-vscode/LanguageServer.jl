@@ -101,7 +101,8 @@ struct Unregistration <: Outbound
 end
 
 struct UnregistrationParams <: Outbound
-    unregistrations::Vector{Unregistration}
+    # This misspelling tracks the official LSP spec, which has a typo in the field name.
+    unregisterations::Vector{Unregistration}
 end
 
 

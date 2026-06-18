@@ -17,6 +17,56 @@ const textDocument_didSave_notification_type = JSONRPC.NotificationType("textDoc
 const textDocument_willSave_notification_type = JSONRPC.NotificationType("textDocument/willSave", WillSaveTextDocumentParams)
 const textDocument_willSaveWaitUntil_request_type = JSONRPC.RequestType("textDocument/willSaveWaitUntil", WillSaveTextDocumentParams, Union{Vector{TextEdit}, Nothing})
 const textDocument_publishDiagnostics_notification_type = JSONRPC.NotificationType("textDocument/publishDiagnostics", PublishDiagnosticsParams)
+
+@dict_readable struct DocumentDiagnosticParams <: Outbound
+    textDocument::TextDocumentIdentifier
+    identifier::Union{String,Missing}
+    previousResultId::Union{String,Missing}
+end
+
+struct FullDocumentDiagnosticReport
+    kind::String
+    resultId::Union{String,Missing}
+    items::Vector{Diagnostic}
+end
+
+struct UnchangedDocumentDiagnosticReport
+    kind::String
+    resultId::String
+end
+
+@dict_readable struct PreviousResultId <: Outbound
+    uri::URI
+    value::String
+end
+
+@dict_readable struct WorkspaceDiagnosticParams <: Outbound
+    identifier::Union{String,Missing}
+    previousResultIds::Vector{PreviousResultId}
+end
+
+struct WorkspaceFullDocumentDiagnosticReport
+    uri::URI
+    version::Union{Int,Missing}
+    kind::String
+    resultId::Union{String,Missing}
+    items::Vector{Diagnostic}
+end
+
+struct WorkspaceUnchangedDocumentDiagnosticReport
+    uri::URI
+    version::Union{Int,Missing}
+    kind::String
+    resultId::String
+end
+
+struct WorkspaceDiagnosticReport
+    items::Vector{Union{WorkspaceFullDocumentDiagnosticReport,WorkspaceUnchangedDocumentDiagnosticReport}}
+end
+
+const textDocument_diagnostic_request_type = JSONRPC.RequestType("textDocument/diagnostic", DocumentDiagnosticParams, Union{FullDocumentDiagnosticReport,UnchangedDocumentDiagnosticReport,Nothing})
+const workspace_diagnostic_request_type = JSONRPC.RequestType("workspace/diagnostic", WorkspaceDiagnosticParams, WorkspaceDiagnosticReport)
+const workspace_diagnosticRefresh_request_type = JSONRPC.RequestType("workspace/diagnostic/refresh", Nothing, Nothing)
 const textDocument_selectionRange_request_type = JSONRPC.RequestType("textDocument/selectionRange", SelectionRangeParams, Union{Vector{SelectionRange}, Nothing})
 const textDocument_documentLink_request_type = JSONRPC.RequestType("textDocument/documentLink", DocumentLinkParams, Union{Vector{DocumentLink}, Nothing})
 const textDocument_inlayHint_request_type = JSONRPC.RequestType("textDocument/inlayHint", InlayHintParams, Union{Vector{InlayHint}, Nothing})
@@ -28,18 +78,16 @@ const workspace_didChangeConfiguration_notification_type = JSONRPC.NotificationT
 const workspace_didChangeWorkspaceFolders_notification_type = JSONRPC.NotificationType("workspace/didChangeWorkspaceFolders", DidChangeWorkspaceFoldersParams)
 const workspace_applyEdit_request_type = JSONRPC.RequestType("workspace/applyEdit", ApplyWorkspaceEditParams, ApplyWorkspaceEditResponse)
 const workspace_configuration_request_type = JSONRPC.RequestType("workspace/configuration", ConfigurationParams, Vector{Any})
-const julia_activateenvironment_notification_type = JSONRPC.NotificationType("julia/activateenvironment", NamedTuple{(:envPath,),Tuple{String}})
-const julia_refreshLanguageServer_notification_type = JSONRPC.NotificationType("julia/refreshLanguageServer", Nothing)
 
 const initialize_request_type = JSONRPC.RequestType("initialize", InitializeParams, InitializeResult)
 const initialized_notification_type = JSONRPC.NotificationType("initialized", InitializedParams)
 const shutdown_request_type = JSONRPC.RequestType("shutdown", Nothing, Nothing)
 const exit_notification_type = JSONRPC.NotificationType("exit", Nothing)
 const client_registerCapability_request_type = JSONRPC.RequestType("client/registerCapability", RegistrationParams, Nothing)
+const client_unregisterCapability_request_type = JSONRPC.RequestType("client/unregisterCapability", UnregistrationParams, Nothing)
 
 const setTrace_notification_type = JSONRPC.NotificationType("\$/setTrace", SetTraceParams)
-# TODO This seems to not exist in the spec?
-const setTraceNotification_notification_type = JSONRPC.NotificationType("\$/setTraceNotification", Nothing)
+const logTrace_notification_type = JSONRPC.NotificationType("\$/logTrace", LogTraceParams)
 
 const window_workDoneProgress_create_request_type = JSONRPC.RequestType("window/workDoneProgress/create", WorkDoneProgressCreateParams, Nothing)
 const window_showMessage_notification_type = JSONRPC.NotificationType("window/showMessage", ShowMessageParams)

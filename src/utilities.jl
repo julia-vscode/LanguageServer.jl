@@ -9,284 +9,33 @@ function nodocument_error(uri, request_name, data=nothing)
     )
 end
 
-function mismatched_version_error(uri, doc, params, msg, data=nothing)
+function mismatched_version_error(uri, version::Integer, params, msg, data=nothing)
     return JSONRPC.JSONRPCError(
         -33101,
-        "version mismatch in $(msg) request for $(uri): JLS $(get_version(doc)), client: $(params.version)",
+        "version mismatch in $(msg) request for $(uri): JLS $(version), client: $(params.version)",
         data
     )
-end
-
-# lookup
-# ------
-
-traverse_by_name(f, cache = SymbolServer.stdlibs) = traverse_store!.(f, values(cache))
-
-traverse_store!(_, _) = return
-traverse_store!(f, store::SymbolServer.EnvStore) = traverse_store!.(f, values(store))
-function traverse_store!(f, store::SymbolServer.ModuleStore)
-    for (sym, val) in store.vals
-        f(sym, val)
-        traverse_store!(f, val)
-    end
 end
 
 # misc
 # ----
 
-function should_file_be_linted(uri, server)
-    !server.runlinter && return false
-
-    uri_path = uri2filepath(uri)
-
-    if length(server.workspaceFolders) == 0 || uri_path === nothing
-        return false
-    else
-        return any(i -> startswith(uri_path, i), server.workspaceFolders)
-    end
-end
-
-# CompletionItemKind(t) = t in [:String, :AbstractString] ? 1 :
-#                                 t == :Function ? 3 :
-#                                 t == :DataType ? 7 :
-#                                 t == :Module ? 9 : 6
-
-# SymbolKind(t) = t in [:String, :AbstractString] ? 15 :
-#                         t == :Function ? 12 :
-#                         t == :DataType ? 5 :
-#                         t == :Module ? 2 :
-#                         t == :Bool ? 17 : 13
-
-
-
-
-# Find location of default datatype constructor
-const DefaultTypeConstructorLoc = let def = first(methods(Int))
-    Base.find_source_file(string(def.file)), def.line
-end
-
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or
 # the include follow logic.
 function remove_workspace_files(root, server)
-    for (uri, doc) in getdocuments_pair(server)
-        # We first check whether the doc still exists on the server
-        # because a previous loop iteration could have deleted it
-        # via dependency removal of files
-        hasdocument(server, uri) || continue
-        fpath = getpath(doc)
+    for uri in collect(server._workspace_files)
+        fpath = something(uri2filepath(uri), "")
         isempty(fpath) && continue
-        get_open_in_editor(doc) && continue
+        haskey(server._open_file_versions, uri) && continue
         # If the file is in any other workspace folder, don't delete it
         any(folder -> startswith(fpath, folder), server.workspaceFolders) && continue
-            deletedocument!(server, uri)
-        end
+        delete!(server._workspace_files, uri)
     end
-
-
-# TODO DA removed this, make sure it really isn't needed
-# function Base.getindex(server::LanguageServerInstance, r::Regex)
-#     out = []
-#     for (uri, doc) in getdocuments_pair(server)
-#         occursin(r, uri._uri) && push!(out, doc)
-#     end
-#     return out
-# end
-
-function _offset_unitrange(r::UnitRange{Int}, first=true)
-    return r.start - 1:r.stop
-end
-
-function get_toks(doc, offset)
-    ts = CSTParser.Tokenize.tokenize(get_text(doc))
-    ppt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
-    pt = CSTParser.Tokens.RawToken(CSTParser.Tokens.ERROR, (0, 0), (0, 0), 1, 0, CSTParser.Tokens.NO_ERR, false, false)
-    t = CSTParser.Tokenize.Lexers.next_token(ts)
-
-    prevpos = -1 # TODO: remove.
-    while t.kind != CSTParser.Tokenize.Tokens.ENDMARKER
-        if t.startbyte === prevpos # TODO: remove.
-            throw(LSInfiniteLoop("Loop did not progress between iterations.")) # TODO: remove.
-        else # TODO: remove.
-            prevpos = t.startbyte # TODO: remove.
-        end # TODO: remove.
-
-        if t.startbyte < offset <= t.endbyte + 1
-            break
-        end
-        ppt = pt
-        pt = t
-        t = CSTParser.Tokenize.Lexers.next_token(ts)
-    end
-    return ppt, pt, t
 end
 
 function isvalidjlfile(path)
     endswith(path, ".jl")
-end
-
-function our_isvalid(s)
-    return isvalid(s) && !occursin('\0', s)
-end
-
-function get_expr(x, offset, pos=0, ignorewhitespace=false)
-    if pos > offset
-        return nothing
-    end
-    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
-        for a in x
-            if pos < offset <= (pos + a.fullspan)
-                return get_expr(a, offset, pos, ignorewhitespace)
-            end
-            pos += a.fullspan
-        end
-    elseif pos == 0
-        return x
-    elseif (pos < offset <= (pos + x.fullspan))
-        ignorewhitespace && pos + x.span < offset && return nothing
-        return x
-    end
-end
-
-# like get_expr, but only returns a expr if offset is not on the edge of its span
-function get_expr_or_parent(x, offset, pos=0)
-    if pos > offset
-        return nothing, pos
-    end
-    ppos = pos
-    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
-        for a in x
-            if pos < offset <= (pos + a.fullspan)
-                if pos < offset < (pos + a.span)
-                    return get_expr_or_parent(a, offset, pos)
-                else
-                    return x, ppos
-                end
-            end
-            pos += a.fullspan
-        end
-    elseif pos == 0
-        return x, pos
-    elseif (pos < offset <= (pos + x.fullspan))
-        if pos + x.span < offset
-            return x.parent, ppos
-        end
-        return x, pos
-    end
-    return nothing, pos
-end
-
-function get_expr(x, offset::UnitRange{Int}, pos=0, ignorewhitespace=false)
-    if all(pos .> offset)
-        return nothing
-    end
-    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
-        for a in x
-            if all(pos .< offset .<= (pos + a.fullspan))
-                return get_expr(a, offset, pos, ignorewhitespace)
-            end
-            pos += a.fullspan
-        end
-    elseif pos == 0
-        return x
-    elseif all(pos .< offset .<= (pos + x.fullspan))
-        ignorewhitespace && all(pos + x.span .< offset) && return nothing
-        return x
-    end
-    pos -= x.fullspan
-    if all(pos .< offset .<= (pos + x.fullspan))
-        ignorewhitespace && all(pos + x.span .< offset) && return nothing
-        return x
-    end
-end
-
-get_inner_expr(doc::Document, rng::Range) = get_inner_expr(getcst(doc), get_offset(doc, rng))
-# full (not only trivia) expr containing rng, modulo whitespace
-function get_inner_expr(x, rng::UnitRange{Int}, pos=0, pos_span = 0)
-    if all(pos .> rng)
-        return nothing
-    end
-    if length(x) > 0 && headof(x) !== :NONSTDIDENTIFIER
-        pos_span′ = pos_span
-        for a in x
-            if a in x.args && all(pos_span′ .< rng .<= (pos + a.fullspan))
-                return get_inner_expr(a, rng, pos, pos_span′)
-            end
-            pos += a.fullspan
-            pos_span′ = pos - (a.fullspan - a.span)
-        end
-    elseif pos == 0
-        return x
-    elseif all(pos_span .< rng .<= (pos + x.fullspan))
-        return x
-    end
-    pos -= x.fullspan
-    if all(pos_span .< rng .<= (pos + x.fullspan))
-        return x
-    end
-end
-
-function get_expr1(x, offset, pos=0)
-    if length(x) == 0 || headof(x) === :NONSTDIDENTIFIER
-        if pos <= offset <= pos + x.span
-            return x
-        else
-            return nothing
-        end
-    else
-        for i = 1:length(x)
-            arg = x[i]
-            if pos < offset < (pos + arg.span) # def within span
-                return get_expr1(arg, offset, pos)
-            elseif arg.span == arg.fullspan
-                if offset == pos
-                    if i == 1
-                        return get_expr1(arg, offset, pos)
-                    elseif headof(x[i - 1]) === :IDENTIFIER
-                        return get_expr1(x[i - 1], offset, pos)
-                    else
-                        return get_expr1(arg, offset, pos)
-                    end
-                elseif i == length(x) # offset == pos + arg.fullspan
-                    return get_expr1(arg, offset, pos)
-                end
-            else
-                if offset == pos
-                    if i == 1
-                        return get_expr1(arg, offset, pos)
-                    elseif headof(x[i - 1]) === :IDENTIFIER
-                        return get_expr1(x[i - 1], offset, pos)
-                    else
-                        return get_expr1(arg, offset, pos)
-                    end
-                elseif offset == pos + arg.span
-                    return get_expr1(arg, offset, pos)
-                elseif offset == pos + arg.fullspan
-                elseif pos + arg.span < offset < pos + arg.fullspan
-                    return nothing
-                end
-            end
-            pos += arg.fullspan
-        end
-        return nothing
-    end
-end
-
-
-function get_identifier(x, offset, pos=0)
-    if pos > offset
-        return nothing
-    end
-    if length(x) > 0
-        for a in x
-            if pos <= offset <= (pos + a.span)
-                return get_identifier(a, offset, pos)
-            end
-            pos += a.fullspan
-        end
-    elseif headof(x) === :IDENTIFIER && (pos <= offset <= (pos + x.span)) || pos == 0
-        return x
-    end
 end
 
 
@@ -376,47 +125,6 @@ function sanitize_docstring(doc::String)
     doc = replace(doc, "```jldoctest" => "```julia")
     doc = replace(doc, "\n#" => "\n###")
     return doc
-end
-
-function parent_file(x::EXPR)
-    if parentof(x) isa EXPR
-        return parent_file(parentof(x))
-    elseif parentof(x) === nothing && StaticLint.haserror(x) && StaticLint.errorof(x) isa Document
-        return x.meta.error
-    else
-        return nothing
-    end
-end
-
-function resolve_op_ref(x::EXPR, env)
-    StaticLint.hasref(x) && return true
-    !CSTParser.isoperator(x) && return false
-    pf = parent_file(x)
-    pf === nothing && return false
-    scope = StaticLint.retrieve_scope(x)
-    scope === nothing && return false
-
-    return op_resolve_up_scopes(x, CSTParser.str_value(x), scope, env)
-end
-
-function op_resolve_up_scopes(x, mn, scope, env)
-    scope isa StaticLint.Scope || return false
-    if StaticLint.scopehasbinding(scope, mn)
-        StaticLint.setref!(x, scope.names[mn])
-        return true
-    elseif scope.modules isa Dict && length(scope.modules) > 0
-        for (_, m) in scope.modules
-            if m isa SymbolServer.ModuleStore && StaticLint.isexportedby(Symbol(mn), m)
-                StaticLint.setref!(x, StaticLint.maybe_lookup(m[Symbol(mn)], env))
-                return true
-            elseif m isa StaticLint.Scope && StaticLint.scopehasbinding(m, mn)
-                StaticLint.setref!(x, StaticLint.maybe_lookup(m.names[mn], env))
-                return true
-            end
-        end
-    end
-    CSTParser.defines_module(scope.expr) || !(StaticLint.parentof(scope) isa StaticLint.Scope) && return false
-    return op_resolve_up_scopes(x, mn, StaticLint.parentof(scope), env)
 end
 
 

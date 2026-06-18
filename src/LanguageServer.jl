@@ -1,9 +1,7 @@
 module LanguageServer
-using JSON, REPL, CSTParser, JuliaFormatter, SymbolServer, StaticLint
-using CSTParser: EXPR, Tokenize.Tokens, Tokenize.Tokens.kind, headof, parentof, valof, to_codeobject
-using StaticLint: refof, scopeof, bindingof
+using JSON
 using UUIDs
-using Base.Docs, Markdown
+using Markdown
 import JSONRPC
 using JSONRPC: Outbound, @dict_readable
 import Logging
@@ -11,23 +9,27 @@ import JuliaWorkspaces
 using JuliaWorkspaces: JuliaWorkspace, URIs2
 using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
-import Dates
+import Dates, Logging, LoggingExtras
+
+# JuliaWorkspaces-bundled StaticLint — needed for LintOptions
+const StaticLint = JuliaWorkspaces.StaticLint
+
+# Tracing/telemetry support reused from the Salsa runtime bundled with JuliaWorkspaces.
+const TraceLogging = JuliaWorkspaces.Salsa.TraceLogging
 
 export LanguageServerInstance, runserver
 
 const INIT_OPT_USE_FORMATTER_CONFIG_DEFAULTS = "useFormatterConfigDefaults"
 
-const g_operationId = Ref{String}("")
-
 JSON.lower(uri::URI) = string(uri)
 
+include("lsp_trace_logger.jl")
 include("exception_types.jl")
 include("protocol/protocol.jl")
 include("extensions/extensions.jl")
 include("textdocument.jl")
-include("document.jl")
 include("languageserverinstance.jl")
-include("multienv.jl")
+include("progress.jl")
 include("runserver.jl")
 include("staticlint.jl")
 include("testitem_diagnostic_marking.jl")

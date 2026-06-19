@@ -11,9 +11,6 @@ using JuliaWorkspaces.URIs2: URI, uri2filepath, filepath2uri
 using PrecompileTools
 import Dates, Logging, LoggingExtras
 
-# JuliaWorkspaces-bundled StaticLint — needed for LintOptions
-const StaticLint = JuliaWorkspaces.StaticLint
-
 # Tracing/telemetry support reused from the Salsa runtime bundled with JuliaWorkspaces.
 const TraceLogging = JuliaWorkspaces.Salsa.TraceLogging
 

@@ -16,42 +16,73 @@
 
     cb = create_progress_callback(server)
 
-    # First call → Begin
-    cb("Downloading caches...", 10)
-    @test length(sent) == 2  # create + begin
+    # Reports are delivered asynchronously by the worker task that owns the
+    # progress tokens, so wait for the expected number of sends.
+    wait_for_sends(n) = timedwait(() -> length(sent) >= n, 5.0) === :ok
+
+    # First report for a key → create + Begin
+    cb("download:/p", "Downloading caches...", 10)
+    @test wait_for_sends(2)
     @test sent[1][1] === window_workDoneProgress_create_request_type
     @test sent[1][2] isa WorkDoneProgressCreateParams
-    token = sent[1][2].token
-    @test startswith(token, "jw-indexing-")
+    dl_token = sent[1][2].token
+    @test startswith(dl_token, "jw-")
 
     @test sent[2][1] === progress_notification_type
     @test sent[2][2] isa ProgressParams{WorkDoneProgressBegin}
-    @test sent[2][2].token == token
+    @test sent[2][2].token == dl_token
     @test sent[2][2].value.title == "Julia"
     @test sent[2][2].value.message == "Downloading caches..."
     @test sent[2][2].value.percentage == 10
 
-    # Subsequent call → Report
-    cb("Indexing project...", 50)
-    @test length(sent) == 3
-    @test sent[3][1] === progress_notification_type
-    @test sent[3][2] isa ProgressParams{WorkDoneProgressReport}
-    @test sent[3][2].value.message == "Indexing project..."
-    @test sent[3][2].value.percentage == 50
+    # A different key gets its own token — bars run concurrently.
+    cb("index:/p", "Indexing project...", 5)
+    @test wait_for_sends(4)
+    @test sent[3][2] isa WorkDoneProgressCreateParams
+    idx_token = sent[3][2].token
+    @test idx_token != dl_token
+    @test sent[4][2] isa ProgressParams{WorkDoneProgressBegin}
+    @test sent[4][2].token == idx_token
 
-    # Final call → End
-    cb("Indexing complete", 100)
-    @test length(sent) == 4
-    @test sent[4][1] === progress_notification_type
-    @test sent[4][2] isa ProgressParams{WorkDoneProgressEnd}
-    @test sent[4][2].value.message == "Indexing complete"
+    # Subsequent reports go to their own bars.
+    cb("download:/p", "Downloading caches (50/100)...", 50)
+    @test wait_for_sends(5)
+    @test sent[5][2] isa ProgressParams{WorkDoneProgressReport}
+    @test sent[5][2].token == dl_token
+    @test sent[5][2].value.percentage == 50
 
-    # After End, a new call starts a fresh session
+    # percentage >= 100 ends only that key's bar.
+    cb("download:/p", "Downloads done", 100)
+    @test wait_for_sends(6)
+    @test sent[6][2] isa ProgressParams{WorkDoneProgressEnd}
+    @test sent[6][2].token == dl_token
+
+    cb("index:/p", "Indexing Foo...", 40)
+    @test wait_for_sends(7)
+    @test sent[7][2] isa ProgressParams{WorkDoneProgressReport}
+    @test sent[7][2].token == idx_token
+
+    # Ending a key without an open bar is a no-op; ending the index bar works.
+    cb("unknown-op", "Done", 100)
+    cb("index:/p", "Done", 100)
+    @test wait_for_sends(8)
+    @test sent[8][2] isa ProgressParams{WorkDoneProgressEnd}
+    @test sent[8][2].token == idx_token
+
+    # After End, a new report for the same key starts a fresh bar.
     empty!(sent)
-    cb("Re-indexing...", 5)
-    @test length(sent) == 2  # new create + begin
-    new_token = sent[1][2].token
-    @test new_token != token  # different token
+    cb("index:/p", "Re-indexing...", 5)
+    @test wait_for_sends(2)  # new create + begin
+    @test sent[1][2].token != idx_token
+
+    # The callback itself must never block: enqueueing a burst returns
+    # immediately and everything is delivered in order.
+    empty!(sent)
+    for i in 1:10
+        cb("index:/p", "Report $i", 10 + i)
+    end
+    @test wait_for_sends(10)
+    @test [p.value.message for (_, p) in sent] == ["Report $i" for i in 1:10]
 end
 
 @testitem "Progress callback without workDoneProgress support" begin
@@ -69,9 +100,10 @@ end
     cb = create_progress_callback(server)
 
     # Should be a no-op — no sends at all
-    cb("Downloading...", 10)
-    cb("Indexing...", 50)
-    cb("Done", 100)
+    cb("op", "Downloading...", 10)
+    cb("op", "Indexing...", 50)
+    cb("op", "Done", 100)
+    sleep(0.5)
     @test isempty(sent)
 end
 
@@ -86,8 +118,10 @@ end
 
     # With JSONRPC.send(::Nothing,...) defined, callback should work without error
     JSONRPC.send(::Nothing, typ, params) = nothing
+
     cb = create_progress_callback(server)
 
-    cb("test", 10)
+    cb("op", "test", 10)
+    sleep(0.5)
     @test true  # if we got here without error, the test passes
 end

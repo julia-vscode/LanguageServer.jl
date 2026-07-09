@@ -105,6 +105,9 @@ function load_folder(path::String, server, added_uris)
     if load_rootpath(path)
         try
             for (root, _, files) in walkdir(path, onerror=x -> x)
+                # Walking a big workspace shouldn't starve other tasks (the
+                # dynamic-feature reactor, the client connection).
+                yield()
                 for file in files
                     filepath = joinpath(root, file)
                     if isvalidjlfile(filepath)
@@ -285,6 +288,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     TraceLogging.@trace "initial_workspace_load" begin
         if server.workspaceFolders !== nothing
+            files_to_add = JuliaWorkspaces.TextFile[]
             TraceLogging.@trace "first workspace folder loop" for i in server.workspaceFolders
                 files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
 
@@ -295,11 +299,17 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                         server._files_from_disc[i.uri] = i
 
                         if !haskey(server._open_file_versions, i.uri)
-                            JuliaWorkspaces.add_file!(server.workspace, i)
+                            push!(files_to_add, i)
                         end
                     end
                 end
             end
+
+            # Add the whole batch at once: this reconciles the required dynamic
+            # processes a single time instead of once per file, so downloading/
+            # indexing can start right after this call rather than after the
+            # whole initial load.
+            TraceLogging.@trace JuliaWorkspaces.add_files!(server.workspace, files_to_add)
 
             TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
 

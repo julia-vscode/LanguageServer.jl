@@ -19,6 +19,25 @@
     @test result isa LanguageServer.JSONRPC.JSONRPCError
 end
 
+@testitem "inlayHint request with out-of-range position does not crash the server" setup=[TestSetup, SharedServer] begin
+    server.inlay_hints = true
+    settestdoc("for\nx\ny\nz")
+
+    # A range whose stop position points past the last line of the document
+    # (e.g. a sync race between a snippet insertion and the inlayHint request).
+    # This must produce a graceful result, not an uncaught exception that
+    # unwinds the dispatch loop and kills the server.
+    params = LanguageServer.InlayHintParams(
+        LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
+        LanguageServer.Range(LanguageServer.Position(0, 0), LanguageServer.Position(99, 0)),
+        missing,
+    )
+    result = LanguageServer.textDocument_inlayHint_request(params, server, server.jr_endpoint)
+    @test result === nothing || result isa Vector{LanguageServer.InlayHint}
+
+    closetestdoc()
+end
+
 @testitem "editor pid monitoring (#1379)" setup=[TestSetup, SharedServer] begin
     # No editor pid known → no monitor task.
     server.editor_pid = nothing

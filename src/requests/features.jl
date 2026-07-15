@@ -171,8 +171,11 @@ function textDocument_inlayHint_request(params::InlayHintParams, server::Languag
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
 
-    start_index = index_at(st, params.range.start)
-    end_index = index_at(st, params.range.stop)
+    # Clients can request hints for a range that extends past the current
+    # document (e.g. a sync race between an edit and the request), so index in
+    # forgiving mode to clamp out-of-range positions instead of crashing.
+    start_index = index_at(st, params.range.start, true)
+    end_index = index_at(st, params.range.stop, true)
 
     config = JuliaWorkspaces.InlayHintConfig(
         server.inlay_hints,

@@ -1,8 +1,6 @@
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
     @debug "workspace/didChangeWatchedFiles" change_count=length(params.changes)
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
     changed_uris = URI[]
 
     for change in params.changes
@@ -63,7 +61,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         end
     end
 
-    publish_diagnostics_testitems(server, marked_versions, changed_uris)
+    publish_file_diagnostics_testitems(server, changed_uris)
+    schedule_publish_sweep!(server)
 end
 
 function workspace_didChangeConfiguration_notification(params::DidChangeConfigurationParams, server::LanguageServerInstance, conn)
@@ -134,8 +133,6 @@ end
 function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorkspaceFoldersParams, server::LanguageServerInstance, conn)
     @debug "workspace/didChangeWorkspaceFolders" added=length(params.event.added) removed=length(params.event.removed)
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
     added_uris = URI[]
 
     for wksp in params.event.added
@@ -165,7 +162,9 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
         gc_files_from_workspace(server)
     end
 
-    publish_diagnostics_testitems(server, marked_versions, added_uris)
+    # Folder addition/removal is a bulk change; publish the new state right
+    # away instead of debouncing.
+    run_publish_sweep(server)
 end
 
 function workspace_symbol_request(params::WorkspaceSymbolParams, server::LanguageServerInstance, conn)

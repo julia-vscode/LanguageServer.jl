@@ -283,7 +283,6 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         progress_callback=progress_cb
     )
 
-    marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
     added_uris = URI[]
 
     TraceLogging.@trace "initial_workspace_load" begin
@@ -319,7 +318,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
-    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
+    TraceLogging.@trace run_publish_sweep(server)
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)

@@ -1,8 +1,6 @@
 function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, server::LanguageServerInstance, conn)
     @debug "textDocument/didOpen" uri=params.textDocument.uri
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
     uri = params.textDocument.uri
 
     if !JuliaWorkspaces.has_file(server.workspace, uri)
@@ -25,7 +23,11 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
     server._open_file_versions[uri] = params.textDocument.version
 
-    publish_diagnostics_testitems(server, marked_versions, [uri])
+    publish_file_diagnostics_testitems(server, [uri])
+    # Opening a file can promote it from indirect to regular; update the
+    # watcher registrations right away rather than with the debounced sweep.
+    reconcile_indirect_file_watchers(server)
+    schedule_publish_sweep!(server)
 end
 
 
@@ -33,8 +35,6 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     uri = params.textDocument.uri
 
     @debug "textDocument/didClose" uri=uri
-
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
 
     if !(uri in server._workspace_files)
         # Not a workspace file and being closed — will be removed from JW below
@@ -52,7 +52,10 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
         JuliaWorkspaces.remove_file!(server.workspace, uri)
     end
 
-    publish_diagnostics_testitems(server, marked_versions, JuliaWorkspaces.URIs2.URI[])
+    # Closing a file can demote it back to an indirect file; update the
+    # watcher registrations right away rather than with the debounced sweep.
+    reconcile_indirect_file_watchers(server)
+    schedule_publish_sweep!(server)
 end
 
 function textDocument_didSave_notification(params::DidSaveTextDocumentParams, server::LanguageServerInstance, conn)
@@ -87,8 +90,6 @@ end
 function textDocument_didChange_notification(params::DidChangeTextDocumentParams, server::LanguageServerInstance, conn)
     @debug "textDocument/didChange" uri=params.textDocument.uri change_count=length(params.contentChanges)
 
-    marked_versions = mark_current_diagnostics_testitems(server.workspace)
-
     uri = params.textDocument.uri
 
     if !haskey(server._open_file_versions, uri)
@@ -107,7 +108,8 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
 
     server._open_file_versions[uri] = params.textDocument.version
 
-    publish_diagnostics_testitems(server, marked_versions, [uri])
+    publish_file_diagnostics_testitems(server, [uri])
+    schedule_publish_sweep!(server)
 end
 
 function textDocument_diagnostic_request(params::DocumentDiagnosticParams, server::LanguageServerInstance, conn)

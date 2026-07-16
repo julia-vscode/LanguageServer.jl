@@ -1,51 +1,139 @@
-function mark_current_diagnostics_testitems(jw::JuliaWorkspace)
-    ti_results = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_test_items(jw))
+# Debounce tuning for the workspace publish sweep. `Ref`s (not `const` values)
+# so tests can shrink the delays. A mutation schedules the sweep
+# `SWEEP_DEBOUNCE_SECONDS` after the *last* mutation, but at most
+# `SWEEP_MAX_LATENCY_SECONDS` after the *first* unpublished one, so cross-file
+# feedback keeps flowing during continuous typing.
+const SWEEP_DEBOUNCE_SECONDS = Ref(0.4)
+const SWEEP_MAX_LATENCY_SECONDS = Ref(3.0)
 
-    diag_results = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_diagnostics(jw))
+"""
+    schedule_publish_sweep!(server)
 
-    return (testitems=ti_results, diagnostics=diag_results)
+Mark the workspace dirty and (re)arm the debounce timer for the publish sweep.
+Every call supersedes previously scheduled sweeps (the generation counter makes
+their queued messages stale), so a burst of mutations results in a single
+sweep. Must be called from the dispatch task; the timer callback only ever
+touches the (task-safe) message queue.
+"""
+function schedule_publish_sweep!(server)
+    if !server._sweep_pending
+        server._sweep_pending = true
+        server._sweep_first_dirty_time = time()
+    end
+
+    server._sweep_generation += 1
+    generation = server._sweep_generation
+
+    if server._sweep_timer !== nothing
+        close(server._sweep_timer)
+        server._sweep_timer = nothing
+    end
+
+    if time() - server._sweep_first_dirty_time >= SWEEP_MAX_LATENCY_SECONDS[]
+        put!(server.combined_msg_queue, (type=:publish_sweep, generation=generation))
+        return
+    end
+
+    server._sweep_timer = Timer(SWEEP_DEBOUNCE_SECONDS[]) do _
+        try
+            put!(server.combined_msg_queue, (type=:publish_sweep, generation=generation))
+        catch
+            # The queue is closed during shutdown; nothing left to publish.
+        end
+    end
+
+    return
 end
 
-function get_files_with_updated_diagnostics_testitems(jw::JuliaWorkspace, old_marked_versions::@NamedTuple{testitems::Dict{URI,UInt},diagnostics::Dict{URI,UInt}})
-    # Testitems
-    new_marked_versions_ti = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_test_items(jw))
+"""
+    handle_publish_sweep_msg!(server, generation)
 
-    old_text_files_ti = Set{URI}(keys(old_marked_versions.testitems))
-    new_text_files_ti = Set{URI}(keys(new_marked_versions_ti))
+Dispatch-loop handler for `:publish_sweep` messages. Messages from superseded
+schedules are ignored. When other messages are already queued (e.g. interactive
+requests) and the max-latency budget has not run out, the sweep re-enqueues
+itself behind them instead of blocking the queue.
+"""
+function handle_publish_sweep_msg!(server, generation)
+    server._sweep_pending || return
+    generation == server._sweep_generation || return
 
-    deleted_files_ti = setdiff(old_text_files_ti, new_text_files_ti)
-    updated_files_ti = Set{URI}()
+    if isready(server.combined_msg_queue) && time() - server._sweep_first_dirty_time < SWEEP_MAX_LATENCY_SECONDS[]
+        put!(server.combined_msg_queue, (type=:publish_sweep, generation=generation))
+        return
+    end
 
-    for (uri,hash_value) in new_marked_versions_ti
-        if !(uri in old_text_files_ti)
-            push!(updated_files_ti, uri)
-        else
-            if hash_value != old_marked_versions.testitems[uri]
-                push!(updated_files_ti, uri)
+    server._sweep_pending = false
+    server._sweep_timer = nothing
+    run_publish_sweep(server)
+
+    return
+end
+
+"""
+    run_publish_sweep(server)
+
+Bring the whole workspace's published diagnostics and testitems up to date:
+compute current per-file hashes, diff them against `server._published_hashes`
+(what the client last received), publish only the differences, and record the
+new state. This is the one place the full workspace lint is pulled, so it also
+serves as the consistency point after mutations.
+"""
+function run_publish_sweep(server)
+    server.workspace === nothing && return
+
+    new_ti = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_test_items(server.workspace))
+    new_diag = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_diagnostics(server.workspace))
+
+    old = server._published_hashes
+
+    updated_diag = Set{URI}(uri for (uri, h) in new_diag if get(old.diagnostics, uri, nothing) != h)
+    deleted_diag = setdiff(Set{URI}(keys(old.diagnostics)), keys(new_diag))
+    updated_ti = Set{URI}(uri for (uri, h) in new_ti if get(old.testitems, uri, nothing) != h)
+    deleted_ti = setdiff(Set{URI}(keys(old.testitems)), keys(new_ti))
+
+    if !server.clientcapability_workspace_diagnostic_refreshsupport
+        publish_diagnostics(server, updated_diag, deleted_diag, URI[])
+    end
+    publish_tests(server, updated_ti, deleted_ti)
+
+    server._published_hashes = (testitems=new_ti, diagnostics=new_diag)
+
+    reconcile_indirect_file_watchers(server)
+
+    return
+end
+
+"""
+    publish_file_diagnostics_testitems(server, uris)
+
+Immediately publish diagnostics and testitems for the given files (used for
+the file a mutation directly targets, so in-editor feedback does not wait for
+the debounced sweep). Publishes only when the file's state differs from what
+the client last received, and records the published hashes so the following
+sweep does not resend it.
+"""
+function publish_file_diagnostics_testitems(server, uris::Vector{URI})
+    server.workspace === nothing && return
+
+    for uri in uris
+        JuliaWorkspaces.has_file(server.workspace, uri) || continue
+
+        diag_hash = hash(JuliaWorkspaces.get_diagnostic(server.workspace, uri))
+        if get(server._published_hashes.diagnostics, uri, nothing) != diag_hash
+            if !server.clientcapability_workspace_diagnostic_refreshsupport
+                publish_diagnostics(server, URI[], URI[], [uri])
             end
+            server._published_hashes.diagnostics[uri] = diag_hash
+        end
+
+        ti_hash = hash(JuliaWorkspaces.get_test_items(server.workspace, uri))
+        if get(server._published_hashes.testitems, uri, nothing) != ti_hash
+            publish_tests(server, [uri], URI[])
+            server._published_hashes.testitems[uri] = ti_hash
         end
     end
 
-    # Diagnostics
-    new_marked_versions_diag = Dict{URI,UInt}(k => hash(v) for (k,v) in JuliaWorkspaces.get_diagnostics(jw))
-
-    old_text_files_diag = Set{URI}(keys(old_marked_versions.diagnostics))
-    new_text_files_diag = Set{URI}(keys(new_marked_versions_diag))
-
-    deleted_files_diag = setdiff(old_text_files_diag, new_text_files_diag)
-    updated_files_diag = Set{URI}()
-
-    for (uri,hash_value) in new_marked_versions_diag
-        if !(uri in old_text_files_diag)
-            push!(updated_files_diag, uri)
-        else
-            if hash_value != old_marked_versions.diagnostics[uri]
-                push!(updated_files_diag, uri)
-            end
-        end
-    end
-
-    return (;updated_files_ti, deleted_files_ti, updated_files_diag, deleted_files_diag)
+    return
 end
 
 function build_lsp_diagnostics(server, uri::URI, jw_diags)
@@ -161,19 +249,6 @@ function publish_tests(server::LanguageServerInstance, updated_files, deleted_fi
     end
 end
 
-
-function publish_diagnostics_testitems(server, marked_versions, uris::Vector{URI})
-    @debug "publish_diagnostics_testitems" uri_count=length(uris)
-
-    updated_files = get_files_with_updated_diagnostics_testitems(server.workspace, marked_versions)
-
-    if !server.clientcapability_workspace_diagnostic_refreshsupport
-        publish_diagnostics(server, updated_files.updated_files_diag, updated_files.deleted_files_diag, uris)
-    end
-    publish_tests(server, updated_files.updated_files_ti, updated_files.deleted_files_ti)
-
-    reconcile_indirect_file_watchers(server)
-end
 
 """
     reconcile_indirect_file_watchers(server::LanguageServerInstance)

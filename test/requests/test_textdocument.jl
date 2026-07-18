@@ -17,6 +17,27 @@
     @test !isopen(uri"untitled:none")
 end
 
+@testitem "Range: an out-of-bounds byte range clamps to EOF instead of crashing" begin
+    using JuliaWorkspaces: SourceText
+
+    st = SourceText("abc\ndef\n", "julia")
+    n = sizeof(st.content)  # 8
+    eof = LanguageServer.get_position_from_offset(st, n)
+
+    # A diagnostic/test-item range can be computed against a newer/older revision
+    # than the current content (the analysis result and the document race). An
+    # exclusive end past EOF must degrade to the document end, not throw
+    # LSPositionToOffsetException and crash the whole request.
+    r = LanguageServer.Range(st, (n + 1):(n + 3))
+    @test r.stop.line == eof[1]
+    @test r.stop.character == eof[2]
+
+    # An in-bounds range is unaffected.
+    r2 = LanguageServer.Range(st, 1:4)
+    @test r2.start == LanguageServer.Position(0, 0)
+    @test r2.stop == LanguageServer.Position(0, 3)
+end
+
 @testitem "TextDocument didSave sync mismatch (#1390)" setup=[TestSetup, SharedServer] begin
     u = uri"untitled:synctest"
     LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(u, "julia", 0, "x = 1")), server, nothing)

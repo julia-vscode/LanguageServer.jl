@@ -289,16 +289,14 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
-    # The cold sweep takes seconds; per-file yields inside it keep this task
-    # cooperative and JSONRPC sends are queue-based, so publishing from a
-    # worker is safe. Recording the marks afterwards gives indexing-complete
-    # refreshes their baseline without another publish-all.
-    @async try
-        publish_diagnostics_testitems(server, marked_versions, added_uris)
-        server._indexing_publish_marks = mark_current_diagnostics_testitems(server.workspace)
-    catch err
-        @error "Initial diagnostics publish failed" exception = (err, catch_backtrace())
-    end
+    # The initial sweep touches the Salsa runtime (via get_diagnostics ->
+    # process_from_dynamic -> set_input!). Only the dispatch loop may do that:
+    # setting an input while a derived function is active is a hard error, so
+    # this must run to completion here, not on a task that could interleave
+    # with the next dispatched message. Recording the marks afterwards gives
+    # indexing-complete refreshes their baseline without another publish-all.
+    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
+    server._indexing_publish_marks = mark_current_diagnostics_testitems(server.workspace)
 
     return
 end

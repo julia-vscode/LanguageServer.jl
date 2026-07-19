@@ -73,6 +73,14 @@ mutable struct LanguageServerInstance
     # unregister later. Reconciled in `reconcile_indirect_file_watchers`.
     _watched_indirect_files::Dict{URI,String}
 
+    # True while a `:jw_indexing_complete` message is queued and unprocessed;
+    # bursts of finishing progress bars collapse into one refresh.
+    _indexing_complete_queued::Threads.Atomic{Bool}
+    # Diagnostics/testitems state as of the last indexing-complete publish
+    # (`nothing` before the first one); later refreshes publish only files
+    # that changed since.
+    _indexing_publish_marks::Union{Nothing,@NamedTuple{testitems::Dict{URI,UInt},diagnostics::Dict{URI,UInt}}}
+
     trace_value::Threads.Atomic{Int}
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
@@ -108,6 +116,8 @@ mutable struct LanguageServerInstance
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
             Dict{URI,String}(),
+            Threads.Atomic{Bool}(false),
+            nothing,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
@@ -254,6 +264,37 @@ end
 
 Run the language `server`.
 """
+function request_indexing_refresh(server::LanguageServerInstance)
+    if !Threads.atomic_xchg!(server._indexing_complete_queued, true)
+        put!(server.combined_msg_queue, (type=:jw_indexing_complete,))
+    end
+    return
+end
+
+function handle_indexing_complete!(server::LanguageServerInstance)
+    server._indexing_complete_queued[] = false
+
+    if server.clientcapability_workspace_diagnostic_refreshsupport
+        JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
+        return
+    end
+
+    if server._indexing_publish_marks === nothing
+        # No baseline yet: publish the full current state once.
+        all_diag_uris = URI[uri for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)]
+        all_open_uris = URI[uri for uri in keys(server._open_file_versions)]
+        all_uris = unique(vcat(all_diag_uris, all_open_uris))
+        publish_diagnostics(server, all_uris, URI[], all_uris)
+    else
+        updated = get_files_with_updated_diagnostics_testitems(server.workspace, server._indexing_publish_marks)
+        publish_diagnostics(server, collect(updated.updated_files_diag), collect(updated.deleted_files_diag), URI[])
+        publish_tests(server, updated.updated_files_ti, updated.deleted_files_ti)
+    end
+
+    server._indexing_publish_marks = mark_current_diagnostics_testitems(server.workspace)
+    return
+end
+
 function Base.run(server::LanguageServerInstance; timings = [])
     did_show_timer = Ref(false)
     add_timer_message!(did_show_timer, timings, "LS startup started")
@@ -398,14 +439,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
                     end
                 end
             elseif message.type == :jw_indexing_complete
-                if server.clientcapability_workspace_diagnostic_refreshsupport
-                    JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
-                else
-                    all_diag_uris = URI[uri for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)]
-                    all_open_uris = URI[uri for uri in keys(server._open_file_versions)]
-                    all_uris = unique(vcat(all_diag_uris, all_open_uris))
-                    publish_diagnostics(server, all_uris, URI[], all_uris)
-                end
+                handle_indexing_complete!(server)
             elseif message.type == :clientmsg
                 msg = message.msg
 

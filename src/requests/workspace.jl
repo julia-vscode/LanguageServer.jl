@@ -93,6 +93,8 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.symbolCacheDownload"),
         ConfigurationItem(missing, "julia.symbolserverUpstream"),
         ConfigurationItem(missing, "julia.enableDynamicIndexing"),
+        ConfigurationItem(missing, "julia.maxConcurrentIndexingProcesses"),
+        ConfigurationItem(missing, "julia.enableWorkspaceEnvironmentResolution"),
     ]))
 
     new_completion_mode = Symbol(something(response[1], :import))
@@ -115,6 +117,8 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.symbolcache_download = something(response[6], false)
     server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
     server.enable_dynamic_indexing = something(response[8], true)
+    server.max_concurrent_indexing_processes = something(response[9], 4)
+    server.enable_workspace_environment_resolution = something(response[10], true)
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)

@@ -1,3 +1,8 @@
+# Endpoint that swallows all messages; used where no client is connected
+# (precompile workload, tests).
+struct NullEndpoint end
+JSONRPC.send(::NullEndpoint, @nospecialize(_), @nospecialize(_)) = nothing
+
 """
     LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
@@ -26,7 +31,7 @@ For normal usage, the language server can be instantiated with
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
-    jr_endpoint::Union{JSONRPC.JSONRPCEndpoint,Nothing}
+    jr_endpoint::Any
     workspaceFolders::Set{String}
 
     env_path::String

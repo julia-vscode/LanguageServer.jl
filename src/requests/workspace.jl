@@ -139,23 +139,10 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     added_uris = URI[]
 
     for wksp in params.event.added
-        push!(server.workspaceFolders, uri2filepath(wksp.uri))
-        load_folder(wksp, server, added_uris)
-
-
-        files = JuliaWorkspaces.read_path_into_textdocuments(wksp.uri, ignore_io_errors=true)
-
-        for i in files
-            # This might be a sub folder of a folder that is already watched
-            # so we make sure we don't have duplicates
-            if !haskey(server._files_from_disc, i.uri)
-                server._files_from_disc[i.uri] = i
-
-                if !haskey(server._open_file_versions, i.uri)
-                    JuliaWorkspaces.add_file!(server.workspace, i)
-                end
-            end
-        end
+        path = uri2filepath(wksp.uri)
+        push!(server.workspaceFolders, path)
+        files_to_add = collect_folder_files!(server, path, added_uris)
+        JuliaWorkspaces.add_files!(server.workspace, files_to_add)
     end
 
     for wksp in params.event.removed

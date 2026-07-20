@@ -21,9 +21,9 @@ Per-key lifecycle managed by the worker:
   and sends `WorkDoneProgressBegin`.
 - Subsequent reports are sent as `WorkDoneProgressReport`.
 - A report with `percentage >= 100` sends `WorkDoneProgressEnd`, retires the
-  key (a later report for it starts a fresh bar), and queues
-  `:jw_indexing_complete` so diagnostics are refreshed. Ending a key that has
-  no open bar is a no-op.
+  key (a later report for it starts a fresh bar), and requests a diagnostics
+  refresh (coalesced: at most one `:jw_indexing_complete` is queued at a
+  time). Ending a key that has no open bar is a no-op.
 """
 function create_progress_callback(server::LanguageServerInstance)
     reports = Channel{Tuple{String,String,Int}}(Inf)
@@ -55,7 +55,7 @@ function create_progress_callback(server::LanguageServerInstance)
             elseif percentage >= 100
                 JSONRPC.send(ep, progress_notification_type, ProgressParams(token, WorkDoneProgressEnd(message)))
                 delete!(tokens, key)
-                put!(server.combined_msg_queue, (type=:jw_indexing_complete,))
+                request_indexing_refresh(server)
             else
                 JSONRPC.send(ep, progress_notification_type, ProgressParams(token, WorkDoneProgressReport(false, message, percentage)))
             end

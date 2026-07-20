@@ -77,15 +77,23 @@ end
 end
 
 @testitem "publish sweep: diffs against published state" setup=[TestSetup, DebounceHelpers] begin
+    import JuliaWorkspaces
     old_delay = LanguageServer.SWEEP_DEBOUNCE_SECONDS[]
     LanguageServer.SWEEP_DEBOUNCE_SECONDS[] = 100.0  # keep timers from firing mid-test
     try
         endpoint = RecordingEndpoint()
         server = make_initialized_server(endpoint)
+        # Diagnostics are only published for files inside a workspace folder, so
+        # the document has to live in one. Swap in a fresh, cache-free workspace
+        # (as in test_out_of_workspace_diagnostics) so syntax linting doesn't
+        # depend on the symbol server.
+        server.workspace = JuliaWorkspaces.JuliaWorkspace()
+        dir = mktempdir()
+        push!(server.workspaceFolders, dir)
 
         # Opening a document with a syntax error publishes its diagnostics
         # immediately (not debounced) and records the published state.
-        doc_uri = uri"untitled:debouncedoc2"
+        doc_uri = filepath2uri(joinpath(dir, "debouncedoc2.jl"))
         open_doc(server, doc_uri, "function f(")
         @test count(==(doc_uri), published_diag_uris(endpoint)) == 1
         @test haskey(server._published_hashes.diagnostics, doc_uri)

@@ -95,6 +95,7 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
     diagnostics = Dict{URI,Vector{Diagnostic}}()
 
     for uri in all_uris_with_updates
+        is_workspace_file(server, uri) || continue
         new_diags = JuliaWorkspaces.has_file(server.workspace, uri) ?
             JuliaWorkspaces.get_diagnostic(server.workspace, uri) : []
         diagnostics[uri] = build_lsp_diagnostics(server, uri, new_diags)

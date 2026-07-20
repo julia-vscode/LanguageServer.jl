@@ -233,6 +233,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             ConfigurationItem(missing, "julia.symbolCacheDownload"),
             ConfigurationItem(missing, "julia.symbolserverUpstream"),
             ConfigurationItem(missing, "julia.enableDynamicIndexing"),
+            ConfigurationItem(missing, "julia.maxConcurrentIndexingProcesses"),
+            ConfigurationItem(missing, "julia.enableWorkspaceEnvironmentResolution"),
         ]))
 
         server.completion_mode = Symbol(something(response[1], :import))
@@ -246,6 +248,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         server.symbolcache_download = something(response[6], false)
         server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
         server.enable_dynamic_indexing = something(response[8], true)
+        server.max_concurrent_indexing_processes = something(response[9], 4)
+        server.enable_workspace_environment_resolution = something(response[10], true)
     end
 
     # Construct JuliaWorkspace now that configuration values are available.
@@ -260,7 +264,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         symbolcache_download=server.symbolcache_download,
         symbolcache_upstream=server.symbolcache_upstream,
         indirect_file_watch_callback=indirect_cb,
-        progress_callback=progress_cb
+        progress_callback=progress_cb,
+        max_concurrent_djps=server.max_concurrent_indexing_processes,
+        resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )
 
     TraceLogging.@trace "initial_workspace_load" begin

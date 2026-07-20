@@ -64,6 +64,8 @@ mutable struct LanguageServerInstance
     symbolcache_download::Bool
     symbolcache_upstream::String
     enable_dynamic_indexing::Bool
+    max_concurrent_indexing_processes::Int
+    enable_workspace_environment_resolution::Bool
 
     clientcapability_workspace_diagnostic_refreshsupport::Bool
 
@@ -124,6 +126,8 @@ mutable struct LanguageServerInstance
             symserver_store_path,
             false,
             "",
+            true,
+            4,
             true,
             false,
             Dict{URI,Int}(),

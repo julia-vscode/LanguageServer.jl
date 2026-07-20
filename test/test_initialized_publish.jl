@@ -30,7 +30,7 @@
     # file's diagnostics are already on the wire and the indexing-complete
     # baseline is already recorded — no waiting.
     @test published_file_diags()
-    @test server._indexing_publish_marks !== nothing
+    @test !isempty(server._published_hashes.diagnostics)
     @test JuliaWorkspaces.has_file(server.workspace, file_uri)
 end
 

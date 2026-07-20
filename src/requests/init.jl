@@ -75,9 +75,9 @@ function load_rootpath(path)
 end
 
 # One walk per folder: reads all workspace files, tracks julia files in
-# `server._workspace_files`, appends newly-visible julia URIs to `added_uris`,
-# and returns the new files for the caller to `add_files!` in one batch.
-function collect_folder_files!(server, path::String, added_uris::Vector{URI})
+# `server._workspace_files`, and returns the new files for the caller to
+# `add_files!` in one batch.
+function collect_folder_files!(server, path::String)
     files_to_add = JuliaWorkspaces.TextFile[]
     load_rootpath(path) || return files_to_add
 
@@ -88,24 +88,18 @@ function collect_folder_files!(server, path::String, added_uris::Vector{URI})
     end
 
     for tf in files
-        will_add = false
         # A subfolder of an already-watched folder yields duplicates; first
         # read wins.
         if !haskey(server._files_from_disc, tf.uri)
             server._files_from_disc[tf.uri] = tf
             if !haskey(server._open_file_versions, tf.uri)
                 push!(files_to_add, tf)
-                will_add = true
             end
         end
 
         filepath = uri2filepath(tf.uri)
         if filepath !== nothing && isvalidjlfile(filepath)
-            already_tracked = tf.uri in server._workspace_files
             push!(server._workspace_files, tf.uri)
-            if !already_tracked && (will_add || JuliaWorkspaces.has_file(server.workspace, tf.uri))
-                push!(added_uris, tf.uri)
-            end
         end
     end
 
@@ -269,14 +263,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         progress_callback=progress_cb
     )
 
-    marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
-    added_uris = URI[]
-
     TraceLogging.@trace "initial_workspace_load" begin
         if server.workspaceFolders !== nothing
             files_to_add = JuliaWorkspaces.TextFile[]
             TraceLogging.@trace "workspace folder walk" for folder in server.workspaceFolders
-                append!(files_to_add, collect_folder_files!(server, folder, added_uris))
+                append!(files_to_add, collect_folder_files!(server, folder))
             end
 
             # Add the whole batch at once: this reconciles the required dynamic
@@ -293,10 +284,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     # process_from_dynamic -> set_input!). Only the dispatch loop may do that:
     # setting an input while a derived function is active is a hard error, so
     # this must run to completion here, not on a task that could interleave
-    # with the next dispatched message. Recording the marks afterwards gives
-    # indexing-complete refreshes their baseline without another publish-all.
-    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
-    server._indexing_publish_marks = mark_current_diagnostics_testitems(server.workspace)
+    # with the next dispatched message. The sweep also records the published
+    # baseline, so later indexing-complete refreshes publish only what changed.
+    TraceLogging.@trace run_publish_sweep(server)
 
     return
 end

@@ -31,6 +31,8 @@ For normal usage, the language server can be instantiated with
   path. The path must exist on disc before this is called.
 """
 mutable struct LanguageServerInstance
+    # A JSONRPC.JSONRPCEndpoint in production; `nothing` or any other object
+    # with a `JSONRPC.send` method in tests (e.g. a recording endpoint).
     jr_endpoint::Any
     workspaceFolders::Set{String}
 
@@ -81,10 +83,17 @@ mutable struct LanguageServerInstance
     # True while a `:jw_indexing_complete` message is queued and unprocessed;
     # bursts of finishing progress bars collapse into one refresh.
     _indexing_complete_queued::Threads.Atomic{Bool}
-    # Diagnostics/testitems state as of the last indexing-complete publish
-    # (`nothing` before the first one); later refreshes publish only files
-    # that changed since.
-    _indexing_publish_marks::Union{Nothing,@NamedTuple{testitems::Dict{URI,UInt},diagnostics::Dict{URI,UInt}}}
+    # Per-file hashes of the diagnostics/testitems the client last received.
+    # The publish sweep diffs the current workspace state against these and
+    # only publishes files whose state actually changed.
+    _published_hashes::@NamedTuple{testitems::Dict{URI,UInt},diagnostics::Dict{URI,UInt}}
+    # Debounce state for the workspace publish sweep (see
+    # `schedule_publish_sweep!`). Only touched from the dispatch task; the
+    # debounce timer communicates exclusively through `combined_msg_queue`.
+    _sweep_pending::Bool
+    _sweep_generation::Int
+    _sweep_timer::Union{Nothing,Timer}
+    _sweep_first_dirty_time::Float64
 
     trace_value::Threads.Atomic{Int}
 
@@ -122,7 +131,11 @@ mutable struct LanguageServerInstance
             Set{URI}(),
             Dict{URI,String}(),
             Threads.Atomic{Bool}(false),
+            (testitems=Dict{URI,UInt}(), diagnostics=Dict{URI,UInt}()),
+            false,
+            0,
             nothing,
+            0.0,
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
@@ -277,26 +290,16 @@ function request_indexing_refresh(server::LanguageServerInstance)
 end
 
 function handle_indexing_complete!(server::LanguageServerInstance)
+    # Clear the coalescing flag first so a refresh triggered by work that
+    # starts after this point queues a fresh message.
     server._indexing_complete_queued[] = false
 
     if server.clientcapability_workspace_diagnostic_refreshsupport
         JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
-        return
     end
-
-    if server._indexing_publish_marks === nothing
-        # No baseline yet: publish the full current state once.
-        all_diag_uris = URI[uri for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)]
-        all_open_uris = URI[uri for uri in keys(server._open_file_versions)]
-        all_uris = unique(vcat(all_diag_uris, all_open_uris))
-        publish_diagnostics(server, all_uris, URI[], all_uris)
-    else
-        updated = get_files_with_updated_diagnostics_testitems(server.workspace, server._indexing_publish_marks)
-        publish_diagnostics(server, collect(updated.updated_files_diag), collect(updated.deleted_files_diag), URI[])
-        publish_tests(server, updated.updated_files_ti, updated.deleted_files_ti)
-    end
-
-    server._indexing_publish_marks = mark_current_diagnostics_testitems(server.workspace)
+    # Indexing changes env-dependent lint results; publish the difference
+    # (and testitem updates) right away.
+    run_publish_sweep(server)
     return
 end
 
@@ -445,6 +448,8 @@ function Base.run(server::LanguageServerInstance; timings = [])
                 end
             elseif message.type == :jw_indexing_complete
                 handle_indexing_complete!(server)
+            elseif message.type == :publish_sweep
+                handle_publish_sweep_msg!(server, message.generation)
             elseif message.type == :clientmsg
                 msg = message.msg
 

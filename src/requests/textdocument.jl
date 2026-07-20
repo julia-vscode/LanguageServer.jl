@@ -114,7 +114,7 @@ end
 
 function textDocument_diagnostic_request(params::DocumentDiagnosticParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
-    jw_diags = JuliaWorkspaces.has_file(server.workspace, uri) ?
+    jw_diags = (is_workspace_file(server, uri) && JuliaWorkspaces.has_file(server.workspace, uri)) ?
         JuliaWorkspaces.get_diagnostic(server.workspace, uri) : []
     result_id = string(hash(jw_diags))
 

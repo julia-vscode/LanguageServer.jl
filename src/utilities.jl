@@ -20,6 +20,12 @@ end
 # misc
 # ----
 
+# A file is only eligible for diagnostics if it lives inside a workspace folder.
+# Files opened outside the workspace are still tracked in JuliaWorkspaces (so
+# cross-file resolution works) but are kept out of `_workspace_files`; a complete
+# analysis of them is impossible, so we never emit diagnostics for them.
+is_workspace_file(server, uri) = uri in server._workspace_files
+
 # TODO I believe this will also remove files from documents that were added
 # not because they are part of the workspace, but by either StaticLint or
 # the include follow logic.

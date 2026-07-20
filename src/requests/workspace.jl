@@ -184,6 +184,7 @@ function workspace_diagnostic_request(params::WorkspaceDiagnosticParams, server:
     items = Union{WorkspaceFullDocumentDiagnosticReport,WorkspaceUnchangedDocumentDiagnosticReport}[]
 
     for (uri, _) in JuliaWorkspaces.get_diagnostics(server.workspace)
+        is_workspace_file(server, uri) || continue
         diags = JuliaWorkspaces.get_diagnostic(server.workspace, uri)
         result_id = string(hash(diags))
         version = get(server._open_file_versions, uri, missing)

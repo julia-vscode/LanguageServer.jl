@@ -59,28 +59,7 @@ function isjuliabasedir(path)
     end
 end
 
-function has_too_many_files(path, N=5000)
-    i = 0
-
-    try
-        for (_, _, files) in walkdir(path, onerror=x -> x)
-            for file in files
-                if endswith(file, ".jl")
-                    i += 1
-                end
-                if i > N
-                    @info "Your workspace folder has > $N Julia files, server will not try to load them."
-                    return true
-                end
-            end
-        end
-    catch err
-        is_walkdir_error(err) || rethrow()
-        return false
-    end
-
-    return false
-end
+const MAX_WORKSPACE_JULIA_FILES = 5000
 
 function load_rootpath(path)
     try
@@ -88,42 +67,43 @@ function load_rootpath(path)
             hasreadperm(path) &&
             path != "" &&
             path != homedir() &&
-            !isjuliabasedir(path) &&
-            !has_too_many_files(path)
+            !isjuliabasedir(path)
     catch err
         is_walkdir_error(err) || rethrow()
         return false
     end
 end
 
-function load_folder(wf::WorkspaceFolder, server, added_uris)
-    path = uri2filepath(wf.uri)
-    load_folder(path, server, added_uris)
-end
+# One walk per folder: reads all workspace files, tracks julia files in
+# `server._workspace_files`, and returns the new files for the caller to
+# `add_files!` in one batch.
+function collect_folder_files!(server, path::String)
+    files_to_add = JuliaWorkspaces.TextFile[]
+    load_rootpath(path) || return files_to_add
 
-function load_folder(path::String, server, added_uris)
-    if load_rootpath(path)
-        try
-            for (root, _, files) in walkdir(path, onerror=x -> x)
-                # Walking a big workspace shouldn't starve other tasks (the
-                # dynamic-feature reactor, the client connection).
-                yield()
-                for file in files
-                    filepath = joinpath(root, file)
-                    if isvalidjlfile(filepath)
-                        uri = filepath2uri(filepath)
-                        already_tracked = uri in server._workspace_files
-                        push!(server._workspace_files, uri)
-                        if !already_tracked && JuliaWorkspaces.has_file(server.workspace, uri)
-                            push!(added_uris, uri)
-                        end
-                    end
-                end
+    files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(path); ignore_io_errors=true, file_limit=MAX_WORKSPACE_JULIA_FILES)
+    if files === nothing
+        @info "Your workspace folder has > $MAX_WORKSPACE_JULIA_FILES Julia files, server will not try to load them."
+        return files_to_add
+    end
+
+    for tf in files
+        # A subfolder of an already-watched folder yields duplicates; first
+        # read wins.
+        if !haskey(server._files_from_disc, tf.uri)
+            server._files_from_disc[tf.uri] = tf
+            if !haskey(server._open_file_versions, tf.uri)
+                push!(files_to_add, tf)
             end
-        catch err
-            is_walkdir_error(err) || rethrow()
+        end
+
+        filepath = uri2filepath(tf.uri)
+        if filepath !== nothing && isvalidjlfile(filepath)
+            push!(server._workspace_files, tf.uri)
         end
     end
+
+    return files_to_add
 end
 
 is_walkdir_error(_) = false
@@ -289,26 +269,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )
 
-    marked_versions = TraceLogging.@trace mark_current_diagnostics_testitems(server.workspace)
-    added_uris = URI[]
-
     TraceLogging.@trace "initial_workspace_load" begin
         if server.workspaceFolders !== nothing
             files_to_add = JuliaWorkspaces.TextFile[]
-            TraceLogging.@trace "first workspace folder loop" for i in server.workspaceFolders
-                files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(i), ignore_io_errors=true)
-
-                TraceLogging.@trace "file loop" for i in files
-                    # This might be a sub folder of a folder that is already watched
-                    # so we make sure we don't have duplicates
-                    if !haskey(server._files_from_disc, i.uri)
-                        server._files_from_disc[i.uri] = i
-
-                        if !haskey(server._open_file_versions, i.uri)
-                            push!(files_to_add, i)
-                        end
-                    end
-                end
+            TraceLogging.@trace "workspace folder walk" for folder in server.workspaceFolders
+                append!(files_to_add, collect_folder_files!(server, folder))
             end
 
             # Add the whole batch at once: this reconciles the required dynamic
@@ -318,14 +283,18 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             TraceLogging.@trace JuliaWorkspaces.add_files!(server.workspace, files_to_add)
 
             TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
-
-            TraceLogging.@trace "second workspace folder loop" for wkspc in server.workspaceFolders
-                load_folder(wkspc, server, added_uris)
-            end
         end
     end
 
-    TraceLogging.@trace publish_diagnostics_testitems(server, marked_versions, added_uris)
+    # The initial sweep touches the Salsa runtime (via get_diagnostics ->
+    # process_from_dynamic -> set_input!). Only the dispatch loop may do that:
+    # setting an input while a derived function is active is a hard error, so
+    # this must run to completion here, not on a task that could interleave
+    # with the next dispatched message. The sweep also records the published
+    # baseline, so later indexing-complete refreshes publish only what changed.
+    TraceLogging.@trace run_publish_sweep(server)
+
+    return
 end
 
 function shutdown_request(params::Nothing, server::LanguageServerInstance, conn)

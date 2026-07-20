@@ -171,7 +171,7 @@ end
 
         @test has_file(server.workspace, b_uri)
         @test !is_indirect_file(server.workspace, b_uri)
-        # Reconcile inside publish_diagnostics_testitems should have unregistered.
+        # The reconcile in the didOpen handler should have unregistered.
         @test !haskey(server._watched_indirect_files, b_uri)
     end
 end

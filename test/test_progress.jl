@@ -20,7 +20,7 @@
     # progress tokens, so wait for the expected number of sends.
     wait_for_sends(n) = timedwait(() -> length(sent) >= n, 5.0) === :ok
 
-    # First report for a key → create + Begin
+    # First report for a phase → create + Begin
     cb("download:/p", "Downloading caches...", 10)
     @test wait_for_sends(2)
     @test sent[1][1] === window_workDoneProgress_create_request_type
@@ -32,10 +32,10 @@
     @test sent[2][2] isa ProgressParams{WorkDoneProgressBegin}
     @test sent[2][2].token == dl_token
     @test sent[2][2].value.title == "Julia"
-    @test sent[2][2].value.message == "Downloading caches..."
+    @test sent[2][2].value.message == "Downloading package caches (0/1)..."
     @test sent[2][2].value.percentage == 10
 
-    # A different key gets its own token — bars run concurrently.
+    # A different phase gets its own token — bars run concurrently.
     cb("index:/p", "Indexing project...", 5)
     @test wait_for_sends(4)
     @test sent[3][2] isa WorkDoneProgressCreateParams
@@ -44,14 +44,14 @@
     @test sent[4][2] isa ProgressParams{WorkDoneProgressBegin}
     @test sent[4][2].token == idx_token
 
-    # Subsequent reports go to their own bars.
+    # Subsequent reports go to their phase's bar.
     cb("download:/p", "Downloading caches (50/100)...", 50)
     @test wait_for_sends(5)
     @test sent[5][2] isa ProgressParams{WorkDoneProgressReport}
     @test sent[5][2].token == dl_token
     @test sent[5][2].value.percentage == 50
 
-    # percentage >= 100 ends only that key's bar.
+    # The phase's last key reaching 100 ends its bar.
     cb("download:/p", "Downloads done", 100)
     @test wait_for_sends(6)
     @test sent[6][2] isa ProgressParams{WorkDoneProgressEnd}
@@ -62,27 +62,75 @@
     @test sent[7][2] isa ProgressParams{WorkDoneProgressReport}
     @test sent[7][2].token == idx_token
 
-    # Ending a key without an open bar is a no-op; ending the index bar works.
+    # A phase with no open bar is a no-op; ending the index bar works.
     cb("unknown-op", "Done", 100)
     cb("index:/p", "Done", 100)
     @test wait_for_sends(8)
     @test sent[8][2] isa ProgressParams{WorkDoneProgressEnd}
     @test sent[8][2].token == idx_token
 
-    # After End, a new report for the same key starts a fresh bar.
+    # After End, a new report for the same phase starts a fresh bar.
     empty!(sent)
     cb("index:/p", "Re-indexing...", 5)
     @test wait_for_sends(2)  # new create + begin
     @test sent[1][2].token != idx_token
 
     # The callback itself must never block: enqueueing a burst returns
-    # immediately and everything is delivered in order.
+    # immediately and every report is delivered in order to the open bar.
     empty!(sent)
     for i in 1:10
         cb("index:/p", "Report $i", 10 + i)
     end
     @test wait_for_sends(10)
-    @test [p.value.message for (_, p) in sent] == ["Report $i" for i in 1:10]
+    @test all(p.token == sent[1][2].token for (_, p) in sent)
+    @test [p.value.percentage for (_, p) in sent] == [10 + i for i in 1:10]
+end
+
+@testitem "Progress bars aggregate by phase" begin
+    import Pkg, JSONRPC
+    using LanguageServer
+    using LanguageServer: LanguageServerInstance, create_progress_callback,
+        WorkDoneProgressBegin, WorkDoneProgressReport, WorkDoneProgressEnd,
+        ProgressParams
+
+    sent = []
+    JSONRPC.send(::Nothing, typ, params) = push!(sent, (typ, params))
+
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
+    server.jr_endpoint = nothing
+    server.clientcapability_window_workdoneprogress = true
+
+    cb = create_progress_callback(server)
+    wait_for_sends(n) = timedwait(() -> length(sent) >= n, 5.0) === :ok
+
+    # Three environments preparing to index share ONE bar, not three.
+    cb("index:/a", "Preparing to index...", 0)
+    @test wait_for_sends(2)  # create + begin
+    token = sent[2][2].token
+    @test sent[2][2].value.message == "Indexing environments (0/1)..."
+
+    cb("index:/b", "Preparing to index...", 0)
+    cb("index:/c", "Preparing to index...", 0)
+    @test wait_for_sends(4)
+    @test all(p.token == token for (_, p) in sent[3:4])  # no new tokens created
+    @test sent[4][2].value.message == "Indexing environments (0/3)..."
+
+    # Per-env percentages feed the shared bar's mean; completions bump the count.
+    cb("index:/a", "Indexing Foo...", 50)
+    cb("index:/b", "Indexing Bar...", 100)
+    @test wait_for_sends(6)
+    @test sent[6][2] isa ProgressParams{WorkDoneProgressReport}
+    @test sent[6][2].value.message == "Indexing environments (1/3)..."
+    @test sent[6][2].value.percentage == 50  # (50 + 100 + 0) / 3
+
+    # The bar ends only once every key has completed.
+    cb("index:/a", "Done", 100)
+    @test wait_for_sends(7)
+    @test sent[7][2] isa ProgressParams{WorkDoneProgressReport}
+    cb("index:/c", "Done", 100)
+    @test wait_for_sends(8)
+    @test sent[8][2] isa ProgressParams{WorkDoneProgressEnd}
+    @test sent[8][2].token == token
 end
 
 @testitem "Progress callback without workDoneProgress support" begin

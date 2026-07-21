@@ -269,6 +269,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )
 
+    # A single "bootstrap" bar covers the synchronous load below, which is
+    # otherwise silent (the first indexing bar only appears once add_files!
+    # reconciles).
+    progress_cb("bootstrap", "Scanning workspace files...", 0)
+
     TraceLogging.@trace "initial_workspace_load" begin
         if server.workspaceFolders !== nothing
             files_to_add = JuliaWorkspaces.TextFile[]
@@ -276,6 +281,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
                 append!(files_to_add, collect_folder_files!(server, folder))
             end
 
+            progress_cb("bootstrap", "Loading $(length(files_to_add)) files...", 40)
             # Add the whole batch at once: this reconciles the required dynamic
             # processes a single time instead of once per file, so downloading/
             # indexing can start right after this call rather than after the
@@ -286,6 +292,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
+    progress_cb("bootstrap", "Analyzing workspace...", 75)
     # The initial sweep touches the Salsa runtime (via get_diagnostics ->
     # process_from_dynamic -> set_input!). Only the dispatch loop may do that:
     # setting an input while a derived function is active is a hard error, so
@@ -293,6 +300,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     # with the next dispatched message. The sweep also records the published
     # baseline, so later indexing-complete refreshes publish only what changed.
     TraceLogging.@trace run_publish_sweep(server)
+    progress_cb("bootstrap", "Workspace loaded", 100)
 
     return
 end

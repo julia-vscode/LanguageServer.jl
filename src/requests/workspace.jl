@@ -80,6 +80,20 @@ end
     isnothing(::Nothing) = true
 end
 
+# Resolve a configured `julia.environmentPath` to an absolute, existing path, or
+# return `nothing` if it can't be used. `filepath2uri` errors on relative paths,
+# so a relative value is only accepted when there is exactly one workspace folder
+# to resolve it against (with more than one the base is ambiguous); resolving
+# against the server's cwd would silently point at the wrong project. The empty
+# string (setting cleared) is handled by the caller, not here.
+function resolve_env_path(server::LanguageServerInstance, path::AbstractString)
+    isempty(path) && return nothing
+    if !isabspath(path) && length(server.workspaceFolders) == 1
+        path = joinpath(first(server.workspaceFolders), path)
+    end
+    return (isabspath(path) && ispath(path)) ? path : nothing
+end
+
 function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
@@ -108,8 +122,21 @@ function request_julia_config(server::LanguageServerInstance, conn)
 
     new_env_path = something(response[5], "")
     if server.env_path != new_env_path
-        server.env_path = new_env_path
-        JuliaWorkspaces.set_active_project!(server.workspace, isempty(new_env_path) ? nothing : filepath2uri(new_env_path))
+        if isempty(new_env_path)
+            # The user cleared the setting: drop the active project.
+            server.env_path = new_env_path
+            JuliaWorkspaces.set_active_project!(server.workspace, nothing)
+        else
+            resolved = resolve_env_path(server, new_env_path)
+            if resolved !== nothing
+                server.env_path = new_env_path
+                JuliaWorkspaces.set_active_project!(server.workspace, filepath2uri(resolved))
+            else
+                # Not an existing absolute path, and not resolvable against a
+                # single workspace folder; ignore it and keep the current project.
+                @warn "Ignoring `julia.environmentPath`: not usable as an active project." new_env_path
+            end
+        end
     end
 
     # Store new settings on server; JW is not reconfigured at runtime (future work).

@@ -288,7 +288,14 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             # whole initial load.
             TraceLogging.@trace JuliaWorkspaces.add_files!(server.workspace, files_to_add)
 
-            TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+            resolved_env_path = resolve_env_path(server, server.env_path)
+            if resolved_env_path !== nothing
+                TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, filepath2uri(resolved_env_path))
+            elseif !isempty(server.env_path)
+                # Not an existing absolute path, and not resolvable against a
+                # single workspace folder; skip it rather than crashing init.
+                @warn "Ignoring `julia.environmentPath`: not usable as an active project." env_path=server.env_path
+            end
         end
     end
 

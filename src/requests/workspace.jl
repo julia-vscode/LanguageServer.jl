@@ -80,15 +80,38 @@ end
     isnothing(::Nothing) = true
 end
 
+# Apply an environment path that the client has already fully resolved (VS Code
+# variables, `~`, relative paths). An empty string means "no active project".
+# `filepath2uri` errors on non-absolute paths, so we still guard defensively, but
+# no resolution happens here -- that lives in the client (see `julia/setEnvironmentPath`).
+function set_env_path!(server::LanguageServerInstance, new_env_path::AbstractString)
+    server.env_path == new_env_path && return
+    server.env_path = new_env_path
+    if isempty(new_env_path)
+        JuliaWorkspaces.set_active_project!(server.workspace, nothing)
+    elseif isabspath(new_env_path) && ispath(new_env_path)
+        JuliaWorkspaces.set_active_project!(server.workspace, filepath2uri(new_env_path))
+    else
+        @warn "Ignoring `julia.environmentPath`: not an existing absolute path." new_env_path
+    end
+end
+
+# Sent by the client whenever the active environment changes. The client owns all
+# path resolution and passes an absolute path (or "" to clear the active project).
+function julia_setEnvironmentPath_notification(params::NamedTuple{(:envPath,),Tuple{String}}, server::LanguageServerInstance, conn)
+    set_env_path!(server, params.envPath)
+end
+
 function request_julia_config(server::LanguageServerInstance, conn)
     (ismissing(server.clientCapabilities.workspace) || server.clientCapabilities.workspace.configuration !== true) && return
 
+    # `julia.environmentPath` is not requested here; the client pushes the
+    # resolved path via the `julia/setEnvironmentPath` notification instead.
     response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
         ConfigurationItem(missing, "julia.completionmode"),
         ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
         ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
-        ConfigurationItem(missing, "julia.environmentPath"),
         ConfigurationItem(missing, "julia.symbolCacheDownload"),
         ConfigurationItem(missing, "julia.symbolserverUpstream"),
         ConfigurationItem(missing, "julia.enableDynamicIndexing"),
@@ -106,18 +129,12 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.inlay_hints_variable_types = inlayHintsVariableTypes
     server.inlay_hints_parameter_names = inlayHintsParameterNames
 
-    new_env_path = something(response[5], "")
-    if server.env_path != new_env_path
-        server.env_path = new_env_path
-        JuliaWorkspaces.set_active_project!(server.workspace, isempty(new_env_path) ? nothing : filepath2uri(new_env_path))
-    end
-
     # Store new settings on server; JW is not reconfigured at runtime (future work).
-    server.symbolcache_download = something(response[6], false)
-    server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
-    server.enable_dynamic_indexing = something(response[8], true)
-    server.max_concurrent_indexing_processes = something(response[9], 4)
-    server.enable_workspace_environment_resolution = something(response[10], true)
+    server.symbolcache_download = something(response[5], false)
+    server.symbolcache_upstream = something(response[6], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
+    server.enable_dynamic_indexing = something(response[7], true)
+    server.max_concurrent_indexing_processes = something(response[8], 4)
+    server.enable_workspace_environment_resolution = something(response[9], true)
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)

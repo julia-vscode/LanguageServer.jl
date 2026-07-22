@@ -224,12 +224,17 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         !ismissing(server.clientCapabilities.workspace) &&
         server.clientCapabilities.workspace.configuration === true
 
+        # `julia.environmentPath` is deliberately not requested here: the client
+        # resolves it (VS Code variables, `~`, relative paths) and passes the
+        # absolute result as a launch arg (`server.env_path`), then pushes runtime
+        # changes via the `julia/setEnvironmentPath` notification. Resolving the raw
+        # setting here would duplicate that logic and can't handle `${env:...}` /
+        # `${config:...}`, which only the client can expand.
         response = JSONRPC.send(conn, workspace_configuration_request_type, ConfigurationParams([
             ConfigurationItem(missing, "julia.completionmode"),
             ConfigurationItem(missing, "julia.inlayHints.static.enabled"),
             ConfigurationItem(missing, "julia.inlayHints.static.variableTypes.enabled"),
             ConfigurationItem(missing, "julia.inlayHints.static.parameterNames.enabled"),
-            ConfigurationItem(missing, "julia.environmentPath"),
             ConfigurationItem(missing, "julia.symbolCacheDownload"),
             ConfigurationItem(missing, "julia.symbolserverUpstream"),
             ConfigurationItem(missing, "julia.enableDynamicIndexing"),
@@ -241,15 +246,11 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         server.inlay_hints = something(response[2], true)
         server.inlay_hints_variable_types = something(response[3], true)
         server.inlay_hints_parameter_names = Symbol(something(response[4], :literals))
-        new_env_path = something(response[5], "")
-        if !isempty(new_env_path)
-            server.env_path = new_env_path
-        end
-        server.symbolcache_download = something(response[6], false)
-        server.symbolcache_upstream = something(response[7], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
-        server.enable_dynamic_indexing = something(response[8], true)
-        server.max_concurrent_indexing_processes = something(response[9], 4)
-        server.enable_workspace_environment_resolution = something(response[10], true)
+        server.symbolcache_download = something(response[5], false)
+        server.symbolcache_upstream = something(response[6], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
+        server.enable_dynamic_indexing = something(response[7], true)
+        server.max_concurrent_indexing_processes = something(response[8], 4)
+        server.enable_workspace_environment_resolution = something(response[9], true)
     end
 
     # Construct JuliaWorkspace now that configuration values are available.
@@ -288,7 +289,14 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             # whole initial load.
             TraceLogging.@trace JuliaWorkspaces.add_files!(server.workspace, files_to_add)
 
-            TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, isempty(server.env_path) ? nothing : filepath2uri(server.env_path))
+            # `server.env_path` is the client-resolved absolute path from the
+            # launch args (see `choose_env`); `filepath2uri` requires it to be
+            # absolute, so guard rather than crash on anything unexpected.
+            if isabspath(server.env_path) && ispath(server.env_path)
+                TraceLogging.@trace JuliaWorkspaces.set_active_project!(server.workspace, filepath2uri(server.env_path))
+            elseif !isempty(server.env_path)
+                @warn "Ignoring `julia.environmentPath`: not an existing absolute path." env_path=server.env_path
+            end
         end
     end
 

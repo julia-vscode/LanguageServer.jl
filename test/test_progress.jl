@@ -33,7 +33,7 @@
     @test sent[2][2].token == dl_token
     @test sent[2][2].value.title == "Julia"
     @test sent[2][2].value.message == "Downloading package caches (0/1)..."
-    @test sent[2][2].value.percentage == 10
+    @test sent[2][2].value.percentage == 10  # download keeps its real fraction (mean)
 
     # A different phase gets its own token — bars run concurrently.
     cb("index:/p", "Indexing project...", 5)
@@ -49,7 +49,7 @@
     @test wait_for_sends(5)
     @test sent[5][2] isa ProgressParams{WorkDoneProgressReport}
     @test sent[5][2].token == dl_token
-    @test sent[5][2].value.percentage == 50
+    @test sent[5][2].value.percentage == 50  # download keeps its real fraction (mean)
 
     # The phase's last key reaching 100 ends its bar.
     cb("download:/p", "Downloads done", 100)
@@ -76,14 +76,16 @@
     @test sent[1][2].token != idx_token
 
     # The callback itself must never block: enqueueing a burst returns
-    # immediately and every report is delivered in order to the open bar.
+    # immediately and every report is delivered to the open bar. With one
+    # in-progress key the count-based percentage stays 0 until it completes,
+    # so delivery is verified by the send count and shared token.
     empty!(sent)
     for i in 1:10
         cb("index:/p", "Report $i", 10 + i)
     end
     @test wait_for_sends(10)
     @test all(p.token == sent[1][2].token for (_, p) in sent)
-    @test [p.value.percentage for (_, p) in sent] == [10 + i for i in 1:10]
+    @test all(p.value.percentage == 0 for (_, p) in sent)
 end
 
 @testitem "Progress bars aggregate by phase" begin
@@ -115,13 +117,13 @@ end
     @test all(p.token == token for (_, p) in sent[3:4])  # no new tokens created
     @test sent[4][2].value.message == "Indexing environments (0/3)..."
 
-    # Per-env percentages feed the shared bar's mean; completions bump the count.
+    # Only completed envs advance the bar; an in-progress env (a at 50%) does not.
     cb("index:/a", "Indexing Foo...", 50)
     cb("index:/b", "Indexing Bar...", 100)
     @test wait_for_sends(6)
     @test sent[6][2] isa ProgressParams{WorkDoneProgressReport}
     @test sent[6][2].value.message == "Indexing environments (1/3)..."
-    @test sent[6][2].value.percentage == 50  # (50 + 100 + 0) / 3
+    @test sent[6][2].value.percentage == 33  # 1 of 3 completed; a's in-progress 50% is ignored
 
     # The bar ends only once every key has completed.
     cb("index:/a", "Done", 100)

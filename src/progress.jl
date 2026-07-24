@@ -9,8 +9,10 @@ Reports are aggregated by *phase* — the part of `key` before `:` (`index`,
 `download`, `refresh`), or the whole key for single-operation phases
 (`package-caches`, `bootstrap`). Each phase is one bar, so a workspace with
 dozens of environments shows a single "Indexing environments (k/N)..." bar
-instead of dozens. The percentage is the mean completion across the phase's
-keys; the bar ends once every key has reported `>= 100`.
+instead of dozens. For index/refresh the percentage tracks the count of
+completed keys (`k/N`), so an in-progress environment never advances the bar
+past that count; the download bar keeps the mean, since a download key carries
+a real fraction. The bar ends once every key has reported `>= 100`.
 
 The closure only enqueues the report and never blocks: a worker task owns the
 token lifecycles and does the client round-trips, so a report arriving while a
@@ -53,7 +55,12 @@ _phase_label(phase, completed, total, message) =
 function _phase_report(phase::String, bar::PhaseBar, message::String)
     total = length(bar.seen)
     total == 0 && return (0, message)
-    pct = clamp(round(Int, (sum(values(bar.pct); init=0) + 100 * bar.completed) / total), 0, 100)
+    # Index/refresh keys are whole environments: only completed ones advance the
+    # bar, so the fill never runs past the "(k/total)" count shown beside it. A
+    # download key instead carries a real fraction, so its bar keeps the mean.
+    pct = phase == "download" ?
+        clamp(round(Int, (sum(values(bar.pct); init=0) + 100 * bar.completed) / total), 0, 100) :
+        clamp(round(Int, 100 * bar.completed / total), 0, 100)
     return (pct, _phase_label(phase, bar.completed, total, message))
 end
 

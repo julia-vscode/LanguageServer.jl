@@ -2,14 +2,13 @@ name: Julia CI
 
 on:
   push: {branches: [main,master]}
-  pull_request: {types: [opened,synchronize,reopened]}
+  pull_request: {types: [opened,synchronize,reopened,ready_for_review,converted_to_draft]}
   issue_comment: {types: [created]}
-  schedule: [{cron: '0 0 * * *'}]
-  workflow_dispatch: {inputs: {feature: {type: choice, description: What to run, options: [CompatHelper,DocDeploy,LintAndTest,TagBot]}}}
+  workflow_dispatch: {inputs: {feature: {type: choice, description: What to run, options: [DocDeploy,LintAndTest,TagBot]}}}
 
 jobs:
   julia-ci:
-    uses: julia-testitems/testitem-workflow/.github/workflows/juliaci.yml@v1
+    uses: julia-testitems/testitem-workflow/.github/workflows/juliaci.yml@v2
     with:
       include-all-compatible-minor-versions: true
       include-rc-versions: true

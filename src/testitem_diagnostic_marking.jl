@@ -155,7 +155,8 @@ function build_lsp_diagnostics(server, uri::URI, jw_diags)
                 else
                     error("Unknown severity $(i.severity)")
                 end,
-                missing,
+                # The stable rule id, as named in `JuliaLint.toml`.
+                i.code === nothing ? missing : string(i.code),
                 i.uri === nothing ? missing : CodeDescription(i.uri),
                 i.source,
                 i.message,

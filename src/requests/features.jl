@@ -27,6 +27,10 @@ function textDocument_formatting_request(params::DocumentFormattingParams, serve
         )
     end
 
+    # A file the configuration excludes is not an error; the gesture simply
+    # produces no edits.
+    file_edit === nothing && return TextEdit[]
+
     return TextEdit[
         TextEdit(jw_range(server, uri, te.start, te.stop), te.new_text)
         for te in file_edit.edits
@@ -42,11 +46,13 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
         JuliaWorkspaces.get_format_edits(server.workspace, uri, start_line, stop_line)
     catch err
         return JSONRPC.JSONRPCError(
-            -33000,
+            -32000,
             "Failed to format document: $err.",
             nothing
         )
     end
+
+    file_edit === nothing && return TextEdit[]
 
     return TextEdit[
         TextEdit(jw_range(server, uri, te.start, te.stop), te.new_text)

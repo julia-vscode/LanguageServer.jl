@@ -58,18 +58,29 @@ end
             change_doc(server, doc_uri, v, "f() = $v")
         end
 
-        # The burst marks the workspace dirty but publishes no sweep before the
-        # debounce delay has elapsed.
         @test server._sweep_pending
-        @test isempty(sweep_msgs(drain!(server.combined_msg_queue)))
+        final_gen = server._sweep_generation
 
-        sleep(0.5)
+        # Wait for the final generation's timer message. No wall-clock
+        # assumptions: on a slow machine timers from earlier (superseded)
+        # schedules may fire before we get here; those messages are stale.
+        msgs = Any[]
+        deadline = time() + 10
+        while !any(m -> m.generation == final_gen, msgs) && time() < deadline
+            append!(msgs, sweep_msgs(drain!(server.combined_msg_queue)))
+            sleep(0.02)
+        end
 
-        # Only the last scheduled timer fires: one sweep message for the burst.
-        msgs = sweep_msgs(drain!(server.combined_msg_queue))
-        @test length(msgs) == 1
+        # The burst coalesces: exactly one message carries the final
+        # generation, and stale messages don't run the sweep.
+        @test count(m -> m.generation == final_gen, msgs) == 1
+        for m in msgs
+            m.generation == final_gen && continue
+            LanguageServer.handle_publish_sweep_msg!(server, m.generation)
+            @test server._sweep_pending
+        end
 
-        LanguageServer.handle_publish_sweep_msg!(server, msgs[1].generation)
+        LanguageServer.handle_publish_sweep_msg!(server, final_gen)
         @test !server._sweep_pending
     finally
         LanguageServer.SWEEP_DEBOUNCE_SECONDS[] = old_delay
@@ -121,7 +132,12 @@ end
 
 @testitem "publish sweep handler: stale generations and drain guard" setup=[TestSetup, DebounceHelpers] begin
     old_delay = LanguageServer.SWEEP_DEBOUNCE_SECONDS[]
-    LanguageServer.SWEEP_DEBOUNCE_SECONDS[] = 100.0  # timers must not fire during this test
+    old_max_latency = LanguageServer.SWEEP_MAX_LATENCY_SECONDS[]
+    # Timers must not fire and the max-latency budget must not run out during
+    # this test: the drain guard only defers while the budget lasts, and slow
+    # CI runners can spend multiple seconds on JIT between the calls below.
+    LanguageServer.SWEEP_DEBOUNCE_SECONDS[] = 100.0
+    LanguageServer.SWEEP_MAX_LATENCY_SECONDS[] = 10_000.0
     try
         # An uninitialized server suffices: the handler's bookkeeping is
         # independent of the workspace (run_publish_sweep no-ops without one).
@@ -151,5 +167,6 @@ end
         @test !server._sweep_pending
     finally
         LanguageServer.SWEEP_DEBOUNCE_SECONDS[] = old_delay
+        LanguageServer.SWEEP_MAX_LATENCY_SECONDS[] = old_max_latency
     end
 end

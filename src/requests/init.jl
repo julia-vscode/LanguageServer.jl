@@ -1,9 +1,13 @@
+# Pull-mode diagnostics run synchronously on the dispatch task and delay
+# latency-critical requests (e.g. completion), so we use push mode instead.
+const PULL_DIAGNOSTICS_ENABLED = false
+
 function ServerCapabilities(client::ClientCapabilities)
     prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
     client_supports_pull_diagnostics = !ismissing(client.textDocument) && !ismissing(client.textDocument.diagnostic)
 
-    diagnostic_provider = client_supports_pull_diagnostics ?
+    diagnostic_provider = PULL_DIAGNOSTICS_ENABLED && client_supports_pull_diagnostics ?
         DiagnosticOptions(missing, true, true) : missing
 
     ServerCapabilities(
@@ -207,8 +211,10 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
 
     end
 
-    # Record whether the client supports workspace/diagnostic/refresh
-    if !ismissing(server.clientCapabilities) &&
+    # Record whether the client supports workspace/diagnostic/refresh. Only
+    # relevant in pull mode; the flag also suppresses push-mode publishing.
+    if PULL_DIAGNOSTICS_ENABLED &&
+        !ismissing(server.clientCapabilities) &&
         !ismissing(server.clientCapabilities.workspace) &&
         !ismissing(server.clientCapabilities.workspace.diagnostics) &&
         !ismissing(server.clientCapabilities.workspace.diagnostics.refreshSupport) &&

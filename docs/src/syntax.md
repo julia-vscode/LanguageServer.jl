@@ -8,17 +8,17 @@ Pages   = ["syntax.md"]
 ## Main
 ```@autodocs
 Modules = [LanguageServer]
-Pages   = readdir("../src")
+Pages   = [joinpath("src", f) for f in readdir("../src") if endswith(f, ".jl")]
 ```
 
 ## Requests
 ```@autodocs
 Modules = [LanguageServer]
-Pages   = readdir("../src/requests")
+Pages   = [joinpath("src", "requests", f) for f in readdir("../src/requests")]
 ```
 
 ## Protocol
 ```@autodocs
 Modules = [LanguageServer]
-Pages   = readdir("../src/protocol")
+Pages   = [joinpath("src", "protocol", f) for f in readdir("../src/protocol")]
 ```

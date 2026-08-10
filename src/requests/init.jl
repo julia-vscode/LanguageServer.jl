@@ -50,19 +50,6 @@ end
 
 hasreadperm(p::String) = (uperm(p) & 0x04) == 0x04
 
-function isjuliabasedir(path)
-    try
-        fs = readdir(path)
-        if "base" in fs && isdir(joinpath(path, "base"))
-            return isjuliabasedir(joinpath(path, "base"))
-        end
-        return all(f -> f in fs, ["coreimg.jl", "coreio.jl", "inference.jl"])
-    catch err
-        isa(err, Base.IOError) || isa(err, Base.SystemError) || rethrow()
-        return false
-    end
-end
-
 const MAX_WORKSPACE_JULIA_FILES = 5000
 
 function load_rootpath(path)
@@ -70,8 +57,7 @@ function load_rootpath(path)
         return isdir(path) &&
             hasreadperm(path) &&
             path != "" &&
-            path != homedir() &&
-            !isjuliabasedir(path)
+            path != homedir()
     catch err
         is_walkdir_error(err) || rethrow()
         return false

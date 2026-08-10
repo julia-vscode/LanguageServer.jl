@@ -7,9 +7,9 @@ The same options can be passed to `runserver` as to
 [`LanguageServerInstance`](@ref). If `env_path` is not specified,
 attempt to pick an environment by considering in order of priority:
 
-1. [`ARGS`[1]](@ref): the first command-line argument passed to the
+1. `ARGS[1]`: the first command-line argument passed to the
    invocation of `julia`.
-2. The Julia project containing [`pwd()`](@ref).
+2. The Julia project containing `pwd()`.
 3. The default Julia environment withing `.julia/environments/v#.#`.
 
 # Examples

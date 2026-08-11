@@ -117,6 +117,7 @@ function request_julia_config(server::LanguageServerInstance, conn)
         ConfigurationItem(missing, "julia.enableDynamicIndexing"),
         ConfigurationItem(missing, "julia.maxConcurrentIndexingProcesses"),
         ConfigurationItem(missing, "julia.enableWorkspaceEnvironmentResolution"),
+        ConfigurationItem(missing, "julia.experimental.loweringLint"),
     ]))
 
     new_completion_mode = Symbol(something(response[1], :import))
@@ -129,12 +130,37 @@ function request_julia_config(server::LanguageServerInstance, conn)
     server.inlay_hints_variable_types = inlayHintsVariableTypes
     server.inlay_hints_parameter_names = inlayHintsParameterNames
 
-    # Store new settings on server; JW is not reconfigured at runtime (future work).
+    # Store new settings on server; JW is not reconfigured at runtime (future
+    # work), with the exception of the lowering-lint experiment flag below.
     server.symbolcache_download = something(response[5], false)
     server.symbolcache_upstream = something(response[6], JuliaWorkspaces.DEFAULT_SYMBOLCACHE_UPSTREAM)
     server.enable_dynamic_indexing = something(response[7], true)
     server.max_concurrent_indexing_processes = something(response[8], 4)
     server.enable_workspace_environment_resolution = something(response[9], true)
+
+    set_lowering_lint!(server, something(response[10], false))
+end
+
+"""
+    set_lowering_lint!(server::LanguageServerInstance, enabled::Bool)
+
+Apply the `julia.experimental.loweringLint` setting: forward it to the
+workspace (switching the unused-binding lint rules between the StaticLint and
+JuliaLowering engines) and republish diagnostics so the change is visible
+without further edits.
+"""
+function set_lowering_lint!(server::LanguageServerInstance, enabled::Bool)
+    server.lowering_lint == enabled && return
+    server.lowering_lint = enabled
+    server.workspace === nothing && return
+
+    JuliaWorkspaces.set_lowering_lint!(server.workspace, enabled)
+
+    # Push-mode clients get a diffed sweep; pull-mode clients a refresh request.
+    schedule_publish_sweep!(server)
+    if server.clientcapability_workspace_diagnostic_refreshsupport
+        JSONRPC.send(server.jr_endpoint, workspace_diagnosticRefresh_request_type, nothing)
+    end
 end
 
 function gc_files_from_workspace(server::LanguageServerInstance)

@@ -314,7 +314,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
     server.status = :started
 
     JSONRPC.start(server.jr_endpoint)
-    @debug "Connected at $(round(Int, time()))"
+    @info "Connected at $(round(Int, time()))"
     add_timer_message!(did_show_timer, timings, "connection established")
 
     # Reference pair used to convert the raw monotonic `time_ns()` timestamps carried by trace
@@ -416,7 +416,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
             message = take!(server.combined_msg_queue)
 
             if message.type == :close
-                @debug "Shutting down server instance."
+                @info "Shutting down server instance."
                 return
             elseif message.type == :indirect_file_discovered
                 # Fired by JW's indirect_file_watch_callback from a Salsa

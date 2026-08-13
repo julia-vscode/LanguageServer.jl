@@ -49,8 +49,8 @@ function choose_env()
         # 2. Path from ENV
         Base.load_path_expand(
             (
-                p = get(ENV, "JULIA_PROJECT", nothing);
-                (p === nothing || isempty(p)) ? nothing : p
+                p = get(ENV, "JULIA_PROJECT", "");
+                isempty(p) ? nothing : p
             )
         ),
         # 3. Search the directory tree up from pwd

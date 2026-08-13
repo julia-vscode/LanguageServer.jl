@@ -43,7 +43,19 @@ end
 
 function choose_env()
     maybe_dirname = x -> x !== nothing ? dirname(x) : nothing
-    something(get(ARGS, 1, nothing),                            # 1. path passed explicitly
-              maybe_dirname(Base.current_project(pwd())),       # 2. parent project of pwd()
-              maybe_dirname(Base.load_path_expand("@v#.#")))    # 3. default "global" env
+    return something(
+        # 1. Path passed explicitly
+        get(ARGS, 1, nothing),
+        # 2. Path from ENV
+        Base.load_path_expand(
+            (
+                p = get(ENV, "JULIA_PROJECT", nothing);
+                p === nothing ? nothing : isempty(p) ? nothing : p
+            )
+        ),
+        # 3. Search the directory tree up from pwd
+        maybe_dirname(Base.current_project(pwd())),
+        # 4. Default global env
+        maybe_dirname(Base.load_path_expand("@v#.#"))
+    )
 end

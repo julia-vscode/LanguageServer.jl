@@ -47,12 +47,7 @@ function choose_env()
         # 1. Path passed explicitly
         get(ARGS, 1, nothing),
         # 2. Path from ENV
-        Base.load_path_expand(
-            (
-                p = get(ENV, "JULIA_PROJECT", "");
-                isempty(p) ? nothing : p
-            )
-        ),
+        Base.load_path_expand((p = get(ENV, "JULIA_PROJECT", ""); isempty(p) ? nothing : p)),
         # 3. Search the directory tree up from pwd
         maybe_dirname(Base.current_project(pwd())),
         # 4. Default global env

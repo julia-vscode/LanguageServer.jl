@@ -15,6 +15,7 @@ end
     optionDefaultImports::Bool
     optionTags::Vector{String}
     optionSetup::Vector{String}
+    optionSkip::Union{Bool,String}
 end
 
 @dict_readable struct TestSetupDetail <: Outbound

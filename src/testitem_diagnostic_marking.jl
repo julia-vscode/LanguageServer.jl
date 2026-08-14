@@ -212,7 +212,8 @@ function publish_tests(server::LanguageServerInstance, updated_files, deleted_fi
                     codeRange = Range(st, i.code_range),
                     optionDefaultImports = i.option_default_imports,
                     optionTags = string.(i.option_tags),
-                    optionSetup = string.(i.option_setup)
+                    optionSetup = string.(i.option_setup),
+                    optionSkip = i.option_skip
                 ) for i in testitems_results.testitems
             ]
             testsetups= TestSetupDetail[

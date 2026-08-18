@@ -85,7 +85,7 @@ end
     hover_test(line, char) = LanguageServer.textDocument_hover_request(LanguageServer.TextDocumentPositionParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Position(line, char)), server, server.jr_endpoint)
     range_formatting_test(line0, char0, line1, char1) = LanguageServer.textDocument_range_formatting_request(LanguageServer.DocumentRangeFormattingParams(LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"), LanguageServer.Range(LanguageServer.Position(line0, char0), LanguageServer.Position(line1, char1)), LanguageServer.FormattingOptions(4, true, missing, missing, missing)), server, server.jr_endpoint)
 
-    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, first(Base.DEPOT_PATH))
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
     server.jr_endpoint = nothing
     LanguageServer.initialize_request(TestSetup.init_request, server, nothing)
     LanguageServer.initialized_notification(LanguageServer.InitializedParams(), server, nothing)

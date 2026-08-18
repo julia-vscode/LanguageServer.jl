@@ -28,7 +28,7 @@
     sweep_msgs(msgs) = [m for m in msgs if m.type == :publish_sweep]
 
     function make_initialized_server(endpoint)
-        server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, first(Base.DEPOT_PATH))
+        server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
         server.jr_endpoint = endpoint
         LanguageServer.initialize_request(TestSetup.init_request, server, nothing)
         LanguageServer.initialized_notification(LanguageServer.InitializedParams(), server, nothing)
@@ -141,7 +141,7 @@ end
     try
         # An uninitialized server suffices: the handler's bookkeeping is
         # independent of the workspace (run_publish_sweep no-ops without one).
-        server = LanguageServerInstance(IOBuffer(), IOBuffer(), "", nothing, first(Base.DEPOT_PATH))
+        server = LanguageServerInstance(IOBuffer(), IOBuffer(), "", nothing, mktempdir())
         server.jr_endpoint = nothing
 
         LanguageServer.schedule_publish_sweep!(server)

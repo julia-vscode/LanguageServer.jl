@@ -70,35 +70,92 @@ function handle_publish_sweep_msg!(server, generation)
 end
 
 """
+    testitem_identification_enabled(server)
+
+Whether the client asked for test item identification at initialization. This is
+the single gate for all testitem work: when it is off, we neither compute nor
+publish test items (computing them re-parses every file, which is not free).
+"""
+function testitem_identification_enabled(server)
+    return !ismissing(server.initialization_options) &&
+        get(server.initialization_options, "julialangTestItemIdentification", false) == true
+end
+
+"""
+    run_testitem_publish_sweep(server)
+
+Bring the whole workspace's published testitems up to date. Split out of
+`run_publish_sweep` so it can run on its own during startup: testitem discovery
+is purely static (file text plus `Project.toml` identity — no environment
+resolution, no dynamic indexing), so it must not wait behind the full workspace
+lint that the diagnostics half pulls.
+"""
+function run_testitem_publish_sweep(server)
+    server.workspace === nothing && return
+    testitem_identification_enabled(server) || return
+
+    new_ti = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_test_items(server.workspace))
+
+    old_ti = server._published_hashes.testitems
+
+    updated_ti = Set{URI}(uri for (uri, h) in new_ti if get(old_ti, uri, nothing) != h)
+    deleted_ti = setdiff(Set{URI}(keys(old_ti)), keys(new_ti))
+
+    publish_tests(server, updated_ti, deleted_ti)
+
+    # Update in place: the two halves of the sweep own one dict each, so
+    # neither may replace the whole `_published_hashes` NamedTuple.
+    empty!(old_ti)
+    merge!(old_ti, new_ti)
+
+    return
+end
+
+"""
+    run_diagnostic_publish_sweep(server)
+
+Bring the whole workspace's published diagnostics up to date. This is the one
+place the full workspace lint is pulled, so it also serves as the consistency
+point after mutations — hence the indirect-file watcher reconciliation.
+"""
+function run_diagnostic_publish_sweep(server)
+    server.workspace === nothing && return
+
+    new_diag = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_diagnostics(server.workspace))
+
+    old_diag = server._published_hashes.diagnostics
+
+    updated_diag = Set{URI}(uri for (uri, h) in new_diag if get(old_diag, uri, nothing) != h)
+    deleted_diag = setdiff(Set{URI}(keys(old_diag)), keys(new_diag))
+
+    if !server.clientcapability_workspace_diagnostic_refreshsupport
+        publish_diagnostics(server, updated_diag, deleted_diag, URI[])
+    end
+
+    empty!(old_diag)
+    merge!(old_diag, new_diag)
+
+    reconcile_indirect_file_watchers(server)
+
+    return
+end
+
+"""
     run_publish_sweep(server)
 
 Bring the whole workspace's published diagnostics and testitems up to date:
 compute current per-file hashes, diff them against `server._published_hashes`
 (what the client last received), publish only the differences, and record the
-new state. This is the one place the full workspace lint is pulled, so it also
-serves as the consistency point after mutations.
+new state.
+
+Testitems go first: they are cheap and environment-independent, so there is no
+reason for them to sit behind the full workspace lint.
 """
 function run_publish_sweep(server)
     server.workspace === nothing && return
 
-    new_ti = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_test_items(server.workspace))
-    new_diag = Dict{URI,UInt}(k => hash(v) for (k, v) in JuliaWorkspaces.get_diagnostics(server.workspace))
-
-    old = server._published_hashes
-
-    updated_diag = Set{URI}(uri for (uri, h) in new_diag if get(old.diagnostics, uri, nothing) != h)
-    deleted_diag = setdiff(Set{URI}(keys(old.diagnostics)), keys(new_diag))
-    updated_ti = Set{URI}(uri for (uri, h) in new_ti if get(old.testitems, uri, nothing) != h)
-    deleted_ti = setdiff(Set{URI}(keys(old.testitems)), keys(new_ti))
-
-    if !server.clientcapability_workspace_diagnostic_refreshsupport
-        publish_diagnostics(server, updated_diag, deleted_diag, URI[])
-    end
-    publish_tests(server, updated_ti, deleted_ti)
-
-    server._published_hashes = (testitems=new_ti, diagnostics=new_diag)
-
-    reconcile_indirect_file_watchers(server)
+    run_testitem_publish_sweep(server)
+    run_diagnostic_publish_sweep(server)
 
     return
 end
@@ -115,6 +172,8 @@ sweep does not resend it.
 function publish_file_diagnostics_testitems(server, uris::Vector{URI})
     server.workspace === nothing && return
 
+    testitems_enabled = testitem_identification_enabled(server)
+
     for uri in uris
         JuliaWorkspaces.has_file(server.workspace, uri) || continue
 
@@ -126,10 +185,12 @@ function publish_file_diagnostics_testitems(server, uris::Vector{URI})
             server._published_hashes.diagnostics[uri] = diag_hash
         end
 
-        ti_hash = hash(JuliaWorkspaces.get_test_items(server.workspace, uri))
-        if get(server._published_hashes.testitems, uri, nothing) != ti_hash
-            publish_tests(server, [uri], URI[])
-            server._published_hashes.testitems[uri] = ti_hash
+        if testitems_enabled
+            ti_hash = hash(JuliaWorkspaces.get_test_items(server.workspace, uri))
+            if get(server._published_hashes.testitems, uri, nothing) != ti_hash
+                publish_tests(server, [uri], URI[])
+                server._published_hashes.testitems[uri] = ti_hash
+            end
         end
     end
 
@@ -198,7 +259,7 @@ function publish_diagnostics(server, jw_diagnostics_updated, jw_diagnostics_dele
 end
 
 function publish_tests(server::LanguageServerInstance, updated_files, deleted_files)
-    if !ismissing(server.initialization_options) && get(server.initialization_options, "julialangTestItemIdentification", false)
+    if testitem_identification_enabled(server)
         for uri in updated_files
             testitems_results = JuliaWorkspaces.get_test_items(server.workspace, uri)
             st = JuliaWorkspaces.get_text_file(server.workspace, uri).content

@@ -292,6 +292,13 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         end
     end
 
+    # Test item discovery is purely static: it needs only the file text and the
+    # `Project.toml` identity that `add_files!` just set as inputs, never any
+    # DJP result. Publish it now so the Testing view fills in while indexing is
+    # still running, instead of behind the full workspace lint below.
+    progress_cb("bootstrap", "Discovering test items...", 60)
+    TraceLogging.@trace run_testitem_publish_sweep(server)
+
     progress_cb("bootstrap", "Analyzing workspace...", 75)
     # The initial sweep touches the Salsa runtime (via get_diagnostics ->
     # process_from_dynamic -> set_input!). Only the dispatch loop may do that:

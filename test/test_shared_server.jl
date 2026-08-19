@@ -57,6 +57,20 @@
         missing,
         missing
     )
+
+    # Same as `init_request`, but opting into test item identification, which
+    # is what gates all testitem computation and publishing in the server.
+    const init_request_testitems = LanguageServer.InitializeParams(
+        init_request.processId,
+        init_request.clientInfo,
+        init_request.rootPath,
+        init_request.rootUri,
+        Dict{String,Any}("julialangTestItemIdentification" => true),
+        init_request.capabilities,
+        init_request.trace,
+        init_request.workspaceFolders,
+        init_request.workDoneToken
+    )
 end
 
 @testsnippet SharedServer begin

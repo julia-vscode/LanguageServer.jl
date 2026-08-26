@@ -1,3 +1,33 @@
+# An atomic folder rename or delete arrives as a single event for the folder
+# path with no events for the files inside, so sweep everything tracked below
+# `uri`. For a plain file the sweep matches nothing. The trailing slash matters:
+# without it removing `.../test` would also sweep a sibling `.../test2`.
+function remove_folder_children!(server::LanguageServerInstance, uri::URI)
+    prefix = string(uri) * "/"
+    tracked_uris = union(Set(keys(server._files_from_disc)), server._workspace_files)
+    for tracked in tracked_uris
+        startswith(string(tracked), prefix) || continue
+        delete!(server._files_from_disc, tracked)
+        # Same guard as for exact-URI deletes: files open in the editor stay in
+        # the workspace until the editor closes them.
+        haskey(server._open_file_versions, tracked) && continue
+        if JuliaWorkspaces.has_file(server.workspace, tracked)
+            JuliaWorkspaces.remove_file!(server.workspace, tracked)
+        end
+        delete!(server._workspace_files, tracked)
+    end
+end
+
+# A folder appeared (typically the destination of an atomic rename): scan it
+# like a workspace folder at startup and return the URIs of the added files.
+function add_folder_children!(server::LanguageServerInstance, path::String)
+    files_to_add = collect_folder_files!(server, path)
+    if !isempty(files_to_add)
+        JuliaWorkspaces.add_files!(server.workspace, files_to_add)
+    end
+    return URI[tf.uri for tf in files_to_add]
+end
+
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
     @debug "workspace/didChangeWatchedFiles" change_count=length(params.changes)
 
@@ -22,6 +52,14 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         end
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
+            filepath = uri2filepath(uri)
+            if change.type == FileChangeTypes.Created && filepath !== nothing && isdir(filepath)
+                # A created directory (e.g. the destination of an atomic folder
+                # rename) carries no per-file events, so scan its contents.
+                append!(changed_uris, add_folder_children!(server, filepath))
+                continue
+            end
+
             text_file = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
 
             # First handle case where file could not be found or has invalid content
@@ -56,6 +94,10 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
             if !haskey(server._open_file_versions, uri)
                 delete!(server._workspace_files, uri)
             end
+
+            # The deleted path may have been a directory; `isdir` cannot tell
+            # anymore, so always sweep (a no-op for plain files).
+            remove_folder_children!(server, uri)
         else
             error("Unknown change type.")
         end

@@ -44,6 +44,12 @@ function isvalidjlfile(path)
     endswith(path, ".jl")
 end
 
+# Matches "Visual Studio Code" and "Visual Studio Code - Insiders", but not
+# forks that report their own name (VSCodium, Cursor, ...).
+function client_is_vscode(server)
+    server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
+end
+
 
 if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)

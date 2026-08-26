@@ -52,7 +52,7 @@ function textDocument_codeAction_request(params::CodeActionParams, server::Langu
         kind = _jw_action_kind_to_lsp(a.kind)
         # VS Code workaround: SourceOrganizeImports doesn't show in the UI
         if kind !== missing && kind == CodeActionKinds.SourceOrganizeImports &&
-            server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
+            client_is_vscode(server)
             kind = CodeActionKinds.RefactorRewrite
         end
         preferred = client_preferred_support(server) && a.is_preferred ? true : missing

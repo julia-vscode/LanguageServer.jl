@@ -170,3 +170,43 @@ end
         @test !has_file(server.workspace, closed_uri)
     end
 end
+
+@testitem "Watched folders: directory-watching gate" begin
+    import Pkg
+    using LanguageServer: LanguageServerInstance, InfoParams
+
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
+
+    with_client(name) = (server.clientInfo = InfoParams(name, missing); server)
+
+    # auto mode: Code-OSS-family clients get directory watching...
+    for name in ("Visual Studio Code", "Visual Studio Code - Insiders", "VSCodium", "Cursor", "Windsurf", "Positron", "Code - OSS")
+        @test LanguageServer.should_watch_directories(with_client(name))
+    end
+
+    # ...other clients do not.
+    for name in ("Neovim", "emacs", "Sublime Text LSP", "helix")
+        @test !LanguageServer.should_watch_directories(with_client(name))
+    end
+    server.clientInfo = missing
+    @test !LanguageServer.should_watch_directories(server)
+
+    # Explicit opt-in wins over the client guess.
+    with_client("Neovim")
+    server.initialization_options = Dict{String,Any}("julialangDirectoryWatching" => "on")
+    @test LanguageServer.should_watch_directories(server)
+    server.initialization_options = Dict{String,Any}("julialangDirectoryWatching" => true)
+    @test LanguageServer.should_watch_directories(server)
+
+    # Explicit opt-out wins too.
+    with_client("Visual Studio Code")
+    server.initialization_options = Dict{String,Any}("julialangDirectoryWatching" => "off")
+    @test !LanguageServer.should_watch_directories(server)
+    server.initialization_options = Dict{String,Any}("julialangDirectoryWatching" => false)
+    @test !LanguageServer.should_watch_directories(server)
+
+    # Unknown values fall back to auto.
+    server.initialization_options = Dict{String,Any}("julialangDirectoryWatching" => "sometimes")
+    @test LanguageServer.should_watch_directories(with_client("Visual Studio Code"))
+    @test !LanguageServer.should_watch_directories(with_client("Neovim"))
+end

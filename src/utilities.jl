@@ -50,6 +50,50 @@ function client_is_vscode(server)
     server.clientInfo !== missing && occursin("code", lowercase(server.clientInfo.name))
 end
 
+"""
+    directory_watching_mode(server) -> "auto" | "on" | "off"
+
+The client's directory-watching preference from the `initializationOptions` key
+`"julialangDirectoryWatching"`. Accepts `"on"`/`"off"` (booleans are mapped to
+them); anything else, including the key being absent, means `"auto"`.
+"""
+function directory_watching_mode(server)
+    ismissing(server.initialization_options) && return "auto"
+    value = get(server.initialization_options, "julialangDirectoryWatching", nothing)
+    value == true && return "on"
+    value == false && return "off"
+    value in ("on", "off") ? value : "auto"
+end
+
+# Client names (lowercase substrings) of the Code-OSS family, which all embed
+# VS Code's LSP client and file watcher. "visual studio code" also covers the
+# "- Insiders" variant.
+const CODE_OSS_FAMILY_CLIENT_NAMES = ("visual studio code", "vscodium", "code - oss", "code-oss", "cursor", "windsurf", "positron")
+
+"""
+    should_watch_directories(server) -> Bool
+
+Whether to additionally register a `**` create/delete watcher so that atomic
+folder renames and deletes are observed. VS Code's file watcher reports those as
+a single event for the folder path with no per-child events, so without the
+extra watcher the server never notices them; most other clients' watcher
+backends synthesize per-file events, making the plain file-extension globs
+sufficient there — and some (e.g. Emacs-based clients) expand `**` into one OS
+watcher per directory, so it must not be forced on them.
+
+In the default `"auto"` mode this is enabled for clients of the Code-OSS family
+(detected via `clientInfo.name`). Any client can override the guess through
+`initializationOptions: { "julialangDirectoryWatching": "on" | "off" }`.
+"""
+function should_watch_directories(server)
+    mode = directory_watching_mode(server)
+    mode == "on" && return true
+    mode == "off" && return false
+    server.clientInfo === missing && return false
+    name = lowercase(server.clientInfo.name)
+    return any(occursin(family, name) for family in CODE_OSS_FAMILY_CLIENT_NAMES)
+end
+
 
 if VERSION < v"1.1" || Sys.iswindows() && VERSION < v"1.3"
     _splitdir_nodrive(path::String) = _splitdir_nodrive("", path)

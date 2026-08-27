@@ -178,13 +178,32 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         server.clientCapabilities.workspace.didChangeWatchedFiles.dynamicRegistration &&
         server.clientCapabilities.workspace.didChangeWatchedFiles.relativePatternSupport
 
+        file_watchers = [
+            FileSystemWatcher("**/*.{jl,jmd,md}", missing),
+            FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,JuliaLint.toml,JuliaFormat.toml,JuliaTestItems.toml}", missing),
+            FileSystemWatcher("**/{JuliaManifest,Manifest}-v$(VERSION.major).$(VERSION.minor).toml", missing),
+        ]
+
+        if should_watch_directories(server)
+            # VS Code (and the Code-OSS family) reports an atomic folder rename
+            # or delete as a single event for the folder path, with no events
+            # for the files inside, and no glob can match "directories only".
+            # Watch everything for create/delete (the workspace watcher is
+            # recursive anyway, so this only widens event delivery) and let the
+            # notification handler sort out directories vs. relevant files; the
+            # extension globs then only need to deliver content changes. Off by
+            # default for other clients — most watcher backends synthesize
+            # per-file events so the file globs suffice, and some (e.g.
+            # Emacs-based ones) expand `**` into one OS watcher per directory —
+            # but overridable via the `julialangDirectoryWatching`
+            # initialization option (see `should_watch_directories`).
+            file_watchers = [FileSystemWatcher(w.globPattern, WatchKinds.Change) for w in file_watchers]
+            push!(file_watchers, FileSystemWatcher("**", WatchKinds.Create | WatchKinds.Delete))
+        end
+
         push!(
             client_capabilities_registrations,
-            Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions([
-                FileSystemWatcher("**/*.{jl,jmd,md}", missing),
-                FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,JuliaLint.toml,JuliaFormat.toml,JuliaTestItems.toml}", missing),
-                FileSystemWatcher("**/{JuliaManifest,Manifest}-v$(VERSION.major).$(VERSION.minor).toml", missing),
-            ]))
+            Registration("workspace/didChangeWatchedFiles", "workspace/didChangeWatchedFiles", DidChangeWatchedFilesRegistrationOptions(file_watchers))
         )
     end
 

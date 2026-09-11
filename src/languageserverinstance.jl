@@ -166,6 +166,42 @@ struct MissingDocumentError <: Exception
     uri::URI
 end
 
+# Summarise the server's synchronisation state for `uri` as `key=value` pairs.
+# Appended to sync-related crash messages (`LSOffsetError`, `LSSyncMismatch`)
+# so a crash report alone is enough to tell where the server's copy of a
+# document came from (editor buffer vs. disc) and how far behind it might be.
+# Reports only the URI scheme, never the full URI: crash messages are sent
+# verbatim, and a file path would leak the user's home directory.
+function document_sync_context(server::LanguageServerInstance, uri::Union{URI,Nothing})
+    uri === nothing && return "uri=<unavailable>"
+    try
+        io = IOBuffer()
+        is_open = haskey(server._open_file_versions, uri)
+        from_disc = haskey(server._files_from_disc, uri)
+        in_workspace = JuliaWorkspaces.has_file(server.workspace, uri)
+        print(io,
+            "scheme=", uri.scheme,
+            " open=", is_open,
+            " version=", get(server._open_file_versions, uri, nothing),
+            " workspace_file=", uri in server._workspace_files,
+            " from_disc=", from_disc,
+            " in_workspace=", in_workspace)
+        if in_workspace
+            st = JuliaWorkspaces.get_text_file(server.workspace, uri).content
+            print(io, " content_bytes=", sizeof(st.content), " line_count=", length(st.line_indices))
+            if from_disc
+                # `true` means the workspace holds the on-disc text rather than
+                # an editor buffer, e.g. after didClose reverted the document.
+                print(io, " serving_disc_copy=", server._files_from_disc[uri].content.content == st.content)
+            end
+        end
+        return String(take!(io))
+    catch err
+        # Collecting context must never mask the error being reported.
+        return "context unavailable: $(sprint(showerror, err))"
+    end
+end
+
 function invoke_handler(func, params, server::LanguageServerInstance, conn)
     try
         if USE_REVISE[] && isdefined(Main, :Revise)
@@ -179,9 +215,19 @@ function invoke_handler(func, params, server::LanguageServerInstance, conn)
             return func(params, server, conn)
         end
     catch err
-        err isa MissingDocumentError || rethrow()
-        @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
-        return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
+        if err isa MissingDocumentError
+            @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
+            return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
+        elseif err isa LSOffsetError
+            # Re-raise with the document sync state attached so the crash
+            # report can explain why the server's text disagreed with the
+            # client's position. `rethrow(e)` keeps the original backtrace, so
+            # the report still shows the `index_at` frame that threw.
+            uri = hasproperty(params, :textDocument) && hasproperty(params.textDocument, :uri) ? params.textDocument.uri : nothing
+            rethrow(LSOffsetError(string(err.msg, "\nhandler=", nameof(func), "\n", document_sync_context(server, uri))))
+        else
+            rethrow()
+        end
     end
 end
 

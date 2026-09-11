@@ -75,7 +75,7 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
             println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
             println(stderr, params.text)
             println(stderr, "========== END CLIENT SIDE TEXT ==========")
-            throw(LSSyncMismatch("Mismatch between server and client text for $(uri). _open_in_editor is $(haskey(server._open_file_versions, uri)). _workspace_file is $(uri in server._workspace_files). _version is $(get(server._open_file_versions, uri, 0))."))
+            throw(LSSyncMismatch("Mismatch between server and client text for $(uri). $(document_sync_context(server, uri))"))
         end
     end
 end

@@ -201,7 +201,10 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     # from using the formatter that actually can (it picks a single provider per
     # document). `ServerCapabilities` leaves the static capability out whenever the
     # client advertises dynamic registration, so the two must stay in sync.
-    if !ismissing(server.clientCapabilities)
+    #
+    # `conn === nothing` means there is no client to register with (the server is
+    # being driven directly, as the tests do), so there is nothing to send.
+    if conn !== nothing && !ismissing(server.clientCapabilities)
         if client_supports_dynamic_registration(server.clientCapabilities, :formatting)
             push!(
                 client_capabilities_registrations,

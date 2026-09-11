@@ -38,6 +38,85 @@ end
     closetestdoc()
 end
 
+@testitem "documentHighlight past EOF reports document sync context" setup=[TestSetup, SharedServer] begin
+    settestdoc("x = 1")
+
+    # A position on a line the server's text does not have. This still crashes
+    # the server (that is deliberate: it is a sync bug we want reported), but
+    # the crash message must carry enough state to explain the mismatch.
+    params = LanguageServer.DocumentHighlightParams(
+        LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
+        LanguageServer.Position(1, 0),
+        missing,
+        missing,
+    )
+    wrapped = LanguageServer.request_wrapper(LanguageServer.textDocument_documentHighlight_request, server)
+    err = try
+        wrapped(server.jr_endpoint, params, missing)
+        nothing
+    catch e
+        e
+    end
+    @test err isa LanguageServer.LSOffsetError
+    msg = sprint(showerror, err)
+    @test occursin("index_at crashed", msg)
+    @test occursin("handler=textDocument_documentHighlight_request", msg)
+    @test occursin("scheme=untitled", msg)
+    @test occursin("open=true", msg)
+    @test occursin("version=0", msg)
+    @test occursin("line_count=1", msg)
+    @test occursin("from_disc=false", msg)
+
+    closetestdoc()
+end
+
+@testitem "LSOffsetError reports when the workspace serves the disc copy" setup=[TestSetup, SharedServer] begin
+    u = uri"untitled:testdoc"
+    settestdoc("x = 1\ny = 2")
+
+    # Pretend the document also exists on disc with fewer lines, then close it:
+    # didClose reverts the workspace to the disc copy, so a request at a line
+    # that only the editor buffer had must report `serving_disc_copy=true`.
+    server._files_from_disc[u] = LanguageServer.JuliaWorkspaces.TextFile(u, LanguageServer.JuliaWorkspaces.SourceText("x = 1", "julia"))
+    closetestdoc()
+    @test LanguageServer.jw_text(server, u) == "x = 1"
+
+    params = LanguageServer.DocumentHighlightParams(
+        LanguageServer.TextDocumentIdentifier(u),
+        LanguageServer.Position(1, 0),
+        missing,
+        missing,
+    )
+    wrapped = LanguageServer.request_wrapper(LanguageServer.textDocument_documentHighlight_request, server)
+    err = try
+        wrapped(server.jr_endpoint, params, missing)
+        nothing
+    catch e
+        e
+    end
+    @test err isa LanguageServer.LSOffsetError
+    msg = sprint(showerror, err)
+    @test occursin("open=false", msg)
+    @test occursin("from_disc=true", msg)
+    @test occursin("serving_disc_copy=true", msg)
+
+    delete!(server._files_from_disc, u)
+    LanguageServer.JuliaWorkspaces.remove_file!(server.workspace, u)
+end
+
+@testitem "document_sync_context handles unknown and missing URIs" setup=[TestSetup, SharedServer] begin
+    using LanguageServer.URIs2
+
+    unknown_uri = URIs2.URI("vscode-notebook-cell", nothing, "/c:/foo/bar.ipynb", nothing, "X23sZmlsZQ==")
+    ctx = LanguageServer.document_sync_context(server, unknown_uri)
+    @test occursin("scheme=vscode-notebook-cell", ctx)
+    @test occursin("open=false", ctx)
+    @test occursin("in_workspace=false", ctx)
+    @test !occursin("line_count", ctx)
+
+    @test LanguageServer.document_sync_context(server, nothing) == "uri=<unavailable>"
+end
+
 @testitem "editor pid monitoring (#1379)" setup=[TestSetup, SharedServer] begin
     # No editor pid known → no monitor task.
     server.editor_pid = nothing

@@ -13,11 +13,11 @@ function index_at(st::JuliaWorkspaces.SourceText, line::Integer, character::Inte
     text = st.content
 
     if line >= length(line_indices)
-        forgiving_mode || throw(LSOffsetError("index_at crashed. More diagnostics:\nline=$line\nline_indices='$line_indices'"))
+        forgiving_mode || throw(LSOffsetError("index_at crashed. More diagnostics:\nline=$line\nline_count=$(length(line_indices))\ncontent_bytes=$(sizeof(text))\nline_indices='$line_indices'"))
 
         return nextind(text, lastindex(text))
     elseif line < 0
-        throw(LSOffsetError("index_at crashed. More diagnostics:\nline=$line\nline_indices='$line_indices'"))
+        throw(LSOffsetError("index_at crashed. More diagnostics:\nline=$line\nline_count=$(length(line_indices))\ncontent_bytes=$(sizeof(text))\nline_indices='$line_indices'"))
     end
 
     line_index = line_indices[line + 1]

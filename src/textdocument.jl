@@ -112,7 +112,15 @@ byte offset. Handles UTF-16 encoding for LSP compliance.
 function get_position_from_offset(st::JuliaWorkspaces.SourceText, offset::Integer)
     text = st.content
     line_indices = st.line_indices
-    offset > sizeof(text) && throw(LSPositionToOffsetException("offset[$offset] > sizeof(content)[$(sizeof(text))]"))
+
+    # A stale/out-of-bounds offset (e.g. a diagnostic or test-item range that
+    # lags a content edit) must not fail the whole request: clamp it to the
+    # document and warn so the underlying inconsistency stays visible.
+    n = sizeof(text)
+    if offset < 0 || offset > n
+        @warn "Clamping out-of-range byte offset to document bounds" offset content_size = n
+        offset = clamp(offset, 0, n)
+    end
 
     # Find which line contains the offset (line_indices are 1-based byte positions)
     # Convert offset (0-based) to 1-based index for comparison

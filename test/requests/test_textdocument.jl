@@ -38,7 +38,7 @@ end
     @test r2.stop == LanguageServer.Position(0, 3)
 end
 
-@testitem "TextDocument didSave sync mismatch (#1390)" setup=[TestSetup, SharedServer] begin
+@testitem "TextDocument didSave sync mismatch resynchronizes open docs (#1390)" setup=[TestSetup, SharedServer] begin
     u = uri"untitled:synctest"
     LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(u, "julia", 0, "x = 1")), server, nothing)
 
@@ -49,11 +49,13 @@ end
     # Bump the version above 0 with a real edit.
     LanguageServer.textDocument_didChange_notification(LanguageServer.DidChangeTextDocumentParams(LanguageServer.VersionedTextDocumentIdentifier(u, 2), [LanguageServer.TextDocumentContentChangeEvent(missing, missing, "y = 2")]), server, nothing)
 
-    # Now a genuine mismatch (open, version > 0) is still reported.
-    @test_throws LanguageServer.LSSyncMismatch LanguageServer.textDocument_didSave_notification(LanguageServer.DidSaveTextDocumentParams(LanguageServer.TextDocumentIdentifier(u), "different"), server, nothing)
+    # Now a genuine mismatch (open, version > 0) resynchronizes from the full
+    # save text instead of leaving the server permanently stale.
+    @test (LanguageServer.textDocument_didSave_notification(LanguageServer.DidSaveTextDocumentParams(LanguageServer.TextDocumentIdentifier(u), "different"), server, nothing); true)
+    @test LanguageServer.jw_text(server, u) == "different"
 
     # Matching text never crashes.
-    @test (LanguageServer.textDocument_didSave_notification(LanguageServer.DidSaveTextDocumentParams(LanguageServer.TextDocumentIdentifier(u), "y = 2"), server, nothing); true)
+    @test (LanguageServer.textDocument_didSave_notification(LanguageServer.DidSaveTextDocumentParams(LanguageServer.TextDocumentIdentifier(u), "different"), server, nothing); true)
 
     LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(u)), server, nothing)
 end

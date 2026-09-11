@@ -62,20 +62,20 @@ function textDocument_didSave_notification(params::DidSaveTextDocumentParams, se
     uri = params.textDocument.uri
     st = jw_source_text(server, uri)
     if params.text isa String && st.content != params.text
-        # Only treat a save-time text mismatch as a fatal sync error when the
-        # document is actually open in the editor and has received at least one
-        # versioned update. Mismatches for closed/unversioned documents are
-        # spurious (e.g. workspace files we track but the client never synced),
-        # so we ignore them rather than crashing the server (see #1390).
+        # Only use save-time text to resynchronize documents that are actually
+        # open in the editor and have received at least one versioned update.
+        # Mismatches for closed/unversioned documents are spurious (e.g.
+        # workspace files we track but the client never synced), so we ignore
+        # them rather than changing server state (see #1390).
         if haskey(server._open_file_versions, uri) && get(server._open_file_versions, uri, 0) > 0
-            println(stderr, "Mismatch between server and client text")
-            println(stderr, "========== BEGIN SERVER SIDE TEXT ==========")
-            println(stderr, st.content)
-            println(stderr, "========== END SERVER SIDE TEXT ==========")
-            println(stderr, "========== BEGIN CLIENT SIDE TEXT ==========")
-            println(stderr, params.text)
-            println(stderr, "========== END CLIENT SIDE TEXT ==========")
-            throw(LSSyncMismatch("Mismatch between server and client text for $(uri). _open_in_editor is $(haskey(server._open_file_versions, uri)). _workspace_file is $(uri in server._workspace_files). _version is $(get(server._open_file_versions, uri, 0))."))
+            @warn "Resynchronizing textDocument/didSave from client text after a server/client mismatch" uri=uri version=get(server._open_file_versions, uri, 0) server_bytes=sizeof(st.content) client_bytes=sizeof(params.text)
+            new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.text, st.language_id))
+            JuliaWorkspaces.update_file!(server.workspace, new_text_file)
+            if haskey(server._files_from_disc, uri)
+                server._files_from_disc[uri] = new_text_file
+            end
+            publish_file_diagnostics_testitems(server, [uri])
+            schedule_publish_sweep!(server)
         end
     end
 end
@@ -93,15 +93,23 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     uri = params.textDocument.uri
 
     if !haskey(server._open_file_versions, uri)
+        @error "Received textDocument/didChange for a document that is not open; change cannot be applied" uri=uri client_version=params.textDocument.version
         error("This should not happen")
     end
 
-    if params.textDocument.version < server._open_file_versions[uri]
-        error("The client and server have different textDocument versions for $(uri). LS version is $(server._open_file_versions[uri]), request version is $(params.textDocument.version).")
+    current_version = server._open_file_versions[uri]
+    if params.textDocument.version < current_version
+        @error "Received stale textDocument/didChange; change was rejected and the document may need to be reopened to resynchronize" uri=uri server_version=current_version client_version=params.textDocument.version
+        error("The client and server have different textDocument versions for $(uri). LS version is $(current_version), request version is $(params.textDocument.version).")
     end
 
     st = jw_source_text(server, uri)
-    new_content = apply_text_edits(st, params.contentChanges)
+    new_content = try
+        apply_text_edits(st, params.contentChanges)
+    catch err
+        @error "Failed to apply textDocument/didChange; keeping previous server text until a full-content save or reopen resynchronizes it" uri=uri server_version=current_version client_version=params.textDocument.version change_count=length(params.contentChanges) exception=(err, catch_backtrace())
+        rethrow()
+    end
 
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(new_content, st.language_id))
     JuliaWorkspaces.update_file!(server.workspace, new_text_file)

@@ -38,6 +38,23 @@ end
     closetestdoc()
 end
 
+@testitem "documentHighlight past EOF reports ContentModified" setup=[TestSetup, SharedServer] begin
+    settestdoc("x = 1")
+
+    params = LanguageServer.DocumentHighlightParams(
+        LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
+        LanguageServer.Position(1, 0),
+        missing,
+        missing,
+    )
+    wrapped = LanguageServer.request_wrapper(LanguageServer.textDocument_documentHighlight_request, server)
+    result = wrapped(server.jr_endpoint, params, missing)
+    @test result isa LanguageServer.JSONRPC.JSONRPCError
+    @test result.code == LanguageServer.JSONRPC_CONTENT_MODIFIED
+
+    closetestdoc()
+end
+
 @testitem "editor pid monitoring (#1379)" setup=[TestSetup, SharedServer] begin
     # No editor pid known → no monitor task.
     server.editor_pid = nothing

@@ -166,6 +166,8 @@ struct MissingDocumentError <: Exception
     uri::URI
 end
 
+const JSONRPC_CONTENT_MODIFIED = -32801
+
 function invoke_handler(func, params, server::LanguageServerInstance, conn)
     try
         if USE_REVISE[] && isdefined(Main, :Revise)
@@ -179,9 +181,15 @@ function invoke_handler(func, params, server::LanguageServerInstance, conn)
             return func(params, server, conn)
         end
     catch err
-        err isa MissingDocumentError || rethrow()
-        @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
-        return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
+        if err isa MissingDocumentError
+            @debug "Handler $(nameof(func)) targeted a document not in the server" uri = err.uri
+            return JSONRPC.JSONRPCError(-32602, "Document not available: $(err.uri).", nothing)
+        elseif err isa LSOffsetError
+            @debug "Handler $(nameof(func)) targeted a position outside the current document content" exception = (err, catch_backtrace())
+            return JSONRPC.JSONRPCError(JSONRPC_CONTENT_MODIFIED, "Content modified.", nothing)
+        else
+            rethrow()
+        end
     end
 end
 

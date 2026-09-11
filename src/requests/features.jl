@@ -14,17 +14,33 @@ function textDocument_definition_request(params::TextDocumentPositionParams, ser
     return unique!(locations)
 end
 
+"""
+LSP 3.17 `ErrorCodes.RequestFailed`: the request was well-formed and understood,
+but could not be carried out. The message is meant to be shown to the user, so it
+must read as an explanation rather than as an internal exception dump.
+"""
+const LSP_REQUEST_FAILED = -32803
+
+# A formatting failure is almost always "this file is not valid Julia", which is
+# the user's code, not a server fault. Lead with the actionable sentence and keep
+# the underlying parser output after it for the logs.
+function format_failure_error(uri::URI, err)
+    name = something(uri2filepath(uri), string(uri))
+    detail = sprint(showerror, err)
+    return JSONRPC.JSONRPCError(
+        LSP_REQUEST_FAILED,
+        "Could not format $(basename(name)) because it could not be parsed as Julia code.\n\n$detail",
+        nothing
+    )
+end
+
 function textDocument_formatting_request(params::DocumentFormattingParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
 
     file_edit = try
         JuliaWorkspaces.get_format_edits(server.workspace, uri)
     catch err
-        return JSONRPC.JSONRPCError(
-            -32000,
-            "Failed to format document: $err.",
-            nothing
-        )
+        return format_failure_error(uri, err)
     end
 
     # A file the configuration excludes is not an error; the gesture simply
@@ -45,11 +61,7 @@ function textDocument_range_formatting_request(params::DocumentRangeFormattingPa
     file_edit = try
         JuliaWorkspaces.get_format_edits(server.workspace, uri, start_line, stop_line)
     catch err
-        return JSONRPC.JSONRPCError(
-            -32000,
-            "Failed to format document: $err.",
-            nothing
-        )
+        return format_failure_error(uri, err)
     end
 
     file_edit === nothing && return TextEdit[]

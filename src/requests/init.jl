@@ -2,6 +2,23 @@
 # latency-critical requests (e.g. completion), so we use push mode instead.
 const PULL_DIAGNOSTICS_ENABLED = false
 
+# The languages whose documents we are willing to format. The formatter parses a
+# whole document as Julia code, so it must only ever be offered for Julia source.
+# Markdown (and Julia-markdown, which is Markdown with Julia chunks) is part of
+# the client's document selector for every *other* feature, but formatting one of
+# those as a single Julia file always fails — and, worse, registering as their
+# formatting provider makes the editor pick us over the real Markdown formatter.
+const FORMATTING_LANGUAGES = ["julia"]
+
+formatting_document_selector() = DocumentSelector([DocumentFilter(l, missing, missing) for l in FORMATTING_LANGUAGES])
+
+function client_supports_dynamic_registration(client::ClientCapabilities, capability::Symbol)
+    ismissing(client.textDocument) && return false
+    cap = getproperty(client.textDocument, capability)
+    ismissing(cap) && return false
+    return cap.dynamicRegistration === true
+end
+
 function ServerCapabilities(client::ClientCapabilities)
     prepareSupport = !ismissing(client.textDocument) && !ismissing(client.textDocument.rename) && client.textDocument.rename.prepareSupport === true
 
@@ -9,6 +26,14 @@ function ServerCapabilities(client::ClientCapabilities)
 
     diagnostic_provider = PULL_DIAGNOSTICS_ENABLED && client_supports_pull_diagnostics ?
         DiagnosticOptions(missing, true, true) : missing
+
+    # A static capability applies to the client's whole document selector, which
+    # includes Markdown. When the client can handle dynamic registration we
+    # advertise nothing here and register in `initialized_notification` instead,
+    # scoped to `FORMATTING_LANGUAGES`. Clients without dynamic registration keep
+    # the old, broader behaviour rather than losing formatting altogether.
+    formatting_provider = client_supports_dynamic_registration(client, :formatting) ? missing : true
+    range_formatting_provider = client_supports_dynamic_registration(client, :rangeFormatting) ? missing : true
 
     ServerCapabilities(
         TextDocumentSyncOptions(
@@ -32,8 +57,8 @@ function ServerCapabilities(client::ClientCapabilities)
         missing,
         DocumentLinkOptions(false, missing),
         false,
-        true,
-        true,
+        formatting_provider,
+        range_formatting_provider,
         missing,
         RenameOptions(missing, prepareSupport),
         false,
@@ -168,6 +193,39 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             client_capabilities_registrations,
             Registration(string(uuid4()), "workspace/didChangeConfiguration", missing)
         )
+    end
+
+    # Register formatting only for Julia source. The static capability would apply
+    # to the client's whole document selector, which also contains Markdown and
+    # Julia-markdown; we cannot format those, and claiming we can stops the editor
+    # from using the formatter that actually can (it picks a single provider per
+    # document). `ServerCapabilities` leaves the static capability out whenever the
+    # client advertises dynamic registration, so the two must stay in sync.
+    #
+    # `conn === nothing` means there is no client to register with (the server is
+    # being driven directly, as the tests do), so there is nothing to send.
+    if conn !== nothing && !ismissing(server.clientCapabilities)
+        if client_supports_dynamic_registration(server.clientCapabilities, :formatting)
+            push!(
+                client_capabilities_registrations,
+                Registration(
+                    string(uuid4()),
+                    "textDocument/formatting",
+                    DocumentFormattingRegistrationOptions(formatting_document_selector(), missing)
+                )
+            )
+        end
+
+        if client_supports_dynamic_registration(server.clientCapabilities, :rangeFormatting)
+            push!(
+                client_capabilities_registrations,
+                Registration(
+                    string(uuid4()),
+                    "textDocument/rangeFormatting",
+                    DocumentRangeFormattingRegistrationOptions(formatting_document_selector(), missing)
+                )
+            )
+        end
     end
 
     if !ismissing(server.clientCapabilities) &&

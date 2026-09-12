@@ -66,6 +66,10 @@ mutable struct LanguageServerInstance
     enable_dynamic_indexing::Bool
     max_concurrent_indexing_processes::Int
     enable_workspace_environment_resolution::Bool
+    # Experiment flag: JuliaLowering-backed unused-binding lint rules
+    # (`julia.experimental.loweringLint`); forwarded to
+    # `JuliaWorkspaces.set_lowering_lint!`.
+    lowering_lint::Bool
 
     clientcapability_workspace_diagnostic_refreshsupport::Bool
 
@@ -129,6 +133,7 @@ mutable struct LanguageServerInstance
             true,
             4,
             true,
+            false,
             false,
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),

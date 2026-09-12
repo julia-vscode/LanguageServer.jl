@@ -309,6 +309,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
             ConfigurationItem(missing, "julia.enableDynamicIndexing"),
             ConfigurationItem(missing, "julia.maxConcurrentIndexingProcesses"),
             ConfigurationItem(missing, "julia.enableWorkspaceEnvironmentResolution"),
+            ConfigurationItem(missing, "julia.experimental.loweringLint"),
         ]))
 
         server.completion_mode = Symbol(something(response[1], :import))
@@ -320,6 +321,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         server.enable_dynamic_indexing = something(response[7], true)
         server.max_concurrent_indexing_processes = something(response[8], 4)
         server.enable_workspace_environment_resolution = something(response[9], true)
+        server.lowering_lint = something(response[10], false)
     end
 
     # Construct JuliaWorkspace now that configuration values are available.
@@ -338,6 +340,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         max_concurrent_djps=server.max_concurrent_indexing_processes,
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )
+    # Apply the experiment flag from the initial configuration pull (the JW
+    # default is off, so only an explicit opt-in needs forwarding).
+    server.lowering_lint && JuliaWorkspaces.set_lowering_lint!(server.workspace, true)
 
     # A single "bootstrap" bar covers the synchronous load below, which is
     # otherwise silent (the first indexing bar only appears once add_files!

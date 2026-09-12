@@ -357,7 +357,7 @@ function reconcile_indirect_file_watchers(server::LanguageServerInstance)
                 UnregistrationParams(to_unregister)
             )
         catch err
-            @error "Failed to send client/unregisterCapability for indirect file watchers" exception=(err, catch_backtrace())
+            report_internal_error(server, err, catch_backtrace(), "Failed to send client/unregisterCapability for indirect file watchers")
         end
     end
 
@@ -392,7 +392,7 @@ function reconcile_indirect_file_watchers(server::LanguageServerInstance)
             )
             watched[uri] = registration_id
         catch err
-            @error "Failed to send client/registerCapability for indirect file watcher" uri=uri exception=(err, catch_backtrace())
+            report_internal_error(server, err, catch_backtrace(), "Failed to send client/registerCapability for indirect file watcher")
         end
     end
 end

@@ -1,6 +1,6 @@
 name = "LanguageServer"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "6.0.0"
+version = "6.0.1-DEV"
 
 [deps]
 URIs = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"

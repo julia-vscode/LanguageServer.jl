@@ -328,13 +328,6 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
     progress_cb = create_progress_callback(server)
     dynamic_mode = server.enable_dynamic_indexing ? JuliaWorkspaces.DynamicIndexingOnly : JuliaWorkspaces.DynamicOff
-    # `err_handler` only exists from JuliaWorkspaces 13.4 on
-    # (julia-vscode/JuliaWorkspaces.jl#312); pass it conditionally so this works
-    # against older releases too. Drop the guard once the compat lower bound
-    # requires a version that has it.
-    err_handler_kwargs = hasmethod(JuliaWorkspace, Tuple{}, (:err_handler,)) ?
-        (; err_handler=(err, bt) -> report_internal_error(server, err, bt, "Dynamic feature reactor failed")) :
-        (;)
     server.workspace = JuliaWorkspace(;
         dynamic=dynamic_mode,
         store_path=server.symserver_store_path,
@@ -342,7 +335,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         symbolcache_upstream=server.symbolcache_upstream,
         indirect_file_watch_callback=indirect_cb,
         progress_callback=progress_cb,
-        err_handler_kwargs...,
+        err_handler=(err, bt) -> report_internal_error(server, err, bt, "Dynamic feature reactor failed"),
         max_concurrent_djps=server.max_concurrent_indexing_processes,
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )

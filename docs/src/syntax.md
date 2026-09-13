@@ -22,3 +22,9 @@ Pages   = [joinpath("src", "requests", f) for f in readdir("../src/requests")]
 Modules = [LanguageServer]
 Pages   = [joinpath("src", "protocol", f) for f in readdir("../src/protocol")]
 ```
+
+## Extensions
+```@autodocs
+Modules = [LanguageServer]
+Pages   = [joinpath("src", "extensions", f) for f in readdir("../src/extensions")]
+```

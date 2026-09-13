@@ -236,8 +236,11 @@ function document_sync_context(server::LanguageServerInstance, uri::Union{URI,No
 end
 
 # Short stable identifier for a document that does not leak its path (crash
-# messages are transmitted verbatim): the first 8 hex digits of `hash(uri)`.
-document_short_id(uri::URI) = first(string(hash(uri), base=16, pad=16), 8)
+# messages are transmitted verbatim): the low 32 bits of `hash(uri)` as 8 hex
+# digits. Taking the LOW bits matters: on a 32-bit build `hash` returns a
+# UInt32, so the first 8 digits of a zero-padded 16-digit rendering are always
+# "00000000" and every document would collide.
+document_short_id(uri::URI) = string(hash(uri) % UInt32, base=16, pad=8)
 
 # Record one document lifecycle notification in the server's bounded history.
 # Runs at the top of the didOpen/didClose/didChange handlers — i.e. on every

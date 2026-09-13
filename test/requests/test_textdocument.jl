@@ -100,6 +100,11 @@ end
     @test occursin("open=false", err2.msg)
     @test occursin("history=[close", err2.msg)
     @test !occursin("neveropened", err2.msg)
+
+    # Distinct documents must get distinct short ids, also on 32-bit builds
+    # where `hash` is a UInt32 (taking the high digits of a zero-padded
+    # rendering collided everything to "00000000" there).
+    @test LanguageServer.document_short_id(u) != LanguageServer.document_short_id(u2)
 end
 
 @testitem "julialangRestartCount initialization option" setup=[TestSetup] begin

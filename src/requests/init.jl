@@ -327,6 +327,9 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         put!(server.combined_msg_queue, (type=:indirect_file_discovered, uri=uri))
     end
     progress_cb = create_progress_callback(server)
+    # Only clients that opted in pay for status snapshots (see
+    # `server_status_enabled`); with `nothing` the reactor skips them entirely.
+    status_cb = server_status_enabled(server) ? create_status_callback(server) : nothing
     dynamic_mode = server.enable_dynamic_indexing ? JuliaWorkspaces.DynamicIndexingOnly : JuliaWorkspaces.DynamicOff
     server.workspace = JuliaWorkspace(;
         dynamic=dynamic_mode,
@@ -335,6 +338,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         symbolcache_upstream=server.symbolcache_upstream,
         indirect_file_watch_callback=indirect_cb,
         progress_callback=progress_cb,
+        status_callback=status_cb,
         err_handler=(err, bt) -> report_internal_error(server, err, bt, "Dynamic feature reactor failed"),
         max_concurrent_djps=server.max_concurrent_indexing_processes,
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
@@ -386,6 +390,17 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     # baseline, so later indexing-complete refreshes publish only what changed.
     TraceLogging.@trace run_publish_sweep(server)
     progress_cb("bootstrap", "Workspace loaded", 100)
+
+    # A workspace without a dynamic feature (indexing disabled and no cache
+    # download) never fires the status callback, so the client's busy indicator
+    # would wait forever for a first snapshot. Tell it directly that nothing is
+    # pending. With a dynamic feature the first reconcile always delivers a
+    # snapshot, so nothing needs to be sent here — and an unconditional "done"
+    # would race in *after* real "indexing" snapshots already queued up.
+    if server_status_enabled(server) && server.workspace.dynamic_feature === nothing
+        JSONRPC.send(conn, julia_publishServerStatus_notification_type,
+            PublishServerStatusParams(true, 0, 0, ServerStatusDJPDetail[]))
+    end
 
     return
 end

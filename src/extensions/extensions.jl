@@ -52,4 +52,25 @@ end
     envContentHash::Union{String,Missing}
 end
 
+"""
+One dynamic work item in a `julia/publishServerStatus` notification. Mirrors
+`JuliaWorkspaces.DJPStatusItem`, with symbols stringified for the wire.
+"""
+struct ServerStatusDJPDetail <: Outbound
+    kind::String        # "watch_environment" | "watch_test_environment" | "create_standalone_project" | "resolve_environment"
+    path::String
+    package::Union{String,Missing}
+    status::String      # "queued" | "preparing" | "running" | "refresh_queued" | "refreshing" | "done" | "failed"
+    progress::Union{Int,Missing}
+    failureMessage::Union{String,Missing}
+    alive::Bool
+end
+
+struct PublishServerStatusParams <: Outbound
+    indexingDone::Bool
+    pendingCount::Int
+    maxConcurrentDjps::Int
+    djps::Vector{ServerStatusDJPDetail}
+end
+
 include("messagedefs.jl")

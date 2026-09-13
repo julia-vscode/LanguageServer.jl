@@ -110,7 +110,10 @@ function create_progress_callback(server::LanguageServerInstance)
             end
         end
     catch err
-        @error "Progress reporting task failed" exception=(err, catch_backtrace())
+        # This task is the only thing draining `reports`; if it dies, progress
+        # reporting is gone for the rest of the session — a bug worth a crash
+        # report rather than a stderr line.
+        report_internal_error(server, err, catch_backtrace(), "Progress reporting task failed")
     end
 
     return function (key::String, message::String, percentage::Int)

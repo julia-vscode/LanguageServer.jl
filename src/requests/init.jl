@@ -339,6 +339,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         indirect_file_watch_callback=indirect_cb,
         progress_callback=progress_cb,
         status_callback=status_cb,
+        err_handler=(err, bt) -> report_internal_error(server, err, bt, "Dynamic feature reactor failed"),
         max_concurrent_djps=server.max_concurrent_indexing_processes,
         resolve_workspace_environments=server.enable_workspace_environment_resolution,
     )

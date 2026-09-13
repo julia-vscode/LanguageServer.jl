@@ -5,3 +5,4 @@ const julia_getDocFromWord_request_type = JSONRPC.RequestType("julia/getDocFromW
 const textDocument_publishTests_notification_type = JSONRPC.NotificationType("julia/publishTests", PublishTestsParams)
 const julia_get_test_env_request_type = JSONRPC.RequestType("julia/getTestEnv", GetTestEnvRequestParams, GetTestEnvRequestParamsReturn)
 const julia_setEnvironmentPath_notification_type = JSONRPC.NotificationType("julia/setEnvironmentPath", NamedTuple{(:envPath,),Tuple{String}})
+const julia_publishServerStatus_notification_type = JSONRPC.NotificationType("julia/publishServerStatus", PublishServerStatusParams)

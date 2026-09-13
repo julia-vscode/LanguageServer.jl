@@ -202,6 +202,38 @@ function document_sync_context(server::LanguageServerInstance, uri::Union{URI,No
     end
 end
 
+"""
+    is_disconnect_error(err)
+
+Whether `err` means the client connection went away — expected during
+shutdown/restart and never a server bug worth a crash report.
+"""
+is_disconnect_error(err) = false
+is_disconnect_error(::Base.IOError) = true
+is_disconnect_error(::JSONRPC.TransportError) = true
+is_disconnect_error(err::InvalidStateException) = err.state === :closed
+is_disconnect_error(err::ErrorException) = startswith(err.msg, "Endpoint is not running, the current state is")
+is_disconnect_error(err::CompositeException) = !isempty(err.exceptions) && all(is_disconnect_error, err.exceptions)
+is_disconnect_error(::JSONRPC.CancellationTokens.OperationCanceledException) = true
+
+"""
+    report_internal_error(server, err, bt, context)
+
+Route an internal failure to the crash-reporting `err_handler` when one is
+installed. Disconnects are only ever logged; without a handler everything is
+logged.
+"""
+function report_internal_error(server::LanguageServerInstance, err, bt, context::String)
+    if is_disconnect_error(err)
+        @debug context exception = (err, bt)
+    elseif server.err_handler !== nothing
+        server.err_handler(err, bt)
+    else
+        @error context exception = (err, bt)
+    end
+    return
+end
+
 function invoke_handler(func, params, server::LanguageServerInstance, conn)
     try
         if USE_REVISE[] && isdefined(Main, :Revise)
@@ -493,7 +525,7 @@ function Base.run(server::LanguageServerInstance; timings = [])
                             )
                             server._watched_indirect_files[uri] = registration_id
                         catch err
-                            @error "Failed to register file watcher for indirect file" uri=uri exception=(err, catch_backtrace())
+                            report_internal_error(server, err, catch_backtrace(), "Failed to register file watcher for indirect file")
                         end
                     end
                 end

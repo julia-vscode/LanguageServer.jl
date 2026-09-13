@@ -13,11 +13,7 @@ end
 
 _status_missing(x) = x === nothing ? missing : x
 
-# Duck-typed on purpose: `JuliaWorkspaces.DynamicStatusSnapshot` only exists
-# from the version introduced in julia-vscode/JuliaWorkspaces.jl#316 on (after
-# 13.4.0), and a type annotation here would be evaluated at package load time.
-# Annotate once the compat lower bound requires a version that has the type.
-function _server_status_params(snapshot)
+function _server_status_params(snapshot::JuliaWorkspaces.DynamicStatusSnapshot)
     djps = [ServerStatusDJPDetail(
         string(item.kind),
         item.path,
@@ -37,8 +33,7 @@ const SERVER_STATUS_MIN_INTERVAL_SECONDS = 0.25
 """
     create_status_callback(server::LanguageServerInstance) -> Function
 
-Return a closure `(snapshot) -> Nothing` taking a
-`JuliaWorkspaces.DynamicStatusSnapshot`,
+Return a closure `(snapshot::JuliaWorkspaces.DynamicStatusSnapshot) -> Nothing`
 suitable as the `status_callback` of a `JuliaWorkspace`, forwarding snapshots
 to the client as `julia/publishServerStatus` notifications.
 
@@ -48,7 +43,7 @@ newest snapshot when several queued up, and rate-limits sends to one per
 $(SERVER_STATUS_MIN_INTERVAL_SECONDS)s.
 """
 function create_status_callback(server::LanguageServerInstance)
-    snapshots = Channel{Any}(Inf)
+    snapshots = Channel{JuliaWorkspaces.DynamicStatusSnapshot}(Inf)
 
     @async try
         while true
@@ -68,7 +63,7 @@ function create_status_callback(server::LanguageServerInstance)
         @error "Server status reporting task failed" exception=(err, catch_backtrace())
     end
 
-    return function (snapshot)
+    return function (snapshot::JuliaWorkspaces.DynamicStatusSnapshot)
         put!(snapshots, snapshot)
         return
     end

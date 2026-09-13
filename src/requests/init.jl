@@ -328,17 +328,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
     end
     progress_cb = create_progress_callback(server)
     # Only clients that opted in pay for status snapshots (see
-    # `server_status_enabled`). The `status_callback` kwarg only exists from
-    # the JuliaWorkspaces version introduced in
-    # julia-vscode/JuliaWorkspaces.jl#316 on (after 13.4.0); pass it
-    # conditionally so this works against released versions too. Drop the
-    # guard once the compat lower bound requires a version that has it.
-    status_callback_kwargs =
-        if server_status_enabled(server) && hasmethod(JuliaWorkspace, Tuple{}, (:status_callback,))
-            (; status_callback=create_status_callback(server))
-        else
-            (;)
-        end
+    # `server_status_enabled`); with `nothing` the reactor skips them entirely.
+    status_cb = server_status_enabled(server) ? create_status_callback(server) : nothing
     dynamic_mode = server.enable_dynamic_indexing ? JuliaWorkspaces.DynamicIndexingOnly : JuliaWorkspaces.DynamicOff
     server.workspace = JuliaWorkspace(;
         dynamic=dynamic_mode,
@@ -347,7 +338,7 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         symbolcache_upstream=server.symbolcache_upstream,
         indirect_file_watch_callback=indirect_cb,
         progress_callback=progress_cb,
-        status_callback_kwargs...,
+        status_callback=status_cb,
         err_handler=(err, bt) -> report_internal_error(server, err, bt, "Dynamic feature reactor failed"),
         max_concurrent_djps=server.max_concurrent_indexing_processes,
         resolve_workspace_environments=server.enable_workspace_environment_resolution,

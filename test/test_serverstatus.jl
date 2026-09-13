@@ -3,6 +3,7 @@
     using LanguageServer
     using LanguageServer: LanguageServerInstance, create_status_callback, server_status_enabled,
         julia_publishServerStatus_notification_type, PublishServerStatusParams, ServerStatusDJPDetail
+    using JuliaWorkspaces: DynamicStatusSnapshot, DJPStatusItem
 
     # Capture JSONRPC.send calls on Nothing endpoint (same pattern as test_progress.jl)
     sent = []
@@ -16,15 +17,10 @@
     cb = create_status_callback(server)
     wait_for_sends(n) = timedwait(() -> length(sent) >= n, 5.0) === :ok
 
-    # Duck-typed stand-in for JuliaWorkspaces.DynamicStatusSnapshot (same
-    # fields), so this test also runs against a JuliaWorkspaces version that
-    # predates the type; see the guard notes in serverstatus.jl.
-    item(; kind, path, package=nothing, status, progress=nothing, failure_message=nothing, alive=false) =
-        (; kind, path, package, status, progress, failure_message, alive)
-    snapshot = (indexing_done=false, pending_count=2, max_concurrent_djps=4, items=[
-        item(kind=:watch_environment, path="/ws/A", status=:running, progress=40, alive=true),
-        item(kind=:watch_test_environment, path="/ws/B", package="B", status=:queued),
-        item(kind=:watch_environment, path="/ws/C", status=:failed, failure_message="Failed to resolve the environment at /ws/C."),
+    snapshot = DynamicStatusSnapshot(false, 2, 4, [
+        DJPStatusItem(:watch_environment, "/ws/A", nothing, :running, 40, nothing, true),
+        DJPStatusItem(:watch_test_environment, "/ws/B", "B", :queued, nothing, nothing, false),
+        DJPStatusItem(:watch_environment, "/ws/C", nothing, :failed, nothing, "Failed to resolve the environment at /ws/C.", false),
     ])
     cb(snapshot)
     @test wait_for_sends(1)
@@ -60,6 +56,7 @@ end
     import Pkg, JSONRPC
     using LanguageServer
     using LanguageServer: LanguageServerInstance, create_status_callback, PublishServerStatusParams
+    using JuliaWorkspaces: DynamicStatusSnapshot, DJPStatusItem
 
     sent = []
     JSONRPC.send(::Nothing, typ, params) = push!(sent, (typ, params))
@@ -75,7 +72,7 @@ end
     # must not turn into one notification per snapshot.
     n = 50
     for i in 1:n
-        cb((indexing_done=(i == n), pending_count=n - i, max_concurrent_djps=4, items=[]))
+        cb(DynamicStatusSnapshot(i == n, n - i, 4, DJPStatusItem[]))
     end
 
     @test timedwait(() -> !isempty(sent) && last(sent)[2].indexingDone, 10.0) === :ok

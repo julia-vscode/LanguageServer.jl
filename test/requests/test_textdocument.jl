@@ -57,3 +57,75 @@ end
 
     LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(u)), server, nothing)
 end
+
+@testitem "TextDocument lifecycle assertions carry diagnostics context" setup=[TestSetup, SharedServer] begin
+    u = uri"untitled:lifecycletest"
+    LanguageServer.textDocument_didOpen_notification(LanguageServer.DidOpenTextDocumentParams(LanguageServer.TextDocumentItem(u, "julia", 3, "x = 1")), server, nothing)
+
+    # (a) A stale didChange (version lower than stored) must still be fatal,
+    # and the message must be self-explanatory without leaking the URI/path.
+    err = try
+        LanguageServer.textDocument_didChange_notification(LanguageServer.DidChangeTextDocumentParams(LanguageServer.VersionedTextDocumentIdentifier(u, 2), [LanguageServer.TextDocumentContentChangeEvent(missing, missing, "y = 2")]), server, nothing)
+        nothing
+    catch e
+        e
+    end
+    @test err isa ErrorException
+    msg = err.msg
+    @test occursin("LS version is 3", msg)
+    @test occursin("request version is 2", msg)
+    @test occursin("open=true", msg)
+    @test occursin("uptime_s=", msg)
+    @test occursin("client_restart_count=nothing", msg)
+    @test occursin("history=[", msg)
+    @test occursin("open v3", msg)
+    @test occursin("change v2", msg)
+    # Crash messages are transmitted verbatim: no URI or path may leak.
+    @test !occursin("lifecycletest", msg)
+    @test !occursin(string(u), msg)
+
+    LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(u)), server, nothing)
+
+    # (b) didClose for a document that was never opened must still be fatal,
+    # with the enriched message (and the offending close in the history).
+    u2 = uri"untitled:neveropened"
+    err2 = try
+        LanguageServer.textDocument_didClose_notification(LanguageServer.DidCloseTextDocumentParams(LanguageServer.TextDocumentIdentifier(u2)), server, nothing)
+        nothing
+    catch e
+        e
+    end
+    @test err2 isa ErrorException
+    @test occursin("Received textDocument/didClose for a document that is not open", err2.msg)
+    @test occursin("open=false", err2.msg)
+    @test occursin("history=[close", err2.msg)
+    @test !occursin("neveropened", err2.msg)
+
+    # Distinct documents must get distinct short ids, also on 32-bit builds
+    # where `hash` is a UInt32 (taking the high digits of a zero-padded
+    # rendering collided everything to "00000000" there).
+    @test LanguageServer.document_short_id(u) != LanguageServer.document_short_id(u2)
+end
+
+@testitem "julialangRestartCount initialization option" setup=[TestSetup] begin
+    import Pkg
+    using LanguageServer: LanguageServerInstance
+
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
+    server.jr_endpoint = nothing
+    @test server._client_restart_count === nothing
+
+    init = LanguageServer.InitializeParams(
+        TestSetup.init_request.processId,
+        TestSetup.init_request.clientInfo,
+        TestSetup.init_request.rootPath,
+        TestSetup.init_request.rootUri,
+        Dict{String,Any}("julialangRestartCount" => 2),
+        TestSetup.init_request.capabilities,
+        TestSetup.init_request.trace,
+        TestSetup.init_request.workspaceFolders,
+        TestSetup.init_request.workDoneToken
+    )
+    LanguageServer.initialize_request(init, server, nothing)
+    @test server._client_restart_count == 2
+end

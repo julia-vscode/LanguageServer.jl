@@ -3,6 +3,23 @@
 struct NullEndpoint end
 JSONRPC.send(::NullEndpoint, @nospecialize(_), @nospecialize(_)) = nothing
 
+# One entry in the bounded per-server history of textDocument lifecycle
+# notifications (didOpen/didClose/didChange). Recorded on every notification
+# and replayed into the lifecycle assertion messages so a crash report shows
+# the sequence of events that led to an inconsistent open-document state.
+# Documents are identified only by a short hash and the URI scheme — never a
+# path — because crash messages are transmitted verbatim.
+struct DocumentLifecycleEvent
+    operation::Symbol               # :open, :close, or :change
+    doc_id::String                  # short stable id, see `document_short_id`
+    scheme::Union{Nothing,String}   # URI scheme (e.g. "file", "untitled")
+    version::Union{Nothing,Int}     # version from the notification; nothing for didClose
+    time_offset_s::Float64          # seconds since server start
+end
+
+# Cap on `_document_lifecycle_history`; old entries are dropped FIFO.
+const DOCUMENT_LIFECYCLE_HISTORY_MAX = 64
+
 """
     LanguageServerInstance(pipe_in, pipe_out, env="", depot="", err_handler=nothing, symserver_store_path=nothing)
 
@@ -97,6 +114,19 @@ mutable struct LanguageServerInstance
     _sweep_timer::Union{Nothing,Timer}
     _sweep_first_dirty_time::Float64
 
+    # Wall-clock time (from `time()`) when this instance was constructed.
+    # Only used for diagnostics (uptime and relative timestamps in crash
+    # messages).
+    _start_time::Float64
+    # How many times the client has restarted the server process in this
+    # window session, as reported by the client via the optional
+    # `julialangRestartCount` initialization option; `nothing` when the
+    # client did not send it.
+    _client_restart_count::Union{Nothing,Int}
+    # Bounded FIFO history of document lifecycle notifications, capped at
+    # DOCUMENT_LIFECYCLE_HISTORY_MAX entries. See `DocumentLifecycleEvent`.
+    _document_lifecycle_history::Vector{DocumentLifecycleEvent}
+
     trace_value::Threads.Atomic{Int}
 
     function LanguageServerInstance(@nospecialize(pipe_in), @nospecialize(pipe_out), env_path="", err_handler=nothing, symserver_store_path=nothing, julia_exe::Union{NamedTuple{(:path,:version),Tuple{String,VersionNumber}},Nothing}=nothing)
@@ -140,6 +170,9 @@ mutable struct LanguageServerInstance
             0,
             nothing,
             0.0,
+            time(),
+            nothing,
+            DocumentLifecycleEvent[],
             Threads.Atomic{Int}(Int(lsp_trace_off))
         )
         return server
@@ -195,6 +228,53 @@ function document_sync_context(server::LanguageServerInstance, uri::Union{URI,No
                 print(io, " serving_disc_copy=", server._files_from_disc[uri].content.content == st.content)
             end
         end
+        return String(take!(io))
+    catch err
+        # Collecting context must never mask the error being reported.
+        return "context unavailable: $(sprint(showerror, err))"
+    end
+end
+
+# Short stable identifier for a document that does not leak its path (crash
+# messages are transmitted verbatim): the low 32 bits of `hash(uri)` as 8 hex
+# digits. Taking the LOW bits matters: on a 32-bit build `hash` returns a
+# UInt32, so the first 8 digits of a zero-padded 16-digit rendering are always
+# "00000000" and every document would collide.
+document_short_id(uri::URI) = string(hash(uri) % UInt32, base=16, pad=8)
+
+# Record one document lifecycle notification in the server's bounded history.
+# Runs at the top of the didOpen/didClose/didChange handlers — i.e. on every
+# keystroke — so it must stay cheap: push one small struct, occasionally drop
+# the oldest entry.
+function record_document_lifecycle_event!(server::LanguageServerInstance, operation::Symbol, uri::URI, version::Union{Nothing,Int})
+    history = server._document_lifecycle_history
+    push!(history, DocumentLifecycleEvent(operation, document_short_id(uri), uri.scheme, version, time() - server._start_time))
+    length(history) > DOCUMENT_LIFECYCLE_HISTORY_MAX && popfirst!(history)
+    return nothing
+end
+
+# Context appended to the fatal lifecycle assertions in
+# `src/requests/textdocument.jl`: the document sync state, server uptime, the
+# client-reported restart count, and this document's lifecycle history
+# (most recent last). Contains no URI/path beyond the scheme and a short hash.
+function lifecycle_assertion_context(server::LanguageServerInstance, uri::URI)
+    try
+        io = IOBuffer()
+        print(io, document_sync_context(server, uri))
+        print(io, " uptime_s=", round(time() - server._start_time, digits=1))
+        print(io, " client_restart_count=", something(server._client_restart_count, "nothing"))
+        doc_id = document_short_id(uri)
+        print(io, " doc=", doc_id, " history=[")
+        first_entry = true
+        for ev in server._document_lifecycle_history
+            ev.doc_id == doc_id || continue
+            first_entry || print(io, ", ")
+            first_entry = false
+            print(io, ev.operation)
+            ev.version === nothing || print(io, " v", ev.version)
+            print(io, " @", round(ev.time_offset_s, digits=1), "s")
+        end
+        print(io, "]")
         return String(take!(io))
     catch err
         # Collecting context must never mask the error being reported.

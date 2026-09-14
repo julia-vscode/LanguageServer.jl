@@ -171,6 +171,14 @@ function initialize_request(params::InitializeParams, server::LanguageServerInst
 
     if !ismissing(params.initializationOptions) && params.initializationOptions !== nothing
         server.initialization_options = params.initializationOptions
+
+        # Optional: how many times the client has restarted the server process
+        # in this window session. Only used to annotate lifecycle crash
+        # messages (see `lifecycle_assertion_context`).
+        restart_count = get(server.initialization_options, "julialangRestartCount", nothing)
+        if restart_count isa Integer && !(restart_count isa Bool)
+            server._client_restart_count = Int(restart_count)
+        end
     end
 
     if !ismissing(params.trace)

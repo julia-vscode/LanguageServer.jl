@@ -2,6 +2,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     @debug "textDocument/didOpen" uri=params.textDocument.uri
 
     uri = params.textDocument.uri
+    record_document_lifecycle_event!(server, :open, uri, params.textDocument.version)
 
     if !JuliaWorkspaces.has_file(server.workspace, uri)
         if any(i -> startswith(string(uri), string(filepath2uri(i))), server.workspaceFolders)
@@ -10,7 +11,7 @@ function textDocument_didOpen_notification(params::DidOpenTextDocumentParams, se
     end
 
     if haskey(server._open_file_versions, uri)
-        error("This should not happen")
+        error("Received textDocument/didOpen for a document that is already open. $(lifecycle_assertion_context(server, uri))")
     end
 
     new_text_file = JuliaWorkspaces.TextFile(uri, JuliaWorkspaces.SourceText(params.textDocument.text, params.textDocument.languageId))
@@ -33,6 +34,7 @@ end
 
 function textDocument_didClose_notification(params::DidCloseTextDocumentParams, server::LanguageServerInstance, conn)
     uri = params.textDocument.uri
+    record_document_lifecycle_event!(server, :close, uri, nothing)
 
     @debug "textDocument/didClose" uri=uri
 
@@ -41,7 +43,7 @@ function textDocument_didClose_notification(params::DidCloseTextDocumentParams, 
     end
 
     if !haskey(server._open_file_versions, uri)
-        error("This should not happen")
+        error("Received textDocument/didClose for a document that is not open. $(lifecycle_assertion_context(server, uri))")
     end
     delete!(server._open_file_versions, uri)
 
@@ -91,13 +93,14 @@ function textDocument_didChange_notification(params::DidChangeTextDocumentParams
     @debug "textDocument/didChange" uri=params.textDocument.uri change_count=length(params.contentChanges)
 
     uri = params.textDocument.uri
+    record_document_lifecycle_event!(server, :change, uri, params.textDocument.version)
 
     if !haskey(server._open_file_versions, uri)
-        error("This should not happen")
+        error("Received textDocument/didChange for a document that is not open. $(lifecycle_assertion_context(server, uri))")
     end
 
     if params.textDocument.version < server._open_file_versions[uri]
-        error("The client and server have different textDocument versions for $(uri). LS version is $(server._open_file_versions[uri]), request version is $(params.textDocument.version).")
+        error("The client and server have different textDocument versions. LS version is $(server._open_file_versions[uri]), request version is $(params.textDocument.version). $(lifecycle_assertion_context(server, uri))")
     end
 
     st = jw_source_text(server, uri)

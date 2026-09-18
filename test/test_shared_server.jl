@@ -101,6 +101,23 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
     server.jr_endpoint = nothing
+    # Dynamic indexing off, as in `test_initialized_publish.jl`: left on,
+    # `initialize_request` builds a `JuliaWorkspace(; dynamic=DynamicIndexingOnly)`
+    # whose `DynamicFeature` spawns real child `julia` processes to index the test
+    # environment — every package this one depends on. Nothing here tears a server
+    # down (TestItemRunner nulls a test item module's globals, but the feature's
+    # background tasks keep the server reachable), and the concurrency cap is per
+    # feature, so N live workspaces buy N budgets of `max_concurrent_djps`. This
+    # snippet is re-evaluated per test item, so it supplied most of a burst of 13
+    # concurrent indexers seen mid-suite, which is what pushed the Julia 1.13
+    # Windows CI job over its memory ceiling (julia-vscode/julia-vscode run
+    # 35314211220: OutOfMemoryError inside inference of the static-lint pass).
+    #
+    # Nothing below depends on the result: a child takes minutes to index while
+    # these test items finish in seconds, so the work was never awaited. The
+    # brute-force suite, the one consumer that could want the symbols, is skipped
+    # on CI anyway.
+    server.enable_dynamic_indexing = false
     LanguageServer.initialize_request(TestSetup.init_request, server, nothing)
     LanguageServer.initialized_notification(LanguageServer.InitializedParams(), server, nothing)
 end

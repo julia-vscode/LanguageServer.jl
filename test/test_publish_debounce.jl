@@ -30,6 +30,9 @@
     function make_initialized_server(endpoint)
         server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
         server.jr_endpoint = endpoint
+        # No indexing child processes: these tests assert on publish timing, not
+        # on symbols. See the `SharedServer` snippet in `test_shared_server.jl`.
+        server.enable_dynamic_indexing = false
         LanguageServer.initialize_request(TestSetup.init_request, server, nothing)
         LanguageServer.initialized_notification(LanguageServer.InitializedParams(), server, nothing)
         return server

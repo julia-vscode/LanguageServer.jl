@@ -78,6 +78,19 @@ end
     @test timedwait(() -> !isempty(sent) && last(sent)[2].indexingDone, 10.0) === :ok
     @test last(sent)[2].pendingCount == 0
     @test length(sent) < n
+
+    # A second burst, after the rate-limit sleep, must still be served: the
+    # worker goes back around its loop rather than retiring once it has sent
+    # something. Without this the test passes for a worker that services
+    # exactly one notification and then stops, and the loop back edge is only
+    # ever reached by accident of how long the test process happens to outlive
+    # the first `sleep`.
+    before = length(sent)
+    for i in 1:n
+        cb(DynamicStatusSnapshot(false, i, 4, DJPStatusItem[]))
+    end
+
+    @test timedwait(() -> length(sent) > before && !last(sent)[2].indexingDone, 10.0) === :ok
 end
 
 @testitem "Server status: disabled without the julialangServerStatus init option" begin

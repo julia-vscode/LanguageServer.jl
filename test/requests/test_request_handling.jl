@@ -38,12 +38,15 @@ end
     closetestdoc()
 end
 
-@testitem "documentHighlight past EOF reports document sync context" setup=[TestSetup, SharedServer] begin
+@testitem "documentHighlight past EOF reports full lifecycle context" setup=[TestSetup, SharedServer] begin
     settestdoc("x = 1")
 
     # A position on a line the server's text does not have. This still crashes
-    # the server (that is deliberate: it is a sync bug we want reported), but
-    # the crash message must carry enough state to explain the mismatch.
+    # the server (that is deliberate: a client that could see the position was
+    # out of range is expected to drop the request before sending it, so what
+    # gets here is a genuine disagreement about the document and we want it
+    # reported), but the crash message must carry enough state to explain the
+    # mismatch: the sync state, the restart count, and this document's history.
     params = LanguageServer.DocumentHighlightParams(
         LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
         LanguageServer.Position(1, 0),
@@ -66,6 +69,12 @@ end
     @test occursin("version=0", msg)
     @test occursin("line_count=1", msg)
     @test occursin("from_disc=false", msg)
+    @test occursin("uptime_s=", msg)
+    @test occursin("client_restart_count=", msg)
+    # The lifecycle history is what tells a position that raced a restart apart
+    # from a document the two sides genuinely disagree about.
+    @test occursin("doc=$(LanguageServer.document_short_id(uri"untitled:testdoc"))", msg)
+    @test occursin(r"history=\[.*open v0", msg)
 
     closetestdoc()
 end
@@ -115,6 +124,16 @@ end
     @test !occursin("line_count", ctx)
 
     @test LanguageServer.document_sync_context(server, nothing) == "uri=<unavailable>"
+end
+
+@testitem "lifecycle_assertion_context without a URI still reports server state" setup=[TestSetup, SharedServer] begin
+    # `invoke_handler` passes `nothing` when a handler's params carry no
+    # document, so collecting the context must not need one.
+    ctx = LanguageServer.lifecycle_assertion_context(server, nothing)
+    @test occursin("uri=<unavailable>", ctx)
+    @test occursin("uptime_s=", ctx)
+    @test occursin("client_restart_count=", ctx)
+    @test !occursin("history=", ctx)
 end
 
 @testitem "editor pid monitoring (#1379)" setup=[TestSetup, SharedServer] begin

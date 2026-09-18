@@ -254,15 +254,18 @@ function record_document_lifecycle_event!(server::LanguageServerInstance, operat
 end
 
 # Context appended to the fatal lifecycle assertions in
-# `src/requests/textdocument.jl`: the document sync state, server uptime, the
-# client-reported restart count, and this document's lifecycle history
-# (most recent last). Contains no URI/path beyond the scheme and a short hash.
-function lifecycle_assertion_context(server::LanguageServerInstance, uri::URI)
+# `src/requests/textdocument.jl` and to `LSOffsetError`: the document sync state,
+# server uptime, the client-reported restart count, and this document's lifecycle
+# history (most recent last). Contains no URI/path beyond the scheme and a short
+# hash. `uri === nothing` (a handler whose params carry no document) still yields
+# the uptime and restart count, which are the parts that do not need one.
+function lifecycle_assertion_context(server::LanguageServerInstance, uri::Union{URI,Nothing})
     try
         io = IOBuffer()
         print(io, document_sync_context(server, uri))
         print(io, " uptime_s=", round(time() - server._start_time, digits=1))
         print(io, " client_restart_count=", something(server._client_restart_count, "nothing"))
+        uri === nothing && return String(take!(io))
         doc_id = document_short_id(uri)
         print(io, " doc=", doc_id, " history=[")
         first_entry = true
@@ -335,8 +338,17 @@ function invoke_handler(func, params, server::LanguageServerInstance, conn)
             # report can explain why the server's text disagreed with the
             # client's position. `rethrow(e)` keeps the original backtrace, so
             # the report still shows the `index_at` frame that threw.
+            #
+            # The full lifecycle context, not just `document_sync_context`: the
+            # per-document open/change history and the client restart count are
+            # what distinguish a position that raced a restart from a genuine
+            # divergence between the two copies of the document. Positions the
+            # client could already tell were out of range never get this far —
+            # the extension drops those before sending (see
+            # `PositionValidationGuard` in julia-vscode's `src/languageClient.ts`)
+            # — so what reaches here is worth a report.
             uri = hasproperty(params, :textDocument) && hasproperty(params.textDocument, :uri) ? params.textDocument.uri : nothing
-            rethrow(LSOffsetError(string(err.msg, "\nhandler=", nameof(func), "\n", document_sync_context(server, uri))))
+            rethrow(LSOffsetError(string(err.msg, "\nhandler=", nameof(func), "\n", lifecycle_assertion_context(server, uri))))
         else
             rethrow()
         end

@@ -113,6 +113,9 @@ end
 
     server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file), nothing, mktempdir())
     server.jr_endpoint = nothing
+    # No indexing child processes for a test that only reads an init option back;
+    # see the `SharedServer` snippet in `test_shared_server.jl` for why.
+    server.enable_dynamic_indexing = false
     @test server._client_restart_count === nothing
 
     init = LanguageServer.InitializeParams(

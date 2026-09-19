@@ -171,13 +171,30 @@ function textDocument_selectionRange_request(params::SelectionRangeParams, serve
     indices = [index_at(st, p) for p in params.positions]
     results = JuliaWorkspaces.get_selection_ranges(server.workspace, uri, indices)
 
+    # `missing` is what the `parent` field of a `SelectionRange` uses for "this is the
+    # outermost range", so it is what the recursion bottoms out on.
     function convert_selection(r::Union{Nothing, JuliaWorkspaces.SelectionRangeResult})
         r === nothing && return missing
         parent = convert_selection(r.parent)
         SelectionRange(jw_range(server, uri, r.start, r.stop), parent)
     end
 
-    ret = SelectionRange[convert_selection(r) for r in results]
+    # The protocol wants one selection range per requested position, and the client
+    # indexes the result by position. `get_selection_ranges` answers `nothing` for a
+    # position with no enclosing expression -- the document is not Julia, the position sits
+    # past the last expression or in trailing whitespace, or the expression it found has no
+    # file location -- so such a position gets the empty range at itself, meaning "nothing
+    # here to expand to". Leaving it out would shift every later range onto the wrong
+    # position, and putting the `missing` from `convert_selection` in the vector is not
+    # even possible: its element type is `SelectionRange`, which is how this crashed with
+    # `MethodError: Cannot convert an object of type Missing to an object of type
+    # SelectionRange`.
+    ret = SelectionRange[]
+    for (r, position) in zip(results, params.positions)
+        converted = convert_selection(r)
+        push!(ret, converted === missing ? SelectionRange(Range(position, position), missing) : converted)
+    end
+
     return isempty(ret) ? nothing : ret
 end
 

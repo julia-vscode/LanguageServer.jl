@@ -148,3 +148,50 @@ end
     t = LanguageServer.poll_editor_pid(server)
     @test t isa Task
 end
+
+@testitem "selectionRange answers every requested position (#1479)" setup=[TestSetup, SharedServer] begin
+    # `x = 1` followed by a blank line: the second position sits past the last
+    # expression, where `get_selection_ranges` has nothing to return. Before the fix
+    # that `nothing` became a `missing` in a `Vector{SelectionRange}`, which threw
+    # `MethodError: Cannot convert an object of type Missing to an object of type
+    # LanguageServer.SelectionRange` and took the request down.
+    settestdoc("x = 1\n\n")
+
+    selection_range_test(positions...) = LanguageServer.textDocument_selectionRange_request(
+        LanguageServer.SelectionRangeParams(
+            missing,
+            missing,
+            LanguageServer.TextDocumentIdentifier(uri"untitled:testdoc"),
+            LanguageServer.Position[positions...],
+        ),
+        server,
+        server.jr_endpoint,
+    )
+
+    inside = LanguageServer.Position(0, 1)
+    nothing_there = LanguageServer.Position(1, 0)
+
+    # One entry per requested position, in the order they were asked for: the client
+    # indexes the result by position, so a short vector would misattribute ranges.
+    result = selection_range_test(inside, nothing_there)
+    @test result isa Vector{LanguageServer.SelectionRange}
+    @test length(result) == 2
+
+    # A position with nothing to expand gets the empty range at itself.
+    @test result[2].range.start == nothing_there
+    @test result[2].range.stop == nothing_there
+    @test result[2].parent === missing
+
+    # A position inside an expression still gets a real range.
+    @test result[1].range.start != result[1].range.stop
+
+    # Every position having nothing to select is the same case, not an empty answer.
+    only_nothing = selection_range_test(nothing_there)
+    @test only_nothing isa Vector{LanguageServer.SelectionRange}
+    @test length(only_nothing) == 1
+
+    # No positions at all is still `null`, as before.
+    @test selection_range_test() === nothing
+
+    closetestdoc()
+end

@@ -53,9 +53,12 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
             filepath = uri2filepath(uri)
-            if change.type == FileChangeTypes.Created && filepath !== nothing && isdir(filepath)
+            if change.type == FileChangeTypes.Created && filepath !== nothing && isdir_or_false(filepath)
                 # A created directory (e.g. the destination of an atomic folder
-                # rename) carries no per-file events, so scan its contents.
+                # rename) carries no per-file events, so scan its contents. A
+                # path we cannot stat is one we cannot scan either, so it takes
+                # the file branch below, which already tolerates an unreadable
+                # path, rather than raising out of the notification handler.
                 append!(changed_uris, add_folder_children!(server, filepath))
                 continue
             end
@@ -131,10 +134,10 @@ function set_env_path!(server::LanguageServerInstance, new_env_path::AbstractStr
     server.env_path = new_env_path
     if isempty(new_env_path)
         JuliaWorkspaces.set_active_project!(server.workspace, nothing)
-    elseif isabspath(new_env_path) && ispath(new_env_path)
+    elseif isabspath(new_env_path) && ispath_or_false(new_env_path)
         JuliaWorkspaces.set_active_project!(server.workspace, filepath2uri(new_env_path))
     else
-        @warn "Ignoring `julia.environmentPath`: not an existing absolute path." new_env_path
+        @warn "Ignoring `julia.environmentPath`: not an absolute path the server can reach." new_env_path
     end
 end
 

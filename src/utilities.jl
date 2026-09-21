@@ -20,6 +20,42 @@ end
 # misc
 # ----
 
+"""
+    stat_predicate_or_false(f, path)
+
+Answer `f(path)` for a filesystem predicate, and `false` when the path cannot
+be asked about at all.
+
+`isdir`, `ispath` and the rest of them do not merely return `false` for a path
+they cannot reach: a path that is not simply absent raises an `IOError`. The
+server sees plenty of those in a workspace it did not choose — a OneDrive
+placeholder the client has not materialized, a directory whose ACL excludes
+us, a network mount that went away — and telemetry had one of them
+(`stat(".../OneDrive - .../.pytest_cache"): permission denied (EACCES)`) take
+the whole server down from the watched-files handler, where the answer only
+decides whether to look inside the path.
+
+A path we are not allowed to look at is one we cannot scan or load, and
+`false` is what says so. Anything that is not a filesystem error still
+propagates: a bug in a caller must not be swallowed here. This is the same
+shape, and the same `is_walkdir_error` test, that `load_rootpath` already uses
+for the workspace walk.
+"""
+function stat_predicate_or_false(f, path)
+    try
+        return f(path)
+    catch err
+        is_walkdir_error(err) || rethrow()
+        return false
+    end
+end
+
+"""Like `isdir`, but `false` for a path that cannot be stat'ed. See [`stat_predicate_or_false`](@ref)."""
+isdir_or_false(path) = stat_predicate_or_false(isdir, path)
+
+"""Like `ispath`, but `false` for a path that cannot be stat'ed. See [`stat_predicate_or_false`](@ref)."""
+ispath_or_false(path) = stat_predicate_or_false(ispath, path)
+
 # A file is only eligible for diagnostics if it lives inside a workspace folder.
 # Files opened outside the workspace are still tracked in JuliaWorkspaces (so
 # cross-file resolution works) but are kept out of `_workspace_files`; a complete

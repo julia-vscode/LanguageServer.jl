@@ -210,3 +210,33 @@ end
     @test LanguageServer.should_watch_directories(with_client("Visual Studio Code"))
     @test !LanguageServer.should_watch_directories(with_client("Neovim"))
 end
+
+@testitem "Watched folders: a path that cannot be stat'ed is not a crash" begin
+    import Pkg
+    using LanguageServer.URIs2
+    using LanguageServer: LanguageServerInstance, isdir_or_false, ispath_or_false, stat_predicate_or_false
+    using JuliaWorkspaces: JuliaWorkspaces, has_file
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+
+    # A OneDrive placeholder, a directory whose ACL excludes us, a mount that
+    # went away: `stat` raises instead of answering, and the answer only
+    # decides whether to look inside the path.
+    denied(_) = throw(Base.IOError("stat: permission denied (EACCES)", -13))
+    @test stat_predicate_or_false(denied, "whatever") === false
+    @test stat_predicate_or_false(_ -> throw(Base.SystemError("opening file", 13)), "whatever") === false
+
+    # A bug in a caller still propagates.
+    @test_throws MethodError stat_predicate_or_false(_ -> throw(MethodError(isdir, ())), "whatever")
+
+    # The real predicates still answer normally.
+    mktempdir() do dir
+        file = joinpath(dir, "a.jl")
+        write(file, "f() = 1\n")
+        @test isdir_or_false(dir)
+        @test !isdir_or_false(file)
+        @test !isdir_or_false(joinpath(dir, "nope"))
+        @test ispath_or_false(file)
+        @test !ispath_or_false(joinpath(dir, "nope"))
+    end
+end

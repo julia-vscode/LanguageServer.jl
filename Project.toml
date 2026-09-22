@@ -29,6 +29,7 @@ test = ["Test", "Sockets", "LibGit2", "Serialization", "SHA", "TestItemRunner", 
 
 [compat]
 PrecompileTools = "1"
+UUIDs = "1.11"
 julia = "1.11"
 JSONRPC = "3"
 URIs = "1.3"

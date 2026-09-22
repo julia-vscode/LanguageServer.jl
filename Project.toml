@@ -28,6 +28,7 @@ Salsa = "1fbf2c77-44e2-4d5d-8131-0fa618a5c278"
 test = ["Test", "Sockets", "LibGit2", "Serialization", "SHA", "TestItemRunner", "Pkg"]
 
 [compat]
+Dates = "1.11"
 PrecompileTools = "1"
 UUIDs = "1.11"
 julia = "1.11"

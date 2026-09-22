@@ -28,6 +28,7 @@ Salsa = "1fbf2c77-44e2-4d5d-8131-0fa618a5c278"
 test = ["Test", "Sockets", "LibGit2", "Serialization", "SHA", "TestItemRunner", "Pkg"]
 
 [compat]
+Markdown = "1.11"
 Logging = "1.11"
 Dates = "1.11"
 PrecompileTools = "1"

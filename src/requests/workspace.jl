@@ -28,15 +28,77 @@ function add_folder_children!(server::LanguageServerInstance, path::String)
     return URI[tf.uri for tf in files_to_add]
 end
 
+# A `.gitignore` changed, so the set of folders that are part of the workspace
+# may have too: re-walk every workspace folder under the new rules, drop the
+# tracked files they no longer admit and add the ones they now do. Files open in
+# the editor stay in the workspace either way. Returns the URIs of the added
+# files.
+function rescan_workspace_folders!(server::LanguageServerInstance)
+    server._gitignore = nothing
+    gitignore = gitignore_filter(server)
+
+    files_to_add = JuliaWorkspaces.TextFile[]
+    for folder in server.workspaceFolders
+        load_rootpath(folder) || continue
+        paths = JuliaWorkspaces.collect_workspace_paths(folder; ignore_io_errors=true,
+            file_limit=MAX_WORKSPACE_JULIA_FILES, gitignore=gitignore)
+        # Too large to load: the initial walk did not load it either.
+        paths === nothing && continue
+        admitted = Set{URI}(filepath2uri(p) for p in paths)
+
+        prefix = string(filepath2uri(folder)) * "/"
+        for tracked in union(Set(keys(server._files_from_disc)), server._workspace_files)
+            (startswith(string(tracked), prefix) && !(tracked in admitted)) || continue
+            delete!(server._files_from_disc, tracked)
+            # Same guard as for deletes: open files stay until the editor
+            # closes them.
+            haskey(server._open_file_versions, tracked) && continue
+            if JuliaWorkspaces.has_file(server.workspace, tracked)
+                JuliaWorkspaces.remove_file!(server.workspace, tracked)
+            end
+            delete!(server._workspace_files, tracked)
+        end
+
+        # The same bookkeeping as `collect_folder_files!`, but only reading
+        # the files that are new.
+        for uri in admitted
+            haskey(server._files_from_disc, uri) && continue
+            tf = JuliaWorkspaces.read_text_file_from_uri(uri, return_nothing_on_io_error=true)
+            tf === nothing && continue
+            server._files_from_disc[uri] = tf
+            # An open file kept its place in the workspace when the old rules
+            # hid it; it only gets its from-disc record back.
+            if !haskey(server._open_file_versions, uri) && !JuliaWorkspaces.has_file(server.workspace, uri)
+                push!(files_to_add, tf)
+            end
+            filepath = uri2filepath(uri)
+            if filepath !== nothing && isvalidjlfile(filepath)
+                push!(server._workspace_files, uri)
+            end
+        end
+    end
+
+    isempty(files_to_add) || JuliaWorkspaces.add_files!(server.workspace, files_to_add)
+    return URI[tf.uri for tf in files_to_add]
+end
+
 function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFilesParams, server::LanguageServerInstance, conn)
     @debug "workspace/didChangeWatchedFiles" change_count=length(params.changes)
 
     changed_uris = URI[]
+    gitignore_changed = false
 
     for change in params.changes
         uri = change.uri
 
         uri.scheme=="file" || continue
+
+        filepath = uri2filepath(uri)
+        if filepath !== nothing && basename(filepath) == ".gitignore"
+            # Handled once for the whole batch, after the other changes.
+            gitignore_changed = true
+            continue
+        end
 
         # If this URI is currently tracked as an indirect file, route updates
         # to JW's indirect-file API instead of the regular file path. The
@@ -52,7 +114,18 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
         end
 
         if change.type == FileChangeTypes.Created || change.type == FileChangeTypes.Changed
-            filepath = uri2filepath(uri)
+            # A folder git ignores is not part of the workspace, so a file
+            # appearing or changing there (every file a `cpack` run re-stages
+            # under `deps/build`, say) is not picked up. Checked before
+            # reading anything. A created folder is filtered by the walk in
+            # `add_folder_children!`, which applies the same rules.
+            if filepath !== nothing && !haskey(server._open_file_versions, uri) &&
+                    !JuliaWorkspaces.has_file(server.workspace, uri) &&
+                    !isdir_or_false(filepath) &&
+                    JuliaWorkspaces.is_in_ignored_folder(gitignore_filter(server), filepath)
+                continue
+            end
+
             if change.type == FileChangeTypes.Created && filepath !== nothing && isdir_or_false(filepath)
                 # A created directory (e.g. the destination of an atomic folder
                 # rename) carries no per-file events, so scan its contents. A
@@ -105,6 +178,8 @@ function workspace_didChangeWatchedFiles_notification(params::DidChangeWatchedFi
             error("Unknown change type.")
         end
     end
+
+    gitignore_changed && append!(changed_uris, rescan_workspace_folders!(server))
 
     publish_file_diagnostics_testitems(server, changed_uris)
     schedule_publish_sweep!(server)
@@ -202,12 +277,15 @@ function workspace_didChangeWorkspaceFolders_notification(params::DidChangeWorks
     for wksp in params.event.added
         path = uri2filepath(wksp.uri)
         push!(server.workspaceFolders, path)
+        # The git-ignore rules are decided relative to the workspace folders.
+        server._gitignore = nothing
         files_to_add = collect_folder_files!(server, path)
         JuliaWorkspaces.add_files!(server.workspace, files_to_add)
     end
 
     for wksp in params.event.removed
         delete!(server.workspaceFolders, uri2filepath(wksp.uri))
+        server._gitignore = nothing
         remove_workspace_files(wksp, server)
 
         gc_files_from_workspace(server)

@@ -89,14 +89,28 @@ function load_rootpath(path)
     end
 end
 
+# Which folders git ignores, by the rules of the current workspace folders.
+# Those folders (build output such as `deps/build/` or `docs/build/`) are not
+# part of the workspace: the walk skips them and watcher events from them are
+# dropped. Built on first use; anything that changes the rules (a workspace
+# folder added or removed, a `.gitignore` edited) resets it to `nothing`.
+function gitignore_filter(server)
+    if server._gitignore === nothing
+        server._gitignore = JuliaWorkspaces.GitIgnoreFilter(collect(server.workspaceFolders))
+    end
+    return server._gitignore
+end
+
 # One walk per folder: reads all workspace files, tracks julia files in
 # `server._workspace_files`, and returns the new files for the caller to
-# `add_files!` in one batch.
+# `add_files!` in one batch. `path` may be a subfolder of a workspace folder
+# (one the file watcher reported as created); the git-ignore rules of the
+# workspace folder above it still apply.
 function collect_folder_files!(server, path::String)
     files_to_add = JuliaWorkspaces.TextFile[]
     load_rootpath(path) || return files_to_add
 
-    files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(path); ignore_io_errors=true, file_limit=MAX_WORKSPACE_JULIA_FILES)
+    files = JuliaWorkspaces.read_path_into_textdocuments(filepath2uri(path); ignore_io_errors=true, file_limit=MAX_WORKSPACE_JULIA_FILES, gitignore=gitignore_filter(server))
     if files === nothing
         @info "Your workspace folder has > $MAX_WORKSPACE_JULIA_FILES Julia files, server will not try to load them."
         return files_to_add
@@ -247,6 +261,8 @@ function initialized_notification(params::InitializedParams, server::LanguageSer
         file_watchers = [
             FileSystemWatcher("**/*.{jl,jmd,md}", missing),
             FileSystemWatcher("**/{Project.toml,JuliaProject.toml,Manifest.toml,JuliaManifest.toml,JuliaLint.toml,JuliaFormat.toml,JuliaTestItems.toml}", missing),
+            # Editing one changes which folders are part of the workspace.
+            FileSystemWatcher("**/.gitignore", missing),
             FileSystemWatcher("**/{JuliaManifest,Manifest}-v$(VERSION.major).$(VERSION.minor).toml", missing),
         ]
 

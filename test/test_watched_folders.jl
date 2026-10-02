@@ -240,3 +240,102 @@ end
         @test !ispath_or_false(joinpath(dir, "nope"))
     end
 end
+
+@testitem "Watched folders: events in git-ignored folders are not picked up" begin
+    import Pkg, LibGit2
+    using LanguageServer.URIs2
+    using LanguageServer: LanguageServerInstance
+    using JuliaWorkspaces: JuliaWorkspaces, has_file
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
+    server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace()
+
+    mktempdir() do dir
+        close(LibGit2.init(dir))
+        write(joinpath(dir, ".gitignore"), "deps/build/\n")
+        mkpath(joinpath(dir, "src"))
+        write(joinpath(dir, "src", "a.jl"), "f() = 1\n")
+        push!(server.workspaceFolders, dir)
+        JuliaWorkspaces.add_files!(server.workspace, LanguageServer.collect_folder_files!(server, dir))
+
+        # What a `cpack` run does: re-create a staging folder that holds a copy
+        # of the package, reported as a folder create and per-file creates.
+        full = joinpath(dir, "deps", "build", "_CPack_Packages", "win64", "ZIP", "Pkg-0.1.0-win64", "full")
+        mkpath(joinpath(full, "src"))
+        project_path = joinpath(full, "Project.toml")
+        staged_path = joinpath(full, "src", "Pkg.jl")
+        write(project_path, "name = \"Pkg\"\nuuid = \"3c546f1b-5575-514c-865e-7c2fc24caa84\"\nversion = \"0.1.0\"\n")
+        write(staged_path, "module Pkg end\n")
+        new_path = joinpath(dir, "src", "b.jl")
+        write(new_path, "g() = 2\n")
+
+        params = LanguageServer.DidChangeWatchedFilesParams([
+            LanguageServer.FileEvent(filepath2uri(full), LanguageServer.FileChangeTypes.Created),
+            LanguageServer.FileEvent(filepath2uri(project_path), LanguageServer.FileChangeTypes.Created),
+            LanguageServer.FileEvent(filepath2uri(staged_path), LanguageServer.FileChangeTypes.Changed),
+            LanguageServer.FileEvent(filepath2uri(new_path), LanguageServer.FileChangeTypes.Created),
+        ])
+        LanguageServer.workspace_didChangeWatchedFiles_notification(params, server, nothing)
+
+        @test !has_file(server.workspace, filepath2uri(project_path))
+        @test !has_file(server.workspace, filepath2uri(staged_path))
+        @test !haskey(server._files_from_disc, filepath2uri(project_path))
+        @test has_file(server.workspace, filepath2uri(new_path))
+        @test has_file(server.workspace, filepath2uri(joinpath(dir, "src", "a.jl")))
+    end
+end
+
+@testitem "Watched folders: a .gitignore edit re-scans the workspace folders" begin
+    import Pkg, LibGit2
+    using LanguageServer.URIs2
+    using LanguageServer: LanguageServerInstance
+    using JuliaWorkspaces: JuliaWorkspaces, has_file
+    import JSONRPC
+    JSONRPC.send(::Nothing, ::Any, ::Any) = nothing
+
+    server = LanguageServerInstance(IOBuffer(), IOBuffer(), dirname(Pkg.Types.Context().env.project_file))
+    server.jr_endpoint = nothing
+    server.workspace = JuliaWorkspaces.JuliaWorkspace()
+
+    mktempdir() do dir
+        close(LibGit2.init(dir))
+        gitignore_path = joinpath(dir, ".gitignore")
+        write(gitignore_path, "")
+        for p in ("src/a.jl", "gen/closed.jl", "gen/open.jl")
+            path = joinpath(dir, p)
+            mkpath(dirname(path))
+            write(path, "f() = 1\n")
+        end
+        push!(server.workspaceFolders, dir)
+        JuliaWorkspaces.add_files!(server.workspace, LanguageServer.collect_folder_files!(server, dir))
+
+        a_uri, closed_uri, open_uri = filepath2uri.(joinpath.(dir, ("src/a.jl", "gen/closed.jl", "gen/open.jl")))
+        @test has_file(server.workspace, closed_uri)
+        server._open_file_versions[open_uri] = 1
+
+        gitignore_event() = LanguageServer.workspace_didChangeWatchedFiles_notification(
+            LanguageServer.DidChangeWatchedFilesParams([
+                LanguageServer.FileEvent(filepath2uri(gitignore_path), LanguageServer.FileChangeTypes.Changed),
+            ]), server, nothing)
+
+        # Ignoring `gen/` takes its files out; the open one stays until closed.
+        write(gitignore_path, "gen/\n")
+        gitignore_event()
+        @test !has_file(server.workspace, closed_uri)
+        @test !(closed_uri in server._workspace_files)
+        @test has_file(server.workspace, open_uri)
+        @test has_file(server.workspace, a_uri)
+
+        # Dropping the rule brings them back.
+        write(gitignore_path, "")
+        gitignore_event()
+        @test has_file(server.workspace, closed_uri)
+        @test closed_uri in server._workspace_files
+        @test has_file(server.workspace, open_uri)
+        @test haskey(server._files_from_disc, open_uri)
+        @test has_file(server.workspace, a_uri)
+    end
+end

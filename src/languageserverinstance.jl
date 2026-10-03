@@ -92,6 +92,10 @@ mutable struct LanguageServerInstance
     _files_from_disc::Dict{URI,JuliaWorkspaces.TextFile}
     # Tracks which files are workspace files (found on disc in a workspace folder).
     _workspace_files::Set{URI}
+    # Which folders git ignores, for the current workspace folders; see
+    # `gitignore_filter`. `nothing` until first use and after anything that
+    # changes the rules.
+    _gitignore::Union{Nothing,JuliaWorkspaces.GitIgnoreFilter}
 
 
     # Indirect files: URIs requested by JW (via include traversal) for which we
@@ -163,6 +167,7 @@ mutable struct LanguageServerInstance
             Dict{URI,Int}(),
             Dict{URI,JuliaWorkspaces.TextFile}(),
             Set{URI}(),
+            nothing,
             Dict{URI,String}(),
             Threads.Atomic{Bool}(false),
             (testitems=Dict{URI,UInt}(), diagnostics=Dict{URI,UInt}()),

@@ -6,7 +6,7 @@ end
 @dict_readable struct HoverParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 struct HoverOptions <: Outbound

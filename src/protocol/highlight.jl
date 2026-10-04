@@ -19,8 +19,8 @@ end
 @dict_readable struct DocumentHighlightParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
-    partialResultToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
+    partialResultToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 struct DocumentHighlight <: Outbound

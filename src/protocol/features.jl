@@ -114,8 +114,8 @@ end
 
 @dict_readable struct DocumentLinkParams
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{Int,String,Missing}
-    partialResultToken::Union{Int,String,Missing}
+    workDoneToken::Union{Int64,String,Missing}
+    partialResultToken::Union{Int64,String,Missing}
 end
 
 struct DocumentLink <: Outbound
@@ -144,8 +144,8 @@ end
 
 @dict_readable struct DocumentColorParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
-    partialResultToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
+    partialResultToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 struct Color <: Outbound
@@ -198,7 +198,7 @@ end
 @dict_readable struct RenameParams <: Outbound
     textDocument::TextDocumentIdentifier
     position::Position
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
     newName::String
 end
 
@@ -233,8 +233,8 @@ end
 
 @dict_readable struct FoldingRangeParams <: Outbound
     textDocument::TextDocumentIdentifier
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
-    partialResultToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
+    partialResultToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 struct FoldingRange <: Outbound
@@ -262,8 +262,8 @@ struct SelectionRangeRegistrationOptions <: Outbound
 end
 
 @dict_readable struct SelectionRangeParams <: Outbound
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
-    partialResultToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
+    partialResultToken::Union{Int64,String,Missing} # ProgressToken
     textDocument::TextDocumentIdentifier
     positions::Vector{Position}
 end
@@ -291,7 +291,7 @@ mutable struct ExecuteCommandRegistrationOptions <: Outbound
 end
 
 @dict_readable struct ExecuteCommandParams <: Outbound
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
     command::String
     arguments::Union{Vector{Any},Missing}
 end
@@ -299,12 +299,12 @@ end
 ##############################################################################
 # inlay hints
 @dict_readable struct InlayHintOptions <: Outbound
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
     resolveProvider::Bool
 end
 
 @dict_readable struct InlayHintRegistrationOptions <: Outbound
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
     resolveProvider::Bool # InlayHintOptions
     id::Union{Missing, String} # StaticRegistrationOptions
     documentSelector::Union{Nothing, DocumentSelector} # TextDocumentRegistrationOptions
@@ -313,7 +313,7 @@ end
 @dict_readable struct InlayHintParams <: Outbound
     textDocument::TextDocumentIdentifier
     range::Range
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 @dict_readable struct InlayHintLabelPart <: Outbound

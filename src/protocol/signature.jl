@@ -57,5 +57,5 @@ end
     textDocument::TextDocumentIdentifier
     position::Position
     context::Union{SignatureHelpContext,Missing}
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
 end

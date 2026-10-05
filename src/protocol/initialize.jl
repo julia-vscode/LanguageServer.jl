@@ -115,7 +115,7 @@ struct InitializeParams <: Outbound
     capabilities::ClientCapabilities
     trace::Union{String,Missing}
     workspaceFolders::Union{Vector{WorkspaceFolder},Nothing,Missing}
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 # Requires handwritten implementaiton to account for 3-part Unions

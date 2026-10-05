@@ -16,7 +16,7 @@ mutable struct LogTraceParams <: Outbound
 end
 
 struct ProgressParams{T}
-    token::Union{Int,String} # ProgressToken
+    token::Union{Int64,String} # ProgressToken
     value::T
 end
 
@@ -163,11 +163,11 @@ end
 ##############################################################################
 # Progress
 struct WorkDoneProgressCreateParams <: Outbound
-    token::Union{Int,String} # ProgressToken
+    token::Union{Int64,String} # ProgressToken
 end
 
 @dict_readable struct WorkDoneProgressCancelParams
-    token::Union{Int,String} # ProgressToken
+    token::Union{Int64,String} # ProgressToken
 end
 
 struct WorkDoneProgressBegin <: Outbound
@@ -200,7 +200,7 @@ struct WorkDoneProgressEnd <: Outbound
 end
 
 struct WorkDoneProgressParams <: Outbound
-    workDoneToken::Union{Int,String,Missing} # ProgressToken
+    workDoneToken::Union{Int64,String,Missing} # ProgressToken
 end
 
 struct WorkDoneProgressOptions <: Outbound
@@ -211,5 +211,5 @@ end
 # Partial
 
 struct PartialResultParams <: Outbound
-    partialResultToken::Union{Int,String,Missing} # ProgressToken
+    partialResultToken::Union{Int64,String,Missing} # ProgressToken
 end
